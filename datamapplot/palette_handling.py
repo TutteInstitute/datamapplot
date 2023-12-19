@@ -4,7 +4,9 @@ import colorspacious
 from matplotlib.colors import rgb2hex, to_rgb
 
 
-def palette_from_datamap(umap_coords, label_locations):
+def palette_from_datamap(
+    umap_coords, label_locations, theta_range=np.pi / 16, radius_weight_power=1.0
+):
     data_center = np.asarray(
         umap_coords.min(axis=0)
         + (umap_coords.max(axis=0) - umap_coords.min(axis=0)) / 2
@@ -18,7 +20,10 @@ def palette_from_datamap(umap_coords, label_locations):
         centered_label_locations.T[1], centered_label_locations.T[0]
     )
 
-    hue = (np.argsort(np.argsort(data_map_thetas)) / data_map_thetas.shape[0]) * 360
+    sorter = np.argsort(data_map_thetas)
+    weights = (data_map_radii**radius_weight_power)[sorter]
+    hue = weights.cumsum()
+    hue = (hue / hue.max()) * 360
     chroma = (
         np.argsort(np.argsort(data_map_radii)) / data_map_thetas.shape[0]
     ) * 80 + 20
@@ -26,21 +31,48 @@ def palette_from_datamap(umap_coords, label_locations):
         1.0 - (np.argsort(np.argsort(data_map_radii)) / data_map_thetas.shape[0])
     ) * 70 + 10
 
+    location_hue = np.interp(
+        label_location_thetas, np.sort(data_map_thetas), np.sort(hue)
+    )
+
+    location_chroma = []
+    location_lightness = []
+    for r, theta in zip(label_location_radii, label_location_thetas):
+        theta_high = theta + theta_range
+        theta_low = theta - theta_range
+        if theta_high > np.pi:
+            theta_high -= 2 * np.pi
+        if theta_low < -np.pi:
+            theta_low -= 2 * np.pi
+
+        if theta_low > 0 and theta_high < 0:
+            r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+        else:
+            r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+
+        mask_size = np.sum(r_mask)
+        chroma = (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size) * 80 + 20
+        lightness = (
+            1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
+        ) * 70 + 10
+        location_lightness.append(
+            np.interp(
+                r,
+                np.sort(data_map_radii[r_mask]),
+                np.sort(lightness)[::-1],
+            )
+        )
+        location_chroma.append(
+            np.interp(r, np.sort(data_map_radii[r_mask]), np.sort(chroma))
+        )
+
     palette = np.clip(
         colorspacious.cspace_convert(
             np.vstack(
                 (
-                    np.interp(
-                        label_location_radii,
-                        np.sort(data_map_radii),
-                        np.sort(lightness)[::-1],
-                    ),
-                    np.interp(
-                        label_location_radii, np.sort(data_map_radii), np.sort(chroma)
-                    ),
-                    np.interp(
-                        label_location_thetas, np.sort(data_map_thetas), np.sort(hue)
-                    ),
+                    np.asarray(location_lightness),
+                    np.asarray(location_chroma),
+                    location_hue,
                 )
             ).T,
             "JCh",
@@ -54,9 +86,22 @@ def palette_from_datamap(umap_coords, label_locations):
 
 def deep_palette(base_palette):
     initial_palette = [to_rgb(color) for color in base_palette]
-    jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCH")
-    jch_palette[:, 0] = np.clip(jch_palette[:, 0] - 20, 20, 50)
-    jch_palette[:, 1] = np.clip(jch_palette[:, 0] - 20, 30, 100)
+    jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
+    jch_palette[:, 0] = np.clip(jch_palette[:, 0] / 2.0, 10, 50)
+    jch_palette[:, 1] = np.clip(jch_palette[:, 1] - 20, 30, 100)
+    result = [
+        rgb2hex(x)
+        for x in np.clip(
+            colorspacious.cspace_convert(jch_palette, "JCh", "sRGB1"), 0, 1
+        )
+    ]
+    return result
+
+def pastel_palette(base_palette):
+    initial_palette = [to_rgb(color) for color in base_palette]
+    jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
+    jch_palette[:, 0] = np.clip(jch_palette[:, 0] + 30, 60, 100)
+    jch_palette[:, 1] = np.clip(jch_palette[:, 0], 5, 20)
     result = [
         rgb2hex(x)
         for x in np.clip(
