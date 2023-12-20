@@ -4,15 +4,19 @@ import textwrap
 
 from matplotlib import pyplot as plt
 
-from datamapplot.palette_handling import palette_from_datamap, deep_palette
-from plot_rendering import render_plot
+from datamapplot.palette_handling import (
+    palette_from_datamap,
+    deep_palette,
+    pastel_palette,
+)
+from datamapplot.plot_rendering import render_plot
 
 
 def labelled_static_plot(
     umap_coords,
     labels,
-    title,
-    subtitle,
+    title=None,
+    sub_title=None,
     noise_label="Unlabelled",
     noise_color="#999999",
     color_label_text=True,
@@ -22,6 +26,7 @@ def labelled_static_plot(
     dynamic_label_size=False,
     dpi=plt.rcParams["figure.dpi"],
     force_matplotlib=False,
+    darkmode=False,
     **render_plot_kwds,
 ):
     cluster_label_vector = np.asarray(labels)
@@ -65,9 +70,14 @@ def labelled_static_plot(
 
     # Darken and reduce chroma of label colors to get text labels
     if color_label_text:
-        label_text_colors = deep_palette(
-            [label_color_map[x] for x in unique_non_noise_labels]
-        )
+        if darkmode:
+            label_text_colors = pastel_palette(
+                [label_color_map[x] for x in unique_non_noise_labels]
+            )
+        else:
+            label_text_colors = deep_palette(
+                [label_color_map[x] for x in unique_non_noise_labels]
+            )
     else:
         label_text_colors = None
 
@@ -102,10 +112,10 @@ def labelled_static_plot(
     fig, ax = render_plot(
         umap_coords,
         color_list,
-        title,
-        subtitle,
         label_text,
         label_locations,
+        title=title,
+        sub_title=sub_title,
         point_size=point_size,
         alpha=alpha,
         label_colors=None if not color_label_text else label_text_colors,
@@ -114,6 +124,7 @@ def labelled_static_plot(
         label_size_adjustments=label_size_adjustments,
         dpi=dpi,
         force_matplotlib=force_matplotlib,
+        darkmode=darkmode,
         **render_plot_kwds,
     )
 

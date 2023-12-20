@@ -125,10 +125,10 @@ def add_glow_to_scatterplot(
 def render_plot(
     umap_coords,
     color_list,
-    title,
-    sub_title,
     label_text,
     label_locations,
+    title=None,
+    sub_title=None,
     figsize=(12, 12),
     label_font_size=10,
     label_colors=None,
@@ -147,6 +147,7 @@ def render_plot(
         "kernel_bandwidth": 0.25,
         "approx_patch_size": 64,
     },
+    darkmode=False,
     mark=None,
     mark_width=0.15,
     force_matplotlib=False,
@@ -211,7 +212,11 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
-                arrowprops=dict(arrowstyle="-", linewidth=0.5, color="#333333"),
+                arrowprops=dict(
+                    arrowstyle="-",
+                    linewidth=0.5,
+                    color="#dddddd" if darkmode else "#333333",
+                ),
                 fontsize=(
                     highlight_label_keywords.get("fontsize", label_font_size)
                     if label_text[i] in highlight
@@ -234,7 +239,11 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
-                arrowprops=dict(arrowstyle="-", linewidth=0.5, color="#333333"),
+                arrowprops=dict(
+                    arrowstyle="-",
+                    linewidth=0.5,
+                    color="#dddddd" if darkmode else "#333333",
+                ),
                 fontsize=(
                     highlight_label_keywords.get("fontsize", label_font_size)
                     if label_text[i] in highlight
@@ -268,32 +277,44 @@ def render_plot(
 
     # decorate the plot
     ax.set(xticks=[], yticks=[])
-    axis_title = ax.set_title(
-        sub_title,
-        loc="left",
-        fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * figsize[0])),
-    )
-    sup_title_y_value = (
-        ax.transAxes.inverted().transform(get_2d_coordinates([axis_title])[0, [0, 3]])[
-            1
-        ]
-        + 0.001
-    )
-    fig.suptitle(
-        title,
-        x=0.0,
-        y=sup_title_y_value,
-        ha="left",
-        va="baseline",
-        fontweight="bold",
-        fontsize=int(1.6 * figsize[0]),
-        transform=ax.transAxes,
-    )
+    if sub_title is not None:
+        axis_title = ax.set_title(
+            sub_title,
+            loc="left",
+            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * figsize[0])),
+        )
+        sup_title_y_value = (
+            ax.transAxes.inverted().transform(get_2d_coordinates([axis_title])[0, [0, 3]])[
+                1
+            ]
+            + 0.001
+        )
+    else:
+        sup_title_y_value = 1.005
+
+    if title is not None:
+        fig.suptitle(
+            title,
+            x=0.0,
+            y=sup_title_y_value,
+            color="white" if darkmode else "black",
+            ha="left",
+            va="baseline",
+            fontweight="bold",
+            fontsize=int(1.6 * figsize[0]),
+            transform=ax.transAxes,
+        )
+
     ax_x_min, ax_x_max = ax.get_xlim()
     ax_y_min, ax_y_max = ax.get_ylim()
     ax.set_xlim(min(x_min, ax_x_min), max(x_max, ax_x_max))
     ax.set_ylim(min(y_min, ax_y_min), max(y_max, ax_y_max))
     for spine in ax.spines.values():
-        spine.set_edgecolor("#aaaaaa")
+        spine.set_edgecolor("#555555" if darkmode else "#aaaaaa")
     ax.set_aspect("auto")
+
+    if darkmode:
+        ax.set(facecolor="black")
+        fig.set(facecolor="black")
+
     return fig, ax

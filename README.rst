@@ -1,6 +1,6 @@
 .. -*- mode: rst -*-
 
-.. image:: doc/_static/datamapplot_text_horizontal.png
+.. image:: doc/datamapplot_text_horizontal.png
   :width: 600
   :alt: DataMapPlot logo
   :align: center
