@@ -24,12 +24,6 @@ def palette_from_datamap(
     weights = (data_map_radii**radius_weight_power)[sorter]
     hue = weights.cumsum()
     hue = (hue / hue.max()) * 360
-    chroma = (
-        np.argsort(np.argsort(data_map_radii)) / data_map_thetas.shape[0]
-    ) * 80 + 20
-    lightness = (
-        1.0 - (np.argsort(np.argsort(data_map_radii)) / data_map_thetas.shape[0])
-    ) * 70 + 10
 
     location_hue = np.interp(
         label_location_thetas, np.sort(data_map_thetas), np.sort(hue)

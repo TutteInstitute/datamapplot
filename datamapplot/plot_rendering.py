@@ -94,7 +94,7 @@ def add_glow_to_scatterplot(
         for_scoring = np.vstack([xv.ravel(), yv.ravel()]).T
 
         # Build the KDE of the cluster
-        class_kde = KernelDensity(bandwidth=kernel_bandwidth, kernel=kernel).fit(
+        class_kde = KernelDensity(bandwidth=kernel_bandwidth, kernel=kernel, atol=1e-8, rtol=1e-4).fit(
             cluster_embedding
         )
         zv = class_kde.score_samples(for_scoring).reshape(xv.shape)
