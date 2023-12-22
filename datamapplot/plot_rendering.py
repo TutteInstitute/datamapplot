@@ -162,7 +162,7 @@ def render_plot(
     if umap_coords.shape[0] < 100_000 or force_matplotlib:
         if marker_size_array is not None:
             point_size = marker_size_array * point_size
-        ax.scatter(*umap_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha)
+        ax.scatter(*umap_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha, edgecolors='none')
     else:
         datashader_scatterplot(umap_coords, color_list, point_size=point_size, ax=ax)
 
