@@ -98,7 +98,8 @@ def labelled_static_plot(
     n_points = umap_coords.shape[0]
     if umap_coords.shape[0] < 100_000 or force_matplotlib:
         magic_number = np.clip(128 * 4 ** (-np.log10(n_points)), 0.05, 64)
-        point_size = magic_number * (font_scale_factor / 2)
+        point_scale_factor = np.sqrt(figsize[0] * figsize[1])
+        point_size = magic_number * (point_scale_factor / 2)
         alpha = np.clip(magic_number, 0.05, 1)
     else:
         point_size = int(np.sqrt(figsize[0] * figsize[1]) * dpi) // 2048
