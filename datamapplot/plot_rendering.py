@@ -197,7 +197,7 @@ def render_plot(
 
     font_scale_factor = np.sqrt(figsize[0] * figsize[1])
     if label_font_size is None:
-        label_font_size = estimate_font_size(label_text_locations, label_text, 0.8 * font_scale_factor, ax=ax)
+        label_font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, ax=ax)
 
     label_text_locations = adjust_text_locations(
         label_text_locations,
