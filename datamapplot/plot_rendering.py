@@ -152,13 +152,17 @@ def render_plot(
     mark_width=0.15,
     force_matplotlib=False,
     theta_stretch=None,
+    marker_type=",",
+    marker_size_array=None,
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
 
     # Apply matplotlib or datashader based on heuristics
     if umap_coords.shape[0] < 100_000 or force_matplotlib:
-        ax.scatter(*umap_coords.T, c=color_list, marker=",", s=point_size, alpha=alpha)
+        if marker_size_array is not None:
+            point_size = marker_size_array * point_size
+        ax.scatter(*umap_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha)
     else:
         datashader_scatterplot(umap_coords, color_list, point_size=point_size, ax=ax)
 
