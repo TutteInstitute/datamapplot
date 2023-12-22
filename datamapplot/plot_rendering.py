@@ -160,9 +160,6 @@ def render_plot(
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
-    font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-    if label_font_size is None:
-        label_font_size = 0.8 * font_scale_factor
 
     # Apply matplotlib or datashader based on heuristics
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:

@@ -139,7 +139,7 @@ def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.
 
     font_size = initial_font_size
     overlap_percentage = 1.0
-    while overlap_percentage > 0.1:
+    while overlap_percentage > 0.5:
         texts = [
             ax.text(
                 *text_locations[i],
@@ -149,7 +149,7 @@ def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.
                 va="center",
                 linespacing=0.95,
                 alpha=0.0,
-                fontsize=initial_font_size,
+                fontsize=font_size,
             )
             for i in range(text_locations.shape[0])
         ]
@@ -165,13 +165,10 @@ def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.
         overlaps = yoverlaps[(yoverlaps[:, None] == xoverlaps).all(-1).any(-1)]
         overlap_percentage = len(overlaps) / (2 * text_locations.shape[0])
         # remove texts
-        for i in range(len(ax.texts)):
-            del ax.texts[i]
+        for t in texts:
+            t.remove()
 
-        if overlap_percentage <= 0.1:
-            break
-        else:
-            font_size = 0.9 * font_size
+        font_size = 0.9 * font_size
 
     return font_size
 
