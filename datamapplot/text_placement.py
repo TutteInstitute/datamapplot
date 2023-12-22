@@ -8,6 +8,8 @@ from datamapplot.overlap_computations import (
     intersect,
 )
 
+from matplotlib import pyplot as plt
+
 
 def row_norm(an_array):
     result = np.empty(an_array.shape[0], dtype=np.float64)
@@ -131,6 +133,49 @@ def initial_text_location_placement(
     return result
 
 
+def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.5, 1.5), ax=None):
+    if ax is None:
+        ax = plt.gca()
+
+    font_size = initial_font_size
+    overlap_percentage = 1.0
+    while overlap_percentage > 0.1:
+        texts = [
+            ax.text(
+                *text_locations[i],
+                label_text[i],
+                ha="center",
+                ma="center",
+                va="center",
+                linespacing=0.95,
+                alpha=0.0,
+                fontsize=initial_font_size,
+            )
+            for i in range(text_locations.shape[0])
+        ]
+        coords = get_2d_coordinates(texts, expand=expand)
+        xoverlaps = overlap_intervals(
+            coords[:, 0], coords[:, 1], coords[:, 0], coords[:, 1]
+        )
+        xoverlaps = xoverlaps[xoverlaps[:, 0] != xoverlaps[:, 1]]
+        yoverlaps = overlap_intervals(
+            coords[:, 2], coords[:, 3], coords[:, 2], coords[:, 3]
+        )
+        yoverlaps = yoverlaps[yoverlaps[:, 0] != yoverlaps[:, 1]]
+        overlaps = yoverlaps[(yoverlaps[:, None] == xoverlaps).all(-1).any(-1)]
+        overlap_percentage = len(overlaps) / (2 * text_locations.shape[0])
+        # remove texts
+        for i in range(len(ax.texts)):
+            del ax.texts[i]
+
+        if overlap_percentage <= 0.1:
+            break
+        else:
+            font_size = 0.9 * font_size
+
+    return font_size
+
+
 def adjust_text_locations(
     text_locations,
     label_locations,
@@ -141,6 +186,9 @@ def adjust_text_locations(
     label_size_adjustments=None,
     ax=None,
 ):
+    if ax is None:
+        ax = plt.gca()
+
     # Add text to the axis and set up for optimization
     new_text_locations = text_locations.copy()
     texts = [
