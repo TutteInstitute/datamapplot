@@ -130,7 +130,7 @@ def render_plot(
     title=None,
     sub_title=None,
     figsize=(12, 12),
-    label_font_size=10,
+    label_font_size=None,
     label_colors=None,
     point_size=1,
     alpha=1.0,
@@ -148,15 +148,18 @@ def render_plot(
         "approx_patch_size": 64,
     },
     darkmode=False,
-    mark=None,
-    mark_width=0.15,
+    logo=None,
+    logo_width=0.15,
     force_matplotlib=False,
-    theta_stretch=None,
-    marker_type=",",
+    label_direction_bias=None,
+    marker_type="o",
     marker_size_array=None,
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
+    font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+    if label_font_size is None:
+        label_font_size = 0.8 * font_scale_factor
 
     # Apply matplotlib or datashader based on heuristics
     if umap_coords.shape[0] < 100_000 or force_matplotlib:
@@ -164,6 +167,8 @@ def render_plot(
             point_size = marker_size_array * point_size
         ax.scatter(*umap_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha, edgecolors='none')
     else:
+        if marker_size_array is not None or marker_type != "o":
+            warn("Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True")
         datashader_scatterplot(umap_coords, color_list, point_size=point_size, ax=ax)
 
     # Create background glow
@@ -173,20 +178,20 @@ def render_plot(
         )
 
     # Add a mark in the bottom right if provided
-    if mark is not None:
+    if logo is not None:
         mark_height = (
-            (figsize[0] / figsize[1]) * (mark.shape[0] / mark.shape[1]) * mark_width
+                (figsize[0] / figsize[1]) * (logo.shape[0] / logo.shape[1]) * logo_width
         )
         ax.imshow(
-            mark,
-            extent=(0.98 - mark_width, 0.98, 0.02, 0.02 + mark_height),
+            logo,
+            extent=(0.98 - logo_width, 0.98, 0.02, 0.02 + mark_height),
             transform=ax.transAxes,
         )
 
     # Find initial placements for text, fix any line crossings, then optimize placements
     ax.autoscale_view()
     label_text_locations = initial_text_location_placement(
-        label_locations, base_radius=label_base_radius, theta_stretch=theta_stretch
+        label_locations, base_radius=label_base_radius, theta_stretch=label_direction_bias
     )
     fix_crossings(label_text_locations, label_locations)
     label_text_locations = adjust_text_locations(
@@ -285,13 +290,13 @@ def render_plot(
         axis_title = ax.set_title(
             sub_title,
             loc="left",
-            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * figsize[0])),
+            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * font_scale_factor)),
         )
         sup_title_y_value = (
             ax.transAxes.inverted().transform(get_2d_coordinates([axis_title])[0, [0, 3]])[
                 1
             ]
-            + 0.001
+            + 0.005
         )
     else:
         sup_title_y_value = 1.005
@@ -305,7 +310,7 @@ def render_plot(
             ha="left",
             va="baseline",
             fontweight="bold",
-            fontsize=int(1.6 * figsize[0]),
+            fontsize=int(1.6 * font_scale_factor),
             transform=ax.transAxes,
         )
 

@@ -82,10 +82,11 @@ def labelled_static_plot(
         label_text_colors = None
 
     if dynamic_label_size:
+        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
         cluster_sizes = np.sqrt(pd.Series(cluster_label_vector).value_counts())
         label_size_adjustments = cluster_sizes - cluster_sizes.min()
         label_size_adjustments /= label_size_adjustments.max()
-        label_size_adjustments *= render_plot_kwds.get("label_font_size", 10) + 2
+        label_size_adjustments *= render_plot_kwds.get("label_font_size", font_scale_factor) + 2
         label_size_adjustments = dict(label_size_adjustments - 2)
         label_size_adjustments = [
             label_size_adjustments[x] for x in unique_non_noise_labels
