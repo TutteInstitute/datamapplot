@@ -27,6 +27,7 @@ def create_plot(
     dpi=plt.rcParams["figure.dpi"],
     force_matplotlib=False,
     darkmode=False,
+    highlight_labels=None,
     **render_plot_kwds,
 ):
     cluster_label_vector = np.asarray(labels)
@@ -43,6 +44,11 @@ def create_plot(
         textwrap.fill(x, width=label_wrap_width, break_long_words=False)
         for x in unique_non_noise_labels
     ]
+    if highlight_labels is not None:
+        highlight_labels = [
+            textwrap.fill(x, width=label_wrap_width, break_long_words=False)
+            for x in highlight_labels
+        ]
 
     # If we don't have a color map, generate one
     if label_color_map is None:
@@ -127,6 +133,7 @@ def create_plot(
         dpi=dpi,
         force_matplotlib=force_matplotlib,
         darkmode=darkmode,
+        highlight_labels=highlight_labels,
         **render_plot_kwds,
     )
 
