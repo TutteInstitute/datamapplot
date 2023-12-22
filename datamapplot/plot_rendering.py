@@ -19,17 +19,19 @@ from datamapplot.text_placement import (
     adjust_text_locations,
 )
 
+from warnings import warn
+
 
 def datashader_scatterplot(
-    umap_coords,
+    data_map_coords,
     color_list,
     point_size,
     ax,
 ):
     data = pd.DataFrame(
         {
-            "x": umap_coords.T[0],
-            "y": umap_coords.T[1],
+            "x": data_map_coords.T[0],
+            "y": data_map_coords.T[1],
             "label": pd.Categorical(color_list),
         }
     )
@@ -47,7 +49,7 @@ def datashader_scatterplot(
 
 
 def add_glow_to_scatterplot(
-    umap_coords,
+    data_map_coords,
     color_list,
     ax,
     noise_color="#999999",
@@ -65,7 +67,7 @@ def add_glow_to_scatterplot(
         if color == noise_color:
             continue
 
-        cluster_embedding = umap_coords[color_array == color]
+        cluster_embedding = data_map_coords[color_array == color]
 
         # find bounds for the cluster
         xmin, xmax = (
@@ -123,7 +125,7 @@ def add_glow_to_scatterplot(
 
 
 def render_plot(
-    umap_coords,
+    data_map_coords,
     color_list,
     label_text,
     label_locations,
@@ -162,19 +164,19 @@ def render_plot(
         label_font_size = 0.8 * font_scale_factor
 
     # Apply matplotlib or datashader based on heuristics
-    if umap_coords.shape[0] < 100_000 or force_matplotlib:
+    if data_map_coords.shape[0] < 100_000 or force_matplotlib:
         if marker_size_array is not None:
             point_size = marker_size_array * point_size
-        ax.scatter(*umap_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha, edgecolors='none')
+        ax.scatter(*data_map_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha, edgecolors='none')
     else:
         if marker_size_array is not None or marker_type != "o":
             warn("Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True")
-        datashader_scatterplot(umap_coords, color_list, point_size=point_size, ax=ax)
+        datashader_scatterplot(data_map_coords, color_list, point_size=point_size, ax=ax)
 
     # Create background glow
     if add_glow:
         add_glow_to_scatterplot(
-            umap_coords, color_list, ax, noise_color=noise_color, **glow_keywords
+            data_map_coords, color_list, ax, noise_color=noise_color, **glow_keywords
         )
 
     # Add a mark in the bottom right if provided

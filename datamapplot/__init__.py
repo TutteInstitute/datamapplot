@@ -12,8 +12,8 @@ from datamapplot.palette_handling import (
 from datamapplot.plot_rendering import render_plot
 
 
-def labelled_static_plot(
-    umap_coords,
+def create_plot(
+    data_map_coords,
     labels,
     title=None,
     sub_title=None,
@@ -35,7 +35,7 @@ def labelled_static_plot(
     ]
     label_locations = np.asarray(
         [
-            umap_coords[cluster_label_vector == i].mean(axis=0)
+            data_map_coords[cluster_label_vector == i].mean(axis=0)
             for i in unique_non_noise_labels
         ]
     )
@@ -46,7 +46,7 @@ def labelled_static_plot(
 
     # If we don't have a color map, generate one
     if label_color_map is None:
-        palette = palette_from_datamap(umap_coords, label_locations)
+        palette = palette_from_datamap(data_map_coords, label_locations)
         label_to_index_map = {
             name: index for index, name in enumerate(unique_non_noise_labels)
         }
@@ -95,8 +95,8 @@ def labelled_static_plot(
         label_size_adjustments = [0.0] * len(unique_non_noise_labels)
 
     # Heuristics for point size and alpha values
-    n_points = umap_coords.shape[0]
-    if umap_coords.shape[0] < 100_000 or force_matplotlib:
+    n_points = data_map_coords.shape[0]
+    if data_map_coords.shape[0] < 100_000 or force_matplotlib:
         magic_number = np.clip(128 * 4 ** (-np.log10(n_points)), 0.05, 64)
         point_scale_factor = np.sqrt(figsize[0] * figsize[1])
         point_size = magic_number * (point_scale_factor / 2)
@@ -112,7 +112,7 @@ def labelled_static_plot(
         alpha = render_plot_kwds.pop("alpha")
 
     fig, ax = render_plot(
-        umap_coords,
+        data_map_coords,
         color_list,
         label_text,
         label_locations,
