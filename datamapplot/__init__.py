@@ -29,7 +29,7 @@ def create_plot(
     force_matplotlib=False,
     darkmode=False,
     highlight_labels=None,
-    palette_lightiness_sampling_arc=np.pi / 8,
+    palette_lightness_sampling_arc=np.pi / 8,
     palette_hue_radius_dependence=1.0,
     **render_plot_kwds,
 ):
@@ -58,7 +58,7 @@ def create_plot(
         palette = palette_from_datamap(
             data_map_coords,
             label_locations,
-            theta_range=palette_lightiness_sampling_arc,
+            theta_range=palette_lightness_sampling_arc,
             radius_weight_power=palette_hue_radius_dependence,
         )
         label_to_index_map = {
