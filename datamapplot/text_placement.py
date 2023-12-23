@@ -139,7 +139,7 @@ def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.
 
     font_size = initial_font_size
     overlap_percentage = 1.0
-    while overlap_percentage > 0.5:
+    while overlap_percentage > 0.5 and font_size > 3.0:
         texts = [
             ax.text(
                 *text_locations[i],

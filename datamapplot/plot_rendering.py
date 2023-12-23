@@ -197,13 +197,15 @@ def render_plot(
 
     font_scale_factor = np.sqrt(figsize[0] * figsize[1])
     if label_font_size is None:
-        label_font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, ax=ax)
+        font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, ax=ax)
+    else:
+        font_size = label_font_size
 
     label_text_locations = adjust_text_locations(
         label_text_locations,
         label_locations,
         label_text,
-        font_size=label_font_size,
+        font_size=font_size,
         ax=ax,
         expand=(label_margin_factor, label_margin_factor),
         label_size_adjustments=label_size_adjustments,
@@ -232,13 +234,14 @@ def render_plot(
                     color="#dddddd" if darkmode else "#333333",
                 ),
                 fontsize=(
-                    highlight_label_keywords.get("fontsize", label_font_size)
+                    highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
-                    else label_font_size
+                    else font_size
                 )
                 + label_size_adjustments[i]
                 if label_size_adjustments is not None
                 else 0.0,
+                color="white" if darkmode else "black",
                 fontweight="bold" if label_text[i] in highlight else "normal",
             )
             for i in range(label_locations.shape[0])
@@ -259,9 +262,9 @@ def render_plot(
                     color="#dddddd" if darkmode else "#333333",
                 ),
                 fontsize=(
-                    highlight_label_keywords.get("fontsize", label_font_size)
+                    highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
-                    else label_font_size
+                    else font_size
                 )
                 + label_size_adjustments[i]
                 if label_size_adjustments is not None
