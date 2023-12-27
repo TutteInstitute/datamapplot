@@ -133,7 +133,7 @@ def initial_text_location_placement(
     return result
 
 
-def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.5, 1.5), ax=None):
+def estimate_font_size(text_locations, label_text, initial_font_size, fontfamily="DejaVu Sans", expand=(1.5, 1.5), ax=None):
     if ax is None:
         ax = plt.gca()
 
@@ -149,6 +149,7 @@ def estimate_font_size(text_locations, label_text, initial_font_size, expand=(1.
                 va="center",
                 linespacing=0.95,
                 alpha=0.0,
+                fontfamily=fontfamily,
                 fontsize=font_size,
             )
             for i in range(text_locations.shape[0])
@@ -178,6 +179,7 @@ def adjust_text_locations(
     label_locations,
     label_text,
     font_size=12,
+    fontfamily="DejaVu Sans",
     expand=(1.5, 1.5),
     max_iter=100,
     label_size_adjustments=None,
@@ -197,6 +199,7 @@ def adjust_text_locations(
             va="center",
             linespacing=0.95,
             alpha=0.0,
+            fontfamily=fontfamily,
             fontsize=font_size
             + (
                 label_size_adjustments[i] if label_size_adjustments is not None else 0.0

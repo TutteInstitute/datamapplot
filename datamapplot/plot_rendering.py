@@ -133,6 +133,7 @@ def render_plot(
     title=None,
     sub_title=None,
     figsize=(12, 12),
+    fontfamily="DejaVu Sans",
     label_font_size=None,
     label_colors=None,
     point_size=1,
@@ -198,7 +199,7 @@ def render_plot(
 
     font_scale_factor = np.sqrt(figsize[0] * figsize[1])
     if label_font_size is None:
-        font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, ax=ax)
+        font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, fontfamily=fontfamily, ax=ax)
     else:
         font_size = label_font_size
 
@@ -206,6 +207,7 @@ def render_plot(
         label_text_locations,
         label_locations,
         label_text,
+        fontfamily=fontfamily,
         font_size=font_size,
         ax=ax,
         expand=(label_margin_factor, label_margin_factor),
@@ -229,6 +231,7 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
+                fontfamily=fontfamily,
                 arrowprops={
                     "arrowstyle":"-",
                     "linewidth":0.5,
@@ -259,6 +262,7 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
+                fontfamily=fontfamily,
                 arrowprops={
                     "arrowstyle":"-",
                     "linewidth":0.5,
@@ -303,7 +307,7 @@ def render_plot(
         axis_title = ax.set_title(
             sub_title,
             loc="left",
-            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * font_scale_factor)),
+            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * font_scale_factor), fontfamily=fontfamily),
         )
         sup_title_y_value = (
             ax.transAxes.inverted().transform(get_2d_coordinates([axis_title])[0, [0, 3]])[
@@ -324,6 +328,7 @@ def render_plot(
             va="baseline",
             fontweight="bold",
             fontsize=int(1.6 * font_scale_factor),
+            fontfamily=fontfamily,
             transform=ax.transAxes,
         )
 
