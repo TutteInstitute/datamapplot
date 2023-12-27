@@ -32,7 +32,7 @@ def create_plot(
     highlight_labels=None,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
-    use_medoids=True,
+    use_medoids=False,
     **render_plot_kwds,
 ):
     cluster_label_vector = np.asarray(labels)

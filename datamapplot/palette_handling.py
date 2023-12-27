@@ -23,11 +23,12 @@ def palette_from_datamap(
     sorter = np.argsort(label_location_thetas)
     weights = (label_location_radii**radius_weight_power)[sorter]
     hue = weights.cumsum()
-    hue = ((hue / hue.max()) * 360 + hue_shift) % 360
+    hue = (hue / hue.max()) * 360
 
     location_hue = np.interp(
         label_location_thetas, np.sort(label_location_thetas), np.sort(hue)
     )
+    location_hue = (location_hue + hue_shift) % 360
 
     location_chroma = []
     location_lightness = []
