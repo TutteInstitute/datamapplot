@@ -20,13 +20,13 @@ def palette_from_datamap(
         centered_label_locations.T[1], centered_label_locations.T[0]
     )
 
-    sorter = np.argsort(data_map_thetas)
-    weights = (data_map_radii**radius_weight_power)[sorter]
+    sorter = np.argsort(label_location_thetas)
+    weights = (label_location_radii**radius_weight_power)[sorter]
     hue = weights.cumsum()
     hue = (hue / hue.max()) * 360
 
     location_hue = np.interp(
-        label_location_thetas, np.sort(data_map_thetas), np.sort(hue)
+        label_location_thetas, np.sort(label_location_thetas), np.sort(hue)
     )
 
     location_chroma = []
