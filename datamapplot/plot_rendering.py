@@ -237,10 +237,11 @@ def render_plot(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
                     else font_size
-                )
-                + label_size_adjustments[i]
-                if label_size_adjustments is not None
-                else 0.0,
+                ) + (
+                    label_size_adjustments[i]
+                    if label_size_adjustments is not None
+                    else 0.0
+                ),
                 color="white" if darkmode else "black",
                 fontweight="bold" if label_text[i] in highlight else "normal",
             )
@@ -265,10 +266,11 @@ def render_plot(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
                     else font_size
-                )
-                + label_size_adjustments[i]
-                if label_size_adjustments is not None
-                else 0.0,
+                ) + (
+                    label_size_adjustments[i]
+                    if label_size_adjustments is not None
+                    else 0.0
+                ),
                 color=label_colors[i],
                 fontweight=highlight_label_keywords.get("fontweight", "normal")
                 if label_text[i] in highlight
