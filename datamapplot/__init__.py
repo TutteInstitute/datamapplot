@@ -10,6 +10,7 @@ from datamapplot.palette_handling import (
     pastel_palette,
 )
 from datamapplot.plot_rendering import render_plot
+from datamapplot.medoids import medoid
 
 
 def create_plot(
@@ -30,20 +31,28 @@ def create_plot(
     darkmode=False,
     highlight_labels=None,
     palette_hue_shift=0.0,
-    palette_lightness_sampling_arc=np.pi / 8,
     palette_hue_radius_dependence=1.0,
+    use_medoids=True,
     **render_plot_kwds,
 ):
     cluster_label_vector = np.asarray(labels)
     unique_non_noise_labels = [
         label for label in np.unique(cluster_label_vector) if label != noise_label
     ]
-    label_locations = np.asarray(
-        [
-            data_map_coords[cluster_label_vector == i].mean(axis=0)
-            for i in unique_non_noise_labels
-        ]
-    )
+    if use_medoids:
+        label_locations = np.asarray(
+            [
+                medoid(data_map_coords[cluster_label_vector == i])
+                for i in unique_non_noise_labels
+            ]
+        )
+    else:
+        label_locations = np.asarray(
+            [
+                data_map_coords[cluster_label_vector == i].mean(axis=0)
+                for i in unique_non_noise_labels
+            ]
+        )
     label_text = [
         textwrap.fill(x, width=label_wrap_width, break_long_words=False)
         for x in unique_non_noise_labels
@@ -60,7 +69,6 @@ def create_plot(
             data_map_coords,
             label_locations,
             hue_shift=palette_hue_shift,
-            theta_range=palette_lightness_sampling_arc,
             radius_weight_power=palette_hue_radius_dependence,
         )
         label_to_index_map = {
