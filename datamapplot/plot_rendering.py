@@ -157,6 +157,7 @@ def render_plot(
     label_direction_bias=None,
     marker_type="o",
     marker_size_array=None,
+    arrowprops={}
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
@@ -228,11 +229,12 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
-                arrowprops=dict(
-                    arrowstyle="-",
-                    linewidth=0.5,
-                    color="#dddddd" if darkmode else "#333333",
-                ),
+                arrowprops={
+                    "arrowstyle":"-",
+                    "linewidth":0.5,
+                    "color":"#dddddd" if darkmode else "#333333",
+                    **arrowprops
+                },
                 fontsize=(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
@@ -257,11 +259,12 @@ def render_plot(
                 ma="center",
                 va="center",
                 linespacing=0.95,
-                arrowprops=dict(
-                    arrowstyle="-",
-                    linewidth=0.5,
-                    color="#dddddd" if darkmode else "#333333",
-                ),
+                arrowprops={
+                    "arrowstyle":"-",
+                    "linewidth":0.5,
+                    "color":"#dddddd" if darkmode else "#333333",
+                    **arrowprops
+                },
                 fontsize=(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
