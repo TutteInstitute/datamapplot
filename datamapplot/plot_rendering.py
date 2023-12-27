@@ -97,9 +97,9 @@ def add_glow_to_scatterplot(
         for_scoring = np.vstack([xv.ravel(), yv.ravel()]).T
 
         # Build the KDE of the cluster
-        class_kde = KernelDensity(bandwidth=kernel_bandwidth, kernel=kernel, atol=1e-8, rtol=1e-4).fit(
-            cluster_embedding
-        )
+        class_kde = KernelDensity(
+            bandwidth=kernel_bandwidth, kernel=kernel, atol=1e-8, rtol=1e-4
+        ).fit(cluster_embedding)
         zv = class_kde.score_samples(for_scoring).reshape(xv.shape)
         zv = rescale(zv, 12)
         # Construct colours of varying alpha values for different levels
@@ -134,6 +134,7 @@ def render_plot(
     sub_title=None,
     figsize=(12, 12),
     fontfamily="DejaVu Sans",
+    label_linespacing=0.95,
     label_font_size=None,
     label_colors=None,
     point_size=1,
@@ -158,7 +159,7 @@ def render_plot(
     label_direction_bias=None,
     marker_type="o",
     marker_size_array=None,
-    arrowprops={}
+    arrowprops={},
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
@@ -167,11 +168,22 @@ def render_plot(
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:
         if marker_size_array is not None:
             point_size = marker_size_array * point_size
-        ax.scatter(*data_map_coords.T, c=color_list, marker=marker_type, s=point_size, alpha=alpha, edgecolors='none')
+        ax.scatter(
+            *data_map_coords.T,
+            c=color_list,
+            marker=marker_type,
+            s=point_size,
+            alpha=alpha,
+            edgecolors="none",
+        )
     else:
         if marker_size_array is not None or marker_type != "o":
-            warn("Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True")
-        datashader_scatterplot(data_map_coords, color_list, point_size=point_size, ax=ax)
+            warn(
+                "Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True"
+            )
+        datashader_scatterplot(
+            data_map_coords, color_list, point_size=point_size, ax=ax
+        )
 
     # Create background glow
     if add_glow:
@@ -182,7 +194,7 @@ def render_plot(
     # Add a mark in the bottom right if provided
     if logo is not None:
         mark_height = (
-                (figsize[0] / figsize[1]) * (logo.shape[0] / logo.shape[1]) * logo_width
+            (figsize[0] / figsize[1]) * (logo.shape[0] / logo.shape[1]) * logo_width
         )
         ax.imshow(
             logo,
@@ -193,13 +205,22 @@ def render_plot(
     # Find initial placements for text, fix any line crossings, then optimize placements
     ax.autoscale_view()
     label_text_locations = initial_text_location_placement(
-        label_locations, base_radius=label_base_radius, theta_stretch=label_direction_bias
+        label_locations,
+        base_radius=label_base_radius,
+        theta_stretch=label_direction_bias,
     )
     fix_crossings(label_text_locations, label_locations)
 
     font_scale_factor = np.sqrt(figsize[0] * figsize[1])
     if label_font_size is None:
-        font_size = estimate_font_size(label_text_locations, label_text, 0.9 * font_scale_factor, fontfamily=fontfamily, ax=ax)
+        font_size = estimate_font_size(
+            label_text_locations,
+            label_text,
+            0.9 * font_scale_factor,
+            fontfamily=fontfamily,
+            linespacing=label_linespacing,
+            ax=ax,
+        )
     else:
         font_size = label_font_size
 
@@ -209,6 +230,7 @@ def render_plot(
         label_text,
         fontfamily=fontfamily,
         font_size=font_size,
+        linespacing=label_linespacing,
         ax=ax,
         expand=(label_margin_factor, label_margin_factor),
         label_size_adjustments=label_size_adjustments,
@@ -230,19 +252,20 @@ def render_plot(
                 ha="center",
                 ma="center",
                 va="center",
-                linespacing=0.95,
+                linespacing=label_linespacing,
                 fontfamily=fontfamily,
                 arrowprops={
-                    "arrowstyle":"-",
-                    "linewidth":0.5,
-                    "color":"#dddddd" if darkmode else "#333333",
-                    **arrowprops
+                    "arrowstyle": "-",
+                    "linewidth": 0.5,
+                    "color": "#dddddd" if darkmode else "#333333",
+                    **arrowprops,
                 },
                 fontsize=(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
                     else font_size
-                ) + (
+                )
+                + (
                     label_size_adjustments[i]
                     if label_size_adjustments is not None
                     else 0.0
@@ -261,19 +284,20 @@ def render_plot(
                 ha="center",
                 ma="center",
                 va="center",
-                linespacing=0.95,
+                linespacing=label_linespacing,
                 fontfamily=fontfamily,
                 arrowprops={
-                    "arrowstyle":"-",
-                    "linewidth":0.5,
-                    "color":"#dddddd" if darkmode else "#333333",
-                    **arrowprops
+                    "arrowstyle": "-",
+                    "linewidth": 0.5,
+                    "color": "#dddddd" if darkmode else "#333333",
+                    **arrowprops,
                 },
                 fontsize=(
                     highlight_label_keywords.get("fontsize", font_size)
                     if label_text[i] in highlight
                     else font_size
-                ) + (
+                )
+                + (
                     label_size_adjustments[i]
                     if label_size_adjustments is not None
                     else 0.0
@@ -307,12 +331,17 @@ def render_plot(
         axis_title = ax.set_title(
             sub_title,
             loc="left",
-            fontdict=dict(fontweight="light", color="gray", fontsize=(1.2 * font_scale_factor), fontfamily=fontfamily),
+            fontdict=dict(
+                fontweight="light",
+                color="gray",
+                fontsize=(1.2 * font_scale_factor),
+                fontfamily=fontfamily,
+            ),
         )
         sup_title_y_value = (
-            ax.transAxes.inverted().transform(get_2d_coordinates([axis_title])[0, [0, 3]])[
-                1
-            ]
+            ax.transAxes.inverted().transform(
+                get_2d_coordinates([axis_title])[0, [0, 3]]
+            )[1]
             + 0.005
         )
     else:
