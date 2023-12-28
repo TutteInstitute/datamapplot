@@ -365,7 +365,6 @@ def render_plot(
                 "color":"gray",
                 "fontsize":(1.2 * font_scale_factor),
                 "fontfamily":fontfamily,
-                **sub_title_keywords
             }
         axis_title = ax.set_title(
             sub_title,
