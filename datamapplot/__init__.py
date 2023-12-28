@@ -147,6 +147,7 @@ def create_plot(
         point_size=point_size,
         alpha=alpha,
         label_colors=None if not color_label_text else label_text_colors,
+        highlight_colors=[label_color_map[x] for x in unique_non_noise_labels],
         figsize=figsize,
         noise_color=noise_color,
         label_size_adjustments=label_size_adjustments,

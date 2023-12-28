@@ -137,6 +137,7 @@ def render_plot(
     label_linespacing=0.95,
     label_font_size=None,
     label_colors=None,
+    highlight_colors=None,
     point_size=1,
     alpha=1.0,
     dpi=plt.rcParams["figure.dpi"],
@@ -160,6 +161,8 @@ def render_plot(
     marker_type="o",
     marker_size_array=None,
     arrowprops={},
+        title_keywords=None,
+        sub_title_keywords=None,
 ):
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
@@ -242,75 +245,93 @@ def render_plot(
     else:
         highlight = set([])
 
-    # Add the annotations to the plot
-    if label_colors is None:
-        texts = [
-            ax.annotate(
-                label_text[i],
-                label_locations[i],
-                xytext=label_text_locations[i],
-                ha="center",
-                ma="center",
-                va="center",
-                linespacing=label_linespacing,
-                fontfamily=fontfamily,
-                arrowprops={
-                    "arrowstyle": "-",
-                    "linewidth": 0.5,
-                    "color": "#dddddd" if darkmode else "#333333",
-                    **arrowprops,
-                },
-                fontsize=(
-                    highlight_label_keywords.get("fontsize", font_size)
-                    if label_text[i] in highlight
-                    else font_size
-                )
-                + (
-                    label_size_adjustments[i]
-                    if label_size_adjustments is not None
-                    else 0.0
-                ),
-                bbox=highlight_label_keywords.get("bbox", {}) if label_text[i] in highlight else None,
-                color="white" if darkmode else "black",
-                fontweight="bold" if label_text[i] in highlight else "normal",
-            )
-            for i in range(label_locations.shape[0])
-        ]
+    # Build highlight boxes
+    if "bbox" in highlight_label_keywords and highlight_label_keywords["bbox"] is not None:
+        base_bbox_keywords = highlight_label_keywords["bbox"]
     else:
-        texts = [
-            ax.annotate(
-                label_text[i],
-                label_locations[i],
-                xytext=label_text_locations[i],
-                ha="center",
-                ma="center",
-                va="center",
-                linespacing=label_linespacing,
-                fontfamily=fontfamily,
-                arrowprops={
-                    "arrowstyle": "-",
-                    "linewidth": 0.5,
-                    "color": "#dddddd" if darkmode else "#333333",
-                    **arrowprops,
-                },
-                fontsize=(
-                    highlight_label_keywords.get("fontsize", font_size)
-                    if label_text[i] in highlight
-                    else font_size
+        base_bbox_keywords = None
+
+    # Add the annotations to the plot
+    texts = []
+    for i in range(label_locations.shape[0]):
+        if base_bbox_keywords is not None:
+            bbox_keywords = dict(base_bbox_keywords.items())
+            if "fc" not in base_bbox_keywords:
+                if highlight_colors is not None:
+                    bbox_keywords["fc"] = highlight_colors[i][:7] + "33"
+                else:
+                    bbox_keywords["fc"] = "#cccccc33" if darkmode else "#33333333"
+            if "ec" not in base_bbox_keywords:
+                bbox_keywords["ec"] = "none"
+        else:
+            bbox_keywords = None
+
+        if label_colors is None:
+            texts.append(
+                ax.annotate(
+                    label_text[i],
+                    label_locations[i],
+                    xytext=label_text_locations[i],
+                    ha="center",
+                    ma="center",
+                    va="center",
+                    linespacing=label_linespacing,
+                    fontfamily=fontfamily,
+                    arrowprops={
+                        "arrowstyle": "-",
+                        "linewidth": 0.5,
+                        "color": "#dddddd" if darkmode else "#333333",
+                        **arrowprops,
+                    },
+                    fontsize=(
+                        highlight_label_keywords.get("fontsize", font_size)
+                        if label_text[i] in highlight
+                        else font_size
+                    )
+                    + (
+                        label_size_adjustments[i]
+                        if label_size_adjustments is not None
+                        else 0.0
+                    ),
+                    bbox=bbox_keywords if label_text[i] in highlight else None,
+                    color="white" if darkmode else "black",
+                    fontweight="bold" if label_text[i] in highlight else "normal",
                 )
-                + (
-                    label_size_adjustments[i]
-                    if label_size_adjustments is not None
-                    else 0.0
-                ),
-                bbox=highlight_label_keywords.get("bbox", {}) if label_text[i] in highlight else None,
-                color=label_colors[i],
-                fontweight=highlight_label_keywords.get("fontweight", "normal")
-                if label_text[i] in highlight
-                else "normal",
             )
-            for i in range(label_locations.shape[0])
-        ]
+        else:
+            texts.append(
+                ax.annotate(
+                    label_text[i],
+                    label_locations[i],
+                    xytext=label_text_locations[i],
+                    ha="center",
+                    ma="center",
+                    va="center",
+                    linespacing=label_linespacing,
+                    fontfamily=fontfamily,
+                    arrowprops={
+                        "arrowstyle": "-",
+                        "linewidth": 0.5,
+                        "color": "#dddddd" if darkmode else "#333333",
+                        **arrowprops,
+                    },
+                    fontsize=(
+                        highlight_label_keywords.get("fontsize", font_size)
+                        if label_text[i] in highlight
+                        else font_size
+                    )
+                    + (
+                        label_size_adjustments[i]
+                        if label_size_adjustments is not None
+                        else 0.0
+                    ),
+                    bbox=bbox_keywords if label_text[i] in highlight else None,
+                    color=label_colors[i],
+                    fontweight=highlight_label_keywords.get("fontweight", "normal")
+                    if label_text[i] in highlight
+                    else "normal",
+                )
+            )
 
     # Ensure we have plot bounds that meet the newly place annotations
     coords = get_2d_coordinates(texts)
@@ -330,15 +351,26 @@ def render_plot(
     # decorate the plot
     ax.set(xticks=[], yticks=[])
     if sub_title is not None:
+        if sub_title_keywords is not None:
+            keyword_args = {
+                "fontweight":"light",
+                "color":"gray",
+                "fontsize":(1.2 * font_scale_factor),
+                "fontfamily":fontfamily,
+                **sub_title_keywords
+            }
+        else:
+            keyword_args = {
+                "fontweight":"light",
+                "color":"gray",
+                "fontsize":(1.2 * font_scale_factor),
+                "fontfamily":fontfamily,
+                **sub_title_keywords
+            }
         axis_title = ax.set_title(
             sub_title,
             loc="left",
-            fontdict=dict(
-                fontweight="light",
-                color="gray",
-                fontsize=(1.2 * font_scale_factor),
-                fontfamily=fontfamily,
-            ),
+            fontdict=keyword_args,
         )
         sup_title_y_value = (
             ax.transAxes.inverted().transform(
@@ -350,17 +382,31 @@ def render_plot(
         sup_title_y_value = 1.005
 
     if title is not None:
+        if title_keywords is not None:
+            keyword_args = {
+                "color":"white" if darkmode else "black",
+                "ha":"left",
+                "va":"baseline",
+                "fontweight":"bold",
+                "fontsize":int(1.6 * font_scale_factor),
+                "fontfamily":fontfamily,
+                **title_keywords
+            }
+        else:
+            keyword_args = {
+                "color":"white" if darkmode else "black",
+                "ha":"left",
+                "va":"baseline",
+                "fontweight":"bold",
+                "fontsize":int(1.6 * font_scale_factor),
+                "fontfamily":fontfamily,
+            }
         fig.suptitle(
             title,
             x=0.0,
             y=sup_title_y_value,
-            color="white" if darkmode else "black",
-            ha="left",
-            va="baseline",
-            fontweight="bold",
-            fontsize=int(1.6 * font_scale_factor),
-            fontfamily=fontfamily,
             transform=ax.transAxes,
+            **keyword_args
         )
 
     ax_x_min, ax_x_max = ax.get_xlim()
