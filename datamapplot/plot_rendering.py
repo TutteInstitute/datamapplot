@@ -270,6 +270,7 @@ def render_plot(
                     if label_size_adjustments is not None
                     else 0.0
                 ),
+                bbox=highlight_label_keywords.get("bbox", {}) if label_text[i] in highlight else None,
                 color="white" if darkmode else "black",
                 fontweight="bold" if label_text[i] in highlight else "normal",
             )
@@ -302,6 +303,7 @@ def render_plot(
                     if label_size_adjustments is not None
                     else 0.0
                 ),
+                bbox=highlight_label_keywords.get("bbox", {}) if label_text[i] in highlight else None,
                 color=label_colors[i],
                 fontweight=highlight_label_keywords.get("fontweight", "normal")
                 if label_text[i] in highlight
