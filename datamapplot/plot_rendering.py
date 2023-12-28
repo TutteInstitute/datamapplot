@@ -375,17 +375,17 @@ def render_plot(
             ax.transAxes.inverted().transform(
                 get_2d_coordinates([axis_title])[0, [0, 3]]
             )[1]
-            + 0.005
+            + 1e-4
         )
     else:
-        sup_title_y_value = 1.005
+        sup_title_y_value = 1.00
 
     if title is not None:
         if title_keywords is not None:
             keyword_args = {
                 "color":"white" if darkmode else "black",
                 "ha":"left",
-                "va":"baseline",
+                "va":"bottom",
                 "fontweight":"bold",
                 "fontsize":int(1.6 * font_scale_factor),
                 "fontfamily":fontfamily,
