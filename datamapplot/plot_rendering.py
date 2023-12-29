@@ -396,7 +396,7 @@ def render_plot(
             keyword_args = {
                 "color":"white" if darkmode else "black",
                 "ha":"left",
-                "va":"baseline",
+                "va":"bottom",
                 "fontweight":"bold",
                 "fontsize":int(1.6 * font_scale_factor),
                 "fontfamily":fontfamily,
