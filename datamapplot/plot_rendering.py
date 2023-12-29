@@ -369,6 +369,7 @@ def render_plot(
         axis_title = ax.set_title(
             sub_title,
             loc="left",
+            va="bottom",
             fontdict=keyword_args,
         )
         sup_title_y_value = (
