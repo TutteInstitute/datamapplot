@@ -272,7 +272,7 @@ def adjust_text_locations(
         for i, text in enumerate(texts):
             text.set_position(new_text_locations[i])
 
-        tight_coords = get_2d_coordinates(texts, expand=(1.0, 1.0))
+        tight_coords = get_2d_coordinates(texts, expand=expand)
         bottom_lefts = ax.transData.inverted().transform(tight_coords[:, [0, 2]])
         top_rights = ax.transData.inverted().transform(tight_coords[:, [1, 3]])
         coords_in_dataspace = np.vstack(

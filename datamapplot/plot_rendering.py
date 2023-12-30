@@ -142,7 +142,7 @@ def render_plot(
     alpha=1.0,
     dpi=plt.rcParams["figure.dpi"],
     label_base_radius=None,
-    label_margin_factor=2.0,
+    label_margin_factor=1.5,
     highlight_labels=None,
     highlight_label_keywords={"fontweight": "bold"},
     add_glow=True,
@@ -369,7 +369,7 @@ def render_plot(
         axis_title = ax.set_title(
             sub_title,
             loc="left",
-            va="bottom",
+            va="baseline",
             fontdict=keyword_args,
         )
         sup_title_y_value = (
