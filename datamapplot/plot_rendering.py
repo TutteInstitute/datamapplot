@@ -227,6 +227,13 @@ def render_plot(
     else:
         font_size = label_font_size
 
+
+    # Ensure we can look up labels for highlighting
+    if highlight_labels is not None:
+        highlight = set(highlight_labels)
+    else:
+        highlight = set([])
+
     label_text_locations = adjust_text_locations(
         label_text_locations,
         label_locations,
@@ -234,16 +241,12 @@ def render_plot(
         fontfamily=fontfamily,
         font_size=font_size,
         linespacing=label_linespacing,
+        highlight=highlight,
+        highlight_label_keywords=highlight_label_keywords,
         ax=ax,
         expand=(label_margin_factor, label_margin_factor),
         label_size_adjustments=label_size_adjustments,
     )
-
-    # Ensure we can look up labels for highlighting
-    if highlight_labels is not None:
-        highlight = set(highlight_labels)
-    else:
-        highlight = set([])
 
     # Build highlight boxes
     if "bbox" in highlight_label_keywords and highlight_label_keywords["bbox"] is not None:

@@ -192,6 +192,8 @@ def adjust_text_locations(
     expand=(1.5, 1.5),
     max_iter=100,
     label_size_adjustments=None,
+    highlight=frozenset([]),
+    highlight_label_keywords={},
     ax=None,
 ):
     if ax is None:
@@ -209,10 +211,17 @@ def adjust_text_locations(
             linespacing=linespacing,
             alpha=0.0,
             fontfamily=fontfamily,
-            fontsize=font_size
+            fontsize=(
+                 highlight_label_keywords.get("fontsize", font_size)
+                 if label_text[i] in highlight
+                 else font_size
+            )
             + (
-                label_size_adjustments[i] if label_size_adjustments is not None else 0.0
+                 label_size_adjustments[i]
+                 if label_size_adjustments is not None
+                 else 0.0
             ),
+            fontweight="bold" if label_text[i] in highlight else "normal",
         )
         for i in range(label_locations.shape[0])
     ]
