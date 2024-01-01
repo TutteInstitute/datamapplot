@@ -10,6 +10,14 @@ Welcome to DataMapPlot's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   demo
+   basic_usage
+   customization
+   size_controls
+   colour_controls
+   placement_controls
+
+
 
 
 Indices and tables

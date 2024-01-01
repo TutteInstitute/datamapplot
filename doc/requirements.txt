@@ -9,3 +9,4 @@ jupyterlab_pygments>=0.1.1
 ipykernel
 nbsphinx
 numpydoc
+sphinx-rtd-theme
