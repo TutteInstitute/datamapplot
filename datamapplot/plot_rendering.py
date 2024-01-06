@@ -130,6 +130,7 @@ def render_plot(
     color_list,
     label_text,
     label_locations,
+    *,
     title=None,
     sub_title=None,
     figsize=(12, 12),
@@ -161,9 +162,168 @@ def render_plot(
     marker_type="o",
     marker_size_array=None,
     arrowprops={},
-        title_keywords=None,
-        sub_title_keywords=None,
+    title_keywords=None,
+    sub_title_keywords=None,
 ):
+    """Render a static data map plot with given colours and label locations and text. This is
+    a lower level function, and should usually not be used directly unless there are specific
+    reasons for digging in. This usually involves things like getting direct control over label
+    locations, altering label texts to suit specific needs, or direct control over point
+    colouring in the scatterplot.
+
+    All keyword arguments from ``create_plot`` are passed on to ``render_plot``, so any
+    *keyword* arguments here are also valid keyword arguments for ``create_plot``.
+
+    Parameters
+    ----------
+    data_map_coords: ndarray of floats of shape (n_samples, 2)
+        The 2D coordinates for the data map. Usually this is produced via a
+        dimension reduction technique such as UMAP, t-SNE, PacMAP, PyMDE etc.
+
+    color_list: iterable of str of len n_samples
+        A list of hex-string colours, one per sample, for colouring points in the
+        scatterplot of the data map.
+
+    label_text: list of str
+        A list of label text strings, one per unique label.
+
+    label_locations: ndarray of floats of shape (n_labels, 2)
+        An array of the "location" (usually centroid) of the cluster of the
+        associated text label (see ``label_text``).
+
+    title: str or None (optional, default=None)
+        A title for the plot. If ``None`` then no title is used for the plot.
+        The title should be succint; three to seven words.
+
+    sub_title: str or None (optional, default=None)
+        A sub-title for the plot. If ``None`` then no sub-title is used for the plot.
+        The sub-title can be significantly longer then the title and provide more information\
+        about the plot and data sources.
+
+    figsize: (int, int) (optional, default=(12,12))
+        How big to make the figure in inches (actual pixel size will depend on ``dpi``).
+
+    fontfamily: str (optional, default="DejaVu Sans")
+        The fontfamily to use for the plot -- the labels and the title and sub-title
+        unless explicitly over-ridden by title_keywords or sub_title_keywords.
+
+    label_linespacing: float (optional, default=0.95)
+        The line-spacing to use when rendering multi-line labels in the plot. The default
+        of 0.95 keeps multi-line labels compact, but can be less than ideal for some fonts.
+
+    label_font_size: float or None (optional, default=None)
+        The font-size (in pts) to use for the text labels in the plot. If this is ``None``
+        then a heuristic will be used to try to find the best font size that can fit all
+        the labels in.
+
+    label_colors: list of str or None (optional, default=None)
+        The colours of the text labels, one per text label. If None then the text labels
+        will be either black or white depending on ``darkmode``.
+
+    highlight_colors: list of str or None (optional default=None)
+        The colours used if text labels are highlighted and a bounding box around the label is
+        used. For example ``create_plot`` uses the cluster colours from the colour mapping that
+        was passed or created.
+
+    point_size: int or float (optional, default=1)
+        How big to make points in the scatterplot rendering of the data map. Depending on
+        whether you are in datashader mode or matplotlib mode this can either be an
+        int (datashader) or a float (matplotlib). If in datashader mode this is explicitly
+        the radius, in number of pixels, that each point should be. If in matplotlib mode
+        this is the matplotlib scatterplot size, which can be relative to the plot-size
+         and other factors.
+
+    alpha: float (optional, default=1.0)
+        The alpha transparency value to use when rendering points.
+
+    dpi: int (optional, default=plt.rcParams["figure.dpi"])
+        The dots-per-inch to use when rendering the plot.
+
+    label_base_radius: float or None (optional, default=None)
+        Labels are placed in rings around the data map. This value can explicitly control the
+        radius (in data coordinates) of the innermost such ring.
+
+    label_margin_factor: float (optional, default=1.5)
+        The expansion factor to use when creating a bounding box around the label text
+        to compute whether overlaps are occurring during the label placement adjustment phase.
+
+    highlight_labels: list of str or None (optional, default=None)
+        A list of the labels to be highlighted.
+
+    highlight_label_keywords: dict (optional, default={"fontweight": "bold"})
+        Keywords for how to highlight the labels. This dict will be passed on as keyword
+        arguments to the matplotlib ``annotate`` function. See the matplotlib documentation
+        for more details on what can be done.
+
+    add_glow: bool (optional, default=True)
+        Whether to add a glow-effect using KDEs.
+
+    noise_color: str (optional, default="#999999")
+        The colour to use for unlabelled or noise points in the data map. This should usually
+        be a muted or neutral colour to distinguish background points from the labelled clusters.
+
+    label_size_adjustments: ndarray of shape (n_labels,) or None (optional, default=None)
+        Size adjustments to be applied to each label; this should be an adjustment, in pts,
+        to the fontsize for each label.
+
+    glow_keywords: dict (optional, default={"kernel": "gaussian","kernel_bandwidth": 0.25})
+        Keyword arguments that will be passed along to the ``add_glow_to_scatterplot``
+        function. See that function for more details.
+
+    darkmode: bool (optional, default=False)
+        Whether to render the plot in darkmode (with a dark background) or not.
+
+    logo: ndarray or None (optional, default=None)
+        A numpy array representation of an image (suitable for matplotlib's ``imshow``) to
+        be used as a logo placed in the bottom right corner of the plot.
+
+    logo_width: float (optional, default=0.15)
+        The width, as a fraction of the total figure width, of the logo.
+
+    force_matplotlib: bool (optional, default=False)
+        Force using matplotlib instead of datashader for rendering the scatterplot of the
+        data map. This can be useful if you wish to have a different marker_type, or variably
+        sized markers based on a marker_size_array, neither of which are supported by the
+        datashader based renderer.
+
+    label_direction_bias: float or None (optional, default=None)
+        When placing labels in rings, how much bias to place toward east-west compass points
+        as opposed to north-south. A value of 1.0 provides no bias (uniform placement around
+        the circle). Values larger than one will place more labels ion the east-west areas.
+
+    marker_type: str (optional, default="o")
+        The type of marker to use for rendering the scatterplot. This is only valid if
+        matplotlib mode is being used. Valid marker_types are any matplotlib marker string.
+        See the matplotlib marker documentation for more details.
+
+    marker_size_array: ndarray of shape (n_samples,) or None (optional, default=None)
+        The (variable) size or markers to use. This is only valid if matplotlib mode is being
+        used. This should be an array of (matplotlib) marker sizes as you would use for the
+        ``s`` argument in ``matplotlib.pyplot.scatterplot``.
+
+    arrowprops: dict (optional default={})
+        A dict of keyword argumetns to pass through to the ``arrowprops`` argument of
+        ``matplotlib.pyplot.annotate``. This allows for control of arrow-styles,
+        connection-styles, linewidths, colours etc. See the documentation of matplotlib's
+        ``annotate`` function for more details.
+
+    title_keywords: dict or None (optional, default=None)
+        A dictionary of keyword arguments to pass through to matplotlib's ``suptitle`` fucntion.
+        This includes things like fontfamily, fontsize, fontweight, color, etc.
+
+    sub_title_keywords: dict or None (optional, default=None)
+        A dictionary of keyword arguments to pass through to matplotlib's ``title`` fucntion.
+        This includes things like fontfamily, fontsize, fontweight, color, etc.
+
+    Returns
+    -------
+    fig: matplotlib.Figure
+        The figure that the resulting plot is rendered to.
+
+    ax: matpolotlib.Axes
+        The axes contained within the figure that the plot is rendered to.
+
+    """
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
 
