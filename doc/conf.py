@@ -39,6 +39,7 @@ extensions = [
     "numpydoc",
     "nbsphinx",
     "sphinx.ext.mathjax",
+    "sphinx_gallery.gen_gallery",
 ]
 
 # this is needed for some reason...
@@ -69,7 +70,7 @@ html_theme = "sphinx_rtd_theme"
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-html_theme_options = {"navigation_depth": 3, "logo_only": True}
+html_theme_options = {"navigation_depth": 3, "logo_only": False}
 
 html_logo = "datamapplot_logo_rtd.png"
 
