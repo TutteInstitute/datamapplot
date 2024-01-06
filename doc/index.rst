@@ -18,6 +18,7 @@ DataMapPlot: Creating beautiful plot of data maps
    placement_controls
    auto_examples/index
    api
+   faq
 
 
 
