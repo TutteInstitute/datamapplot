@@ -21,7 +21,7 @@ Examples
 
 Some examples of the kind of output that DataMapPlot can provide.
 
-A basic plot, with soem highlighted labels:
+A basic plot, with some highlighted labels:
 
 .. image:: examples/plot_cord19.png
    :width: 1024
