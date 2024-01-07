@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 
 from datamapplot.palette_handling import (
     palette_from_datamap,
+    palette_from_cmap_and_datamap,
     deep_palette,
     pastel_palette,
 )
@@ -33,6 +34,7 @@ def create_plot(
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
     use_medoids=False,
+    cmap=None,
     **render_plot_kwds,
 ):
     """Create a static plot from ``data_map_coords`` with text labels provided by ``labels``.
@@ -121,6 +123,12 @@ def create_plot(
         both for the label indicator line, and for palette colouring. Note that medoids are
         more computationally expensive, especially for large plots, so use with some caution.
 
+    cmap: matplotlib cmap or None (optional, default=None)
+        A linear matplotlib cmap colour map to use as the base for a generated colour mapping.
+        This *should* be a matplotlib cmap that is smooth and linear, and cyclic
+        (see the colorcet package for some good options). If not a cyclic cmap it will be
+        "made" cyclic by reflecting it. If ``None`` then a custom method will be used instead.
+
     **render_plot_kwds
         All opther keyword arguments are passed through the ``render_plot`` which provides
         significant further control over the aesthetics of the plot.
@@ -165,12 +173,20 @@ def create_plot(
 
     # If we don't have a color map, generate one
     if label_color_map is None:
-        palette = palette_from_datamap(
-            data_map_coords,
-            label_locations,
-            hue_shift=palette_hue_shift,
-            radius_weight_power=palette_hue_radius_dependence,
-        )
+        if cmap is None:
+            palette = palette_from_datamap(
+                data_map_coords,
+                label_locations,
+                hue_shift=palette_hue_shift,
+                radius_weight_power=palette_hue_radius_dependence,
+            )
+        else:
+            palette = palette_from_cmap_and_datamap(
+                cmap,
+                data_map_coords,
+                label_locations,
+                radius_weight_power=palette_hue_radius_dependence,
+            )
         label_to_index_map = {
             name: index for index, name in enumerate(unique_non_noise_labels)
         }
