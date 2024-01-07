@@ -29,3 +29,11 @@ DataMapPlot will return a matplotlib Figure and Axes, which you can then apply w
 matplotlib commands you wish to, to add extra plot elements, or otherwise alter things
 (at your own risk). If you feel you have a pretty common adjustment, consider submitting a PR
 to the library so we can make it available to everyone.
+
+Can I make the plot interactive, with hover tooltips?
+-----------------------------------------------------
+
+No, not with this library. DataMapPlot was built to provide static images for inclusion in
+papers, presentations and posters. If you need interactive data map plotting then you
+should check out the `ThisNotThat <https://github.com/TutteInstitute/thisnotthat>`_ library
+which provides tools for a wide variety of interactivity.
