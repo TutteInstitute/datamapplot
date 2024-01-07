@@ -9,11 +9,18 @@ import numpy as np
 import requests
 import PIL
 import matplotlib.pyplot as plt
+import pandas as pd
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
 cord19_data_map = np.load("CORD19-subset-data-map.npy")
 cord19_labels = np.load("CORD19-subset-cluster_labels.npy", allow_pickle=True)
+
+# Prune labels down slightly
+label_counts = pd.Series(cord19_labels).value_counts()
+small_clusters = label_counts[label_counts <= 700].index
+for label in small_clusters:
+    cord19_labels[cord19_labels == label] = "Unlabelled"
 
 allenai_logo_response = requests.get(
     "https://allenai.org/newsletters/archive/2023-03-newsletter_files/927c3ca8-6c75-862c-ee5d-81703ef10a8d.png",
@@ -30,12 +37,12 @@ datamapplot.create_plot(
     highlight_labels=[
         "Effects of the COVID-19 pandemic on mental health",
         "Airborne Transmission of COVID19",
-        "Diagnostic Testing for SARS-CoV2",
+        "COVID19 Diagnosis",
         "Viral Diseases and Emerging Zoonoses",
         "Vaccine Acceptance",
     ],
     label_font_size=6,
-    label_margin_factor=1.75,
+    label_margin_factor=1.5,
     label_direction_bias=1.0,
     highlight_label_keywords={"fontsize": 12, "fontweight": "bold", "bbox": {"boxstyle": "circle", "pad": 0.75}},
     logo=allenai_logo,
