@@ -7,7 +7,7 @@ DataMapPlot: Creating beautiful plot of data maps
 =================================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    demo

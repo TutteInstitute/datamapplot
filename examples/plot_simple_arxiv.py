@@ -12,6 +12,7 @@ import matplotlib.font_manager
 import matplotlib.pyplot as plt
 from tempfile import NamedTemporaryFile
 import re
+import colorcet
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
@@ -47,12 +48,14 @@ fig, ax = datamapplot.create_plot(
     sub_title="A data map of papers from the Machine Learning section of ArXiv",
     logo=arxiv_logo,
     fontfamily="Great Vibes",
-    label_linespacing=1.25,
+    label_font_size=13,
     label_margin_factor=1.0,
     arrowprops={
         "arrowstyle": "wedge", "connectionstyle": "arc3,rad=0.3", "linewidth": 0.25, "ec": "#4f3e2d"
     },
     title_keywords={"fontfamily":"Montserrat Thin", "fontweight":"black", "fontsize":36},
     sub_title_keywords={"fontfamily":"Montserrat Thin", "fontsize":22},
+    glow_keywords={"n_levels":16, "kernel":"exponential", "kernel_bandwidth":0.2},
+    cmap=colorcet.cm.CET_L9,
 )
 plt.show()
