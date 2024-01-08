@@ -26,9 +26,9 @@ visualizable representations these embedded corpora. These techniques are common
 topic modelling and related fields. `DataMapPlot` provides tools to turn these 
 visualizable representations into publication ready plots of data maps.
 
-![A data map plot of the CORD-19 dataset [@cord19].\label{fig:cord19}](examples/plot_cord19.png){ width=30% }
-![Style options used for a data map plot ofpaper from ArXiv ML.\label{fig:arxiv_ml}](examples/plot_arxiv_ml.png){ width=30% }
-![A data map of Simple-Wikipedia paragraphs as embedded by Cohere.\label{fig:wikipedia}](examples/plot_wikipedia.png){ width=30% }
+![A data map plot of the CORD-19 dataset [@cord19].\label{fig:cord19}](examples/plot_cord19.png){ width=33% }
+![Style options used for a data map plot ofpaper from ArXiv ML.\label{fig:arxiv_ml}](examples/plot_arxiv_ml.png){ width=33% }
+![A data map of Simple-Wikipedia paragraphs as embedded by Cohere.\label{fig:wikipedia}](examples/plot_wikipedia.png){ width=33% }
 
 # Statement of need
 
