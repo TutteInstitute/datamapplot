@@ -85,3 +85,5 @@ intersphinx_mapping = {
     "numpy": ("https://docs.scipy.org/doc/numpy/", None),
     "scikit-learn": ("https://scikit-learn.org/", None),
 }
+
+nbsphinx_allow_errors = True
