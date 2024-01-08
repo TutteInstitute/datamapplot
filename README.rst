@@ -80,7 +80,7 @@ or use conda with conda-forge
 License
 -------
 
-fast_hdbscan is MIT licensed. See the LICENSE file for details.
+DataMapPlot is MIT licensed. See the LICENSE file for details.
 
 ------------
 Contributing
