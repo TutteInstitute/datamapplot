@@ -49,6 +49,13 @@ Custom arrow styles, fonts, and colour maps:
    :alt: A styled data map plot of papers from ArXiv ML
    :align: center
 
+-------------
+Documentation
+-------------
+
+Full documentation for DataMapPlot is available on
+`ReadTheDocs <https://datamapplot.readthedocs.io/>`_.
+
 ------------
 Installation
 ------------
@@ -82,11 +89,28 @@ License
 
 DataMapPlot is MIT licensed. See the LICENSE file for details.
 
+----------------
+Help and Support
+----------------
+
+Documentation is at `Read the Docs <https://datamapplot.readthedocs.io/>`_.
+The documentation `includes a FAQ <https://datamapplot.readthedocs.io/en/latest/faq.html>`_ that
+may answer your questions. If you still have questions then please
+`open an issue <https://github.com/TutteInstitute/datamapplot/issues/new>`_
+and I will try to provide any help and guidance that I can. Please read
+the `code of conduct <https://github.com/TutteInstitute/datamapplot/blob/main/CODE_OF_CONDUCT.md>`_
+for acceptable behaviour in issue and PR discussions.
+
 ------------
 Contributing
 ------------
 
-Contributions are more than welcome! If you have ideas for features of projects please get in touch. Everything from
+Contributions are more than welcome! If you have ideas for features or projects please get in touch. Everything from
 code to notebooks to examples and documentation are all *equally valuable* so please don't feel you can't contribute.
 To contribute please `fork the project <https://github.com/TutteInstitute/datamapplot/issues#fork-destination-box>`_ make your
 changes and submit a pull request. We will do our best to work through any issues with you and get your code merged in.
+
+We would like to note that the DataMapPlot package makes heavy use of
+NumFOCUS sponsored projects, and would not be possible without
+their support of those projects, so please `consider contributing to NumFOCUS <https://www.numfocus.org/membership>`_.
+
