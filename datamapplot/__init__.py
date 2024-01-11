@@ -23,6 +23,7 @@ def create_plot(
     noise_label="Unlabelled",
     noise_color="#999999",
     color_label_text=True,
+    color_label_arrows=False,
     label_wrap_width=16,
     label_color_map=None,
     figsize=(12, 12),
@@ -75,6 +76,10 @@ def create_plot(
     color_label_text: bool (optional, default=True)
         Whether to use colours for the text labels generated in the plot. If ``False`` then
         the text labels will default to either black or white depending on ``darkmode``.
+
+    color_label_arrows: bool (optional, default=True)
+        Whether to use colours for the arrows between the text labels and clusters. If ``False``
+        then the arrows will default to either black or white depending on ``darkmode``.
 
     label_wrap_width: int (optional, default=16)
         The number of characters to apply text-wrapping at when creating text labels for
@@ -208,18 +213,21 @@ def create_plot(
             for x in cluster_label_vector
         ]
 
-    # Darken and reduce chroma of label colors to get text labels
+    label_colors = [label_color_map[x] for x in unique_non_noise_labels]
+
     if color_label_text:
+        # Darken and reduce chroma of label colors to get text labels
         if darkmode:
-            label_text_colors = pastel_palette(
-                [label_color_map[x] for x in unique_non_noise_labels]
-            )
+            label_text_colors = pastel_palette(label_colors)
         else:
-            label_text_colors = deep_palette(
-                [label_color_map[x] for x in unique_non_noise_labels]
-            )
+            label_text_colors = deep_palette(label_colors)
     else:
         label_text_colors = None
+
+    if color_label_arrows:
+        label_arrow_colors = label_colors
+    else:
+        label_arrow_colors = None
 
     if dynamic_label_size:
         font_scale_factor = np.sqrt(figsize[0] * figsize[1])
@@ -262,7 +270,8 @@ def create_plot(
         sub_title=sub_title,
         point_size=point_size,
         alpha=alpha,
-        label_colors=None if not color_label_text else label_text_colors,
+        label_text_colors=None if not color_label_text else label_text_colors,
+        label_arrow_colors=None if not color_label_arrows else label_arrow_colors,
         highlight_colors=[label_color_map[x] for x in unique_non_noise_labels],
         figsize=figsize,
         noise_color=noise_color,

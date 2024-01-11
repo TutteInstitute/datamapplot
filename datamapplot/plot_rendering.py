@@ -137,7 +137,8 @@ def render_plot(
     fontfamily="DejaVu Sans",
     label_linespacing=0.95,
     label_font_size=None,
-    label_colors=None,
+    label_text_colors=None,
+    label_arrow_colors=None,
     highlight_colors=None,
     point_size=1,
     alpha=1.0,
@@ -216,9 +217,13 @@ def render_plot(
         then a heuristic will be used to try to find the best font size that can fit all
         the labels in.
 
-    label_colors: list of str or None (optional, default=None)
+    label_text_colors: list of str or None (optional, default=None)
         The colours of the text labels, one per text label. If None then the text labels
         will be either black or white depending on ``darkmode``.
+
+    label_arrow_colors: list of str or None (optional, default=None)
+        The colours of the arrows between the text labels and clusters, one per text label.
+        If None then the arrows will be either black or white depending on ``darkmode``.
 
     highlight_colors: list of str or None (optional default=None)
         The colours used if text labels are highlighted and a bounding box around the label is
@@ -429,72 +434,53 @@ def render_plot(
         else:
             bbox_keywords = None
 
-        if label_colors is None:
-            texts.append(
-                ax.annotate(
-                    label_text[i],
-                    label_locations[i],
-                    xytext=label_text_locations[i],
-                    ha="center",
-                    ma="center",
-                    va="center",
-                    linespacing=label_linespacing,
-                    fontfamily=fontfamily,
-                    arrowprops={
-                        "arrowstyle": "-",
-                        "linewidth": 0.5,
-                        "color": "#dddddd" if darkmode else "#333333",
-                        **arrowprops,
-                    },
-                    fontsize=(
-                        highlight_label_keywords.get("fontsize", font_size)
-                        if label_text[i] in highlight
-                        else font_size
-                    )
-                    + (
-                        label_size_adjustments[i]
-                        if label_size_adjustments is not None
-                        else 0.0
-                    ),
-                    bbox=bbox_keywords if label_text[i] in highlight else None,
-                    color="white" if darkmode else "black",
-                    fontweight="bold" if label_text[i] in highlight else "normal",
-                )
-            )
+        if label_text_colors:
+            text_color = label_text_colors[i]
+        elif darkmode:
+            text_color = "white"
         else:
-            texts.append(
-                ax.annotate(
-                    label_text[i],
-                    label_locations[i],
-                    xytext=label_text_locations[i],
-                    ha="center",
-                    ma="center",
-                    va="center",
-                    linespacing=label_linespacing,
-                    fontfamily=fontfamily,
-                    arrowprops={
-                        "arrowstyle": "-",
-                        "linewidth": 0.5,
-                        "color": "#dddddd" if darkmode else "#333333",
-                        **arrowprops,
-                    },
-                    fontsize=(
-                        highlight_label_keywords.get("fontsize", font_size)
-                        if label_text[i] in highlight
-                        else font_size
-                    )
-                    + (
-                        label_size_adjustments[i]
-                        if label_size_adjustments is not None
-                        else 0.0
-                    ),
-                    bbox=bbox_keywords if label_text[i] in highlight else None,
-                    color=label_colors[i],
-                    fontweight=highlight_label_keywords.get("fontweight", "normal")
+            text_color = "black"
+
+        if label_arrow_colors:
+            arrow_color = label_arrow_colors[i]
+        elif darkmode:
+            arrow_color = "#dddddd"
+        else:
+            arrow_color = "#333333"
+
+        texts.append(
+            ax.annotate(
+                label_text[i],
+                label_locations[i],
+                xytext=label_text_locations[i],
+                ha="center",
+                ma="center",
+                va="center",
+                linespacing=label_linespacing,
+                fontfamily=fontfamily,
+                arrowprops={
+                    "arrowstyle": "-",
+                    "linewidth": 0.5,
+                    "color": arrow_color,
+                    **arrowprops,
+                },
+                fontsize=(
+                    highlight_label_keywords.get("fontsize", font_size)
+                    if label_text[i] in highlight
+                    else font_size
+                )
+                + (
+                    label_size_adjustments[i]
+                    if label_size_adjustments is not None
+                    else 0.0
+                ),
+                bbox=bbox_keywords if label_text[i] in highlight else None,
+                color=text_color,
+                fontweight=highlight_label_keywords.get("fontweight", "normal")
                     if label_text[i] in highlight
                     else "normal",
-                )
             )
+        )
 
     # Ensure we have plot bounds that meet the newly place annotations
     coords = get_2d_coordinates(texts)
