@@ -8,13 +8,29 @@ import datamapplot
 import numpy as np
 import requests
 import PIL
+import matplotlib.font_manager
 import matplotlib.pyplot as plt
+from tempfile import NamedTemporaryFile
+import re
 import pandas as pd
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
 cord19_data_map = np.load("CORD19-subset-data-map.npy")
 cord19_labels = np.load("CORD19-subset-cluster_labels.npy", allow_pickle=True)
+
+def get_google_font(fontname):
+    api_fontname = fontname.replace(' ', '+')
+    api_response = resp = requests.get(
+        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
+    )
+    font_urls = re.findall(r'(https?://[^\)]+)', str(api_response.content))
+    for font_url in font_urls:
+        font_data = requests.get(font_url)
+        f = NamedTemporaryFile(delete=False, suffix='.ttf')
+        f.write(font_data.content)
+        f.close()
+        matplotlib.font_manager.fontManager.addfont(f.name)
 
 # Prune labels down slightly
 label_counts = pd.Series(cord19_labels).value_counts()
@@ -28,7 +44,9 @@ allenai_logo_response = requests.get(
 )
 allenai_logo = np.asarray(PIL.Image.open(allenai_logo_response.raw))
 
-datamapplot.create_plot(
+get_google_font("Cinzel")
+
+fig, ax = datamapplot.create_plot(
     cord19_data_map,
     cord19_labels,
     palette_hue_shift=-90,
@@ -41,10 +59,14 @@ datamapplot.create_plot(
         "Viral Diseases and Emerging Zoonoses",
         "Vaccine Acceptance",
     ],
-    label_font_size=6,
+    fontfamily="Cinzel",
+    label_font_size=7,
+    label_linespacing=1.25,
     label_margin_factor=1.5,
     label_direction_bias=1.0,
-    highlight_label_keywords={"fontsize": 12, "fontweight": "bold", "bbox": {"boxstyle": "circle", "pad": 0.75}},
+    highlight_label_keywords={"fontsize": 11, "fontweight": "bold", "bbox": {"boxstyle": "circle", "pad": 0.75}},
+    title_keywords={"fontsize": 28},
     logo=allenai_logo,
 )
+fig.savefig("plot_cord19.png", bbox_inches="tight")
 plt.show()

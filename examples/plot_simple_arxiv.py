@@ -47,8 +47,8 @@ fig, ax = datamapplot.create_plot(
     title="ArXiv ML Landscape",
     sub_title="A data map of papers from the Machine Learning section of ArXiv",
     logo=arxiv_logo,
-    fontfamily="Great Vibes",
-    label_font_size=13,
+    fontfamily="Montserrat Thin",
+    label_font_size=9.5,
     label_margin_factor=1.0,
     arrowprops={
         "arrowstyle": "wedge", "connectionstyle": "arc3,rad=0.3", "linewidth": 0.25, "ec": "#4f3e2d"
@@ -58,4 +58,5 @@ fig, ax = datamapplot.create_plot(
     glow_keywords={"n_levels":16, "kernel":"exponential", "kernel_bandwidth":0.2},
     cmap=colorcet.cm.CET_L9,
 )
+fig.savefig("plot_simple_arxiv.png", bbox_inches="tight")
 plt.show()

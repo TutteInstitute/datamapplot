@@ -52,4 +52,5 @@ fig, ax = datamapplot.create_plot(
     label_margin_factor=1.0,
     darkmode=True
 )
+fig.savefig("plot_arxiv_ml.png", bbox_inches="tight")
 plt.show()
