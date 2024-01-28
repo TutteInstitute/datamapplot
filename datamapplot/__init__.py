@@ -3,6 +3,7 @@ import pandas as pd
 import textwrap
 
 from matplotlib import pyplot as plt
+from matplotlib.colors import to_rgb
 
 from datamapplot.palette_handling import (
     palette_from_datamap,
@@ -12,6 +13,10 @@ from datamapplot.palette_handling import (
 )
 from datamapplot.plot_rendering import render_plot
 from datamapplot.medoids import medoid
+from datamapplot.interactive_rendering import (
+    render_deck,
+    label_text_and_polygon_dataframes,
+)
 
 
 def create_plot(
@@ -284,3 +289,144 @@ def create_plot(
     )
 
     return fig, ax
+
+
+def create_interactive_plot(
+    filename,
+    data_map_coords,
+    *label_layers,
+    hover_text=None,
+    title=None,
+    sub_title=None,
+    noise_label="Unlabelled",
+    noise_color="#999999",
+    color_label_text=True,
+    label_wrap_width=16,
+    label_color_map=None,
+    darkmode=False,
+    palette_hue_shift=0.0,
+    palette_hue_radius_dependence=1.0,
+    use_medoids=False,
+    cmap=None,
+    marker_size_array=None,
+    cluster_boundary_polygons=True,
+    **render_deck_keywords,
+):
+    if len(label_layers) == 0:
+        return None
+
+    label_dataframe = pd.concat(
+        [
+            label_text_and_polygon_dataframes(
+                labels,
+                data_map_coords,
+                noise_label=noise_label,
+                use_medoids=use_medoids,
+                label_wrap_width=label_wrap_width,
+                cluster_polygons=cluster_boundary_polygons,
+            )
+            for labels in label_layers
+        ]
+    )
+    if label_color_map is None:
+        if cmap is None:
+            palette = palette_from_datamap(
+                data_map_coords,
+                label_dataframe[["x", "y"]].values,
+                hue_shift=palette_hue_shift,
+                radius_weight_power=palette_hue_radius_dependence,
+            )
+        else:
+            palette = palette_from_cmap_and_datamap(
+                cmap,
+                data_map_coords,
+                label_dataframe[["x", "y"]].values,
+                radius_weight_power=palette_hue_radius_dependence,
+            )
+        if not darkmode:
+            text_palette = np.asarray(
+                [
+                    tuple(int(c * 255) for c in to_rgb(color))
+                    for color in deep_palette(palette)
+                ]
+            )
+        else:
+            text_palette = np.asarray(
+                [
+                    tuple(int(c * 255) for c in to_rgb(color))
+                    for color in pastel_palette(palette)
+                ]
+            )
+        palette = [tuple(int(c * 255) for c in to_rgb(color)) for color in palette]
+        color_map = {
+            label: color for label, color in zip(label_dataframe.label, palette)
+        }
+    else:
+        color_map = {
+            label: tuple(int(c * 255) for c in to_rgb(color))
+            for label, color in label_color_map.items()
+        }
+        if not darkmode:
+            text_palette = np.asarray(
+                [
+                    tuple(int(c * 255) for c in to_rgb(color))
+                    for color in deep_palette(
+                        [label_color_map[label] for label in label_dataframe.label]
+                    )
+                ]
+            )
+        else:
+            text_palette = np.asarray(
+                [
+                    tuple(int(c * 255) for c in to_rgb(color))
+                    for color in pastel_palette(
+                        [label_color_map[label] for label in label_dataframe.label]
+                    )
+                ]
+            )
+
+    label_dataframe["r"] = text_palette.T[0]
+    label_dataframe["g"] = text_palette.T[1]
+    label_dataframe["b"] = text_palette.T[2]
+    label_dataframe["a"] = 64
+    label_dataframe["label"] = label_dataframe.label.map(
+        lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
+    )
+
+    point_dataframe = pd.DataFrame(
+        {
+            "x": data_map_coords.T[0],
+            "y": data_map_coords.T[1],
+        }
+    )
+    if hover_text is not None:
+        point_dataframe["hover_text"] = hover_text
+
+    if marker_size_array is not None:
+        point_dataframe["size"] = marker_size_array
+
+    color_vector = np.asarray(
+        [tuple(int(c * 255) for c in to_rgb(noise_color))] * data_map_coords.shape[0],
+        dtype=object,
+    )
+    for labels in reversed(label_layers):
+        cluster_label_vector = np.asarray(labels)
+        unique_non_noise_labels = [
+            label for label in np.unique(cluster_label_vector) if label != noise_label
+        ]
+        for label in unique_non_noise_labels:
+            color_vector[cluster_label_vector == label] = color_map[label]
+
+    point_dataframe["color"] = [tuple(color) + (180,) for color in color_vector]
+
+    html_str = render_deck(
+        point_dataframe,
+        label_dataframe,
+        darkmode=darkmode,
+        color_label_text=color_label_text,
+        title=title,
+        sub_title=sub_title,
+        **render_deck_keywords,
+    )
+    with open(filename, "w+", encoding="utf-8") as f:
+        f.write(html_str)
