@@ -309,7 +309,10 @@ def create_interactive_plot(
     use_medoids=False,
     cmap=None,
     marker_size_array=None,
-    cluster_boundary_polygons=True,
+    cluster_boundary_polygons=False,
+    polygon_alpha=0.05,
+    extra_point_data=None,
+    hover_text_html_template=None,
     **render_deck_keywords,
 ):
     if len(label_layers) == 0:
@@ -324,6 +327,7 @@ def create_interactive_plot(
                 use_medoids=use_medoids,
                 label_wrap_width=label_wrap_width,
                 cluster_polygons=cluster_boundary_polygons,
+                alpha=polygon_alpha,
             )
             for labels in label_layers
         ]
@@ -405,6 +409,10 @@ def create_interactive_plot(
     if marker_size_array is not None:
         point_dataframe["size"] = marker_size_array
 
+    if extra_point_data is not None:
+        for key in extra_point_data:
+            point_dataframe[key] = extra_point_data[key]
+
     color_vector = np.asarray(
         [tuple(int(c * 255) for c in to_rgb(noise_color))] * data_map_coords.shape[0],
         dtype=object,
@@ -426,6 +434,7 @@ def create_interactive_plot(
         color_label_text=color_label_text,
         title=title,
         sub_title=sub_title,
+        hover_text_html_template=hover_text_html_template,
         **render_deck_keywords,
     )
     with open(filename, "w+", encoding="utf-8") as f:

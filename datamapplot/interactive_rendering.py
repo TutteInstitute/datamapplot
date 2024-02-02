@@ -56,8 +56,8 @@ _DECKGL_TEMPLATE_STR = """
         font-family: {{title_font_family}};
         background: {{title_background}};
       }
-      {% if logo %}
-            #logo-container {
+    {% if logo %}
+    #logo-container {
         position: absolute;
         bottom: 0;
         right: 0;
@@ -66,13 +66,13 @@ _DECKGL_TEMPLATE_STR = """
         border-radius: 16px;
         z-index: 2;
         background: {{title_background}};
-     }
-      img {
+    }
+    img {
         display: block;
         margin-left: auto;
         margin-right: auto;
-      }
-      {% endif %}
+    }
+    {% endif %}
     </style>
   </head>
   <body>
@@ -197,6 +197,7 @@ def deck_from_dataframes(
     point_line_width_max_pizels=8,
     point_line_width=32,
     color_label_text=True,
+    hover_text_html_template=None,
     darkmode=False,
 ):
     views = [pdk.View(type="OrthographicView", controller=True)]
@@ -296,7 +297,9 @@ def deck_from_dataframes(
         width=800,
         height=800,
         tooltip={
-            "html": "{hover_text}",
+            "html": "{hover_text}"
+            if hover_text_html_template is None
+            else hover_text_html_template,
         },
     )
     return deck
@@ -389,7 +392,7 @@ def render_deck(
     text_outline_width=8,
     text_min_pixel_size=8,
     text_max_pixel_size=36,
-    text_collision_size_scale=1,
+    text_collision_size_scale=3,
     text_outline_color="#eeeeeedd",
     point_hover_color="#aa0000",
     point_radius_min_pixels=0.01,
@@ -404,6 +407,7 @@ def render_deck(
     logo=None,
     logo_width=256,
     color_label_text=True,
+    hover_text_html_template=None,
     darkmode=False,
 ):
     deck = deck_from_dataframes(
@@ -425,6 +429,7 @@ def render_deck(
         point_line_width=point_line_width,
         color_label_text=color_label_text,
         darkmode=darkmode,
+        hover_text_html_template=hover_text_html_template,
     )
 
     html_str = render_deck_to_html(
