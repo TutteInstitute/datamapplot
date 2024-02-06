@@ -250,11 +250,20 @@ _DECKGL_TEMPLATE_STR = """
 </html>
 """
 
+
 class FormattingDict(dict):
     def __missing__(self, key):
         return f"{{{key}}}"
 
+
 class InteractiveFigure:
+    """A simple class to hold interactive plot outputs. This allows for
+    and object with a `_repr_html_` to display in notebooks.
+
+    The actual content of the plot is HTML, and the `save` method can
+    be used to save the results to an HTML file while can then be shared.
+    """
+
     def __init__(self, html_str, width="100%", height=800):
         self._html_str = html_str
         self.width = width
@@ -286,6 +295,7 @@ class InteractiveFigure:
             return getattr(html_obj, "data", "")
 
     def save(self, filename):
+        """Save an interactive firgure to the HTML file with name `filename`"""
         with open(filename, "w+") as f:
             f.write(self._html_str)
 
@@ -362,14 +372,14 @@ def render_html(
     sub_title=None,
     title_font_size=36,
     sub_title_font_size=18,
-    text_collision_size_scale=2,
-    text_min_pixel_size=8,
+    text_collision_size_scale=3,
+    text_min_pixel_size=12,
     text_max_pixel_size=36,
     font_family="arial",
     logo=None,
     logo_width=256,
     color_label_text=True,
-    line_spacing=0.75,
+    line_spacing=0.95,
     min_fontsize=12,
     max_fontsize=24,
     text_outline_width=8,
@@ -384,6 +394,76 @@ def render_html(
     hover_text_html_template=None,
     extra_point_data=None,
 ):
+    """Given data about points, and data about labels, render to an HTML file
+    using Deck.GL to provide an interactive plot that can be zoomed, panned
+    and explored.
+
+    Parameters
+    ----------
+    point_dataframe: pandas.DataFrame
+        A Dataframe containing point information for rendering. At a minimum this
+        should include columns `"x"`, `"y"`, `"r"`, `"g"`, `"b"` and `"a"` that
+        provide the x,y position and r,g,b color for each point. Note that r,g,b,a
+        values should be uint8 values.
+
+    label_dataframe: pandas.DataFrame
+        A Dataframe containing information about labels, and optionally bounding
+        polygons, of clusters. At a minimum this should include columns
+        `"x"`, `"y"`, `"r"`, `"g"`, `"b"` and `"a"` that provide the x,y position
+        and r,g,b colour of the label.
+
+    inline_data: bool (optional, default=True)
+        Whether to include data inline in the HTML file (compressed and base64 encoded)
+        of whether to write data to separate files that will then be referenced by the
+        HTML file -- in the latter case you will need to ensure all the files are
+        co-located and served over an http server or similar. Inline is the best
+        default choice for easy portability and simplicity, but can result in very
+        large file sizes.
+
+    title: str or None (optional, default=None)
+        A title for the plot, to be placed in the top left corner. The title should be
+        brief and to the point. More detail can be provided in the sub_title if required.
+
+    sub_title: str or None (optional, default=None)
+        A sub_title for the plot, to be placed in the top left corner.
+
+    title_font_size: int (optional, default=36)
+        The font-size of the title in points.
+
+    sub_title_font_size: int (optional, default=18)
+        The font-size of the sub-title in points.
+
+    text_collision_size_scale: float (optional, default=3.0)
+        How to scale text labels for the purpose of collision detection to determine
+        which labels to display.
+
+    text_min_pixel_size: float (optional, default=12.0)
+    text_max_pixel_size: float (optional, default=36.0)
+    font_family: str (optional, default="arial")
+    logo: str or None (optional, default=None)
+    logo_width: int (optional, default=256)
+    color_label_text: bool (optional, default=True)
+    line_spacing: float (optional, default=0.95)
+    min_fontsize: float (optional, default=12)
+    max_fontsize: float (optional, default=24)
+    text_outline_width: float (optional, default=8)
+    text_outline_color: str (optional, default="#eeeeeedd")
+    point_hover_color: str (optional, default="#aa0000bb")
+    point_radius_min_pixels: float (optional, default=0.01)
+    point_radius_max_pixels: float (optional, default=24)
+    point_line_width_min_pixels: float (optional, default=0.1)
+    point_line_width_max_pixels: float (optional, default=8)
+    point_line_width: float (optional, default=0.001)
+    darkmode: bool (optional, default=False)
+    hover_text_html_template: str or None (optional, default=None)
+    extra_point_data: pandas.DataFrame or None (optional, default=None)
+
+    Returns
+    -------
+    interactive_plot: InteractiveFigure
+        An interactive figure with hover, pan, and zoom. This will display natively
+        in a notebook, and can be saved to an HTML file via the `save` method.
+    """
     # Compute point scaling
     n_points = point_dataframe.shape[0]
     magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 4)
@@ -434,12 +514,15 @@ def render_html(
             axis=1,
         )
         replacements = FormattingDict(
-            **{str(name): f"${{hoverData.data.{name}[index]}}" for name in hover_data.columns}
+            **{
+                str(name): f"${{hoverData.data.{name}[index]}}"
+                for name in hover_data.columns
+            }
         )
         get_tooltip = (
-            '({index, picked}) => picked ? {"html": `' +
-            hover_text_html_template.format_map(replacements) +
-            '`} : null'
+            '({index, picked}) => picked ? {"html": `'
+            + hover_text_html_template.format_map(replacements)
+            + "`} : null"
         )
     else:
         hover_data = point_dataframe[["hover_text"]]
@@ -474,7 +557,6 @@ def render_html(
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
     resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
-
 
     if resp.ok:
         html_str = template.render(

@@ -141,7 +141,7 @@ def create_plot(
         "made" cyclic by reflecting it. If ``None`` then a custom method will be used instead.
 
     **render_plot_kwds
-        All opther keyword arguments are passed through the ``render_plot`` which provides
+        All other keyword arguments are passed through the ``render_plot`` which provides
         significant further control over the aesthetics of the plot.
 
     Returns
@@ -312,6 +312,96 @@ def create_interactive_plot(
     polygon_alpha=0.1,
     **render_html_kwds,
 ):
+    """
+
+    Parameters
+    ----------
+    data_map_coords: ndarray of floats of shape (n_samples, 2)
+        The 2D coordinates for the data map. Usually this is produced via a
+        dimension reduction technique such as UMAP, t-SNE, PacMAP, PyMDE etc.
+
+    *label_layers: np.ndarray
+        All remaining positional arguments are assumed to be labels, each at
+        a different level of resolution. Ideally these should be ordered such that
+        the most fine-grained resolution is first, and the coarsest resolution is last.
+        The individual labels-layers should be formatted the same as for `create_plot`.
+
+    hover_text: list or np.ndarray or None (optional, default=None)
+        An iterable (usually a list of numpy array) of text strings, one for each
+        data point in `data_map_coords` that can be used in a tooltip when hovering
+        over points.
+
+    inline_data: bool (optional, default=True)
+        Whether to include data inline in the HTML file (compressed and base64 encoded)
+        of whether to write data to separate files that will then be referenced by the
+        HTML file -- in the latter case you will need to ensure all the files are
+        co-located and served over an http server or similar. Inline is the best
+        default choice for easy portability and simplicity, but can result in very
+        large file sizes.
+
+    noise_label: str (optional, default="Unlabelled")
+        The string used in the ``labels`` array to identify the unlabelled or noise points
+        in the dataset.
+
+    noise_color: str (optional, default="#999999")
+        The colour to use for unlabelled or noise points in the data map. This should usually
+        be a muted or neutral colour to distinguish background points from the labelled clusters.
+
+    color_label_text: bool (optional, default=True)
+        Whether to use colours for the text labels generated in the plot. If ``False`` then
+        the text labels will default to either black or white depending on ``darkmode``.
+
+    label_wrap_width: int (optional, default=16)
+        The number of characters to apply text-wrapping at when creating text labels for
+        display in the plot. Note that long words will not be broken, so you can choose
+        relatively small values if you want tight text-wrapping.
+
+    label_color_map: dict or None (optional, default=None)
+        A colour mapping to use to colour points/clusters in the data map. The mapping should
+        be keyed by the unique cluster labels in ``labels`` and take values that are hex-string
+        representations of colours. If ``None`` then a colour mapping will be auto-generated.
+
+    darkmode: bool (optional, default=False)
+        Whether to render the plot in darkmode (with a dark background) or not.
+
+    palette_hue_shift: float (optional, default=0.0)
+        A setting, in degrees clockwise, to shift the hue channel when generating a colour
+        palette and color_mapping for the labels.
+
+    palette_hue_radius_dependence: float (optional, default=1.0)
+        A setting that determines how dependent on the radius the hue channel is. Larger
+        values will result in more hue variation where there are more outlying points.
+
+    cmap: matplotlib cmap or None (optional, default=None)
+        A linear matplotlib cmap colour map to use as the base for a generated colour mapping.
+        This *should* be a matplotlib cmap that is smooth and linear, and cyclic
+        (see the colorcet package for some good options). If not a cyclic cmap it will be
+        "made" cyclic by reflecting it. If ``None`` then a custom method will be used instead.
+
+    marker_size_array: np.ndarray or None (optional, default=None)
+        An array of sizes for each of the points in the data map scatterplot.
+
+    use_medoids: bool (optional, default=False)
+        Whether to use medoids instead of centroids to determine the "location" of the cluster,
+        both for the label indicator line, and for palette colouring. Note that medoids are
+        more computationally expensive, especially for large plots, so use with some caution.
+
+    cluster_boundary_polygons: bool (optional, default=False)
+        Whether to draw alpha-shape generated boundary lines around clusters. This can be useful
+        in highlighting clusters at different resolutions when using many different label_layers.
+
+    polygon_alpha: float (optional, default=0.1)
+        The alpha value to use when genrating alpha-shape based boundaries around clusters.
+
+    **render_html_kwds:
+        All other keyword arguments will be passed through the `render_html` function. Please
+        see the docstring of that function for further options that can control the
+        aesthetic results.
+
+    Returns
+    -------
+
+    """
     if len(label_layers) == 0:
         return None
 

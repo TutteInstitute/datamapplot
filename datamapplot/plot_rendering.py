@@ -27,19 +27,21 @@ from tempfile import NamedTemporaryFile
 import requests
 import re
 
+
 def get_google_font(fontname):
-    api_fontname = fontname.replace(' ', '+')
+    api_fontname = fontname.replace(" ", "+")
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
     )
     if api_response.ok:
-        font_urls = re.findall(r'(https?://[^\)]+)', str(api_response.content))
+        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
         for font_url in font_urls:
             font_data = requests.get(font_url)
-            f = NamedTemporaryFile(delete=False, suffix='.ttf')
+            f = NamedTemporaryFile(delete=False, suffix=".ttf")
             f.write(font_data.content)
             f.close()
             font_manager.fontManager.addfont(f.name)
+
 
 def datashader_scatterplot(
     data_map_coords,
@@ -417,7 +419,6 @@ def render_plot(
     else:
         font_size = label_font_size
 
-
     # Ensure we can look up labels for highlighting
     if highlight_labels is not None:
         highlight = set(highlight_labels)
@@ -439,7 +440,10 @@ def render_plot(
     )
 
     # Build highlight boxes
-    if "bbox" in highlight_label_keywords and highlight_label_keywords["bbox"] is not None:
+    if (
+        "bbox" in highlight_label_keywords
+        and highlight_label_keywords["bbox"] is not None
+    ):
         base_bbox_keywords = highlight_label_keywords["bbox"]
     else:
         base_bbox_keywords = None
@@ -502,8 +506,8 @@ def render_plot(
                 bbox=bbox_keywords if label_text[i] in highlight else None,
                 color=text_color,
                 fontweight=highlight_label_keywords.get("fontweight", "normal")
-                    if label_text[i] in highlight
-                    else "normal",
+                if label_text[i] in highlight
+                else "normal",
             )
         )
 
@@ -527,18 +531,18 @@ def render_plot(
     if sub_title is not None:
         if sub_title_keywords is not None:
             keyword_args = {
-                "fontweight":"light",
-                "color":"gray",
-                "fontsize":(1.2 * font_scale_factor),
-                "fontfamily":fontfamily,
-                **sub_title_keywords
+                "fontweight": "light",
+                "color": "gray",
+                "fontsize": (1.2 * font_scale_factor),
+                "fontfamily": fontfamily,
+                **sub_title_keywords,
             }
         else:
             keyword_args = {
-                "fontweight":"light",
-                "color":"gray",
-                "fontsize":(1.2 * font_scale_factor),
-                "fontfamily":fontfamily,
+                "fontweight": "light",
+                "color": "gray",
+                "fontsize": (1.2 * font_scale_factor),
+                "fontfamily": fontfamily,
             }
         axis_title = ax.set_title(
             sub_title,
@@ -558,29 +562,25 @@ def render_plot(
     if title is not None:
         if title_keywords is not None:
             keyword_args = {
-                "color":"white" if darkmode else "black",
-                "ha":"left",
-                "va":"bottom",
-                "fontweight":"bold",
-                "fontsize":int(1.6 * font_scale_factor),
-                "fontfamily":fontfamily,
-                **title_keywords
+                "color": "white" if darkmode else "black",
+                "ha": "left",
+                "va": "bottom",
+                "fontweight": "bold",
+                "fontsize": int(1.6 * font_scale_factor),
+                "fontfamily": fontfamily,
+                **title_keywords,
             }
         else:
             keyword_args = {
-                "color":"white" if darkmode else "black",
-                "ha":"left",
-                "va":"bottom",
-                "fontweight":"bold",
-                "fontsize":int(1.6 * font_scale_factor),
-                "fontfamily":fontfamily,
+                "color": "white" if darkmode else "black",
+                "ha": "left",
+                "va": "bottom",
+                "fontweight": "bold",
+                "fontsize": int(1.6 * font_scale_factor),
+                "fontfamily": fontfamily,
             }
         fig.suptitle(
-            title,
-            x=0.0,
-            y=sup_title_y_value,
-            transform=ax.transAxes,
-            **keyword_args
+            title, x=0.0, y=sup_title_y_value, transform=ax.transAxes, **keyword_args
         )
 
     ax_x_min, ax_x_max = ax.get_xlim()
