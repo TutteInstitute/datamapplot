@@ -529,7 +529,7 @@ def render_html(
             hover_data = point_dataframe[["hover_text"]]
             get_tooltip = "({index}) => hoverData.data.hover_text[index]"
     else:
-        hover_data = pd.Dataframe()
+        hover_data = pd.DataFrame()
         get_tooltip = "null"
 
     if inline_data:
