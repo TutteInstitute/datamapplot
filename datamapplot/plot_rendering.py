@@ -11,6 +11,7 @@ from sklearn.neighbors import KernelDensity
 from skimage.transform import rescale
 
 from matplotlib import pyplot as plt
+from matplotlib import font_manager
 
 from datamapplot.overlap_computations import get_2d_coordinates
 from datamapplot.text_placement import (
@@ -21,7 +22,24 @@ from datamapplot.text_placement import (
 )
 
 from warnings import warn
+from tempfile import NamedTemporaryFile
 
+import requests
+import re
+
+def get_google_font(fontname):
+    api_fontname = fontname.replace(' ', '+')
+    api_response = requests.get(
+        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
+    )
+    if api_response.ok:
+        font_urls = re.findall(r'(https?://[^\)]+)', str(api_response.content))
+        for font_url in font_urls:
+            font_data = requests.get(font_url)
+            f = NamedTemporaryFile(delete=False, suffix='.ttf')
+            f.write(font_data.content)
+            f.close()
+            font_manager.fontManager.addfont(f.name)
 
 def datashader_scatterplot(
     data_map_coords,
@@ -331,6 +349,13 @@ def render_plot(
     """
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
+
+    # Get any google fonts if required
+    get_google_font(fontfamily)
+    if "fontfamily" in title_keywords:
+        get_google_font(title_keywords["fontfamily"])
+    if "fontfamily" in sub_title_keywords:
+        get_google_font(sub_title_keywords["fontfamily"])
 
     # Apply matplotlib or datashader based on heuristics
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:
