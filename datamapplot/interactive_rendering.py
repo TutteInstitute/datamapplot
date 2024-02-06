@@ -508,25 +508,29 @@ def render_html(
     else:
         point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
 
-    if extra_point_data is not None and hover_text_html_template is not None:
-        hover_data = pd.concat(
-            [point_dataframe[["hover_text"]], extra_point_data],
-            axis=1,
-        )
-        replacements = FormattingDict(
-            **{
-                str(name): f"${{hoverData.data.{name}[index]}}"
-                for name in hover_data.columns
-            }
-        )
-        get_tooltip = (
-            '({index, picked}) => picked ? {"html": `'
-            + hover_text_html_template.format_map(replacements)
-            + "`} : null"
-        )
+    if "hover_text" in point_dataframe.columns:
+        if extra_point_data is not None and hover_text_html_template is not None:
+            hover_data = pd.concat(
+                [point_dataframe[["hover_text"]], extra_point_data],
+                axis=1,
+            )
+            replacements = FormattingDict(
+                **{
+                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    for name in hover_data.columns
+                }
+            )
+            get_tooltip = (
+                '({index, picked}) => picked ? {"html": `'
+                + hover_text_html_template.format_map(replacements)
+                + "`} : null"
+            )
+        else:
+            hover_data = point_dataframe[["hover_text"]]
+            get_tooltip = "({index}) => hoverData.data.hover_text[index]"
     else:
-        hover_data = point_dataframe[["hover_text"]]
-        get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+        hover_data = pd.Dataframe()
+        get_tooltip = "null"
 
     if inline_data:
         buffer = io.BytesIO()
@@ -617,8 +621,8 @@ def render_html(
             inline_data=inline_data,
             base64_point_data=base64_point_data,
             base64_hover_data=base64_hover_data,
-            label_data_json=base64_label_data,
-            base64_label_data=point_size,
+            base64_label_data=base64_label_data,
+            point_size=point_size,
             point_outline_color=point_outline_color,
             point_line_width=point_line_width,
             point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
