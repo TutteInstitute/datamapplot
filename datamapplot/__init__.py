@@ -1,6 +1,6 @@
 from datamapplot.create_plots import create_plot, create_interactive_plot
-from plot_rendering import render_plot
-from interactive_rendering import render_html
+from datamapplot.plot_rendering import render_plot
+from datamapplot.interactive_rendering import render_html
 from importlib.metadata import version, PackageNotFoundError
 
 try:
