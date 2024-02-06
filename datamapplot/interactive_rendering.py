@@ -1,23 +1,19 @@
 import numpy as np
 import pandas as pd
-import pydeck as pdk
 
-import json
 import jinja2
 import requests
-import textwrap
+import base64
+import io
+import gzip
+import html
+import warnings
 
 from scipy.spatial import Delaunay
-from matplotlib.colors import to_rgb, to_rgba
+from matplotlib.colors import to_rgba
 
 from datamapplot.medoids import medoid
-from datamapplot.alpha_shapes import create_boundary_polygons
-from datamapplot.palette_handling import (
-    palette_from_cmap_and_datamap,
-    palette_from_datamap,
-    pastel_palette,
-    deep_palette,
-)
+from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 
 _DECKGL_TEMPLATE_STR = """
 <!DOCTYPE html>
@@ -30,58 +26,76 @@ _DECKGL_TEMPLATE_STR = """
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap" rel="stylesheet">
     {% endif %}
-    {% if google_maps_key %}
-    <script src="https://maps.googleapis.com/maps/api/js?key={{google_maps_key}}&libraries=places"></script>
-    {% else %}
-    <script src="https://api.tiles.mapbox.com/mapbox-gl-js/v1.13.0/mapbox-gl.js"></script>
-    {% endif %}
+       
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css" />
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" />
-    {{ deckgl_jupyter_widget_bundle }}
-    <script src="https://unpkg.com/@deck.gl/extensions@8.9.33/dist.min.js"></script> 
-    {%if load_data %}
-
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    {% if inline_data %}
+    <script src="https://unpkg.com/fflate@0.8.0"></script>
     {% endif %}
     <style>
-    {{ css_text }}
-    #title-container {
-        position: absolute;
-        top: 0;
-        left: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        line-height: 0.95;
-        z-index: 2;
-        font-family: {{title_font_family}};
-        background: {{title_background}};
-      }
-    {% if logo %}
-    #logo-container {
-        position: absolute;
-        bottom: 0;
-        right: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        z-index: 2;
-        background: {{title_background}};
-    }
-    img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-    }
-    {% endif %}
+        body {
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          background: {{page_background_color}};
+        }
+
+        #deck-container {
+          width: 100vw;
+          height: 100vh;
+        }
+
+        #deck-container canvas {
+          z-index: 1;
+          background: {{page_background_color}};
+        }
+
+        .deck-tooltip {
+            font-size: 0.8em;
+            font-family: Helvetica, Arial, sans-serif;
+            width: 25%;
+        }
+
+        #title-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            margin: 16px;
+            padding: 12px;
+            border-radius: 16px;
+            line-height: 0.95;
+            z-index: 2;
+            font-family: {{title_font_family}};
+            color: {{title_font_color}};
+            background: {{title_background}};
+        }
+        {% if logo %}
+        #logo-container {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            margin: 16px;
+            padding: 12px;
+            border-radius: 16px;
+            z-index: 2;
+            background: {{title_background}};
+        }
+        img {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        {% endif %}  
     </style>
   </head>
   <body>
     {% if use_title %}
     <div id="title-container">
-        <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_color}}">
+        <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
             {{title}}
         </span><br/>
-        <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:#777777">
+        <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}">
             {{sub_title}}
         </span>
     </div>
@@ -94,29 +108,186 @@ _DECKGL_TEMPLATE_STR = """
     <div id="deck-container">
     </div>
   </body>
-  <script>
-    {%if load_data %}
-    const data = await load({{arrow_filename}}, ArrowLoader);
+  <script type="module">
+    import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
+    import { JSONLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/json@4.0.5/+esm'
+    {% if not inline_data %}
+    import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
+    import { CSVLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/csv@4.1.0-alpha.10/+esm'
     {% endif %}
+
+    {% if inline_data %}
+    const pointDataBase64 = "{{base64_point_data}}";
+    const pointDataBuffer = fflate.strToU8(atob(pointDataBase64), true);
+    const pointData = await loaders.parse(pointDataBuffer, ArrowLoader);
+    const hoverDataBase64 = "{{base64_hover_data}}";
+    const hoverDataBuffer = fflate.strToU8(atob(hoverDataBase64), true);
+    const unzippedHoverData = fflate.gunzipSync(hoverDataBuffer);
+    const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
+    const labelDataBase64 = "{{base64_label_data}}";
+    const labelDataBuffer = fflate.strToU8(atob(labelDataBase64), true);
+    const unzippedLabelData = fflate.gunzipSync(labelDataBuffer);    
+    const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
+    {% else %}
+    const pointData = await loaders.load("point_df.arrow", ArrowLoader);
+    const unzippedHoverData = await loaders.load("point_hover_text_arrow.zip", ZipLoader);
+    const hoverData = await loaders.parse(unzippedHoverData["point_hover_text.arrow"], ArrowLoader);
+    const unzippedLabelData = await loaders.load("label_data_json.zip", ZipLoader);
+    const labelData = await loaders.parse(unzippedLabelData["label_data.json"], JSONLoader);
+    {% endif %}
+    
+    const DATA = {src: pointData.data, length: pointData.data.x.length}
+
     const container = document.getElementById('deck-container');
-    const jsonInput = {{json_input}};
-    const tooltip = {{tooltip}};
-    const customLibraries = null;
-    const configuration =  {
-        classes: Object.assign({}, deck)
-    };
-
-    const deckInstance = createDeck({
-      container,
-      jsonInput,
-      tooltip,
-      customLibraries,
-      configuration
+    const pointLayer = new deck.ScatterplotLayer({
+        id: 'dataPointLayer',
+        data: DATA,
+        getPosition: (object, {index, data}) => {
+            return [data.src.x[index], data.src.y[index]];
+        },
+        {% if point_size < 0 %}
+        getRadius: (object, {index, data}) => {
+            return data.src.size[index];
+        },
+        {% else %}
+        getRadius: {{point_size}},
+        {% endif %}
+        getFillColor: (object, {index, data}) => {
+            return [
+                data.src.r[index], 
+                data.src.g[index], 
+                data.src.b[index],
+                180
+            ]
+        },
+        getLineColor: (object, {index, data}) => {
+            return [
+                data.src.r[index], 
+                data.src.g[index], 
+                data.src.b[index],
+                32
+            ]
+        },       
+        getLineColor: {{point_outline_color}},
+        getLineWidth: {{point_line_width}},
+        highlightColor: {{point_hover_color}}, 
+        lineWidthMaxPixels: {{point_line_width_max_pixels}},
+        lineWidthMinPixels: {{point_line_width_min_pixels}},
+        radiusMaxPixels: {{point_radius_max_pixels}}, 
+        radiusMinPixels: {{point_radius_min_pixels}},
+        radiusUnits: "common", 
+        lineWidthUnits: "common", 
+        autoHighlight: true,
+        pickable: true, 
+        stroked: true
     });
+    const labelLayer = new deck.TextLayer({
+        id: "textLabelLayer",
+        data: labelData,
+        pickable: false,
+        getPosition: d => [d.x, d.y],
+        getText: d => d.label,
+        getColor: {{label_text_color}},
+        getSize: d => d.size,
+        sizeScale: 1,
+        sizeMinPixels: {{text_min_pixel_size}},
+        sizeMaxPixels: {{text_max_pixel_size}},
+        outlineWidth: {{text_outline_width}},
+        outlineColor: {{text_outline_color}},
+        getBackgroundColor: {{text_background_color}},
+        getBackgroundPadding: [15, 15, 15, 15],
+        background: true,
+        characterSet: "auto",
+        fontFamily: "{{font_family}}",
+        lineHeight: {{line_spacing}},
+        fontSettings: {"sdf": true},
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "center",
+        lineHeight: 0.95,
+        elevation: 100,
+        // CollideExtension options
+        collisionEnabled: true,
+        getCollisionPriority: d => d.size,
+        collisionTestProps: {
+          sizeScale: {{text_collision_size_scale}},
+          sizeMaxPixels: {{text_max_pixel_size}} * 2,
+          sizeMinPixels: {{text_min_pixel_size}} * 2
+        },
+        extensions: [new deck.CollisionFilterExtension()],
+    });
+    {% if cluster_boundary_polygons %}
+    const boundaryLayer = new deck.PolygonLayer({
+        data: labelData,
+        stroked: true,
+        filled: false,
+        getLineColor: d => [d.r, d.g, d.b, d.a],
+        getPolygon: d => d.polygon,
+        lineWidthUnits: "common",
+        getLineWidth: d => d.size * d.size,
+        lineWidthScale: 5e-5,
+        lineJointRounded: true,
+        lineWidthMaxPixels: 4,
+        lineWidthMinPixels: 0.0,
+    });
+    {% endif %}
 
-  </script>
+    const deckgl = new deck.DeckGL({
+      container: container,
+      initialViewState: {
+        latitude: {{data_center_y}},
+        longitude: {{data_center_x}},
+        zoom: {{zoom_level}}
+      },
+      controller: true,
+      {% if cluster_boundary_polygons %}
+      layers: [pointLayer, boundaryLayer, labelLayer],
+      {% else %}
+      layers: [pointLayer, labelLayer],
+      {% endif %}
+      getTooltip: {{get_tooltip}}
+    });
+    </script>
 </html>
 """
+
+class FormattingDict(dict):
+    def __missing__(self, key):
+        return f"{{{key}}}"
+
+class InteractiveFigure:
+    def __init__(self, html_str, width="100%", height=800):
+        self._html_str = html_str
+        self.width = width
+        self.height = height
+
+    def __repr__(self):
+        return f"<InteractiveFigure width={self.width} height={self.height}>"
+
+    def __str__(self):
+        return self._html_str
+
+    def _repr_html_(self):
+        src_doc = html.escape(self._html_str)
+        iframe = f"""
+            <iframe
+                width={self.width}
+                height={self.height}
+                frameborder="0"
+                srcdoc="{src_doc}"
+            ></iframe>
+        """
+        from IPython.display import HTML
+
+        with warnings.catch_warnings():
+            msg = "Consider using IPython.display.IFrame instead"
+            warnings.filterwarnings("ignore", message=msg)
+
+            html_obj = HTML(iframe)
+            return getattr(html_obj, "data", "")
+
+    def save(self, filename):
+        with open(filename, "w+") as f:
+            f.write(self._html_str)
 
 
 def label_text_and_polygon_dataframes(
@@ -124,7 +295,6 @@ def label_text_and_polygon_dataframes(
     data_map_coords,
     noise_label="Unlabelled",
     use_medoids=False,
-    label_wrap_width=16,
     cluster_polygons=False,
     alpha=0.05,
 ):
@@ -132,12 +302,17 @@ def label_text_and_polygon_dataframes(
     unique_non_noise_labels = [
         label for label in np.unique(cluster_label_vector) if label != noise_label
     ]
+    label_map = {n: i for i, n in enumerate(unique_non_noise_labels)}
+    label_map[noise_label] = -1
+    label_unmap = {i: n for n, i in label_map.items()}
+    cluster_idx_vector = np.asarray(pd.Series(cluster_label_vector).map(label_map))
+
     label_locations = []
     cluster_sizes = []
     polygons = []
 
-    for l in unique_non_noise_labels:
-        cluster_mask = cluster_label_vector == l
+    for i, l in enumerate(unique_non_noise_labels):
+        cluster_mask = cluster_idx_vector == i
         cluster_points = data_map_coords[cluster_mask]
         if use_medoids:
             label_locations.append(medoid(cluster_points))
@@ -149,7 +324,7 @@ def label_text_and_polygon_dataframes(
             simplices = Delaunay(cluster_points).simplices
             polygons.append(
                 [
-                    x.tolist()
+                    smooth_polygon(x).tolist()
                     for x in create_boundary_polygons(
                         cluster_points, simplices, alpha=alpha
                     )
@@ -179,134 +354,10 @@ def label_text_and_polygon_dataframes(
         )
 
 
-def deck_from_dataframes(
+def render_html(
     point_dataframe,
     label_dataframe,
-    font_family="arial",
-    line_spacing=0.75,
-    min_fontsize=12,
-    max_fontsize=24,
-    text_outline_width=8,
-    text_min_pixel_size=8,
-    text_max_pixel_size=36,
-    text_outline_color="#eeeeeedd",
-    point_hover_color="#aa0000",
-    point_radius_min_pixels=0.01,
-    point_radius_max_pixels=24,
-    point_line_width_min_pixels=0.1,
-    point_line_width_max_pizels=8,
-    point_line_width=32,
-    color_label_text=True,
-    hover_text_html_template=None,
-    darkmode=False,
-):
-    views = [pdk.View(type="OrthographicView", controller=True)]
-    # Compute point scaling
-    n_points = point_dataframe.shape[0]
-    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 4)
-    if "size" not in point_dataframe.columns:
-        point_size = magic_number
-    else:
-        point_dataframe["size"] = magic_number * (
-            point_dataframe["size"] / point_dataframe["size"].median()
-        )
-        point_size = "size"
-
-    if darkmode and text_outline_color == "#eeeeeedd":
-        text_outline_color = "#111111dd"
-    documents_layer = pdk.Layer(
-        "ScatterplotLayer",
-        point_dataframe,
-        coordinate_system=None,
-        get_position=["x", "y"],
-        get_fill_color="color",
-        get_radius=point_size,
-        radius_units="'common'",
-        line_width_unit="'common'",
-        stroked=True,
-        get_line_color=[250, 250, 250, 128] if not darkmode else [5, 5, 5, 128],
-        get_line_width=point_line_width,
-        line_width_min_pixels=point_line_width_min_pixels,
-        line_width_max_pixels=point_line_width_max_pizels,
-        radius_min_pixels=point_radius_min_pixels,
-        radius_max_pixels=point_radius_max_pixels,
-        pickable=True,
-        auto_highlight=True,
-        highlight_color=[int(c * 255) for c in to_rgba(point_hover_color)],
-    )
-    # Compute text scaling
-    size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
-    label_dataframe["size"] = (
-        label_dataframe["size"] - label_dataframe["size"].min()
-    ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
-
-    # Text color depending on color_label_text and darkmode
-    if color_label_text:
-        label_text_color = ["r", "g", "b"]
-    else:
-        if darkmode:
-            label_text_color = [255, 255, 255]
-        else:
-            label_text_color = [0, 0, 0]
-
-    labels_layer = pdk.Layer(
-        "TextLayer",
-        label_dataframe,
-        pickable=False,
-        get_position=["x", "y"],
-        get_text="label",
-        get_color=label_text_color,
-        get_size="size",
-        size_scale=1,
-        size_min_pixels=text_min_pixel_size,
-        size_max_pixels=text_max_pixel_size,
-        outline_width=text_outline_width,
-        outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
-        get_background_color=[255, 255, 255, 64] if not darkmode else [0, 0, 0, 64],
-        background=True,
-        font_family=pdk.types.String(font_family),
-        font_settings={"sdf": True},
-        get_text_anchor=pdk.types.String("middle"),
-        get_alignment_baseline=pdk.types.String("center"),
-        line_height=line_spacing,
-        elevation=100,
-    )
-    layers = [documents_layer, labels_layer]
-    if "polygon" in label_dataframe.columns:
-        boundary_layer = pdk.Layer(
-            "PolygonLayer",
-            label_dataframe,
-            stroked=True,
-            filled=False,
-            get_line_color=["r", "g", "b", "a"],
-            get_polygon="polygon",
-            lineWidthUnits="'common'",
-            get_line_width="size * size",
-            line_width_scale=5e-5,
-            line_joint_rounded=True,
-            line_width_max_pixels=4,
-            line_width_min_pixels=0.0,
-        )
-        layers.append(boundary_layer)
-
-    deck = pdk.Deck(
-        layers=layers,
-        map_style="light",
-        initial_view_state={"latitude": 0, "longitude": 0, "zoom": 4},
-        map_provider=None,
-        width=800,
-        height=800,
-        tooltip={
-            "html": "{hover_text}"
-            if hover_text_html_template is None
-            else hover_text_html_template,
-        },
-    )
-    return deck
-
-
-def render_deck_to_html(
-    deck,
+    inline_data=True,
     title=None,
     sub_title=None,
     title_font_size=36,
@@ -317,133 +368,195 @@ def render_deck_to_html(
     font_family="arial",
     logo=None,
     logo_width=256,
-    darkmode=False,
-):
-    pdk.io.html.DECKGL_SEMVER = "8.9.*"
-    pdk.io.html.CDN_URL = (
-        "https://cdn.jsdelivr.net/npm/@deck.gl/jupyter-widget@{}/dist/index.js".format(
-            pdk.io.html.DECKGL_SEMVER
-        )
-    )
-    template = jinja2.Template(_DECKGL_TEMPLATE_STR)
-    deck_json = deck.to_json()
-    dict_deck_json = json.loads(deck_json)
-    dict_deck_json["layers"][1]["extensions"] = [{"@@type": "CollisionFilterExtension"}]
-    dict_deck_json["layers"][1]["getCollisionPriority"] = "@@=size"
-    dict_deck_json["layers"][1]["collisionTestProps"] = {
-        "sizeScale": text_collision_size_scale,
-        "sizeMinPixels": text_min_pixel_size * 1.5,
-        "sizeMaxPixels": text_max_pixel_size * 1.5,
-    }
-    deck_json = json.dumps(dict_deck_json)
-    css_template = pdk.io.html.j2_env.get_template("style.j2")
-    css_str = css_template.render(
-        css_background_color="#ffffff" if not darkmode else "#000000"
-    )
-    api_fontname = font_family.replace(" ", "+")
-    resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
-    title_color = "#000000" if not darkmode else "#ffffff"
-    title_background = "#ffffffaa" if not darkmode else "#000000aa"
-    if resp.ok:
-        html_str = template.render(
-            json_input=deck_json,
-            deckgl_jupyter_widget_bundle=pdk.io.html.cdn_picker(offline=False),
-            tooltip=pdk.io.html.convert_js_bool(deck._tooltip),
-            css_text=css_str,
-            title=title if title is not None else "Interactive Data Map",
-            sub_title=sub_title if sub_title is not None else "",
-            use_title=title is not None,
-            title_font_size=title_font_size,
-            title_font_family=font_family,
-            sub_title_font_size=sub_title_font_size,
-            google_font=api_fontname,
-            title_color=title_color,
-            title_background=title_background,
-            logo=logo,
-            logo_width=logo_width,
-        )
-    else:
-        html_str = template.render(
-            json_input=deck_json,
-            deckgl_jupyter_widget_bundle=pdk.io.html.cdn_picker(offline=False),
-            tooltip=pdk.io.html.convert_js_bool(deck._tooltip),
-            css_text=css_str,
-            title=title if title is not None else "Interactive Data Map",
-            sub_title=sub_title if sub_title is not None else "",
-            use_title=title is not None,
-            title_font_size=title_font_size,
-            title_font_family=font_family,
-            sub_title_font_size=sub_title_font_size,
-            title_color=title_color,
-            title_background=title_background,
-            logo=logo,
-            logo_width=logo_width,
-        )
-    return html_str
-
-
-def render_deck(
-    point_dataframe,
-    label_dataframe,
-    font_family="arial",
+    color_label_text=True,
     line_spacing=0.75,
     min_fontsize=12,
     max_fontsize=24,
     text_outline_width=8,
-    text_min_pixel_size=8,
-    text_max_pixel_size=36,
-    text_collision_size_scale=3,
     text_outline_color="#eeeeeedd",
-    point_hover_color="#aa0000",
+    point_hover_color="#aa0000bb",
     point_radius_min_pixels=0.01,
     point_radius_max_pixels=24,
     point_line_width_min_pixels=0.1,
-    point_line_width_max_pizels=8,
-    point_line_width=32,
-    title=None,
-    sub_title=None,
-    title_font_size=36,
-    sub_title_font_size=18,
-    logo=None,
-    logo_width=256,
-    color_label_text=True,
-    hover_text_html_template=None,
+    point_line_width_max_pixels=8,
+    point_line_width=0.001,
     darkmode=False,
+    hover_text_html_template=None,
+    extra_point_data=None,
 ):
-    deck = deck_from_dataframes(
-        point_dataframe,
-        label_dataframe,
-        font_family=font_family,
-        line_spacing=line_spacing,
-        min_fontsize=min_fontsize,
-        max_fontsize=max_fontsize,
-        text_outline_width=text_outline_width,
-        text_min_pixel_size=text_min_pixel_size,
-        text_max_pixel_size=text_max_pixel_size,
-        text_outline_color=text_outline_color,
-        point_hover_color=point_hover_color,
-        point_radius_min_pixels=point_radius_min_pixels,
-        point_radius_max_pixels=point_radius_max_pixels,
-        point_line_width_min_pixels=point_line_width_min_pixels,
-        point_line_width_max_pizels=point_line_width_max_pizels,
-        point_line_width=point_line_width,
-        color_label_text=color_label_text,
-        darkmode=darkmode,
-        hover_text_html_template=hover_text_html_template,
-    )
+    # Compute point scaling
+    n_points = point_dataframe.shape[0]
+    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 4)
+    if "size" not in point_dataframe.columns:
+        point_size = magic_number
+    else:
+        point_dataframe["size"] = magic_number * (
+            point_dataframe["size"] / point_dataframe["size"].median()
+        )
+        point_size = -1
 
-    html_str = render_deck_to_html(
-        deck,
-        title=title,
-        sub_title=sub_title,
-        title_font_size=title_font_size,
-        sub_title_font_size=sub_title_font_size,
-        text_min_pixel_size=text_min_pixel_size,
-        text_max_pixel_size=text_max_pixel_size,
-        text_collision_size_scale=text_collision_size_scale,
-        font_family=font_family,
-        logo=logo,
-        logo_width=logo_width,
-        darkmode=darkmode,
-    )
+    # Compute zoom level and initial view location
+    data_width = point_dataframe.x.max() - point_dataframe.x.min()
+    data_height = point_dataframe.y.max() - point_dataframe.y.min()
+    data_center = point_dataframe[["x", "y"]].values.mean(axis=0)
+
+    spread = max(data_width, data_height)
+    if spread < (360.0 * np.power(2.0, -20)):
+        zoom_level = 21
+    else:
+        zoom_level = max(1, np.log2(360.0) - np.log2(spread))
+
+    if darkmode and text_outline_color == "#eeeeeedd":
+        text_outline_color = "#111111dd"
+
+    point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
+    text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
+    if color_label_text:
+        label_text_color = "d => [d.r, d.g, d.b]"
+    else:
+        label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
+
+    # Compute text scaling
+    size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
+    label_dataframe["size"] = (
+        label_dataframe["size"] - label_dataframe["size"].min()
+    ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
+
+    # Prep data for inlining or storage
+    if point_size < 0:
+        point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size"]]
+    else:
+        point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
+
+    if extra_point_data is not None and hover_text_html_template is not None:
+        hover_data = pd.concat(
+            [point_dataframe[["hover_text"]], extra_point_data],
+            axis=1,
+        )
+        replacements = FormattingDict(
+            **{str(name): f"${{hoverData.data.{name}[index]}}" for name in hover_data.columns}
+        )
+        get_tooltip = (
+            '({index, picked}) => picked ? {"html": `' +
+            hover_text_html_template.format_map(replacements) +
+            '`} : null'
+        )
+    else:
+        hover_data = point_dataframe[["hover_text"]]
+        get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+
+    if inline_data:
+        buffer = io.BytesIO()
+        point_data.to_feather(buffer, compression="uncompressed")
+        buffer.seek(0)
+        base64_point_data = base64.b64encode(buffer.read()).decode()
+        buffer = io.BytesIO()
+        hover_data.to_feather(buffer, compression="uncompressed")
+        buffer.seek(0)
+        arrow_bytes = buffer.read()
+        gzipped_bytes = gzip.compress(arrow_bytes)
+        base64_hover_data = base64.b64encode(gzipped_bytes).decode()
+        label_data_json = label_dataframe.to_json(orient="records")
+        gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
+        base64_label_data = base64.b64encode(gzipped_label_data).decode()
+    else:
+        base64_point_data = ""
+        base64_hover_data = ""
+        base64_label_data = ""
+        point_data.to_feather("point_df.arrow", compression="uncompressed")
+        hover_data.to_csv("point_hover_text.zip", index=False, columns=("hover_text",))
+        label_dataframe.to_json("label_data.json", orient="records")
+
+    title_font_color = "#000000" if not darkmode else "#ffffff"
+    sub_title_font_color = "#777777"
+    title_background = "#ffffffaa" if not darkmode else "#000000aa"
+
+    template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+    api_fontname = font_family.replace(" ", "+")
+    resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
+
+
+    if resp.ok:
+        html_str = template.render(
+            title=title if title is not None else "Interactive Data Map",
+            sub_title=sub_title if sub_title is not None else "",
+            google_font=api_fontname,
+            page_background_color="#ffffff" if not darkmode else "#000000",
+            title_font_family=font_family,
+            title_font_color=title_font_color,
+            title_background=title_background,
+            use_title=title is not None,
+            title_font_size=title_font_size,
+            sub_title_font_sizee=sub_title_font_size,
+            sub_title_font_color=sub_title_font_color,
+            logo=logo,
+            logo_width=logo_width,
+            inline_data=inline_data,
+            base64_point_data=base64_point_data,
+            base64_hover_data=base64_hover_data,
+            base64_label_data=base64_label_data,
+            point_size=point_size,
+            point_outline_color=point_outline_color,
+            point_line_width=point_line_width,
+            point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
+            point_line_width_max_pixels=point_line_width_max_pixels,
+            point_line_width_min_pixels=point_line_width_min_pixels,
+            point_radius_max_pixels=point_radius_max_pixels,
+            point_radius_min_pixels=point_radius_min_pixels,
+            label_text_color=label_text_color,
+            line_spacing=line_spacing,
+            text_min_pixel_size=text_min_pixel_size,
+            text_max_pixel_size=text_max_pixel_size,
+            text_outline_width=text_outline_width,
+            text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
+            text_background_color=text_background_color,
+            font_family=font_family,
+            text_collision_size_scale=text_collision_size_scale,
+            cluster_boundary_polygons="polygon" in label_dataframe.columns,
+            zoom_level=zoom_level,
+            data_center_x=data_center[0],
+            data_center_y=data_center[1],
+            get_tooltip=get_tooltip,
+        )
+    else:
+        html_str = template.render(
+            title=title if title is not None else "Interactive Data Map",
+            sub_title=sub_title if sub_title is not None else "",
+            page_background_color=title_background,
+            title_font_family=font_family,
+            title_font_color=title_font_color,
+            title_background=title_background,
+            use_title=title is not None,
+            title_font_size=title_font_size,
+            sub_title_font_sizee=sub_title_font_size,
+            sub_title_font_color=sub_title_font_color,
+            logo=logo,
+            logo_width=logo_width,
+            inline_data=inline_data,
+            base64_point_data=base64_point_data,
+            base64_hover_data=base64_hover_data,
+            label_data_json=base64_label_data,
+            base64_label_data=point_size,
+            point_outline_color=point_outline_color,
+            point_line_width=point_line_width,
+            point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
+            point_line_width_max_pixels=point_line_width_max_pixels,
+            point_line_width_min_pixels=point_line_width_min_pixels,
+            point_radius_max_pixels=point_radius_max_pixels,
+            point_radius_min_pixels=point_radius_min_pixels,
+            label_text_color=label_text_color,
+            line_spacing=line_spacing,
+            text_min_pixel_size=text_min_pixel_size,
+            text_max_pixel_size=text_max_pixel_size,
+            text_outline_width=text_outline_width,
+            text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
+            text_background_color=text_background_color,
+            font_family=font_family,
+            text_collision_size_scale=text_collision_size_scale,
+            cluster_boundary_polygons="polygon" in label_dataframe.columns,
+            zoom_level=zoom_level,
+            data_center_x=data_center[0],
+            data_center_y=data_center[1],
+            get_tooltip=get_tooltip,
+        )
     return html_str
