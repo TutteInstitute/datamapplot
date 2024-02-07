@@ -354,9 +354,9 @@ def render_plot(
 
     # Get any google fonts if required
     get_google_font(fontfamily)
-    if "fontfamily" in title_keywords:
+    if title_keywords is not None and "fontfamily" in title_keywords:
         get_google_font(title_keywords["fontfamily"])
-    if "fontfamily" in sub_title_keywords:
+    if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
         get_google_font(sub_title_keywords["fontfamily"])
 
     # Apply matplotlib or datashader based on heuristics
