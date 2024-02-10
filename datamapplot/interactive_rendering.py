@@ -244,6 +244,9 @@ _DECKGL_TEMPLATE_STR = """
       {% else %}
       layers: [pointLayer, labelLayer],
       {% endif %}
+      {% if on_click %}
+      onClick: {{on_click}},
+      {% endif %}
       getTooltip: {{get_tooltip}}
     });
     </script>
@@ -393,6 +396,7 @@ def render_html(
     darkmode=False,
     hover_text_html_template=None,
     extra_point_data=None,
+    on_click=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -438,25 +442,96 @@ def render_html(
         which labels to display.
 
     text_min_pixel_size: float (optional, default=12.0)
+        The minimum pixel size of label text. If text would be smaller than this in size
+        then render the text to be at least this size.
+
     text_max_pixel_size: float (optional, default=36.0)
+        The maximum pixel size of label text. If text would be larger than this in size
+        then render the text to be at most this size.
+
     font_family: str (optional, default="arial")
+        The font family to use for label text and titles. If the font family is a
+        google font then the required google font api handling will automatically
+        make the font available, so any google font family is acceptable.
+
     logo: str or None (optional, default=None)
+        A logo image to include in the bottom right corner of the map. This should be
+        a URL to the image.
+
     logo_width: int (optional, default=256)
+        The width, in pixels, of the logo to be included in the bottom right corner.
+        The logo will retain it's aspect ratio, so choose the width accordingly.
+
     color_label_text: bool (optional, default=True)
+        Whether the text labels for clusters should be coloured or not. If set to False
+        the labels will be either black or white depending on whether ``darkmode`` is set.
+
     line_spacing: float (optional, default=0.95)
+        Line height spacing in label text.
+
     min_fontsize: float (optional, default=12)
+        The minimum font size (in points) of label text. In general label text is scaled
+        based on the size of the cluster the label if for; this will set the minimum
+        value for that scaling.
+
     max_fontsize: float (optional, default=24)
+        The maximum font size (in points) of label text. In general label text is scaled
+        based on the size of the cluster the label if for; this will set the maximum
+        value for that scaling.
+
     text_outline_width: float (optional, default=8)
+        The size of the outline around the label text. The outline, in a contrasting
+        colour, can make text more readable against the map background. Choosing larger
+        sizes can help if text is less legible.
+
     text_outline_color: str (optional, default="#eeeeeedd")
+        The colour of the outline around the label text. The outline should be a
+        contrasting colour to the colour of the label text. By default this is white
+        when ``darkmode`` is ``False`` and black when ``darkmode`` is ``True``.
+
     point_hover_color: str (optional, default="#aa0000bb")
+        The colour of the highlighted point a user is hovering over.
+
     point_radius_min_pixels: float (optional, default=0.01)
+        The minimum number of pixels in radius of the points in the map; if zoomed out
+        enough that a point would be smaller than this, it is instead rendered at this radius.
+        This allows points to remain visible when zoomed out.
+
     point_radius_max_pixels: float (optional, default=24)
+        The maximum number of pixels in radius of the points in the map; if zoomed in
+        enough that a point would be larger than this, it is instead rendered at this radius.
+        This allows zooming in to differentiate points that are otherwise overtop of one
+         another.
+
     point_line_width_min_pixels: float (optional, default=0.1)
+        The minimum pixel width of the outline around points.
+
     point_line_width_max_pixels: float (optional, default=8)
+        The maximum pixel width of the outline around points.
+
     point_line_width: float (optional, default=0.001)
+        The absolute line-width in common coordinates of the outline around points.
+
     darkmode: bool (optional, default=False)
+        Whether to use darkmode.
+
     hover_text_html_template: str or None (optional, default=None)
+        An html template allowing fine grained control of what is displayed in the
+        hover tooltip. This should be HTML with placeholders of the form ``{hover_text}``
+        for the supplied hover text and ``{column_name}`` for columns from
+        ``extra_point_data`` (see below).
+
     extra_point_data: pandas.DataFrame or None (optional, default=None)
+        A dataframe of extra information about points. This should be a dataframe with
+        one row per point. The information in this dataframe can be referenced by column-name
+        by either ``hover_text_html_template`` or ``on_click`` for use in tooltips
+        or on-click actions.
+
+    on_click: str or None (optional, default=None)
+        A javascript action to be taken if a point in the data map is clicked. The javascript
+        can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
+        could provide ``"window.open(`http://google.com/search?q=\"{hover_text}\"`)"`` to
+        open a new window with a google search for the hover_text of the clicked point.
 
     Returns
     -------
@@ -509,7 +584,9 @@ def render_html(
         point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
 
     if "hover_text" in point_dataframe.columns:
-        if extra_point_data is not None and hover_text_html_template is not None:
+        if extra_point_data is not None and (
+            hover_text_html_template is not None or on_click is not None
+        ):
             hover_data = pd.concat(
                 [point_dataframe[["hover_text"]], extra_point_data],
                 axis=1,
@@ -520,14 +597,30 @@ def render_html(
                     for name in hover_data.columns
                 }
             )
-            get_tooltip = (
-                '({index, picked}) => picked ? {"html": `'
-                + hover_text_html_template.format_map(replacements)
-                + "`} : null"
-            )
+            if hover_text_html_template is not None:
+                get_tooltip = (
+                    '({index, picked}) => picked ? {"html": `'
+                    + hover_text_html_template.format_map(replacements)
+                    + "`} : null"
+                )
+            else:
+                get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+
+            if on_click is not None:
+                on_click = '({index}, event) => ' + on_click.format_map(replacements)
         else:
             hover_data = point_dataframe[["hover_text"]]
             get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+
+            replacements = FormattingDict(
+                **{
+                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    for name in hover_data.columns
+                }
+            )
+
+            if on_click is not None:
+                on_click = '({index}, event) => ' + on_click.format_map(replacements)
     else:
         hover_data = pd.DataFrame()
         get_tooltip = "null"
@@ -561,88 +654,49 @@ def render_html(
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
     resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
+    if not resp.ok:
+        api_fontname = None
 
-    if resp.ok:
-        html_str = template.render(
-            title=title if title is not None else "Interactive Data Map",
-            sub_title=sub_title if sub_title is not None else "",
-            google_font=api_fontname,
-            page_background_color="#ffffff" if not darkmode else "#000000",
-            title_font_family=font_family,
-            title_font_color=title_font_color,
-            title_background=title_background,
-            use_title=title is not None,
-            title_font_size=title_font_size,
-            sub_title_font_size=sub_title_font_size,
-            sub_title_font_color=sub_title_font_color,
-            logo=logo,
-            logo_width=logo_width,
-            inline_data=inline_data,
-            base64_point_data=base64_point_data,
-            base64_hover_data=base64_hover_data,
-            base64_label_data=base64_label_data,
-            point_size=point_size,
-            point_outline_color=point_outline_color,
-            point_line_width=point_line_width,
-            point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
-            point_line_width_max_pixels=point_line_width_max_pixels,
-            point_line_width_min_pixels=point_line_width_min_pixels,
-            point_radius_max_pixels=point_radius_max_pixels,
-            point_radius_min_pixels=point_radius_min_pixels,
-            label_text_color=label_text_color,
-            line_spacing=line_spacing,
-            text_min_pixel_size=text_min_pixel_size,
-            text_max_pixel_size=text_max_pixel_size,
-            text_outline_width=text_outline_width,
-            text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
-            text_background_color=text_background_color,
-            font_family=font_family,
-            text_collision_size_scale=text_collision_size_scale,
-            cluster_boundary_polygons="polygon" in label_dataframe.columns,
-            zoom_level=zoom_level,
-            data_center_x=data_center[0],
-            data_center_y=data_center[1],
-            get_tooltip=get_tooltip,
-        )
-    else:
-        html_str = template.render(
-            title=title if title is not None else "Interactive Data Map",
-            sub_title=sub_title if sub_title is not None else "",
-            page_background_color=title_background,
-            title_font_family=font_family,
-            title_font_color=title_font_color,
-            title_background=title_background,
-            use_title=title is not None,
-            title_font_size=title_font_size,
-            sub_title_font_size=sub_title_font_size,
-            sub_title_font_color=sub_title_font_color,
-            logo=logo,
-            logo_width=logo_width,
-            inline_data=inline_data,
-            base64_point_data=base64_point_data,
-            base64_hover_data=base64_hover_data,
-            base64_label_data=base64_label_data,
-            point_size=point_size,
-            point_outline_color=point_outline_color,
-            point_line_width=point_line_width,
-            point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
-            point_line_width_max_pixels=point_line_width_max_pixels,
-            point_line_width_min_pixels=point_line_width_min_pixels,
-            point_radius_max_pixels=point_radius_max_pixels,
-            point_radius_min_pixels=point_radius_min_pixels,
-            label_text_color=label_text_color,
-            line_spacing=line_spacing,
-            text_min_pixel_size=text_min_pixel_size,
-            text_max_pixel_size=text_max_pixel_size,
-            text_outline_width=text_outline_width,
-            text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
-            text_background_color=text_background_color,
-            font_family=font_family,
-            text_collision_size_scale=text_collision_size_scale,
-            cluster_boundary_polygons="polygon" in label_dataframe.columns,
-            zoom_level=zoom_level,
-            data_center_x=data_center[0],
-            data_center_y=data_center[1],
-            get_tooltip=get_tooltip,
-        )
+    html_str = template.render(
+        title=title if title is not None else "Interactive Data Map",
+        sub_title=sub_title if sub_title is not None else "",
+        google_font=api_fontname,
+        page_background_color="#ffffff" if not darkmode else "#000000",
+        title_font_family=font_family,
+        title_font_color=title_font_color,
+        title_background=title_background,
+        use_title=title is not None,
+        title_font_size=title_font_size,
+        sub_title_font_size=sub_title_font_size,
+        sub_title_font_color=sub_title_font_color,
+        logo=logo,
+        logo_width=logo_width,
+        inline_data=inline_data,
+        base64_point_data=base64_point_data,
+        base64_hover_data=base64_hover_data,
+        base64_label_data=base64_label_data,
+        point_size=point_size,
+        point_outline_color=point_outline_color,
+        point_line_width=point_line_width,
+        point_hover_color=[int(c * 255) for c in to_rgba(point_hover_color)],
+        point_line_width_max_pixels=point_line_width_max_pixels,
+        point_line_width_min_pixels=point_line_width_min_pixels,
+        point_radius_max_pixels=point_radius_max_pixels,
+        point_radius_min_pixels=point_radius_min_pixels,
+        label_text_color=label_text_color,
+        line_spacing=line_spacing,
+        text_min_pixel_size=text_min_pixel_size,
+        text_max_pixel_size=text_max_pixel_size,
+        text_outline_width=text_outline_width,
+        text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
+        text_background_color=text_background_color,
+        font_family=font_family,
+        text_collision_size_scale=text_collision_size_scale,
+        cluster_boundary_polygons="polygon" in label_dataframe.columns,
+        zoom_level=zoom_level,
+        data_center_x=data_center[0],
+        data_center_y=data_center[1],
+        on_click=on_click,
+        get_tooltip=get_tooltip,
+    )
     return html_str
