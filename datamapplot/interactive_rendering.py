@@ -52,9 +52,7 @@ _DECKGL_TEMPLATE_STR = """
         }
 
         .deck-tooltip {
-            font-size: 0.8em;
-            font-family: Helvetica, Arial, sans-serif;
-            width: 25%;
+            {{tooltip_css}}
         }
 
         #title-container {
@@ -86,7 +84,10 @@ _DECKGL_TEMPLATE_STR = """
             margin-left: auto;
             margin-right: auto;
         }
-        {% endif %}  
+        {% endif %}
+        {% if custom_css %}
+        {{custom_css}}
+        {% endif %}
     </style>
   </head>
   <body>
@@ -107,6 +108,9 @@ _DECKGL_TEMPLATE_STR = """
     {% endif %}
     <div id="deck-container">
     </div>
+    {% if custom_html %}
+    {{custom_html}}
+    {% endif %}
   </body>
   <script type="module">
     import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
@@ -253,6 +257,11 @@ _DECKGL_TEMPLATE_STR = """
 </html>
 """
 
+_TOOL_TIP_CSS = """
+    font-size: 0.8em;
+    font-family: Helvetica, Arial, sans-serif;
+    width: 25%;
+"""
 
 class FormattingDict(dict):
     def __missing__(self, key):
@@ -393,10 +402,14 @@ def render_html(
     point_line_width_min_pixels=0.1,
     point_line_width_max_pixels=8,
     point_line_width=0.001,
+    background_color=None,
     darkmode=False,
+    tooltip_css=None,
     hover_text_html_template=None,
     extra_point_data=None,
     on_click=None,
+    custom_html=None,
+    custom_css=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -512,8 +525,17 @@ def render_html(
     point_line_width: float (optional, default=0.001)
         The absolute line-width in common coordinates of the outline around points.
 
+    background_color: str or None (optional, default=None)
+        A background colour (as a hex-string) for the data map. If ``None`` a background
+        colour will be chosen automatically based on whether ``darkmode`` is set.
+
     darkmode: bool (optional, default=False)
         Whether to use darkmode.
+
+    tooltip_css: str or None (optional, default=None)
+        Custom CSS used to fine the properties of the tooltip. If ``None`` a default
+        CSS style will be used. This should simply the the required CSS directives
+        specific to the tooltip.
 
     hover_text_html_template: str or None (optional, default=None)
         An html template allowing fine grained control of what is displayed in the
@@ -532,6 +554,15 @@ def render_html(
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
         could provide ``"window.open(`http://google.com/search?q=\"{hover_text}\"`)"`` to
         open a new window with a google search for the hover_text of the clicked point.
+
+    custom_css: str or None (optional, default=None)
+        A string of custom CSS code to be added to the style header of the output HTML. This
+        can be used to provide custom styling of other features of the output HTML as required.
+
+    custom_html: str or None (optional, default=None)
+        A string of custom HTML to be added to the body of the output HTML. This can be used to
+        add other custom elements to the interactive plot, including elements that can be
+        interacted with via the ``on_click`` action for example.
 
     Returns
     -------
@@ -625,6 +656,9 @@ def render_html(
         hover_data = pd.DataFrame()
         get_tooltip = "null"
 
+    if tooltip_css is None:
+        tooltip_css = _TOOL_TIP_CSS
+
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
@@ -651,6 +685,11 @@ def render_html(
     sub_title_font_color = "#777777"
     title_background = "#ffffffaa" if not darkmode else "#000000aa"
 
+    if background_color is None:
+        page_background_color = "#ffffff" if not darkmode else "#000000"
+    else:
+        page_background_color = background_color
+
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
     resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
@@ -661,16 +700,19 @@ def render_html(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
-        page_background_color="#ffffff" if not darkmode else "#000000",
+        page_background_color=page_background_color,
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
+        tooltip_css = tooltip_css,
+        custom_css=custom_css,
         use_title=title is not None,
         title_font_size=title_font_size,
         sub_title_font_size=sub_title_font_size,
         sub_title_font_color=sub_title_font_color,
         logo=logo,
         logo_width=logo_width,
+        custom_html=custom_html,
         inline_data=inline_data,
         base64_point_data=base64_point_data,
         base64_hover_data=base64_hover_data,
