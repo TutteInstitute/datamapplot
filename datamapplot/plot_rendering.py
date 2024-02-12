@@ -354,10 +354,13 @@ def render_plot(
 
     # Get any google fonts if required
     get_google_font(fontfamily)
+    get_google_font(fontfamily.split()[0])
     if title_keywords is not None and "fontfamily" in title_keywords:
         get_google_font(title_keywords["fontfamily"])
+        get_google_font(title_keywords["fontfamily"].split()[0])
     if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
         get_google_font(sub_title_keywords["fontfamily"])
+        get_google_font(sub_title_keywords["fontfamily"].split()[0])
 
     # Apply matplotlib or datashader based on heuristics
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:
