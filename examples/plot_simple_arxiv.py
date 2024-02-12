@@ -29,13 +29,13 @@ fig, ax = datamapplot.create_plot(
     title="ArXiv ML Landscape",
     sub_title="A data map of papers from the Machine Learning section of ArXiv",
     logo=arxiv_logo,
-    fontfamily="Montserrat Thin",
+    fontfamily="Montserrat",
     label_font_size=9.5,
     label_margin_factor=1.0,
     arrowprops={
         "arrowstyle": "wedge", "connectionstyle": "arc3,rad=0.3", "linewidth": 0.25, "ec": "#4f3e2d"
     },
-    title_keywords={"fontfamily":"Montserrat Thin", "fontweight":"black", "fontsize":36},
+    title_keywords={"fontfamily":"Montserrat", "fontweight":"black", "fontsize":36},
     sub_title_keywords={"fontfamily":"Montserrat Thin", "fontsize":22},
     glow_keywords={"n_levels":16, "kernel":"exponential", "kernel_bandwidth":0.2},
     cmap=colorcet.cm.CET_L9,
