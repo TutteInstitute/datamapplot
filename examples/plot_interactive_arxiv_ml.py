@@ -15,7 +15,7 @@ for layer_num in range(5):
     arxivml_label_layers.append(
         np.load(f"arxiv_ml_layer{layer_num}_cluster_labels.npy", allow_pickle=True)
     )
-arxivml_hover_data = np.load("arxiv_ml_hover_data.npy")
+arxivml_hover_data = np.load("arxiv_ml_hover_data.npy", allow_pickle=True))
 
 plot = datamapplot.create_interactive_plot(
     arxivml_data_map,
