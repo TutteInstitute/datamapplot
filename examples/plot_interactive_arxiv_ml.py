@@ -5,7 +5,7 @@ Interactive ArXiv ML
 Demonstrating interactive plotting with the ArXiv ML data map.
 
 For a full size version see
-[https://lmcinnes.github.io/datamapplot_examples/ArXiv_data_map_example.html](https://lmcinnes.github.io/datamapplot_examples/ArXiv_data_map_example.html)
+https://lmcinnes.github.io/datamapplot_examples/ArXiv_data_map_example.html
 """
 
 import numpy as np

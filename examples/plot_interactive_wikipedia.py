@@ -1,3 +1,12 @@
+"""
+Interactive Wikipedia
+---------------------
+
+Demonstrating interactive plotting with a Simple Wikipedia data map.
+
+For a full size version see
+https://lmcinnes.github.io/datamapplot_examples/Wikipedia_data_map_example.html
+"""
 import numpy as np
 import datamapplot
 
