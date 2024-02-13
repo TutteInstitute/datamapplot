@@ -402,6 +402,7 @@ def render_html(
     point_line_width_min_pixels=0.1,
     point_line_width_max_pixels=8,
     point_line_width=0.001,
+    initial_zoom_fraction=1.0,
     background_color=None,
     darkmode=False,
     tooltip_css=None,
@@ -525,6 +526,11 @@ def render_html(
     point_line_width: float (optional, default=0.001)
         The absolute line-width in common coordinates of the outline around points.
 
+    initial_zoom_fraction: float (optional, default=1.0)
+        The fraction of the total zoom (containing allm the data) to start the
+        map in. A lower value will initialize the plot zoomed in, while values
+        larger than 1.0 will result in the initial start point being zoomed out.
+
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
         colour will be chosen automatically based on whether ``darkmode`` is set.
@@ -586,7 +592,7 @@ def render_html(
     data_height = point_dataframe.y.max() - point_dataframe.y.min()
     data_center = point_dataframe[["x", "y"]].values.mean(axis=0)
 
-    spread = max(data_width, data_height)
+    spread = max(data_width, data_height) * initial_zoom_fraction
     if spread < (360.0 * np.power(2.0, -20)):
         zoom_level = 21
     else:
