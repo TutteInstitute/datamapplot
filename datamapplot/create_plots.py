@@ -42,6 +42,7 @@ def create_plot(
     palette_hue_radius_dependence=1.0,
     use_medoids=False,
     cmap=None,
+    marker_color_array=None,
     **render_plot_kwds,
 ):
     """Create a static plot from ``data_map_coords`` with text labels provided by ``labels``.
@@ -219,6 +220,9 @@ def create_plot(
             for x in cluster_label_vector
         ]
 
+    if marker_color_array is not None:
+        color_list = list(marker_color_array)
+
     label_colors = [label_color_map[x] for x in unique_non_noise_labels]
 
     if color_label_text:
@@ -307,8 +311,10 @@ def create_interactive_plot(
     palette_hue_radius_dependence=1.0,
     cmap=None,
     marker_size_array=None,
+    marker_color_array=None,
     use_medoids=False,
     cluster_boundary_polygons=False,
+    color_cluster_boundaries=True,
     polygon_alpha=0.1,
     **render_html_kwds,
 ):
@@ -476,10 +482,17 @@ def create_interactive_plot(
                 ]
             )
 
-    label_dataframe["r"] = text_palette.T[0]
-    label_dataframe["g"] = text_palette.T[1]
-    label_dataframe["b"] = text_palette.T[2]
-    label_dataframe["a"] = 64
+    if color_label_text or color_cluster_boundaries:
+        label_dataframe["r"] = text_palette.T[0]
+        label_dataframe["g"] = text_palette.T[1]
+        label_dataframe["b"] = text_palette.T[2]
+        label_dataframe["a"] = 64
+    else:
+        label_dataframe["r"] = 15 if not darkmode else 240
+        label_dataframe["g"] = 15 if not darkmode else 240
+        label_dataframe["b"] = 15 if not darkmode else 240
+        label_dataframe["a"] = 64
+
     label_dataframe["label"] = label_dataframe.label.map(
         lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
     )
@@ -496,19 +509,31 @@ def create_interactive_plot(
     if marker_size_array is not None:
         point_dataframe["size"] = marker_size_array
 
-    color_vector = np.asarray(
-        [tuple(int(c * 255) for c in to_rgb(noise_color))] * data_map_coords.shape[0],
-        dtype=np.uint8,
-    )
-    for labels in reversed(label_layers):
-        label_map = {n: i for i, n in enumerate(np.unique(labels))}
-        label_unmap = {i: n for n, i in label_map.items()}
-        cluster_label_vector = np.asarray(pd.Series(labels).map(label_map))
-        unique_non_noise_labels = [
-            label for label in label_unmap if label != label_map[noise_label]
-        ]
-        for label in unique_non_noise_labels:
-            color_vector[cluster_label_vector == label] = color_map[label_unmap[label]]
+    if marker_color_array is None:
+        color_vector = np.asarray(
+            [tuple(int(c * 255) for c in to_rgb(noise_color))]
+            * data_map_coords.shape[0],
+            dtype=np.uint8,
+        )
+        for labels in reversed(label_layers):
+            label_map = {n: i for i, n in enumerate(np.unique(labels))}
+            label_unmap = {i: n for n, i in label_map.items()}
+            cluster_label_vector = np.asarray(pd.Series(labels).map(label_map))
+            unique_non_noise_labels = [
+                label for label in label_unmap if label != label_map[noise_label]
+            ]
+            for label in unique_non_noise_labels:
+                color_vector[cluster_label_vector == label] = color_map[
+                    label_unmap[label]
+                ]
+    else:
+        color_vector = np.asarray(
+            [
+                tuple(int(c * 255) for c in to_rgb(color))
+                for color in marker_color_array
+            ],
+            dtype=np.uint8,
+        )
 
     point_dataframe["r"] = color_vector.T[0].astype(np.uint8)
     point_dataframe["g"] = color_vector.T[1].astype(np.uint8)
