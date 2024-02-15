@@ -306,6 +306,8 @@ def create_interactive_plot(
     color_label_text=True,
     label_wrap_width=16,
     label_color_map=None,
+    width="100%",
+    height=800,
     darkmode=False,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
@@ -366,6 +368,16 @@ def create_interactive_plot(
         A colour mapping to use to colour points/clusters in the data map. The mapping should
         be keyed by the unique cluster labels in ``labels`` and take values that are hex-string
         representations of colours. If ``None`` then a colour mapping will be auto-generated.
+
+    width: int or str (optional, default="100%")
+        The width of the plot when rendered in a notebook. This should be a valid HTML iframe
+        width specification -- either an integer number of pixels, or a string that can be
+        properly interpreted in HTML.
+
+    height: int or str (optional, default=800)
+        The height of the plot when rendered in a notebook. This should be a valid HTML iframe
+        height specification -- either an integer number of pixels, or a string that can be
+        properly interpreted in HTML.
 
     darkmode: bool (optional, default=False)
         Whether to render the plot in darkmode (with a dark background) or not.
@@ -549,4 +561,4 @@ def create_interactive_plot(
         **render_html_kwds,
     )
 
-    return InteractiveFigure(html_str)
+    return InteractiveFigure(html_str, width=width, height=height)
