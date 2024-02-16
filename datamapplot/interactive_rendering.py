@@ -761,9 +761,7 @@ def render_html(
             point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
 
     if "hover_text" in point_dataframe.columns:
-        if extra_point_data is not None and (
-            hover_text_html_template is not None or on_click is not None
-        ):
+        if extra_point_data is not None:
             hover_data = pd.concat(
                 [point_dataframe[["hover_text"]], extra_point_data],
                 axis=1,
@@ -798,6 +796,22 @@ def render_html(
 
             if on_click is not None:
                 on_click = '({index}, event) => ' + on_click.format_map(replacements)
+    elif extra_point_data is not None:
+        hover_data = extra_point_data
+        replacements = FormattingDict(
+            **{
+                str(name): f"${{hoverData.data.{name}[index]}}"
+                for name in hover_data.columns
+            }
+        )
+        if hover_text_html_template is not None:
+            get_tooltip = (
+                    '({index, picked}) => picked ? {"html": `'
+                    + hover_text_html_template.format_map(replacements)
+                    + "`} : null"
+            )
+        else:
+            get_tooltip = "null"
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
