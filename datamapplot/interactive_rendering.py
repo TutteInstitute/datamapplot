@@ -156,6 +156,10 @@ _DECKGL_TEMPLATE_STR = """
         </div>
         {% endif %}
     </div>
+    {% elif search %}
+    <div id="search-container" style="margin-left: 0 !important">
+        <input autocomplete="off" type="search" id="search" placeholder="🔍">
+    </div>
     {% endif %}
     {% if logo %}
     <div id="logo-container">
@@ -284,7 +288,7 @@ _DECKGL_TEMPLATE_STR = """
         getPolygon: d => d.polygon,
         lineWidthUnits: "common",
         getLineWidth: d => d.size * d.size,
-        lineWidthScale: 5e-5,
+        lineWidthScale: {{cluster_boundary_line_width}} * 5e-5,
         lineJointRounded: true,
         lineWidthMaxPixels: 4,
         lineWidthMinPixels: 0.0,
@@ -509,6 +513,7 @@ def render_html(
     point_line_width_min_pixels=0.1,
     point_line_width_max_pixels=8,
     point_line_width=0.001,
+    cluster_boundary_line_width=1,
     initial_zoom_fraction=1.0,
     background_color=None,
     darkmode=False,
@@ -635,6 +640,10 @@ def render_html(
 
     point_line_width: float (optional, default=0.001)
         The absolute line-width in common coordinates of the outline around points.
+
+    cluster_boundary_line_width: float (optional, default=1.0)
+        The linewidth to use for cluster boundaries. Note that cluster boundaries scale with respect
+        to cluster size, so this is a scaling factor applied over this.
 
     initial_zoom_fraction: float (optional, default=1.0)
         The fraction of the total zoom (containing allm the data) to start the
@@ -790,7 +799,7 @@ def render_html(
             if on_click is not None:
                 on_click = '({index}, event) => ' + on_click.format_map(replacements)
     else:
-        hover_data = pd.DataFrame()
+        hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
 
     if inline_data:
@@ -891,6 +900,7 @@ def render_html(
         font_family=font_family,
         text_collision_size_scale=text_collision_size_scale,
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
+        cluster_boundary_line_width=cluster_boundary_line_width,
         zoom_level=zoom_level,
         data_center_x=data_center[0],
         data_center_y=data_center[1],
