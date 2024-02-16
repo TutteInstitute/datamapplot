@@ -157,7 +157,7 @@ _DECKGL_TEMPLATE_STR = """
         {% endif %}
     </div>
     {% elif search %}
-    <div id="search-container" style="margin-left: 0 !important">
+    <div id="search-container" style="left:0 !important">
         <input autocomplete="off" type="search" id="search" placeholder="🔍">
     </div>
     {% endif %}
