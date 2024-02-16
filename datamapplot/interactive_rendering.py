@@ -8,6 +8,8 @@ import io
 import gzip
 import html
 import warnings
+import zipfile
+import os
 
 from scipy.spatial import Delaunay
 from matplotlib.colors import to_rgba
@@ -138,7 +140,7 @@ _DECKGL_TEMPLATE_STR = """
   </head>
   <body>
     <div id="loading">
-        <img id="loading-image" src="https://i.gifer.com/H0bj.gif" alt="Loading..." width="5%"/>
+        <img id="loading-image" src="https://i.gifer.com/ZKZg.gif" alt="Loading..." width="5%"/>
     </div>
     {% if use_title %}
     <div id="title-container">
@@ -188,9 +190,9 @@ _DECKGL_TEMPLATE_STR = """
     const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
     {% else %}
     const pointData = await loaders.load("point_df.arrow", ArrowLoader);
-    const unzippedHoverData = await loaders.load("point_hover_text_arrow.zip", ZipLoader);
-    const hoverData = await loaders.parse(unzippedHoverData["point_hover_text.arrow"], ArrowLoader);
-    const unzippedLabelData = await loaders.load("label_data_json.zip", ZipLoader);
+    const unzippedHoverData = await loaders.load("point_hover_data.zip", ZipLoader);
+    const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
+    const unzippedLabelData = await loaders.load("label_data.zip", ZipLoader);
     const labelData = await loaders.parse(unzippedLabelData["label_data.json"], JSONLoader);
     {% endif %}
     
@@ -308,7 +310,7 @@ _DECKGL_TEMPLATE_STR = """
       getTooltip: {{get_tooltip}}
     });
     
-    window.onload = function(){ document.getElementById("loading").style.display = "none" }
+    document.getElementById("loading").style.display = "none";
         
     {% if search %}
         function selectPoints(item, conditional) {
@@ -351,8 +353,9 @@ _DECKGL_TEMPLATE_STR = """
         }
     );
     {% endif %}
-    
+    {% if custom_js %}
     {{custom_js}}
+    {% endif %}
     </script>
 </html>
 """
@@ -809,8 +812,14 @@ def render_html(
         base64_hover_data = ""
         base64_label_data = ""
         point_data.to_feather("point_df.arrow", compression="uncompressed")
-        hover_data.to_csv("point_hover_text.zip", index=False, columns=("hover_text",))
+        hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
+        with zipfile.ZipFile("point_hover_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as f:
+            f.write("point_hover_data.arrow")
+        os.remove("point_hover_data.arrow")
         label_dataframe.to_json("label_data.json", orient="records")
+        with zipfile.ZipFile("label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as f:
+            f.write("label_data.json")
+        os.remove("label_data.json")
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
