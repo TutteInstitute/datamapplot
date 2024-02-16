@@ -54,11 +54,26 @@ _DECKGL_TEMPLATE_STR = """
         .deck-tooltip {
             {{tooltip_css}}
         }
-
-        #title-container {
-        {% if not search %}
+        
+        #loading {
+            width: 100%;
+            height: 100%;
+            top: 0px;
+            left: 0px;
             position: absolute;
-        {% endif %}
+            display: block; 
+            z-index: 99
+        }
+
+        #loading-image {
+            position: absolute;
+            top: 45%;
+            left: 47.5%;
+            z-index: 100
+        }
+        
+        #title-container {
+            position: absolute;
             top: 0;
             left: 0;
             margin: 16px;
@@ -91,6 +106,8 @@ _DECKGL_TEMPLATE_STR = """
         {% endif %}
         {% if search %}
         #search-container{
+            position: absolute;
+            left: -16px;
             margin: 16px;
             padding: 12px;
             border-radius: 16px;
@@ -120,22 +137,10 @@ _DECKGL_TEMPLATE_STR = """
     </style>
   </head>
   <body>
-    {% if use_title %}
-    {% if search %}
-        <div style="position:absolute;top:0;left:0;width:fit-content;z-index:2;">
-        <div id="title-container">
-            <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
-                {{title}}
-            </span><br/>
-            <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}">
-                {{sub_title}}
-            </span>
-        </div>
-        <div id="search-container">
-            <input autocomplete="off" type="search" id="search" placeholder="🔍">
-        </div>
+    <div id="loading">
+        <img id="loading-image" src="https://i.gifer.com/H0bj.gif" alt="Loading..." width="5%"/>
     </div>
-    {% else %}
+    {% if use_title %}
     <div id="title-container">
         <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
             {{title}}
@@ -143,8 +148,12 @@ _DECKGL_TEMPLATE_STR = """
         <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}">
             {{sub_title}}
         </span>
+        {% if search %}
+        <div id="search-container">
+            <input autocomplete="off" type="search" id="search" placeholder="🔍">
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
     {% endif %}
     {% if logo %}
     <div id="logo-container">
@@ -298,21 +307,24 @@ _DECKGL_TEMPLATE_STR = """
       {% endif %}
       getTooltip: {{get_tooltip}}
     });
+    
+    window.onload = function(){ document.getElementById("loading").style.display = "none" }
+        
     {% if search %}
         function selectPoints(item, conditional) {
         var layerId;
         if (item) {
             for (var i = 0; i < DATA.length; i++) {
                 if (conditional(i)) {
-                    DATA.src.a[i] = 1;
+                    DATA.src.selected[i] = 1;
                 } else {
-                    DATA.src.a[i] = 0;
+                    DATA.src.selected[i] = 0;
                 }
             }
             layerId = 'selectedPointLayer' + item;
         } else {
             for (var i = 0; i < DATA.length; i++) {
-                DATA.src.a[i] = 1;
+                DATA.src.selected[i] = 1;
             }
             layerId = 'dataPointLayer';
         }
@@ -320,7 +332,7 @@ _DECKGL_TEMPLATE_STR = """
             {
                 id: layerId,
                 data: DATA,
-                getFilterValue: (object, {index, data}) => data.src.a[index],
+                getFilterValue: (object, {index, data}) => data.src.selected[index],
                 filterRange: [1, 2],
                 extensions: [new deck.DataFilterExtension({filterSize: 1})]
             }
@@ -724,10 +736,17 @@ def render_html(
     ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
 
     # Prep data for inlining or storage
-    if point_size < 0:
-        point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size"]]
+    if enable_search:
+        point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
+        if point_size < 0:
+            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size", "selected"]]
+        else:
+            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "selected"]]
     else:
-        point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
+        if point_size < 0:
+            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size"]]
+        else:
+            point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
 
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None and (
