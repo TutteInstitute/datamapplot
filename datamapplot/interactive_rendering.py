@@ -56,7 +56,9 @@ _DECKGL_TEMPLATE_STR = """
         }
 
         #title-container {
+        {% if not search %}
             position: absolute;
+        {% endif %}
             top: 0;
             left: 0;
             margin: 16px;
@@ -67,6 +69,7 @@ _DECKGL_TEMPLATE_STR = """
             font-family: {{title_font_family}};
             color: {{title_font_color}};
             background: {{title_background}};
+            box-shadow: 2px 3px 10px {{shadow_color}};
         }
         {% if logo %}
         #logo-container {
@@ -78,11 +81,37 @@ _DECKGL_TEMPLATE_STR = """
             border-radius: 16px;
             z-index: 2;
             background: {{title_background}};
+            box-shadow: 2px 3px 10px {{shadow_color}};
         }
         img {
             display: block;
             margin-left: auto;
             margin-right: auto;
+        }
+        {% endif %}
+        {% if search %}
+        #search-container{
+            margin: 16px;
+            padding: 12px;
+            border-radius: 16px;
+            z-index: 2;
+            font-family: {{font_family}};
+            color: {{title_font_color}};
+            background: {{title_background}};
+            width: fit-content;
+            box-shadow: 2px 3px 10px {{shadow_color}};
+        }
+        input {
+            margin: 2px;
+            padding: 4px;
+            border-radius: 8px;
+            background: {{input_background}};
+            border: 1px solid {{input_border}};
+            transition: 0.5s;
+            outline: none;
+        }
+        input:focus {
+          border: 2px solid #555;
         }
         {% endif %}
         {% if custom_css %}
@@ -92,6 +121,21 @@ _DECKGL_TEMPLATE_STR = """
   </head>
   <body>
     {% if use_title %}
+    {% if search %}
+        <div style="position:absolute;top:0;left:0;width:fit-content;z-index:2;">
+        <div id="title-container">
+            <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
+                {{title}}
+            </span><br/>
+            <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}">
+                {{sub_title}}
+            </span>
+        </div>
+        <div id="search-container">
+            <input autocomplete="off" type="search" id="search" placeholder="🔍">
+        </div>
+    </div>
+    {% else %}
     <div id="title-container">
         <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
             {{title}}
@@ -100,6 +144,7 @@ _DECKGL_TEMPLATE_STR = """
             {{sub_title}}
         </span>
     </div>
+    {% endif %}
     {% endif %}
     {% if logo %}
     <div id="logo-container">
@@ -253,14 +298,61 @@ _DECKGL_TEMPLATE_STR = """
       {% endif %}
       getTooltip: {{get_tooltip}}
     });
+    {% if search %}
+        function selectPoints(item, conditional) {
+        var layerId;
+        if (item) {
+            for (var i = 0; i < DATA.length; i++) {
+                if (conditional(i)) {
+                    DATA.src.a[i] = 1;
+                } else {
+                    DATA.src.a[i] = 0;
+                }
+            }
+            layerId = 'selectedPointLayer' + item;
+        } else {
+            for (var i = 0; i < DATA.length; i++) {
+                DATA.src.a[i] = 1;
+            }
+            layerId = 'dataPointLayer';
+        }
+        const selectedPointLayer = pointLayer.clone(
+            {
+                id: layerId,
+                data: DATA,
+                getFilterValue: (object, {index, data}) => data.src.a[index],
+                filterRange: [1, 2],
+                extensions: [new deck.DataFilterExtension({filterSize: 1})]
+            }
+        );
+        deckgl.setProps(
+            {layers: 
+                [selectedPointLayer].concat(deckgl.props.layers.slice(1,))
+            }
+        );
+    }
+    
+    const search = document.getElementById("search");
+    search.addEventListener("input", (event) => {
+            const search_term = event.target.value.toLowerCase();
+            selectPoints(search_term, (i) => hoverData.data.{{search_field}}[i].toLowerCase().includes(search_term));
+        }
+    );
+    {% endif %}
+    
+    {{custom_js}}
     </script>
 </html>
 """
 
 _TOOL_TIP_CSS = """
     font-size: 0.8em;
-    font-family: Helvetica, Arial, sans-serif;
-    width: 25%;
+    font-family: {{title_font_family}};
+    color: {{title_font_color}} !important;
+    background-color: {{title_background}} !important;
+    border-radius: 12px;
+    box-shadow: 2px 3px 10px {{shadow_color}};
+    max-width: 25%;
 """
 
 class FormattingDict(dict):
@@ -408,9 +500,12 @@ def render_html(
     tooltip_css=None,
     hover_text_html_template=None,
     extra_point_data=None,
+    enable_search=False,
+    search_field="hover_text",
     on_click=None,
     custom_html=None,
     custom_css=None,
+    custom_js=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -555,6 +650,15 @@ def render_html(
         by either ``hover_text_html_template`` or ``on_click`` for use in tooltips
         or on-click actions.
 
+    enable_search: bool (optional, default=False)
+        Whether to enable a text search that can highlight points with hover_text that
+        include the given search string.
+
+    search_field: str (optional, default="hover_text")
+        If ``enable_search`` is ``True`` and ``extra_point_data`` is not ``None``, then search
+        this column of the ``extra_point_data`` dataframe, or use hover_text if set to
+        ``"hover_text"``.
+
     on_click: str or None (optional, default=None)
         A javascript action to be taken if a point in the data map is clicked. The javascript
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
@@ -569,6 +673,11 @@ def render_html(
         A string of custom HTML to be added to the body of the output HTML. This can be used to
         add other custom elements to the interactive plot, including elements that can be
         interacted with via the ``on_click`` action for example.
+
+    custom_js: str or None (optional, default=None)
+        A string of custom Javascript code that is to be added after the code for rendering
+        the scatterplot. This can include code to interact with the plot which is stored
+        as ``deckgl``.
 
     Returns
     -------
@@ -662,9 +771,6 @@ def render_html(
         hover_data = pd.DataFrame()
         get_tooltip = "null"
 
-    if tooltip_css is None:
-        tooltip_css = _TOOL_TIP_CSS
-
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
@@ -690,6 +796,18 @@ def render_html(
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
     title_background = "#ffffffaa" if not darkmode else "#000000aa"
+    shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
+    input_background = "#ffffffdd" if not darkmode else "#000000dd"
+    input_border = "#ddddddff" if not darkmode else "222222ff"
+
+    if tooltip_css is None:
+        tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
+        tooltip_css = tooltip_css_template.render(
+            title_font_family=font_family,
+            title_font_color=title_font_color,
+            title_background=title_background,
+            shadow_color=shadow_color,
+        )
 
     if background_color is None:
         page_background_color = "#ffffff" if not darkmode else "#000000"
@@ -707,10 +825,14 @@ def render_html(
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
         page_background_color=page_background_color,
+        search=enable_search,
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
-        tooltip_css = tooltip_css,
+        tooltip_css=tooltip_css,
+        shadow_color=shadow_color,
+        input_background=input_background,
+        input_border=input_border,
         custom_css=custom_css,
         use_title=title is not None,
         title_font_size=title_font_size,
@@ -746,5 +868,7 @@ def render_html(
         data_center_y=data_center[1],
         on_click=on_click,
         get_tooltip=get_tooltip,
+        search_field=search_field,
+        custom_js=custom_js,
     )
     return html_str
