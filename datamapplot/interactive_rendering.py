@@ -374,6 +374,7 @@ _TOOL_TIP_CSS = """
     max-width: 25%;
 """
 
+
 class FormattingDict(dict):
     def __missing__(self, key):
         return f"{{{key}}}"
@@ -751,7 +752,9 @@ def render_html(
     if enable_search:
         point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
         if point_size < 0:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size", "selected"]]
+            point_data = point_dataframe[
+                ["x", "y", "r", "g", "b", "a", "size", "selected"]
+            ]
         else:
             point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "selected"]]
     else:
@@ -782,7 +785,7 @@ def render_html(
                 get_tooltip = "({index}) => hoverData.data.hover_text[index]"
 
             if on_click is not None:
-                on_click = '({index}, event) => ' + on_click.format_map(replacements)
+                on_click = "({index}, event) => " + on_click.format_map(replacements)
         else:
             hover_data = point_dataframe[["hover_text"]]
             get_tooltip = "({index}) => hoverData.data.hover_text[index]"
@@ -795,7 +798,7 @@ def render_html(
             )
 
             if on_click is not None:
-                on_click = '({index}, event) => ' + on_click.format_map(replacements)
+                on_click = "({index}, event) => " + on_click.format_map(replacements)
     elif extra_point_data is not None:
         hover_data = extra_point_data
         replacements = FormattingDict(
@@ -806,9 +809,9 @@ def render_html(
         )
         if hover_text_html_template is not None:
             get_tooltip = (
-                    '({index, picked}) => picked ? {"html": `'
-                    + hover_text_html_template.format_map(replacements)
-                    + "`} : null"
+                '({index, picked}) => picked ? {"html": `'
+                + hover_text_html_template.format_map(replacements)
+                + "`} : null"
             )
         else:
             get_tooltip = "null"
@@ -836,11 +839,18 @@ def render_html(
         base64_label_data = ""
         point_data.to_feather("point_df.arrow", compression="uncompressed")
         hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
-        with zipfile.ZipFile("point_hover_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as f:
+        with zipfile.ZipFile(
+            "point_hover_data.zip",
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+        ) as f:
             f.write("point_hover_data.arrow")
         os.remove("point_hover_data.arrow")
         label_dataframe.to_json("label_data.json", orient="records")
-        with zipfile.ZipFile("label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as f:
+        with zipfile.ZipFile(
+            "label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+        ) as f:
             f.write("label_data.json")
         os.remove("label_data.json")
 
