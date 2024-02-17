@@ -193,10 +193,10 @@ _DECKGL_TEMPLATE_STR = """
     const unzippedLabelData = fflate.gunzipSync(labelDataBuffer);    
     const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
     {% else %}
-    const pointData = await loaders.load("point_df.arrow", ArrowLoader);
-    const unzippedHoverData = await loaders.load("point_hover_data.zip", ZipLoader);
+    const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
+    const unzippedHoverData = await loaders.load("{{file_prefix}}_point_hover_data.zip", ZipLoader);
     const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
-    const unzippedLabelData = await loaders.load("label_data.zip", ZipLoader);
+    const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
     const labelData = await loaders.parse(unzippedLabelData["label_data.json"], JSONLoader);
     {% endif %}
     
@@ -518,6 +518,7 @@ def render_html(
     initial_zoom_fraction=1.0,
     background_color=None,
     darkmode=False,
+    offline_data_prefix=None,
     tooltip_css=None,
     hover_text_html_template=None,
     extra_point_data=None,
@@ -658,9 +659,14 @@ def render_html(
     darkmode: bool (optional, default=False)
         Whether to use darkmode.
 
+    offline_data_prefix: str or None (optional, default=None)
+        If ``inline_data=False`` a number of data files will be created storing data for
+        the plot and referenced by the HTML file produced. If not none then this will provide
+        a prefix on the filename of all the files created.
+
     tooltip_css: str or None (optional, default=None)
         Custom CSS used to fine the properties of the tooltip. If ``None`` a default
-        CSS style will be used. This should simply the the required CSS directives
+        CSS style will be used. This should simply be the required CSS directives
         specific to the tooltip.
 
     hover_text_html_template: str or None (optional, default=None)
@@ -833,14 +839,16 @@ def render_html(
         label_data_json = label_dataframe.to_json(orient="records")
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
+        file_prefix = None
     else:
         base64_point_data = ""
         base64_hover_data = ""
         base64_label_data = ""
-        point_data.to_feather("point_df.arrow", compression="uncompressed")
+        file_prefix = offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+        point_data.to_feather(f"{file_prefix}_point_df.arrow", compression="uncompressed")
         hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
         with zipfile.ZipFile(
-            "point_hover_data.zip",
+            f"{file_prefix}_point_hover_data.zip",
             "w",
             compression=zipfile.ZIP_DEFLATED,
             compresslevel=9,
@@ -849,7 +857,7 @@ def render_html(
         os.remove("point_hover_data.arrow")
         label_dataframe.to_json("label_data.json", orient="records")
         with zipfile.ZipFile(
-            "label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+            f"{file_prefix}_label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
         ) as f:
             f.write("label_data.json")
         os.remove("label_data.json")
@@ -906,6 +914,7 @@ def render_html(
         base64_point_data=base64_point_data,
         base64_hover_data=base64_hover_data,
         base64_label_data=base64_label_data,
+        file_prefix=file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
         point_line_width=point_line_width,
