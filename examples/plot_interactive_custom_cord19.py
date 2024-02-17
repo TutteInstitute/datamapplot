@@ -1,6 +1,6 @@
 """
-Interactive CORD-19
--------------------
+Interactive Custom CORD-19
+--------------------------
 
 Demonstrating interactive plotting and what can be achieved with the extra options available
 via ``custom_html``, ``custom_css`` and ``custom_js`` to construct a clickable legend for
