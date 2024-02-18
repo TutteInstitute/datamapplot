@@ -124,6 +124,7 @@ _DECKGL_TEMPLATE_STR = """
             margin: 2px;
             padding: 4px;
             border-radius: 8px;
+            color: {{title_font_color}};
             background: {{input_background}};
             border: 1px solid {{input_border}};
             transition: 0.5s;
