@@ -33,6 +33,7 @@ plot = datamapplot.create_interactive_plot(
     logo="https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/512px-ArXiv_logo_2022.svg.png",
     logo_width=128,
     on_click="window.open(`http://google.com/search?q=\"{hover_text}\"`)",
+    enable_search=True,
     darkmode=True,
 )
 plot

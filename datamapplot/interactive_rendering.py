@@ -365,13 +365,13 @@ _DECKGL_TEMPLATE_STR = """
 """
 
 _TOOL_TIP_CSS = """
-    font-size: 0.8em;
-    font-family: {{title_font_family}};
-    color: {{title_font_color}} !important;
-    background-color: {{title_background}} !important;
-    border-radius: 12px;
-    box-shadow: 2px 3px 10px {{shadow_color}};
-    max-width: 25%;
+            font-size: 0.8em;
+            font-family: {{title_font_family}};
+            color: {{title_font_color}} !important;
+            background-color: {{title_background}} !important;
+            border-radius: 12px;
+            box-shadow: 2px 3px 10px {{shadow_color}};
+            max-width: 25%;
 """
 
 

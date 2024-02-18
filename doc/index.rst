@@ -61,6 +61,8 @@ and followed by guides on basic usage, through to the more complicated options a
    colour_controls
    placement_controls
    interactive_intro
+   interactive_sizing_options
+   interactive_colour_options
    auto_examples/index
    api
    faq
