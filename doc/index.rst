@@ -12,36 +12,11 @@ DataMapPlot: Creating beautiful plot of data maps
 =================================================
 
 Creating beautiful plots of data maps. DataMapPlot is a small library designed to help you make beautiful data map
-plots for inclusion in presentations, posters and papers. The focus is on producing static plots that are great
-looking with as little work for you as possible. All you need to do is label clusters of points in the data map and
-DataMapPlot will take care of the rest. While this involves automating most of the aesthetic choices, the library
-provides a wide variety of ways to customize the resulting plot to your needs.
-
-Installation
-------------
-
-DataMapPlot requires a few libraries, but all are widely available and easy to install:
-
- * Numpy
- * Matplotlib
- * Scikit-learn
- * Pandas
- * Datashader
- * Scikit-image
- * Numba
-
-To install DataMapPlot you can use pip:
-
-.. code:: bash
-
-    pip install datamapplot
-
-or use conda with conda-forge
-
-.. code:: bash
-
-    conda install -c conda-forge datamapplot
-
+plots for inclusion in presentations, posters and papers. The focus is on producing static plots,
+or simple interactive plots, that are great looking with as little work for you as possible. All you need to do is
+label clusters of points in the data map and DataMapPlot will take care of the rest. While this involves automating
+most of the aesthetic choices, the library provides a wide variety of ways to customize the resulting
+plot to your needs.
 
 User Guide
 ----------
@@ -52,7 +27,14 @@ and followed by guides on basic usage, through to the more complicated options a
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :caption: Getting started:
+
+   intro_splash
+   installation
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Static plotting:
 
    demo
    basic_usage
@@ -60,10 +42,20 @@ and followed by guides on basic usage, through to the more complicated options a
    size_controls
    colour_controls
    placement_controls
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Interactive plotting:
+
    interactive_intro
    interactive_customization_options
    interactive_sizing_options
    interactive_colour_options
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Gallery, API and FAQ:
+
    auto_examples/index
    api
    faq

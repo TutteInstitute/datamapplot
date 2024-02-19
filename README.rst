@@ -10,14 +10,15 @@ DataMapPlot
 ===========
 
 Creating beautiful plots of data maps. DataMapPlot is a small library designed to help you make beautiful data map
-plots for inclusion in presentations, posters and papers. The focus is on producing static plots that are great
-looking with as little work for you as possible. All you need to do is label clusters of points in the data map and
-DataMapPlot will take care of the rest. While this involves automating most of the aesthetic choices, the library
-provides a wide variety of ways to customize the resulting plot to your needs.
+plots for inclusion in presentations, posters and papers. The focus is on producing static plots,
+or simple interactive plots, that are great looking with as little work for you as possible. All you need to do is
+label clusters of points in the data map and DataMapPlot will take care of the rest. While this involves automating
+most of the aesthetic choices, the library provides a wide variety of ways to customize the resulting
+plot to your needs.
 
---------
-Examples
---------
+--------------------
+Static Plot Examples
+--------------------
 
 Some examples of the kind of output that DataMapPlot can provide.
 
@@ -49,6 +50,45 @@ Custom arrow styles, fonts, and colour maps:
    :alt: A styled data map plot of papers from ArXiv ML
    :align: center
 
+-------------------------
+Interactive Plot Examples
+-------------------------
+
+Some example videos of interacting with the interactive html plots.
+
+.. image:: examples/ArXiv_example.gif
+   :width: 49%
+   :alt: Animation of searching and zooming on ArXiv data
+
+.. image:: examples/CORD19_example.gif
+   :width: 49%
+   :alt: Animation of zooming and panning on CORD19 data
+
+.. image:: examples/Wikipedia_example.gif
+   :width: 49%
+   :alt: Animation of panning and zooming on Wikipedia data
+
+.. image:: examples/CORD19_custom_example.gif
+   :width: 49%
+   :alt: Animation of searching and zooming on CORD19 data
+
+-----------
+Basic Usage
+-----------
+
+DataMapPlot is very easy to use. There are essentially only two functions: `create_plot` and
+`create_interactive_plot`. They take coordinates of a data map, and an array or list of labels
+for the data points. A variety of further options can be used to customise the output.
+A basic example might look something like:
+
+.. code:: python
+
+    import datamapplot
+
+    datamapplot.create_plot(data_map_coords, data_map_labels, **style_keywords)
+
+Please see the documentation for full details on usage and options.
+
 -------------
 Documentation
 -------------
@@ -69,6 +109,8 @@ DataMapPlot requires a few libraries, but all are widely available and easy to i
  * Datashader
  * Scikit-image
  * Numba
+ * Requests
+ * Jinja2
 
 To install DataMapPlot you can use pip:
 
