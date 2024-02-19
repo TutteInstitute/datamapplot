@@ -265,7 +265,7 @@ _DECKGL_TEMPLATE_STR = """
         characterSet: "auto",
         fontFamily: "{{font_family}}",
         lineHeight: {{line_spacing}},
-        fontSettings: {"sdf": true, "fontSize": 192, "radius": 8, "buffer": 4, "cutoff": 0.125},
+        fontSettings: {"sdf": true},
         getTextAnchor: "middle",
         getAlignmentBaseline: "center",
         lineHeight: 0.95,
