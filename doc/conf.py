@@ -87,6 +87,14 @@ html_logo = "datamapplot_logo_rtd.png"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = [
     '_static',
+    '../examples/ArXiv_example.gif',
+    '../examples/CORD19_custom_example.gif',
+    '../examples/CORD19_example.gif',
+    '../examples/plot_arxiv_ml.png',
+    '../examples/plot_cord19.png',
+    '../examples/plot_simple_arxiv.png',
+    '../examples/plot_wikipedia.png',
+    '../examples/Wikipedia_example.gif',
 ]
 html_extra_path = [
     'cord-1_label_data.zip',
