@@ -85,7 +85,34 @@ html_logo = "datamapplot_logo_rtd.png"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = [
+    '_static',
+    '../examples/ArXiv_example.gif',
+    '../examples/CORD19_custom_example.gif',
+    '../examples/CORD19_example.gif',
+    '../examples/plot_arxiv_ml.png',
+    '../examples/plot_cord19.png',
+    '../examples/plot_simple_arxiv.png',
+    '../examples/plot_wikipedia.png',
+    '../examples/Wikipedia_example.gif',
+]
+html_extra_path = [
+    'cord-1_label_data.zip',
+    'cord-1_point_df.arrow',
+    'cord-1_point_hover_data.zip',
+    'cord-2_label_data.zip',
+    'cord-2_point_df.arrow',
+    'cord-2_point_hover_data.zip',
+    'cord-3_label_data.zip',
+    'cord-3_point_df.arrow',
+    'cord-3_point_hover_data.zip',
+    'cord-4_label_data.zip',
+    'cord-4_point_df.arrow',
+    'cord-4_point_hover_data.zip',
+    'datamapplot_label_data.zip',
+    'datamapplot_point_df.arrow',
+    'datamapplot_point_hover_data.zip',
+]
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {

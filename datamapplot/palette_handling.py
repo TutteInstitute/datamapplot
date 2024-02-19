@@ -36,34 +36,80 @@ def palette_from_datamap(
 
     location_chroma = []
     location_lightness = []
-    for r, theta in zip(label_location_radii, label_location_thetas):
-        theta_high = theta + theta_range
-        theta_low = theta - theta_range
-        if theta_high > np.pi:
-            theta_high -= 2 * np.pi
-        if theta_low < -np.pi:
-            theta_low -= 2 * np.pi
+    if label_location_thetas.shape[0] < 256:
+        for r, theta in zip(label_location_radii, label_location_thetas):
+            theta_high = theta + theta_range
+            theta_low = theta - theta_range
+            if theta_high > np.pi:
+                theta_high -= 2 * np.pi
+            if theta_low < -np.pi:
+                theta_low -= 2 * np.pi
 
-        if theta_low > 0 and theta_high < 0:
-            r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
-        else:
-            r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+            if theta_low > 0 and theta_high < 0:
+                r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+            else:
+                r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
 
-        mask_size = np.sum(r_mask)
-        chroma = (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size) * 80 + 20
-        lightness = (
-            1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
-        ) * 70 + 10
-        location_lightness.append(
-            np.interp(
-                r,
-                np.sort(data_map_radii[r_mask]),
-                np.sort(lightness)[::-1],
+            mask_size = np.sum(r_mask)
+            chroma = (
+                np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+            ) * 80 + 20
+            lightness = (
+                1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
+            ) * 70 + 10
+            location_lightness.append(
+                np.interp(
+                    r,
+                    np.sort(data_map_radii[r_mask]),
+                    np.sort(lightness)[::-1],
+                )
             )
-        )
-        location_chroma.append(
-            np.interp(r, np.sort(data_map_radii[r_mask]), np.sort(chroma))
-        )
+            location_chroma.append(
+                np.interp(r, np.sort(data_map_radii[r_mask]), np.sort(chroma))
+            )
+    else:
+        uniform_thetas = np.linspace(-np.pi, np.pi, 256)
+        sorted_chroma = []
+        sorted_lightness = []
+        sorted_radii = []
+        for theta in uniform_thetas:
+            theta_high = theta + theta_range
+            theta_low = theta - theta_range
+            if theta_high > np.pi:
+                theta_high -= 2 * np.pi
+            if theta_low < -np.pi:
+                theta_low -= 2 * np.pi
+
+            if theta_low > 0 and theta_high < 0:
+                r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+            else:
+                r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+
+            mask_size = np.sum(r_mask)
+            chroma = (
+                np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+            ) * 80 + 20
+            lightness = (
+                1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
+            ) * 70 + 10
+            sorted_chroma.append(np.sort(chroma))
+            sorted_lightness.append(np.sort(lightness)[::-1])
+            sorted_radii.append(np.sort(data_map_radii[r_mask]))
+
+        for r, theta in zip(label_location_radii, label_location_thetas):
+            nearest_theta_idx = np.argmin(np.abs(uniform_thetas - theta))
+            location_lightness.append(
+                np.interp(
+                    r,
+                    sorted_radii[nearest_theta_idx],
+                    sorted_lightness[nearest_theta_idx],
+                )
+            )
+            location_chroma.append(
+                np.interp(
+                    r, sorted_radii[nearest_theta_idx], sorted_chroma[nearest_theta_idx]
+                )
+            )
 
     palette = np.clip(
         colorspacious.cspace_convert(
@@ -108,7 +154,7 @@ def palette_from_cmap_and_datamap(
                 cmap(np.linspace(1, 0, 128)),
             )
         )
-        cyclic_cmap = ListedColormap(new_colors, name='generated_cyclic_cmap')
+        cyclic_cmap = ListedColormap(new_colors, name="generated_cyclic_cmap")
 
     data_center = np.asarray(
         umap_coords.min(axis=0)

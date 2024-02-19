@@ -212,14 +212,12 @@ def adjust_text_locations(
             alpha=0.0,
             fontfamily=fontfamily,
             fontsize=(
-                 highlight_label_keywords.get("fontsize", font_size)
-                 if label_text[i] in highlight
-                 else font_size
+                highlight_label_keywords.get("fontsize", font_size)
+                if label_text[i] in highlight
+                else font_size
             )
             + (
-                 label_size_adjustments[i]
-                 if label_size_adjustments is not None
-                 else 0.0
+                label_size_adjustments[i] if label_size_adjustments is not None else 0.0
             ),
             fontweight="bold" if label_text[i] in highlight else "normal",
         )
