@@ -57,19 +57,19 @@ Interactive Plot Examples
 Some example videos of interacting with the interactive html plots.
 
 .. image:: examples/ArXiv_example.gif
-   :width: 49%
+   :width: 640px
    :alt: Animation of searching and zooming on ArXiv data
 
 .. image:: examples/CORD19_example.gif
-   :width: 49%
+   :width: 640px
    :alt: Animation of zooming and panning on CORD19 data
 
 .. image:: examples/Wikipedia_example.gif
-   :width: 49%
+   :width: 640px
    :alt: Animation of panning and zooming on Wikipedia data
 
 .. image:: examples/CORD19_custom_example.gif
-   :width: 49%
+   :width: 640px
    :alt: Animation of searching and zooming on CORD19 data
 
 -----------
