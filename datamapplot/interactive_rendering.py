@@ -204,6 +204,69 @@ _DECKGL_TEMPLATE_STR = """
     const DATA = {src: pointData.data, length: pointData.data.x.length}
 
     const container = document.getElementById('deck-container');
+    {% if three_d %}
+    function updateLabelPriority(cameraPos, viewState) {
+        for (var i = 0; i < labelData.length; i++) {
+          const dist = (
+            (labelData[i].x - cameraPos[0])**2 +
+            (labelData[i].y - cameraPos[1])**2 +
+            (labelData[i].z - cameraPos[2])**2
+          );
+          labelData[i].priority = -dist;
+        }
+        const newLabelLayer = labelLayer.clone(
+            {
+                id: "labelLayer" + viewState.rotationX + viewState.rotationOrbit,
+                data: labelData,
+            }
+        );
+        deckgl.setProps(
+            {layers: 
+                [pointLayer, newLabelLayer]
+            }
+        )
+    }
+    const sphereMesh = new luma.SphereGeometry({
+        radius: 0.015,
+        nlat: 16,
+        nlong: 16,
+    });
+    const sphereMaterial = {
+        ambient: 0.5,
+        diffuse: 0.75,
+        shininess: 64
+    };
+    const pointLayer = new deck.SimpleMeshLayer({
+        id: 'dataPointLayer',
+        coordinateSystem: deck.COORDINATE_SYSTEM.CARTESIAN,
+        data: DATA,
+        getPosition: (object, {index, data}) => {
+            return [data.src.x[index], data.src.y[index], data.src.z[index]];
+        },
+        getColor: (object, {index, data}) => {
+            return [
+                data.src.r[index], 
+                data.src.g[index], 
+                data.src.b[index],
+                255
+            ]
+        },
+        {% if point_size < 0 %}
+        getScale: (object, {index, data}) => {
+            return [
+              Math.sqrt(data.src.size[index]) * 10, 
+              Math.sqrt(data.src.size[index]) * 10, 
+              Math.sqrt(data.src.size[index]) * 10
+            ]
+        },
+        {% endif %}  
+        mesh: sphereMesh,
+        material: sphereMaterial,
+        autoHighlight: true,
+        highlightColor: {{point_hover_color}},
+        pickable: true
+    });
+    {% else %}
     const pointLayer = new deck.ScatterplotLayer({
         id: 'dataPointLayer',
         data: DATA,
@@ -246,11 +309,16 @@ _DECKGL_TEMPLATE_STR = """
         pickable: true, 
         stroked: true
     });
+    {% endif %}
     const labelLayer = new deck.TextLayer({
         id: "textLabelLayer",
         data: labelData,
         pickable: false,
+        {% if three_d %}
+        getPosition: d => [d.x, d.y, d.z],
+        {% else %}
         getPosition: d => [d.x, d.y],
+        {% endif %}
         getText: d => d.label,
         getColor: {{label_text_color}},
         getSize: d => d.size,
@@ -272,7 +340,11 @@ _DECKGL_TEMPLATE_STR = """
         elevation: 100,
         // CollideExtension options
         collisionEnabled: true,
+        {% if three_d %}
+        getCollisionPriority: d => d.priority,
+        {% else %}
         getCollisionPriority: d => d.size,
+        {% endif %}
         collisionTestProps: {
           sizeScale: {{text_collision_size_scale}},
           sizeMaxPixels: {{text_max_pixel_size}} * 2,
@@ -298,11 +370,16 @@ _DECKGL_TEMPLATE_STR = """
 
     const deckgl = new deck.DeckGL({
       container: container,
+      {% if three_d %}
+      views: [new deck.OrbitView({fov: 90})],
+      initialViewState: {target: [{{data_center_x}}, {{data_center_y}}, {{data_center_z}}], zoom: 5},
+      {% else %}
       initialViewState: {
         latitude: {{data_center_y}},
         longitude: {{data_center_x}},
         zoom: {{zoom_level}}
       },
+      {% endif %}
       controller: true,
       {% if cluster_boundary_polygons %}
       layers: [pointLayer, boundaryLayer, labelLayer],
@@ -312,7 +389,18 @@ _DECKGL_TEMPLATE_STR = """
       {% if on_click %}
       onClick: {{on_click}},
       {% endif %}
-      getTooltip: {{get_tooltip}}
+      getTooltip: {{get_tooltip}},
+      {% if three_d %}
+      onViewStateChange: ({viewState}) => {
+        const cameraPos = pointLayer.context.viewport.cameraPosition;
+        updateLabelPriority(cameraPos, viewState);
+      },
+      onAfterRender: () => {
+        const cameraPos = pointLayer.context.viewport.cameraPosition;
+        const viewState = deckgl.viewState;
+        updateLabelPriority(cameraPos, viewState);
+      },
+      {% endif %}
     });
     
     document.getElementById("loading").style.display = "none";
@@ -455,7 +543,7 @@ def label_text_and_polygon_dataframes(
             label_locations.append(cluster_points.mean(axis=0))
 
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
-        if cluster_polygons:
+        if cluster_polygons and data_map_coords.shape[1] < 3:
             simplices = Delaunay(cluster_points).simplices
             polygons.append(
                 [
@@ -468,8 +556,8 @@ def label_text_and_polygon_dataframes(
 
     label_locations = np.asarray(label_locations)
 
-    if cluster_polygons:
-        return pd.DataFrame(
+    if cluster_polygons and data_map_coords.shape[1] < 3:
+        result = pd.DataFrame(
             {
                 "x": label_locations.T[0],
                 "y": label_locations.T[1],
@@ -479,7 +567,7 @@ def label_text_and_polygon_dataframes(
             }
         )
     else:
-        return pd.DataFrame(
+        result = pd.DataFrame(
             {
                 "x": label_locations.T[0],
                 "y": label_locations.T[1],
@@ -487,6 +575,11 @@ def label_text_and_polygon_dataframes(
                 "size": cluster_sizes,
             }
         )
+
+    if data_map_coords.shape[1] == 3:
+        result["z"] = label_locations.T[2]
+
+    return result
 
 
 def render_html(
@@ -733,6 +826,13 @@ def render_html(
     data_height = point_dataframe.y.max() - point_dataframe.y.min()
     data_center = point_dataframe[["x", "y"]].values.mean(axis=0)
 
+    if "z" in point_dataframe.columns:
+        three_d = True
+        data_center_z = point_dataframe.z.mean()
+    else:
+        three_d = False
+        data_center_z = None
+
     spread = max(data_width, data_height) * initial_zoom_fraction
     if spread < (360.0 * np.power(2.0, -20)):
         zoom_level = 21
@@ -756,19 +856,18 @@ def render_html(
     ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
 
     # Prep data for inlining or storage
+    selected_columns = ["x", "y", "r", "g", "b", "a"]
     if enable_search:
         point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
-        if point_size < 0:
-            point_data = point_dataframe[
-                ["x", "y", "r", "g", "b", "a", "size", "selected"]
-            ]
-        else:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "selected"]]
-    else:
-        if point_size < 0:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size"]]
-        else:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
+        selected_columns.append("selected")
+
+    if point_size < 0:
+        selected_columns.append("size")
+
+    if "z" in point_dataframe.columns:
+        selected_columns.append("z")
+
+    point_data = point_dataframe[selected_columns]
 
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
@@ -916,6 +1015,7 @@ def render_html(
         base64_hover_data=base64_hover_data,
         base64_label_data=base64_label_data,
         file_prefix=file_prefix,
+        three_d=three_d,
         point_size=point_size,
         point_outline_color=point_outline_color,
         point_line_width=point_line_width,
@@ -938,6 +1038,7 @@ def render_html(
         zoom_level=zoom_level,
         data_center_x=data_center[0],
         data_center_y=data_center[1],
+        data_center_z=data_center_z,
         on_click=on_click,
         get_tooltip=get_tooltip,
         search_field=search_field,

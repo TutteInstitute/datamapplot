@@ -438,10 +438,11 @@ def create_interactive_plot(
     )
 
     if label_color_map is None:
+        coords = ["x",  "y"] if data_map_coords.shape[1] < 3 else ["x", "y", "z"]
         if cmap is None:
             palette = palette_from_datamap(
                 data_map_coords,
-                label_dataframe[["x", "y"]].values,
+                label_dataframe[coords].values,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
             )
@@ -449,7 +450,7 @@ def create_interactive_plot(
             palette = palette_from_cmap_and_datamap(
                 cmap,
                 data_map_coords,
-                label_dataframe[["x", "y"]].values,
+                label_dataframe[coords].values,
                 radius_weight_power=palette_hue_radius_dependence,
             )
         if not darkmode:
@@ -515,6 +516,9 @@ def create_interactive_plot(
             "y": data_map_coords.T[1],
         }
     )
+    if data_map_coords.shape[1] == 3:
+        point_dataframe["z"] = data_map_coords.T[2]
+
     if hover_text is not None:
         point_dataframe["hover_text"] = hover_text
 
