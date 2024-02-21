@@ -335,7 +335,7 @@ def three_d_palette_from_datamap(
             ) * 80 + 20
             lightness = (
                 1.0 - (np.argsort(np.argsort(data_map_phis[r_mask])) / mask_size)
-            ) * 70 + 10
+            ) * 80 + 30
             location_lightness.append(
                 np.interp(
                     phi,
@@ -371,7 +371,7 @@ def three_d_palette_from_datamap(
             ) * 80 + 20
             lightness = (
                 1.0 - (np.argsort(np.argsort(data_map_phis[r_mask])) / mask_size)
-            ) * 70 + 10
+            ) * 80 + 30
             sorted_chroma.append(np.sort(chroma))
             sorted_lightness.append(np.sort(lightness)[::-1])
             sorted_radii.append(np.sort(data_map_radii[r_mask]))
