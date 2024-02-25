@@ -529,6 +529,8 @@ def create_interactive_plot(
         )
         for labels in reversed(label_layers):
             label_map = {n: i for i, n in enumerate(np.unique(labels))}
+            if noise_label not in label_map:
+                label_map[noise_label] = -1
             label_unmap = {i: n for n, i in label_map.items()}
             cluster_label_vector = np.asarray(pd.Series(labels).map(label_map))
             unique_non_noise_labels = [
