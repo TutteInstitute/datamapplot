@@ -402,132 +402,142 @@ def render_plot(
 
     # Find initial placements for text, fix any line crossings, then optimize placements
     ax.autoscale_view()
-    label_text_locations = initial_text_location_placement(
-        label_locations,
-        base_radius=label_base_radius,
-        theta_stretch=label_direction_bias,
-    )
-    fix_crossings(label_text_locations, label_locations)
-
-    font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-    if label_font_size is None:
-        font_size = estimate_font_size(
-            label_text_locations,
-            label_text,
-            0.9 * font_scale_factor,
-            fontfamily=fontfamily,
-            linespacing=label_linespacing,
-            ax=ax,
+    if label_locations.shape[0] > 0:
+        label_text_locations = initial_text_location_placement(
+            label_locations,
+            base_radius=label_base_radius,
+            theta_stretch=label_direction_bias,
         )
-    else:
-        font_size = label_font_size
+        fix_crossings(label_text_locations, label_locations)
 
-    # Ensure we can look up labels for highlighting
-    if highlight_labels is not None:
-        highlight = set(highlight_labels)
-    else:
-        highlight = set([])
-
-    label_text_locations = adjust_text_locations(
-        label_text_locations,
-        label_locations,
-        label_text,
-        fontfamily=fontfamily,
-        font_size=font_size,
-        linespacing=label_linespacing,
-        highlight=highlight,
-        highlight_label_keywords=highlight_label_keywords,
-        ax=ax,
-        expand=(label_margin_factor, label_margin_factor),
-        label_size_adjustments=label_size_adjustments,
-    )
-
-    # Build highlight boxes
-    if (
-        "bbox" in highlight_label_keywords
-        and highlight_label_keywords["bbox"] is not None
-    ):
-        base_bbox_keywords = highlight_label_keywords["bbox"]
-    else:
-        base_bbox_keywords = None
-
-    # Add the annotations to the plot
-    texts = []
-    for i in range(label_locations.shape[0]):
-        if base_bbox_keywords is not None:
-            bbox_keywords = dict(base_bbox_keywords.items())
-            if "fc" not in base_bbox_keywords:
-                if highlight_colors is not None:
-                    bbox_keywords["fc"] = highlight_colors[i][:7] + "33"
-                else:
-                    bbox_keywords["fc"] = "#cccccc33" if darkmode else "#33333333"
-            if "ec" not in base_bbox_keywords:
-                bbox_keywords["ec"] = "none"
-        else:
-            bbox_keywords = None
-
-        if label_text_colors:
-            text_color = label_text_colors[i]
-        elif darkmode:
-            text_color = "white"
-        else:
-            text_color = "black"
-
-        if label_arrow_colors:
-            arrow_color = label_arrow_colors[i]
-        elif darkmode:
-            arrow_color = "#dddddd"
-        else:
-            arrow_color = "#333333"
-
-        texts.append(
-            ax.annotate(
-                label_text[i],
-                label_locations[i],
-                xytext=label_text_locations[i],
-                ha="center",
-                ma="center",
-                va="center",
-                linespacing=label_linespacing,
+        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+        if label_font_size is None:
+            font_size = estimate_font_size(
+                label_text_locations,
+                label_text,
+                0.9 * font_scale_factor,
                 fontfamily=fontfamily,
-                arrowprops={
-                    "arrowstyle": "-",
-                    "linewidth": 0.5,
-                    "color": arrow_color,
-                    **arrowprops,
-                },
-                fontsize=(
-                    highlight_label_keywords.get("fontsize", font_size)
-                    if label_text[i] in highlight
-                    else font_size
-                )
-                + (
-                    label_size_adjustments[i]
-                    if label_size_adjustments is not None
-                    else 0.0
-                ),
-                bbox=bbox_keywords if label_text[i] in highlight else None,
-                color=text_color,
-                fontweight=highlight_label_keywords.get("fontweight", "normal")
-                if label_text[i] in highlight
-                else "normal",
+                linespacing=label_linespacing,
+                ax=ax,
             )
+        else:
+            font_size = label_font_size
+
+        # Ensure we can look up labels for highlighting
+        if highlight_labels is not None:
+            highlight = set(highlight_labels)
+        else:
+            highlight = set([])
+
+        label_text_locations = adjust_text_locations(
+            label_text_locations,
+            label_locations,
+            label_text,
+            fontfamily=fontfamily,
+            font_size=font_size,
+            linespacing=label_linespacing,
+            highlight=highlight,
+            highlight_label_keywords=highlight_label_keywords,
+            ax=ax,
+            expand=(label_margin_factor, label_margin_factor),
+            label_size_adjustments=label_size_adjustments,
         )
 
-    # Ensure we have plot bounds that meet the newly place annotations
-    coords = get_2d_coordinates(texts)
-    x_min, y_min = ax.transData.inverted().transform(
-        (coords[:, [0, 2]].copy().min(axis=0))
-    )
-    x_max, y_max = ax.transData.inverted().transform(
-        (coords[:, [1, 3]].copy().max(axis=0))
-    )
-    width = x_max - x_min
-    height = y_max - y_min
-    x_min -= 0.05 * width
-    x_max += 0.05 * width
-    y_min -= 0.05 * height
-    y_max += 0.05 * height
+        # Build highlight boxes
+        if (
+            "bbox" in highlight_label_keywords
+            and highlight_label_keywords["bbox"] is not None
+        ):
+            base_bbox_keywords = highlight_label_keywords["bbox"]
+        else:
+            base_bbox_keywords = None
+
+        # Add the annotations to the plot
+        texts = []
+        for i in range(label_locations.shape[0]):
+            if base_bbox_keywords is not None:
+                bbox_keywords = dict(base_bbox_keywords.items())
+                if "fc" not in base_bbox_keywords:
+                    if highlight_colors is not None:
+                        bbox_keywords["fc"] = highlight_colors[i][:7] + "33"
+                    else:
+                        bbox_keywords["fc"] = "#cccccc33" if darkmode else "#33333333"
+                if "ec" not in base_bbox_keywords:
+                    bbox_keywords["ec"] = "none"
+            else:
+                bbox_keywords = None
+
+            if label_text_colors:
+                text_color = label_text_colors[i]
+            elif darkmode:
+                text_color = "white"
+            else:
+                text_color = "black"
+
+            if label_arrow_colors:
+                arrow_color = label_arrow_colors[i]
+            elif darkmode:
+                arrow_color = "#dddddd"
+            else:
+                arrow_color = "#333333"
+
+            texts.append(
+                ax.annotate(
+                    label_text[i],
+                    label_locations[i],
+                    xytext=label_text_locations[i],
+                    ha="center",
+                    ma="center",
+                    va="center",
+                    linespacing=label_linespacing,
+                    fontfamily=fontfamily,
+                    arrowprops={
+                        "arrowstyle": "-",
+                        "linewidth": 0.5,
+                        "color": arrow_color,
+                        **arrowprops,
+                    },
+                    fontsize=(
+                        highlight_label_keywords.get("fontsize", font_size)
+                        if label_text[i] in highlight
+                        else font_size
+                    )
+                    + (
+                        label_size_adjustments[i]
+                        if label_size_adjustments is not None
+                        else 0.0
+                    ),
+                    bbox=bbox_keywords if label_text[i] in highlight else None,
+                    color=text_color,
+                    fontweight=highlight_label_keywords.get("fontweight", "normal")
+                    if label_text[i] in highlight
+                    else "normal",
+                )
+            )
+
+        # Ensure we have plot bounds that meet the newly place annotations
+        coords = get_2d_coordinates(texts)
+        x_min, y_min = ax.transData.inverted().transform(
+            (coords[:, [0, 2]].copy().min(axis=0))
+        )
+        x_max, y_max = ax.transData.inverted().transform(
+            (coords[:, [1, 3]].copy().max(axis=0))
+        )
+        width = x_max - x_min
+        height = y_max - y_min
+        x_min -= 0.05 * width
+        x_max += 0.05 * width
+        y_min -= 0.05 * height
+        y_max += 0.05 * height
+    else:
+        x_min, y_min = data_map_coords.min(axis=0)
+        x_max, y_max = data_map_coords.max(axis=0)
+        width = x_max - x_min
+        height = y_max - y_min
+        x_min -= 0.05 * width
+        x_max += 0.05 * width
+        y_min -= 0.05 * height
+        y_max += 0.05 * height
 
     # decorate the plot
     ax.set(xticks=[], yticks=[])

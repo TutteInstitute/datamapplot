@@ -11,6 +11,9 @@ def palette_from_datamap(
     theta_range=np.pi / 16,
     radius_weight_power=1.0,
 ):
+    if label_locations.shape[0] == 0:
+        return []
+
     data_center = np.asarray(
         umap_coords.min(axis=0)
         + (umap_coords.max(axis=0) - umap_coords.min(axis=0)) / 2
@@ -143,6 +146,9 @@ def palette_from_cmap_and_datamap(
     theta_range=np.pi / 16,
     radius_weight_power=1.0,
 ):
+    if label_locations.shape[0] == 0:
+        return [cmap(0.5)]
+
     endpoints = cmap((0.0, 1.0))
     endpoint_distance = np.sum((endpoints[0] - endpoints[1]) ** 2)
     if endpoint_distance < 0.05:
