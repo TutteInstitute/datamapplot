@@ -529,6 +529,15 @@ def render_plot(
         x_max += 0.05 * width
         y_min -= 0.05 * height
         y_max += 0.05 * height
+    else:
+        x_min, y_min = data_map_coords.min(axis=0)
+        x_max, y_max = data_map_coords.max(axis=0)
+        width = x_max - x_min
+        height = y_max - y_min
+        x_min -= 0.05 * width
+        x_max += 0.05 * width
+        y_min -= 0.05 * height
+        y_max += 0.05 * height
 
     # decorate the plot
     ax.set(xticks=[], yticks=[])
@@ -586,15 +595,6 @@ def render_plot(
         fig.suptitle(
             title, x=0.0, y=sup_title_y_value, transform=ax.transAxes, **keyword_args
         )
-    else:
-        x_min, y_min = data_map_coords.min(axis=0)
-        x_max, y_max = data_map_coords.max(axis=0)
-        width = x_max - x_min
-        height = y_max - y_min
-        x_min -= 0.05 * width
-        x_max += 0.05 * width
-        y_min -= 0.05 * height
-        y_max += 0.05 * height
 
     ax_x_min, ax_x_max = ax.get_xlim()
     ax_y_min, ax_y_max = ax.get_ylim()
