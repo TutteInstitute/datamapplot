@@ -22,7 +22,7 @@ from datamapplot.interactive_rendering import (
 
 def create_plot(
     data_map_coords,
-    labels,
+    labels=None,
     *,
     title=None,
     sub_title=None,
@@ -155,28 +155,34 @@ def create_plot(
         The axes contained within the figure that the plot is rendered to.
 
     """
-    cluster_label_vector = np.asarray(labels)
-    unique_non_noise_labels = [
-        label for label in np.unique(cluster_label_vector) if label != noise_label
-    ]
-    if use_medoids:
-        label_locations = np.asarray(
-            [
-                medoid(data_map_coords[cluster_label_vector == i])
-                for i in unique_non_noise_labels
-            ]
-        )
+    if labels is None:
+        label_locations = np.zeros((0, 2), dtype=np.float32)
+        label_text = []
+        cluster_label_vector = np.full(data_map_coords.shape[0], "Unlabelled", dtype=object)
+        unique_non_noise_labels = []
     else:
-        label_locations = np.asarray(
-            [
-                data_map_coords[cluster_label_vector == i].mean(axis=0)
-                for i in unique_non_noise_labels
-            ]
-        )
-    label_text = [
-        textwrap.fill(x, width=label_wrap_width, break_long_words=False)
-        for x in unique_non_noise_labels
-    ]
+        cluster_label_vector = np.asarray(labels)
+        unique_non_noise_labels = [
+            label for label in np.unique(cluster_label_vector) if label != noise_label
+        ]
+        if use_medoids:
+            label_locations = np.asarray(
+                [
+                    medoid(data_map_coords[cluster_label_vector == i])
+                    for i in unique_non_noise_labels
+                ]
+            )
+        else:
+            label_locations = np.asarray(
+                [
+                    data_map_coords[cluster_label_vector == i].mean(axis=0)
+                    for i in unique_non_noise_labels
+                ]
+            )
+        label_text = [
+            textwrap.fill(x, width=label_wrap_width, break_long_words=False)
+            for x in unique_non_noise_labels
+        ]
     if highlight_labels is not None:
         highlight_labels = [
             textwrap.fill(x, width=label_wrap_width, break_long_words=False)
@@ -225,7 +231,7 @@ def create_plot(
 
     label_colors = [label_color_map[x] for x in unique_non_noise_labels]
 
-    if color_label_text:
+    if color_label_text and len(label_colors) > 0:
         # Darken and reduce chroma of label colors to get text labels
         if darkmode:
             label_text_colors = pastel_palette(label_colors)
@@ -421,21 +427,28 @@ def create_interactive_plot(
 
     """
     if len(label_layers) == 0:
-        return None
-
-    label_dataframe = pd.concat(
-        [
-            label_text_and_polygon_dataframes(
-                labels,
-                data_map_coords,
-                noise_label=noise_label,
-                use_medoids=use_medoids,
-                cluster_polygons=cluster_boundary_polygons,
-                alpha=polygon_alpha,
-            )
-            for labels in label_layers
-        ]
-    )
+        label_dataframe = pd.DataFrame(
+            {
+                "x": [data_map_coords.T[0].mean()],
+                "y": [data_map_coords.T[1].mean()],
+                "label": [""],
+                "size": [np.power(data_map_coords.shape[0], 0.25)],
+            }
+        )
+    else:
+        label_dataframe = pd.concat(
+            [
+                label_text_and_polygon_dataframes(
+                    labels,
+                    data_map_coords,
+                    noise_label=noise_label,
+                    use_medoids=use_medoids,
+                    cluster_polygons=cluster_boundary_polygons,
+                    alpha=polygon_alpha,
+                )
+                for labels in label_layers
+            ]
+        )
 
     if label_color_map is None:
         if cmap is None:

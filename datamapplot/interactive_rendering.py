@@ -751,9 +751,12 @@ def render_html(
 
     # Compute text scaling
     size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
-    label_dataframe["size"] = (
-        label_dataframe["size"] - label_dataframe["size"].min()
-    ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
+    if size_range > 0:
+        label_dataframe["size"] = (
+            label_dataframe["size"] - label_dataframe["size"].min()
+        ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
+    else:
+        label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
 
     # Prep data for inlining or storage
     if enable_search:
