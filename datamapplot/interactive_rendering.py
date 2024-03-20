@@ -310,7 +310,7 @@ _DECKGL_TEMPLATE_STR = """
       layers: [pointLayer, labelLayer],
       {% endif %}
       {% if on_click %}
-      onClick: ({index, picked}, event) => {if (picked) { {{on_click}} },
+      onClick: ({index, picked}, event) => {if (picked) { {{on_click}} }},
       {% endif %}
       getTooltip: {{get_tooltip}}
     });
