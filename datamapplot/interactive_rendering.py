@@ -310,7 +310,7 @@ _DECKGL_TEMPLATE_STR = """
       layers: [pointLayer, labelLayer],
       {% endif %}
       {% if on_click %}
-      onClick: ({index, picked}, event) => {if (picked) { {{on_click}} } },
+      onClick: {{on_click}},
       {% endif %}
       getTooltip: {{get_tooltip}}
     });
@@ -795,7 +795,7 @@ def render_html(
                 get_tooltip = "({index}) => hoverData.data.hover_text[index]"
 
             if on_click is not None:
-                on_click = "({index}, event) => " + on_click.format_map(replacements)
+                on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
         else:
             hover_data = point_dataframe[["hover_text"]]
             get_tooltip = "({index}) => hoverData.data.hover_text[index]"
@@ -808,7 +808,7 @@ def render_html(
             )
 
             if on_click is not None:
-                on_click = "({index}, event) => " + on_click.format_map(replacements)
+                on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
     elif extra_point_data is not None:
         hover_data = extra_point_data
         replacements = FormattingDict(
