@@ -29,3 +29,9 @@ DataMapPlot will return a matplotlib Figure and Axes, which you can then apply w
 matplotlib commands you wish to, to add extra plot elements, or otherwise alter things
 (at your own risk). If you feel you have a pretty common adjustment, consider submitting a PR
 to the library so we can make it available to everyone.
+
+The title is cut off when I save the plot, how do I fix that?
+-------------------------------------------------------------
+
+For complex reasons not worth getting into it is necessary to put ``bbox_inches="tight"`` in 
+the call to ``savefig`` to ensure that the title and subtitle don't end up getting clipped.
