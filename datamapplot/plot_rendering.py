@@ -418,7 +418,7 @@ def render_plot(
                 label_text,
                 0.9 * font_scale_factor,
                 fontfamily=font_family,
-                weight=font_weight,
+                fontweight=font_weight,
                 linespacing=label_linespacing,
                 ax=ax,
             )
@@ -514,7 +514,7 @@ def render_plot(
                     color=text_color,
                     fontweight=highlight_label_keywords.get("fontweight", font_weight)
                     if label_text[i] in highlight
-                    else "normal",
+                    else font_weight,
                 )
             )
 
@@ -584,7 +584,7 @@ def render_plot(
                 "ha": "left",
                 "va": "bottom",
                 "fontweight": 900,
-                "fontsize": int(2.5 * font_scale_factor),
+                "fontsize": int(3.2 * font_scale_factor),
                 "fontfamily": font_family,
                 **title_keywords,
             }
@@ -594,7 +594,7 @@ def render_plot(
                 "ha": "left",
                 "va": "bottom",
                 "fontweight": 900,
-                "fontsize": int(2.5 * font_scale_factor),
+                "fontsize": int(3.2 * font_scale_factor),
                 "fontfamily": font_family,
             }
         fig.suptitle(
