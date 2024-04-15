@@ -368,6 +368,7 @@ _DECKGL_TEMPLATE_STR = """
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
             font-family: {{title_font_family}};
+            font-weight: 300;
             color: {{title_font_color}} !important;
             background-color: {{title_background}} !important;
             border-radius: 12px;
@@ -498,15 +499,18 @@ def render_html(
     title_font_size=36,
     sub_title_font_size=18,
     text_collision_size_scale=3,
-    text_min_pixel_size=12,
+    text_min_pixel_size=18,
     text_max_pixel_size=36,
-    font_family="arial",
+    font_family="Roboto Black",
+    font_weight=900,
+    tooltip_font_family="Roboto",
+    tooltip_font_weight=400,
     logo=None,
     logo_width=256,
     color_label_text=True,
     line_spacing=0.95,
-    min_fontsize=12,
-    max_fontsize=24,
+    min_fontsize=18,
+    max_fontsize=28,
     text_outline_width=8,
     text_outline_color="#eeeeeedd",
     point_hover_color="#aa0000bb",
@@ -719,7 +723,7 @@ def render_html(
     """
     # Compute point scaling
     n_points = point_dataframe.shape[0]
-    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 4)
+    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
@@ -825,6 +829,9 @@ def render_html(
             )
         else:
             get_tooltip = "null"
+
+        if on_click is not None:
+            on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
