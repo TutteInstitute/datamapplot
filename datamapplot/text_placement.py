@@ -1,5 +1,6 @@
 import numpy as np
 from sklearn.metrics import pairwise_distances
+from pylabeladjust import adjust_texts
 
 from datamapplot.overlap_computations import (
     get_2d_coordinates,
@@ -320,3 +321,62 @@ def adjust_text_locations(
         n_iter += 1
 
     return new_text_locations
+
+
+def pylabeladjust_text_locations(
+    label_locations,
+    label_text,
+    font_size=12,
+    fontfamily="DejaVu Sans",
+    linespacing=0.95,
+    label_size_adjustments=None,
+    highlight=frozenset([]),
+    highlight_label_keywords={},
+    speed=0.08,
+    max_iterations=500,
+    adjust_by_size=True,
+    margin_percentage=7.5,
+    radius_scale=1.05,
+    ax=None,
+    fig=None,
+):
+    if ax is None:
+        ax = plt.gca()
+
+    if fig is None:
+        fig = plt.gcf()
+
+    # Add text to the axis and set up for optimization
+    new_text_locations = label_locations.copy()
+    texts = [
+        ax.text(
+            *new_text_locations[i],
+            label_text[i],
+            ha="center",
+            ma="center",
+            va="center",
+            linespacing=linespacing,
+            alpha=0.0,
+            fontfamily=fontfamily,
+            fontsize=(
+                highlight_label_keywords.get("fontsize", font_size)
+                if label_text[i] in highlight
+                else font_size
+            )
+            + (
+                label_size_adjustments[i] if label_size_adjustments is not None else 0.0
+            ),
+            fontweight="bold" if label_text[i] in highlight else "normal",
+        )
+        for i in range(label_locations.shape[0])
+    ]
+    fig.canvas.draw()
+    rectangles_adjusted = adjust_texts(
+        texts,
+        speed=speed,
+        max_iterations=max_iterations,
+        adjust_by_size=adjust_by_size,
+        margin_percentage=margin_percentage,
+        radius_scale=radius_scale,
+    )
+    return rectangles_adjusted[["x_center", "y_center"]].values

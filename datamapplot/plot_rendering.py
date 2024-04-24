@@ -19,6 +19,7 @@ from datamapplot.text_placement import (
     fix_crossings,
     adjust_text_locations,
     estimate_font_size,
+    pylabeladjust_text_locations,
 )
 
 from warnings import warn
@@ -163,6 +164,7 @@ def render_plot(
     point_size=1,
     alpha=1.0,
     dpi=plt.rcParams["figure.dpi"],
+    label_over_points=False,
     label_base_radius=None,
     label_margin_factor=1.5,
     highlight_labels=None,
@@ -185,6 +187,11 @@ def render_plot(
     arrowprops={},
     title_keywords=None,
     sub_title_keywords=None,
+    pylabeladjust_speed=0.08,
+    pylabeladjust_max_iterations=500,
+    pylabeladjust_adjust_by_size=True,
+    pylabeladjust_margin_percentage=7.5,
+    pylabeladjust_radius_scale=1.05,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
     a lower level function, and should usually not be used directly unless there are specific
@@ -264,6 +271,13 @@ def render_plot(
     dpi: int (optional, default=plt.rcParams["figure.dpi"])
         The dots-per-inch to use when rendering the plot.
 
+    label_over_points: bool (optional, default=False)
+        Whether to attempt tom place text labels directly on top of the points in clusters. This
+        can result in severe over-packing, and this is remedied via pylabeladjust which can end up
+        moving labels some distance. For smaller numbers of labels this is likely a good choice, for
+        more than 20 labels this will require a small font. For larger numbers of labels still this
+        may be sub-optimal.
+
     label_base_radius: float or None (optional, default=None)
         Labels are placed in rings around the data map. This value can explicitly control the
         radius (in data coordinates) of the innermost such ring.
@@ -340,6 +354,30 @@ def render_plot(
         A dictionary of keyword arguments to pass through to matplotlib's ``title`` fucntion.
         This includes things like fontfamily, fontsize, fontweight, color, etc.
 
+    pylabeladjust_speed: float (optional, default=0.08)
+        pylabeladjust speed for adjusting label positioning when doing labels over points. If
+        ``label_over_points`` is ``False`` then this will have no effect.
+
+    pylabeladjust_max_iterations: int (optional, default=500)
+        The maximum number of pylabeladjust iterations for adjusting label positioning when
+        doing labels over points. If ``label_over_points`` is ``False`` then this will have
+        no effect.
+
+    pylabeladjust_adjust_by_size: bool (optional, default=True)
+        Whether to adjust the labels based on the size of the rectangles for adjusting label
+        positioning when doing labels over points. If ``label_over_points`` is ``False`` then
+        this will have no effect.
+
+    pylabeladjust_margin_percentage:float (optional, default=7.5)
+        The percentage of margin to add around the rectangles for adjusting label
+        positioning when doing labels over points. If ``label_over_points`` is ``False`` then
+        this will have no effect.
+
+    pylabeladjust_radius_scale: float (optional, default=1.05)
+        The scale factor for the repulsion radius for adjusting label
+        positioning when doing labels over points. If ``label_over_points`` is ``False`` then
+        this will have no effect.
+
     Returns
     -------
     fig: matplotlib.Figure
@@ -403,25 +441,6 @@ def render_plot(
     # Find initial placements for text, fix any line crossings, then optimize placements
     ax.autoscale_view()
     if label_locations.shape[0] > 0:
-        label_text_locations = initial_text_location_placement(
-            label_locations,
-            base_radius=label_base_radius,
-            theta_stretch=label_direction_bias,
-        )
-        fix_crossings(label_text_locations, label_locations)
-
-        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-        if label_font_size is None:
-            font_size = estimate_font_size(
-                label_text_locations,
-                label_text,
-                0.9 * font_scale_factor,
-                fontfamily=fontfamily,
-                linespacing=label_linespacing,
-                ax=ax,
-            )
-        else:
-            font_size = label_font_size
 
         # Ensure we can look up labels for highlighting
         if highlight_labels is not None:
@@ -429,19 +448,72 @@ def render_plot(
         else:
             highlight = set([])
 
-        label_text_locations = adjust_text_locations(
-            label_text_locations,
-            label_locations,
-            label_text,
-            fontfamily=fontfamily,
-            font_size=font_size,
-            linespacing=label_linespacing,
-            highlight=highlight,
-            highlight_label_keywords=highlight_label_keywords,
-            ax=ax,
-            expand=(label_margin_factor, label_margin_factor),
-            label_size_adjustments=label_size_adjustments,
-        )
+        if label_over_points:
+            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+            if label_font_size is None:
+                font_size = estimate_font_size(
+                    label_locations,
+                    label_text,
+                    0.9 * font_scale_factor,
+                    fontfamily=fontfamily,
+                    linespacing=label_linespacing,
+                    expand=(1.0, 1.0),
+                    ax=ax,
+                )
+            else:
+                font_size = label_font_size
+
+            label_text_locations = pylabeladjust_text_locations(
+                label_locations,
+                label_text,
+                fontfamily=fontfamily,
+                font_size=font_size,
+                linespacing=label_linespacing,
+                highlight=highlight,
+                highlight_label_keywords=highlight_label_keywords,
+                ax=ax,
+                fig=fig,
+                label_size_adjustments=label_size_adjustments,
+                speed=pylabeladjust_speed,
+                max_iterations=pylabeladjust_max_iterations,
+                adjust_by_size=pylabeladjust_adjust_by_size,
+                margin_percentage=pylabeladjust_margin_percentage,
+                radius_scale=pylabeladjust_radius_scale,
+            )
+        else:
+            label_text_locations = initial_text_location_placement(
+                label_locations,
+                base_radius=label_base_radius,
+                theta_stretch=label_direction_bias,
+            )
+            fix_crossings(label_text_locations, label_locations)
+
+            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+            if label_font_size is None:
+                font_size = estimate_font_size(
+                    label_text_locations,
+                    label_text,
+                    0.9 * font_scale_factor,
+                    fontfamily=fontfamily,
+                    linespacing=label_linespacing,
+                    ax=ax,
+                )
+            else:
+                font_size = label_font_size
+
+            label_text_locations = adjust_text_locations(
+                label_text_locations,
+                label_locations,
+                label_text,
+                fontfamily=fontfamily,
+                font_size=font_size,
+                linespacing=label_linespacing,
+                highlight=highlight,
+                highlight_label_keywords=highlight_label_keywords,
+                ax=ax,
+                expand=(label_margin_factor, label_margin_factor),
+                label_size_adjustments=label_size_adjustments,
+            )
 
         # Build highlight boxes
         if (
@@ -509,9 +581,11 @@ def render_plot(
                     ),
                     bbox=bbox_keywords if label_text[i] in highlight else None,
                     color=text_color,
-                    fontweight=highlight_label_keywords.get("fontweight", "normal")
-                    if label_text[i] in highlight
-                    else "normal",
+                    fontweight=(
+                        highlight_label_keywords.get("fontweight", "normal")
+                        if label_text[i] in highlight
+                        else "normal"
+                    ),
                 )
             )
 
