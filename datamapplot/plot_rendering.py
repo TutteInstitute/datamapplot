@@ -12,6 +12,7 @@ from skimage.transform import rescale
 
 from matplotlib import pyplot as plt
 from matplotlib import font_manager
+from matplotlib import patheffects
 
 from datamapplot.overlap_computations import get_2d_coordinates
 from datamapplot.text_placement import (
@@ -449,7 +450,7 @@ def render_plot(
             highlight = set([])
 
         if label_over_points:
-            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+            font_scale_factor = np.sqrt(figsize[0] * figsize[1]) * 1.5
             if label_font_size is None:
                 font_size = estimate_font_size(
                     label_locations,
@@ -458,6 +459,8 @@ def render_plot(
                     fontfamily=fontfamily,
                     linespacing=label_linespacing,
                     expand=(1.0, 1.0),
+                    overlap_percentage_allowed=0.66,
+                    label_size_adjustments=label_size_adjustments,
                     ax=ax,
                 )
             else:
@@ -496,6 +499,7 @@ def render_plot(
                     0.9 * font_scale_factor,
                     fontfamily=fontfamily,
                     linespacing=label_linespacing,
+                    label_size_adjustments=label_size_adjustments,
                     ax=ax,
                 )
             else:
@@ -546,6 +550,8 @@ def render_plot(
             else:
                 text_color = "black"
 
+            outline_color = "#00000077" if darkmode else "#ffffff77"
+
             if label_arrow_colors:
                 arrow_color = label_arrow_colors[i]
             elif darkmode:
@@ -563,12 +569,16 @@ def render_plot(
                     va="center",
                     linespacing=label_linespacing,
                     fontfamily=fontfamily,
-                    arrowprops={
-                        "arrowstyle": "-",
-                        "linewidth": 0.5,
-                        "color": arrow_color,
-                        **arrowprops,
-                    },
+                    arrowprops=(
+                        {
+                            "arrowstyle": "-",
+                            "linewidth": 0.5,
+                            "color": arrow_color,
+                            **arrowprops,
+                        }
+                        if not label_over_points
+                        else None
+                    ),
                     fontsize=(
                         highlight_label_keywords.get("fontsize", font_size)
                         if label_text[i] in highlight
@@ -578,6 +588,14 @@ def render_plot(
                         label_size_adjustments[i]
                         if label_size_adjustments is not None
                         else 0.0
+                    ),
+                    path_effects=(
+                        [
+                            patheffects.Stroke(linewidth=3, foreground=outline_color),
+                            patheffects.Normal(),
+                        ]
+                        if label_over_points
+                        else None
                     ),
                     bbox=bbox_keywords if label_text[i] in highlight else None,
                     color=text_color,

@@ -40,6 +40,7 @@ def create_plot(
     highlight_labels=None,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_min_lightness=10,
     use_medoids=False,
     cmap=None,
     marker_color_array=None,
@@ -197,6 +198,7 @@ def create_plot(
                 label_locations,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
+                min_lightness=palette_min_lightness,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -204,6 +206,7 @@ def create_plot(
                 data_map_coords,
                 label_locations,
                 radius_weight_power=palette_hue_radius_dependence,
+                lightness_bounds=(palette_min_lightness, 80),
             )
         label_to_index_map = {
             name: index for index, name in enumerate(unique_non_noise_labels)

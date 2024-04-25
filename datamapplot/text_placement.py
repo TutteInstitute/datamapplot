@@ -141,6 +141,8 @@ def estimate_font_size(
     fontfamily="DejaVu Sans",
     linespacing=0.95,
     expand=(1.5, 1.5),
+    overlap_percentage_allowed=0.5,
+    label_size_adjustments=None,
     ax=None,
 ):
     if ax is None:
@@ -148,7 +150,7 @@ def estimate_font_size(
 
     font_size = initial_font_size
     overlap_percentage = 1.0
-    while overlap_percentage > 0.5 and font_size > 3.0:
+    while overlap_percentage > overlap_percentage_allowed and font_size > 3.0:
         texts = [
             ax.text(
                 *text_locations[i],
@@ -159,7 +161,11 @@ def estimate_font_size(
                 linespacing=linespacing,
                 alpha=0.0,
                 fontfamily=fontfamily,
-                fontsize=font_size,
+                fontsize=(
+                    font_size + label_size_adjustments[i]
+                    if label_size_adjustments is not None
+                    else 0.0
+                ),
             )
             for i in range(text_locations.shape[0])
         ]
