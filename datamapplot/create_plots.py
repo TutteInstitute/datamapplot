@@ -248,20 +248,10 @@ def create_plot(
     else:
         label_arrow_colors = None
 
-    if dynamic_label_size:
-        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-        cluster_sizes = np.sqrt(pd.Series(cluster_label_vector).value_counts())
-        label_size_adjustments = cluster_sizes - cluster_sizes.min()
-        label_size_adjustments /= label_size_adjustments.max()
-        label_size_adjustments *= (
-            render_plot_kwds.get("label_font_size", font_scale_factor) + 2
-        )
-        label_size_adjustments = dict(label_size_adjustments - 2)
-        label_size_adjustments = [
-            label_size_adjustments[x] for x in unique_non_noise_labels
-        ]
-    else:
-        label_size_adjustments = [0.0] * len(unique_non_noise_labels)
+    cluster_sizes = pd.Series(cluster_label_vector).value_counts()
+    label_cluster_sizes = np.asarray([
+            cluster_sizes[x] for x in unique_non_noise_labels
+    ])
 
     # Heuristics for point size and alpha values
     n_points = data_map_coords.shape[0]
@@ -285,6 +275,7 @@ def create_plot(
         color_list,
         label_text,
         label_locations,
+        label_cluster_sizes,
         title=title,
         sub_title=sub_title,
         point_size=point_size,
@@ -294,7 +285,7 @@ def create_plot(
         highlight_colors=[label_color_map[x] for x in unique_non_noise_labels],
         figsize=figsize,
         noise_color=noise_color,
-        label_size_adjustments=label_size_adjustments,
+        dynamic_label_size=dynamic_label_size,
         dpi=dpi,
         force_matplotlib=force_matplotlib,
         darkmode=darkmode,
