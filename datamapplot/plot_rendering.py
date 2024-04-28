@@ -154,7 +154,8 @@ def render_plot(
     title=None,
     sub_title=None,
     figsize=(12, 12),
-    fontfamily="DejaVu Sans",
+    font_family="Roboto",
+    font_weight=400,
     label_linespacing=0.95,
     label_font_size=None,
     label_text_colors=None,
@@ -224,8 +225,8 @@ def render_plot(
     figsize: (int, int) (optional, default=(12,12))
         How big to make the figure in inches (actual pixel size will depend on ``dpi``).
 
-    fontfamily: str (optional, default="DejaVu Sans")
-        The fontfamily to use for the plot -- the labels and the title and sub-title
+    font_family: str (optional, default="DejaVu Sans")
+        The font_family to use for the plot -- the labels and the title and sub-title
         unless explicitly over-ridden by title_keywords or sub_title_keywords.
 
     label_linespacing: float (optional, default=0.95)
@@ -353,8 +354,8 @@ def render_plot(
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
 
     # Get any google fonts if required
-    get_google_font(fontfamily)
-    get_google_font(fontfamily.split()[0])
+    get_google_font(font_family)
+    get_google_font(font_family.split()[0])
     if title_keywords is not None and "fontfamily" in title_keywords:
         get_google_font(title_keywords["fontfamily"])
         get_google_font(title_keywords["fontfamily"].split()[0])
@@ -416,7 +417,8 @@ def render_plot(
                 label_text_locations,
                 label_text,
                 0.9 * font_scale_factor,
-                fontfamily=fontfamily,
+                fontfamily=font_family,
+                fontweight=font_weight,
                 linespacing=label_linespacing,
                 ax=ax,
             )
@@ -433,8 +435,9 @@ def render_plot(
             label_text_locations,
             label_locations,
             label_text,
-            fontfamily=fontfamily,
+            fontfamily=font_family,
             font_size=font_size,
+            fontweight=font_weight,
             linespacing=label_linespacing,
             highlight=highlight,
             highlight_label_keywords=highlight_label_keywords,
@@ -490,7 +493,7 @@ def render_plot(
                     ma="center",
                     va="center",
                     linespacing=label_linespacing,
-                    fontfamily=fontfamily,
+                    fontfamily=font_family,
                     arrowprops={
                         "arrowstyle": "-",
                         "linewidth": 0.5,
@@ -509,9 +512,9 @@ def render_plot(
                     ),
                     bbox=bbox_keywords if label_text[i] in highlight else None,
                     color=text_color,
-                    fontweight=highlight_label_keywords.get("fontweight", "normal")
+                    fontweight=highlight_label_keywords.get("fontweight", font_weight)
                     if label_text[i] in highlight
-                    else "normal",
+                    else font_weight,
                 )
             )
 
@@ -546,16 +549,18 @@ def render_plot(
             keyword_args = {
                 "fontweight": "light",
                 "color": "gray",
-                "fontsize": (1.2 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontsize": (1.6 * font_scale_factor),
+                "fontfamily": font_family,
+                "fontweight": font_weight,
                 **sub_title_keywords,
             }
         else:
             keyword_args = {
                 "fontweight": "light",
                 "color": "gray",
-                "fontsize": (1.2 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontsize": (1.6 * font_scale_factor),
+                "fontfamily": font_family,
+                "fontweight": font_weight,
             }
         axis_title = ax.set_title(
             sub_title,
@@ -578,9 +583,9 @@ def render_plot(
                 "color": "white" if darkmode else "black",
                 "ha": "left",
                 "va": "bottom",
-                "fontweight": "bold",
-                "fontsize": int(1.6 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontweight": 900,
+                "fontsize": int(3.2 * font_scale_factor),
+                "fontfamily": font_family,
                 **title_keywords,
             }
         else:
@@ -588,9 +593,9 @@ def render_plot(
                 "color": "white" if darkmode else "black",
                 "ha": "left",
                 "va": "bottom",
-                "fontweight": "bold",
-                "fontsize": int(1.6 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontweight": 900,
+                "fontsize": int(3.2 * font_scale_factor),
+                "fontfamily": font_family,
             }
         fig.suptitle(
             title, x=0.0, y=sup_title_y_value, transform=ax.transAxes, **keyword_args

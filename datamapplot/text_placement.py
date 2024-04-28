@@ -137,7 +137,8 @@ def estimate_font_size(
     text_locations,
     label_text,
     initial_font_size,
-    fontfamily="DejaVu Sans",
+    fontfamily="Roboto",
+    fontweight=400,
     linespacing=0.95,
     expand=(1.5, 1.5),
     ax=None,
@@ -158,6 +159,7 @@ def estimate_font_size(
                 linespacing=linespacing,
                 alpha=0.0,
                 fontfamily=fontfamily,
+                fontweight=fontweight,
                 fontsize=font_size,
             )
             for i in range(text_locations.shape[0])
@@ -188,6 +190,7 @@ def adjust_text_locations(
     label_text,
     font_size=12,
     fontfamily="DejaVu Sans",
+    fontweight=400,
     linespacing=0.95,
     expand=(1.5, 1.5),
     max_iter=100,
@@ -219,7 +222,7 @@ def adjust_text_locations(
             + (
                 label_size_adjustments[i] if label_size_adjustments is not None else 0.0
             ),
-            fontweight="bold" if label_text[i] in highlight else "normal",
+            fontweight="bold" if label_text[i] in highlight else fontweight,
         )
         for i in range(label_locations.shape[0])
     ]
