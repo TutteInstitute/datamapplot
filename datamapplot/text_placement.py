@@ -145,7 +145,7 @@ def estimate_font_size(
     overlap_percentage_allowed=0.5,
     min_font_size=3.0,
     max_font_size=16.0,
-    ax=None,  
+    ax=None,
 ):
     if ax is None:
         ax = plt.gca()
@@ -153,7 +153,6 @@ def estimate_font_size(
     font_size = initial_font_size
     overlap_percentage = 1.0
     while overlap_percentage > overlap_percentage_allowed and font_size > min_font_size:
-        print(f"{font_size=}")
         texts = [
             ax.text(
                 *text_locations[i],
@@ -187,10 +186,10 @@ def estimate_font_size(
 
     return font_size
 
+
 def estimate_dynamic_font_size(
     text_locations,
     label_text,
-    initial_font_size,
     fontfamily="DejaVu Sans",
     linespacing=0.95,
     expand=(1.5, 1.5),
@@ -205,16 +204,20 @@ def estimate_dynamic_font_size(
     if ax is None:
         ax = plt.gca()
 
-    font_size = initial_font_size
     overlap_percentage = 1.0
     current_max_font_size = max_font_size
-    print(f"{dynamic_size_array}")
     weight_scaler = MinMaxScaler(feature_range=(min_font_weight, max_font_weight))
-    font_weights = np.squeeze(weight_scaler.fit_transform(dynamic_size_array.reshape(-1, 1)))
-    while overlap_percentage > overlap_percentage_allowed and current_max_font_size > min_font_size:
-        print(f"{current_max_font_size=}")
+    font_weights = np.squeeze(
+        weight_scaler.fit_transform(dynamic_size_array.reshape(-1, 1))
+    )
+    while (
+        overlap_percentage > overlap_percentage_allowed
+        and current_max_font_size > min_font_size
+    ):
         size_scaler = MinMaxScaler(feature_range=(min_font_size, current_max_font_size))
-        font_sizes = np.squeeze(size_scaler.fit_transform(dynamic_size_array.reshape(-1, 1)))
+        font_sizes = np.squeeze(
+            size_scaler.fit_transform(dynamic_size_array.reshape(-1, 1))
+        )
         texts = [
             ax.text(
                 *text_locations[i],
@@ -248,7 +251,6 @@ def estimate_dynamic_font_size(
         current_max_font_size = 0.9 * current_max_font_size
 
     return font_sizes, font_weights
-
 
 
 def adjust_text_locations(
@@ -285,11 +287,13 @@ def adjust_text_locations(
                 highlight_label_keywords.get("fontsize", font_size)
                 if label_text[i] in highlight
                 else font_size
-            ) if font_sizes is None else font_sizes[i],
-
+            )
+            if font_sizes is None
+            else font_sizes[i],
             fontweight=(
-                "bold" if label_text[i] in highlight else 
-                (font_weights[i] if font_weights is not None else "normal")
+                "bold"
+                if label_text[i] in highlight
+                else (font_weights[i] if font_weights is not None else "normal")
             ),
         )
         for i in range(label_locations.shape[0])
@@ -432,11 +436,13 @@ def pylabeladjust_text_locations(
                 highlight_label_keywords.get("fontsize", font_size)
                 if label_text[i] in highlight
                 else font_size
-            ) if font_sizes is None else font_sizes[i],
+            )
+            if font_sizes is None
+            else font_sizes[i],
             fontweight=(
-                "bold" if label_text[i] in highlight 
-                else 
-                (font_weights[i] if font_weights is not None else "normal")
+                "bold"
+                if label_text[i] in highlight
+                else (font_weights[i] if font_weights is not None else "normal")
             ),
         )
         for i in range(label_locations.shape[0])

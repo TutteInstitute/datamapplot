@@ -175,9 +175,9 @@ def render_plot(
     min_font_size=4.0,
     max_font_size=24.0,
     min_font_weight=200,
-    max_font_weight=500,
+    max_font_weight=800,
     highlight_labels=None,
-    highlight_label_keywords={"fontweight": "bold"},
+    highlight_label_keywords={"fontweight": 1000},
     add_glow=True,
     noise_color="#999999",
     label_size_adjustments=None,
@@ -310,7 +310,7 @@ def render_plot(
     min_font_weight: int (optional, default=200)
         The minimum font weight to use when using dynamic label sizing (font weights will vary as well).
 
-    max_font_weight: int (optional, default=500)
+    max_font_weight: int (optional, default=800)
         The maximum font weight to use when using dynamic label sizing (font weights will vary as well).
 
     highlight_labels: list of str or None (optional, default=None)
@@ -484,12 +484,12 @@ def render_plot(
                     font_sizes, font_weights = estimate_dynamic_font_size(
                         label_locations,
                         label_text,
-                        font_scale_factor,
                         fontfamily=fontfamily,
                         linespacing=label_linespacing,
                         expand=(1.0, 1.0),
                         overlap_percentage_allowed=0.66,
-                        dynamic_size_array=label_cluster_sizes ** dynamic_label_size_scaling_factor,
+                        dynamic_size_array=label_cluster_sizes
+                        ** dynamic_label_size_scaling_factor,
                         min_font_size=min_font_size,
                         max_font_size=max_font_size,
                         min_font_weight=min_font_weight,
@@ -550,12 +550,12 @@ def render_plot(
                     font_sizes, font_weights = estimate_dynamic_font_size(
                         label_locations,
                         label_text,
-                        0.9 * font_scale_factor,
                         fontfamily=fontfamily,
                         linespacing=label_linespacing,
                         expand=(label_margin_factor, label_margin_factor),
                         overlap_percentage_allowed=0.5,
-                        dynamic_size_array=label_cluster_sizes ** dynamic_label_size_scaling_factor,
+                        dynamic_size_array=label_cluster_sizes
+                        ** dynamic_label_size_scaling_factor,
                         min_font_size=min_font_size,
                         max_font_size=max_font_size,
                         min_font_weight=min_font_weight,
@@ -579,7 +579,6 @@ def render_plot(
             else:
                 font_size = label_font_size
 
-            print(f"{font_size=}, {font_sizes=}, {font_weights=}")
             if verbose:
                 print("Adjusting label placements...")
             label_text_locations = adjust_text_locations(
@@ -663,7 +662,9 @@ def render_plot(
                         highlight_label_keywords.get("fontsize", font_size)
                         if label_text[i] in highlight
                         else font_size
-                    ) if font_sizes is None else font_sizes[i],
+                    )
+                    if font_sizes is None
+                    else font_sizes[i],
                     path_effects=(
                         [
                             patheffects.Stroke(linewidth=3, foreground=outline_color),
