@@ -32,18 +32,21 @@ import re
 
 
 def get_google_font(fontname):
-    api_fontname = fontname.replace(" ", "+")
-    api_response = requests.get(
-        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
-    )
-    if api_response.ok:
-        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
-        for font_url in font_urls:
-            font_data = requests.get(font_url)
-            f = NamedTemporaryFile(delete=False, suffix=".ttf")
-            f.write(font_data.content)
-            f.close()
-            font_manager.fontManager.addfont(f.name)
+    try:
+        api_fontname = fontname.replace(" ", "+")
+        api_response = requests.get(
+            f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
+        )
+        if api_response.ok:
+            font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
+            for font_url in font_urls:
+                font_data = requests.get(font_url)
+                f = NamedTemporaryFile(delete=False, suffix=".ttf")
+                f.write(font_data.content)
+                f.close()
+                font_manager.fontManager.addfont(f.name)
+    except:
+        warn(f"Failed in getting google-font {fontname}; using fallback ...")
 
 
 def datashader_scatterplot(
