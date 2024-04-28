@@ -180,7 +180,6 @@ def render_plot(
     highlight_label_keywords={"fontweight": 1000},
     add_glow=True,
     noise_color="#999999",
-    label_size_adjustments=None,
     glow_keywords={
         "kernel": "gaussian",
         "kernel_bandwidth": 0.25,
