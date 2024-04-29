@@ -407,9 +407,10 @@ def pylabeladjust_text_locations(
     linespacing=0.95,
     highlight=frozenset([]),
     highlight_label_keywords={},
-    speed=0.08,
+    speed=None,
     max_iterations=500,
     adjust_by_size=True,
+    margin_percentage=7.5,
     radius_scale=1.05,
     ax=None,
     fig=None,
@@ -419,6 +420,10 @@ def pylabeladjust_text_locations(
 
     if fig is None:
         fig = plt.gcf()
+
+    if speed is None:
+        data_radius = np.max(row_norm(label_locations))
+        speed = data_radius / 125.0
 
     # Add text to the axis and set up for optimization
     new_text_locations = label_locations.copy()
@@ -453,6 +458,8 @@ def pylabeladjust_text_locations(
         speed=speed,
         max_iterations=max_iterations,
         adjust_by_size=adjust_by_size,
+        margin=margin_percentage,
+        margin_type="percentage",
         radius_scale=radius_scale,
     )
     return rectangles_adjusted[["x_center", "y_center"]].values

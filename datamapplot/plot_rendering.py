@@ -198,9 +198,10 @@ def render_plot(
     arrowprops={},
     title_keywords=None,
     sub_title_keywords=None,
-    pylabeladjust_speed=0.08,
+    pylabeladjust_speed=None,
     pylabeladjust_max_iterations=500,
     pylabeladjust_adjust_by_size=True,
+    pylabeladjust_margin_percentage=7.5,
     pylabeladjust_radius_scale=1.05,
     verbose=False,
 ):
@@ -261,13 +262,15 @@ def render_plot(
         then a heuristic will be used to try to find the best font size that can fit all
         the labels in.
 
-    label_text_colors: list of str or None (optional, default=None)
+    label_text_colors: str or list of str or None (optional, default=None)
         The colours of the text labels, one per text label. If None then the text labels
-        will be either black or white depending on ``darkmode``.
+        will be either black or white depending on ``darkmode``. If just a single string
+        then it is assumed to be a fixed colour for all labels.
 
-    label_arrow_colors: list of str or None (optional, default=None)
+    label_arrow_colors: str or list of str or None (optional, default=None)
         The colours of the arrows between the text labels and clusters, one per text label.
-        If None then the arrows will be either black or white depending on ``darkmode``.
+        If None then the arrows will be either black or white depending on ``darkmode``. 
+        If just a single string then it is assumed to be a fixed colour for all arrows.
 
     highlight_colors: list of str or None (optional default=None)
         The colours used if text labels are highlighted and a bounding box around the label is
@@ -379,9 +382,10 @@ def render_plot(
         A dictionary of keyword arguments to pass through to matplotlib's ``title`` fucntion.
         This includes things like fontfamily, fontsize, fontweight, color, etc.
 
-    pylabeladjust_speed: float (optional, default=0.08)
+    pylabeladjust_speed: None or float (optional, default=None)
         pylabeladjust speed for adjusting label positioning when doing labels over points. If
-        ``label_over_points`` is ``False`` then this will have no effect.
+        ``label_over_points`` is ``False`` then this will have no effect. If ``None`` then
+        a good choice of speed will be approximated from the data.
 
     pylabeladjust_max_iterations: int (optional, default=500)
         The maximum number of pylabeladjust iterations for adjusting label positioning when
@@ -392,6 +396,10 @@ def render_plot(
         Whether to adjust the labels based on the size of the rectangles for adjusting label
         positioning when doing labels over points. If ``label_over_points`` is ``False`` then
         this will have no effect.
+
+    pylabeladjust_margin_percentage: float (optional, default=7.5)
+        The margin percentage for the repulsion radius for adjusting label positioning when
+        doing labels over points. If ``label_over_points`` is ``False`` then this will have no effect.
 
     pylabeladjust_radius_scale: float (optional, default=1.05)
         The scale factor for the repulsion radius for adjusting label
@@ -532,6 +540,7 @@ def render_plot(
                 speed=pylabeladjust_speed,
                 max_iterations=pylabeladjust_max_iterations,
                 adjust_by_size=pylabeladjust_adjust_by_size,
+                margin_percentage=pylabeladjust_margin_percentage,
                 radius_scale=pylabeladjust_radius_scale,
             )
         else:
@@ -624,7 +633,9 @@ def render_plot(
             else:
                 bbox_keywords = None
 
-            if label_text_colors:
+            if type(label_text_colors) == str:
+                text_color = label_text_colors
+            elif label_text_colors:
                 text_color = label_text_colors[i]
             elif darkmode:
                 text_color = "white"
@@ -633,7 +644,9 @@ def render_plot(
 
             outline_color = "#00000077" if darkmode else "#ffffff77"
 
-            if label_arrow_colors:
+            if type(label_arrow_colors) == str:
+                arrow_color = label_arrow_colors
+            elif label_arrow_colors:
                 arrow_color = label_arrow_colors[i]
             elif darkmode:
                 arrow_color = "#dddddd"

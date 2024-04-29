@@ -81,13 +81,17 @@ def create_plot(
         The colour to use for unlabelled or noise points in the data map. This should usually
         be a muted or neutral colour to distinguish background points from the labelled clusters.
 
-    color_label_text: bool (optional, default=True)
+    color_label_text: str or bool (optional, default=True)
         Whether to use colours for the text labels generated in the plot. If ``False`` then
         the text labels will default to either black or white depending on ``darkmode``.
+        If a string is provided it should be a valid matplotlib colour specification and all
+        text labels will be this colour.
 
-    color_label_arrows: bool (optional, default=True)
+    color_label_arrows: str or bool (optional, default=True)
         Whether to use colours for the arrows between the text labels and clusters. If ``False``
-        then the arrows will default to either black or white depending on ``darkmode``.
+        then the arrows will default to either black or white depending on ``darkmode``. If a 
+        string is provided it should eb a valid matplotlib colour specification and all arrows
+        will be this colour.
 
     label_wrap_width: int (optional, default=16)
         The number of characters to apply text-wrapping at when creating text labels for
@@ -240,10 +244,14 @@ def create_plot(
             label_text_colors = pastel_palette(label_colors)
         else:
             label_text_colors = deep_palette(label_colors)
+    elif type(color_label_text) == str:
+        label_text_colors = color_label_text
     else:
         label_text_colors = None
 
-    if color_label_arrows:
+    if type(color_label_arrows) == str:
+        label_arrow_colors = color_label_arrows
+    elif color_label_arrows:
         label_arrow_colors = label_colors
     else:
         label_arrow_colors = None
