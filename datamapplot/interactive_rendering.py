@@ -27,6 +27,9 @@ _DECKGL_TEMPLATE_STR = """
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap" rel="stylesheet">
+    {% if google_tooltip_font %}
+    <link href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap" rel="stylesheet">
+    {% endif %}
     {% endif %}
        
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css" />
@@ -264,6 +267,7 @@ _DECKGL_TEMPLATE_STR = """
         background: true,
         characterSet: "auto",
         fontFamily: "{{font_family}}",
+        fontWeight: {{font_weight}},
         lineHeight: {{line_spacing}},
         fontSettings: {"sdf": true},
         getTextAnchor: "middle",
@@ -368,6 +372,7 @@ _DECKGL_TEMPLATE_STR = """
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
             font-family: {{title_font_family}};
+            font-weight: {{title_font_weight}};
             color: {{title_font_color}} !important;
             background-color: {{title_background}} !important;
             border-radius: 12px;
@@ -498,15 +503,18 @@ def render_html(
     title_font_size=36,
     sub_title_font_size=18,
     text_collision_size_scale=3,
-    text_min_pixel_size=12,
+    text_min_pixel_size=18,
     text_max_pixel_size=36,
-    font_family="arial",
+    font_family="Roboto",
+    font_weight=900,
+    tooltip_font_family=None,
+    tooltip_font_weight=300,
     logo=None,
     logo_width=256,
     color_label_text=True,
     line_spacing=0.95,
-    min_fontsize=12,
-    max_fontsize=24,
+    min_fontsize=18,
+    max_fontsize=28,
     text_outline_width=8,
     text_outline_color="#eeeeeedd",
     point_hover_color="#aa0000bb",
@@ -581,10 +589,25 @@ def render_html(
         The maximum pixel size of label text. If text would be larger than this in size
         then render the text to be at most this size.
 
-    font_family: str (optional, default="arial")
+    font_family: str (optional, default="Roboto")
         The font family to use for label text and titles. If the font family is a
         google font then the required google font api handling will automatically
         make the font available, so any google font family is acceptable.
+
+    font_weight: str or int (optional, default=900)
+        The font weight to use for the text labels within the plot. Either weight
+        specification such as "thin", "normal", or "bold" or an integer value
+        between 0 (ultra-thin) and 1000 (ultra-black).
+
+    tooltip_font_family: str (optional default="Roboto")
+        The font family to use in tooltips/hover text. If the font family is a
+        google font then the required google font api handling will automatically
+        make the font available, so any google font family is acceptable.
+
+    tooltip_font_weight: str or int (optional, default=400)
+        The font weight to use for the tooltip /hover text within the plot. Either weight
+        specification such as "thin", "normal", or "bold" or an integer value
+        between 0 (ultra-thin) and 1000 (ultra-black).
 
     logo: str or None (optional, default=None)
         A logo image to include in the bottom right corner of the map. This should be
@@ -719,7 +742,7 @@ def render_html(
     """
     # Compute point scaling
     n_points = point_dataframe.shape[0]
-    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 4)
+    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
@@ -825,6 +848,9 @@ def render_html(
             )
         else:
             get_tooltip = "null"
+
+        if on_click is not None:
+            on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
@@ -876,8 +902,9 @@ def render_html(
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
         tooltip_css = tooltip_css_template.render(
-            title_font_family=font_family,
+            title_font_family=tooltip_font_family or font_family,
             title_font_color=title_font_color,
+            title_font_weight=tooltip_font_weight,
             title_background=title_background,
             shadow_color=shadow_color,
         )
@@ -892,11 +919,19 @@ def render_html(
     resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
     if not resp.ok:
         api_fontname = None
+    if tooltip_font_family is not None:
+        api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
+        resp = requests.get(f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}")
+        if not resp.ok:
+            api_tooltip_fontname = None
+    else:
+        api_tooltip_fontname = None
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
+        google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
         title_font_family=font_family,
@@ -935,6 +970,7 @@ def render_html(
         text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
         text_background_color=text_background_color,
         font_family=font_family,
+        font_weight=font_weight,
         text_collision_size_scale=text_collision_size_scale,
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,

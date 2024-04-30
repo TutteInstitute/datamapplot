@@ -163,7 +163,8 @@ def render_plot(
     figsize=(12, 12),
     dynamic_label_size=False,
     dynamic_label_size_scaling_factor=0.75,
-    fontfamily="DejaVu Sans",
+    font_family="Roboto",
+    font_weight=400,
     label_linespacing=0.95,
     label_font_size=None,
     label_text_colors=None,
@@ -249,8 +250,8 @@ def render_plot(
     dynamic_label_size_scaling_factor: float (optional, default=0.75)
         The scaling factor to use when using dynamic label sizing based on the sizes of the clusters.
 
-    fontfamily: str (optional, default="DejaVu Sans")
-        The fontfamily to use for the plot -- the labels and the title and sub-title
+    font_family: str (optional, default="DejaVu Sans")
+        The font_family to use for the plot -- the labels and the title and sub-title
         unless explicitly over-ridden by title_keywords or sub_title_keywords.
 
     label_linespacing: float (optional, default=0.95)
@@ -269,7 +270,7 @@ def render_plot(
 
     label_arrow_colors: str or list of str or None (optional, default=None)
         The colours of the arrows between the text labels and clusters, one per text label.
-        If None then the arrows will be either black or white depending on ``darkmode``. 
+        If None then the arrows will be either black or white depending on ``darkmode``.
         If just a single string then it is assumed to be a fixed colour for all arrows.
 
     highlight_colors: list of str or None (optional default=None)
@@ -424,8 +425,8 @@ def render_plot(
     if verbose:
         print("Getting any required fonts...")
     # Get any google fonts if required
-    get_google_font(fontfamily)
-    get_google_font(fontfamily.split()[0])
+    get_google_font(font_family)
+    get_google_font(font_family.split()[0])
     if title_keywords is not None and "fontfamily" in title_keywords:
         get_google_font(title_keywords["fontfamily"])
         get_google_font(title_keywords["fontfamily"].split()[0])
@@ -561,7 +562,7 @@ def render_plot(
                     font_sizes, font_weights = estimate_dynamic_font_size(
                         label_locations,
                         label_text,
-                        fontfamily=fontfamily,
+                        fontfamily=font_family,
                         linespacing=label_linespacing,
                         expand=(label_margin_factor, label_margin_factor),
                         overlap_percentage_allowed=0.5,
@@ -579,7 +580,7 @@ def render_plot(
                         label_text_locations,
                         label_text,
                         0.9 * font_scale_factor,
-                        fontfamily=fontfamily,
+                        fontfamily=font_family,
                         linespacing=label_linespacing,
                         min_font_size=min_font_size,
                         max_font_size=max_font_size,
@@ -596,7 +597,7 @@ def render_plot(
                 label_text_locations,
                 label_locations,
                 label_text,
-                fontfamily=fontfamily,
+                fontfamily=font_family,
                 font_size=font_size,
                 linespacing=label_linespacing,
                 highlight=highlight,
@@ -662,7 +663,7 @@ def render_plot(
                     ma="center",
                     va="center",
                     linespacing=label_linespacing,
-                    fontfamily=fontfamily,
+                    fontfamily=font_family,
                     arrowprops=(
                         {
                             "arrowstyle": "-",
@@ -691,9 +692,9 @@ def render_plot(
                     bbox=bbox_keywords if label_text[i] in highlight else None,
                     color=text_color,
                     fontweight=(
-                        highlight_label_keywords.get("fontweight", "normal")
+                        highlight_label_keywords.get("fontweight", font_weight)
                         if label_text[i] in highlight
-                        else (font_weights[i] if font_weights is not None else "normal")
+                        else (font_weights[i] if font_weights is not None else font_weight)
                     ),
                 )
             )
@@ -731,16 +732,18 @@ def render_plot(
             keyword_args = {
                 "fontweight": "light",
                 "color": "gray",
-                "fontsize": (1.2 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontsize": (1.6 * font_scale_factor),
+                "fontfamily": font_family,
+                "fontweight": font_weight,
                 **sub_title_keywords,
             }
         else:
             keyword_args = {
                 "fontweight": "light",
                 "color": "gray",
-                "fontsize": (1.2 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontsize": (1.6 * font_scale_factor),
+                "fontfamily": font_family,
+                "fontweight": font_weight,
             }
         axis_title = ax.set_title(
             sub_title,
@@ -763,9 +766,9 @@ def render_plot(
                 "color": "white" if darkmode else "black",
                 "ha": "left",
                 "va": "bottom",
-                "fontweight": "bold",
-                "fontsize": int(1.6 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontweight": 900,
+                "fontsize": int(3.2 * font_scale_factor),
+                "fontfamily": font_family,
                 **title_keywords,
             }
         else:
@@ -773,9 +776,9 @@ def render_plot(
                 "color": "white" if darkmode else "black",
                 "ha": "left",
                 "va": "bottom",
-                "fontweight": "bold",
-                "fontsize": int(1.6 * font_scale_factor),
-                "fontfamily": fontfamily,
+                "fontweight": 900,
+                "fontsize": int(3.2 * font_scale_factor),
+                "fontfamily": font_family,
             }
         fig.suptitle(
             title, x=0.0, y=sup_title_y_value, transform=ax.transAxes, **keyword_args
