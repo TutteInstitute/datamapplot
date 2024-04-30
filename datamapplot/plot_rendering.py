@@ -526,6 +526,8 @@ def render_plot(
                     font_weights = None
             else:
                 font_size = label_font_size
+                font_sizes = None
+                font_weights = None
 
             label_text_locations = pylabeladjust_text_locations(
                 label_locations,
@@ -592,6 +594,8 @@ def render_plot(
                     font_weights = None
             else:
                 font_size = label_font_size
+                font_sizes = None
+                font_weights = None
 
             if verbose:
                 print("Adjusting label placements...")

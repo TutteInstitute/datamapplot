@@ -238,14 +238,14 @@ def create_plot(
 
     label_colors = [label_color_map[x] for x in unique_non_noise_labels]
 
-    if color_label_text and len(label_colors) > 0:
+    if type(color_label_text) == str:
+        label_text_colors = color_label_text
+    elif color_label_text and len(label_colors) > 0:
         # Darken and reduce chroma of label colors to get text labels
         if darkmode:
             label_text_colors = pastel_palette(label_colors)
         else:
             label_text_colors = deep_palette(label_colors)
-    elif type(color_label_text) == str:
-        label_text_colors = color_label_text
     else:
         label_text_colors = None
 
