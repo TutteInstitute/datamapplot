@@ -41,7 +41,7 @@ fig, ax = datamapplot.create_plot(
         "Viral Diseases and Emerging Zoonoses",
         "Vaccine Acceptance",
     ],
-    fontfamily="Cinzel",
+    font_family="Cinzel",
     label_font_size=7,
     label_linespacing=1.25,
     label_margin_factor=1.5,
