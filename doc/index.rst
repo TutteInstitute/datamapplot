@@ -39,6 +39,7 @@ and followed by guides on basic usage, through to the more complicated options a
    demo
    basic_usage
    customization
+   label_over_points
    size_controls
    colour_controls
    placement_controls
