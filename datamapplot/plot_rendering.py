@@ -12,13 +12,16 @@ from skimage.transform import rescale
 
 from matplotlib import pyplot as plt
 from matplotlib import font_manager
+from matplotlib import patheffects
 
 from datamapplot.overlap_computations import get_2d_coordinates
 from datamapplot.text_placement import (
+    estimate_dynamic_font_size,
     initial_text_location_placement,
     fix_crossings,
     adjust_text_locations,
     estimate_font_size,
+    pylabeladjust_text_locations,
 )
 
 from warnings import warn
@@ -29,18 +32,21 @@ import re
 
 
 def get_google_font(fontname):
-    api_fontname = fontname.replace(" ", "+")
-    api_response = requests.get(
-        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
-    )
-    if api_response.ok:
-        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
-        for font_url in font_urls:
-            font_data = requests.get(font_url)
-            f = NamedTemporaryFile(delete=False, suffix=".ttf")
-            f.write(font_data.content)
-            f.close()
-            font_manager.fontManager.addfont(f.name)
+    try:
+        api_fontname = fontname.replace(" ", "+")
+        api_response = requests.get(
+            f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
+        )
+        if api_response.ok:
+            font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
+            for font_url in font_urls:
+                font_data = requests.get(font_url)
+                f = NamedTemporaryFile(delete=False, suffix=".ttf")
+                f.write(font_data.content)
+                f.close()
+                font_manager.fontManager.addfont(f.name)
+    except:
+        warn(f"Failed in getting google-font {fontname}; using fallback ...")
 
 
 def datashader_scatterplot(
@@ -75,7 +81,7 @@ def add_glow_to_scatterplot(
     ax,
     noise_color="#999999",
     kernel_bandwidth=0.25,
-    approx_patch_size=64,
+    approx_patch_size=32,
     kernel="gaussian",
     n_levels=8,
     max_alpha=0.5,
@@ -150,10 +156,13 @@ def render_plot(
     color_list,
     label_text,
     label_locations,
+    label_cluster_sizes,
     *,
     title=None,
     sub_title=None,
     figsize=(12, 12),
+    dynamic_label_size=False,
+    dynamic_label_size_scaling_factor=0.75,
     font_family="Roboto",
     font_weight=400,
     label_linespacing=0.95,
@@ -164,13 +173,17 @@ def render_plot(
     point_size=1,
     alpha=1.0,
     dpi=plt.rcParams["figure.dpi"],
+    label_over_points=False,
     label_base_radius=None,
     label_margin_factor=1.5,
+    min_font_size=4.0,
+    max_font_size=24.0,
+    min_font_weight=200,
+    max_font_weight=800,
     highlight_labels=None,
-    highlight_label_keywords={"fontweight": "bold"},
+    highlight_label_keywords={"fontweight": 1000},
     add_glow=True,
     noise_color="#999999",
-    label_size_adjustments=None,
     glow_keywords={
         "kernel": "gaussian",
         "kernel_bandwidth": 0.25,
@@ -186,6 +199,12 @@ def render_plot(
     arrowprops={},
     title_keywords=None,
     sub_title_keywords=None,
+    pylabeladjust_speed=None,
+    pylabeladjust_max_iterations=500,
+    pylabeladjust_adjust_by_size=True,
+    pylabeladjust_margin_percentage=7.5,
+    pylabeladjust_radius_scale=1.05,
+    verbose=False,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
     a lower level function, and should usually not be used directly unless there are specific
@@ -225,6 +244,12 @@ def render_plot(
     figsize: (int, int) (optional, default=(12,12))
         How big to make the figure in inches (actual pixel size will depend on ``dpi``).
 
+    dynamic_label_size: bool (optional, default=False)
+        Whether to use dynamic label sizing based on the sizes of the clusters.
+
+    dynamic_label_size_scaling_factor: float (optional, default=0.75)
+        The scaling factor to use when using dynamic label sizing based on the sizes of the clusters.
+
     font_family: str (optional, default="DejaVu Sans")
         The font_family to use for the plot -- the labels and the title and sub-title
         unless explicitly over-ridden by title_keywords or sub_title_keywords.
@@ -238,13 +263,15 @@ def render_plot(
         then a heuristic will be used to try to find the best font size that can fit all
         the labels in.
 
-    label_text_colors: list of str or None (optional, default=None)
+    label_text_colors: str or list of str or None (optional, default=None)
         The colours of the text labels, one per text label. If None then the text labels
-        will be either black or white depending on ``darkmode``.
+        will be either black or white depending on ``darkmode``. If just a single string
+        then it is assumed to be a fixed colour for all labels.
 
-    label_arrow_colors: list of str or None (optional, default=None)
+    label_arrow_colors: str or list of str or None (optional, default=None)
         The colours of the arrows between the text labels and clusters, one per text label.
         If None then the arrows will be either black or white depending on ``darkmode``.
+        If just a single string then it is assumed to be a fixed colour for all arrows.
 
     highlight_colors: list of str or None (optional default=None)
         The colours used if text labels are highlighted and a bounding box around the label is
@@ -265,6 +292,13 @@ def render_plot(
     dpi: int (optional, default=plt.rcParams["figure.dpi"])
         The dots-per-inch to use when rendering the plot.
 
+    label_over_points: bool (optional, default=False)
+        Whether to attempt tom place text labels directly on top of the points in clusters. This
+        can result in severe over-packing, and this is remedied via pylabeladjust which can end up
+        moving labels some distance. For smaller numbers of labels this is likely a good choice, for
+        more than 20 labels this will require a small font. For larger numbers of labels still this
+        may be sub-optimal.
+
     label_base_radius: float or None (optional, default=None)
         Labels are placed in rings around the data map. This value can explicitly control the
         radius (in data coordinates) of the innermost such ring.
@@ -272,6 +306,18 @@ def render_plot(
     label_margin_factor: float (optional, default=1.5)
         The expansion factor to use when creating a bounding box around the label text
         to compute whether overlaps are occurring during the label placement adjustment phase.
+
+    min_font_size: float (optional, default=4.0)
+        The minimum font size to use when estimating the font size for the labels.
+
+    max_font_size: float (optional, default=24.0)
+        The maximum font size to use when estimating the font size for the labels.
+
+    min_font_weight: int (optional, default=200)
+        The minimum font weight to use when using dynamic label sizing (font weights will vary as well).
+
+    max_font_weight: int (optional, default=800)
+        The maximum font weight to use when using dynamic label sizing (font weights will vary as well).
 
     highlight_labels: list of str or None (optional, default=None)
         A list of the labels to be highlighted.
@@ -287,10 +333,6 @@ def render_plot(
     noise_color: str (optional, default="#999999")
         The colour to use for unlabelled or noise points in the data map. This should usually
         be a muted or neutral colour to distinguish background points from the labelled clusters.
-
-    label_size_adjustments: ndarray of shape (n_labels,) or None (optional, default=None)
-        Size adjustments to be applied to each label; this should be an adjustment, in pts,
-        to the fontsize for each label.
 
     glow_keywords: dict (optional, default={"kernel": "gaussian","kernel_bandwidth": 0.25})
         Keyword arguments that will be passed along to the ``add_glow_to_scatterplot``
@@ -341,6 +383,33 @@ def render_plot(
         A dictionary of keyword arguments to pass through to matplotlib's ``title`` fucntion.
         This includes things like fontfamily, fontsize, fontweight, color, etc.
 
+    pylabeladjust_speed: None or float (optional, default=None)
+        pylabeladjust speed for adjusting label positioning when doing labels over points. If
+        ``label_over_points`` is ``False`` then this will have no effect. If ``None`` then
+        a good choice of speed will be approximated from the data.
+
+    pylabeladjust_max_iterations: int (optional, default=500)
+        The maximum number of pylabeladjust iterations for adjusting label positioning when
+        doing labels over points. If ``label_over_points`` is ``False`` then this will have
+        no effect.
+
+    pylabeladjust_adjust_by_size: bool (optional, default=True)
+        Whether to adjust the labels based on the size of the rectangles for adjusting label
+        positioning when doing labels over points. If ``label_over_points`` is ``False`` then
+        this will have no effect.
+
+    pylabeladjust_margin_percentage: float (optional, default=7.5)
+        The margin percentage for the repulsion radius for adjusting label positioning when
+        doing labels over points. If ``label_over_points`` is ``False`` then this will have no effect.
+
+    pylabeladjust_radius_scale: float (optional, default=1.05)
+        The scale factor for the repulsion radius for adjusting label
+        positioning when doing labels over points. If ``label_over_points`` is ``False`` then
+        this will have no effect.
+
+    verbose: bool (optional, default=False)
+        Print progress as the plot is being created.
+
     Returns
     -------
     fig: matplotlib.Figure
@@ -353,6 +422,8 @@ def render_plot(
     # Create the figure
     fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
 
+    if verbose:
+        print("Getting any required fonts...")
     # Get any google fonts if required
     get_google_font(font_family)
     get_google_font(font_family.split()[0])
@@ -385,6 +456,8 @@ def render_plot(
         )
 
     # Create background glow
+    if verbose:
+        print("Adding glow to scatterplot...")
     if add_glow:
         add_glow_to_scatterplot(
             data_map_coords, color_list, ax, noise_color=noise_color, **glow_keywords
@@ -402,28 +475,10 @@ def render_plot(
         )
 
     # Find initial placements for text, fix any line crossings, then optimize placements
+    if verbose:
+        print("Placing labels...")
     ax.autoscale_view()
     if label_locations.shape[0] > 0:
-        label_text_locations = initial_text_location_placement(
-            label_locations,
-            base_radius=label_base_radius,
-            theta_stretch=label_direction_bias,
-        )
-        fix_crossings(label_text_locations, label_locations)
-
-        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-        if label_font_size is None:
-            font_size = estimate_font_size(
-                label_text_locations,
-                label_text,
-                0.9 * font_scale_factor,
-                fontfamily=font_family,
-                fontweight=font_weight,
-                linespacing=label_linespacing,
-                ax=ax,
-            )
-        else:
-            font_size = label_font_size
 
         # Ensure we can look up labels for highlighting
         if highlight_labels is not None:
@@ -431,20 +486,134 @@ def render_plot(
         else:
             highlight = set([])
 
-        label_text_locations = adjust_text_locations(
-            label_text_locations,
-            label_locations,
-            label_text,
-            fontfamily=font_family,
-            font_size=font_size,
-            fontweight=font_weight,
-            linespacing=label_linespacing,
-            highlight=highlight,
-            highlight_label_keywords=highlight_label_keywords,
-            ax=ax,
-            expand=(label_margin_factor, label_margin_factor),
-            label_size_adjustments=label_size_adjustments,
-        )
+        if label_over_points:
+            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+            if verbose:
+                print("Estimating font size...")
+            if label_font_size is None:
+                if dynamic_label_size:
+                    font_sizes, font_weights = estimate_dynamic_font_size(
+                        label_locations,
+                        label_text,
+                        fontfamily=font_family,
+                        linespacing=label_linespacing,
+                        expand=(1.0, 1.0),
+                        overlap_percentage_allowed=0.66,
+                        dynamic_size_array=label_cluster_sizes
+                        ** dynamic_label_size_scaling_factor,
+                        min_font_size=min_font_size,
+                        max_font_size=max_font_size,
+                        min_font_weight=min_font_weight,
+                        max_font_weight=max_font_weight,
+                        ax=ax,
+                    )
+                    font_size = None
+                else:
+                    font_size = estimate_font_size(
+                        label_locations,
+                        label_text,
+                        font_scale_factor,
+                        fontfamily=font_family,
+                        fontweight=font_weight,
+                        linespacing=label_linespacing,
+                        expand=(1.0, 1.0),
+                        overlap_percentage_allowed=0.66,
+                        min_font_size=min_font_size,
+                        max_font_size=max_font_size,
+                        ax=ax,
+                    )
+                    font_sizes = None
+                    font_weights = None
+            else:
+                font_size = label_font_size
+                font_sizes = None
+                font_weights = None
+
+            label_text_locations = pylabeladjust_text_locations(
+                label_locations,
+                label_text,
+                fontfamily=font_family,
+                font_size=font_size,
+                font_sizes=font_sizes,
+                font_weights=font_weights,
+                linespacing=label_linespacing,
+                highlight=highlight,
+                highlight_label_keywords=highlight_label_keywords,
+                ax=ax,
+                fig=fig,
+                speed=pylabeladjust_speed,
+                max_iterations=pylabeladjust_max_iterations,
+                adjust_by_size=pylabeladjust_adjust_by_size,
+                margin_percentage=pylabeladjust_margin_percentage,
+                radius_scale=pylabeladjust_radius_scale,
+            )
+        else:
+            if verbose:
+                print("Creating initial label placements...")
+            label_text_locations = initial_text_location_placement(
+                label_locations,
+                base_radius=label_base_radius,
+                theta_stretch=label_direction_bias,
+            )
+            fix_crossings(label_text_locations, label_locations)
+
+            if verbose:
+                print("Estimating font size...")
+            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+            if label_font_size is None:
+                if dynamic_label_size:
+                    font_sizes, font_weights = estimate_dynamic_font_size(
+                        label_locations,
+                        label_text,
+                        fontfamily=font_family,
+                        linespacing=label_linespacing,
+                        expand=(label_margin_factor, label_margin_factor),
+                        overlap_percentage_allowed=0.5,
+                        dynamic_size_array=label_cluster_sizes
+                        ** dynamic_label_size_scaling_factor,
+                        min_font_size=min_font_size,
+                        max_font_size=max_font_size,
+                        min_font_weight=min_font_weight,
+                        max_font_weight=max_font_weight,
+                        ax=ax,
+                    )
+                    font_size = None
+                else:
+                    font_size = estimate_font_size(
+                        label_text_locations,
+                        label_text,
+                        0.9 * font_scale_factor,
+                        fontfamily=font_family,
+                        fontweight=font_weight,
+                        linespacing=label_linespacing,
+                        min_font_size=min_font_size,
+                        max_font_size=max_font_size,
+                        ax=ax,
+                    )
+                    font_sizes = None
+                    font_weights = None
+            else:
+                font_size = label_font_size
+                font_sizes = None
+                font_weights = None
+
+            if verbose:
+                print("Adjusting label placements...")
+            label_text_locations = adjust_text_locations(
+                label_text_locations,
+                label_locations,
+                label_text,
+                fontfamily=font_family,
+                font_size=font_size,
+                fontweight=font_weight,
+                linespacing=label_linespacing,
+                highlight=highlight,
+                highlight_label_keywords=highlight_label_keywords,
+                ax=ax,
+                expand=(label_margin_factor, label_margin_factor),
+                font_sizes=font_sizes,
+                font_weights=font_weights,
+            )
 
         # Build highlight boxes
         if (
@@ -455,6 +624,8 @@ def render_plot(
         else:
             base_bbox_keywords = None
 
+        if verbose:
+            print("Adding labels to the plot...")
         # Add the annotations to the plot
         texts = []
         for i in range(label_locations.shape[0]):
@@ -470,14 +641,20 @@ def render_plot(
             else:
                 bbox_keywords = None
 
-            if label_text_colors:
+            if type(label_text_colors) == str:
+                text_color = label_text_colors
+            elif label_text_colors:
                 text_color = label_text_colors[i]
             elif darkmode:
                 text_color = "white"
             else:
                 text_color = "black"
 
-            if label_arrow_colors:
+            outline_color = "#00000077" if darkmode else "#ffffff77"
+
+            if type(label_arrow_colors) == str:
+                arrow_color = label_arrow_colors
+            elif label_arrow_colors:
                 arrow_color = label_arrow_colors[i]
             elif darkmode:
                 arrow_color = "#dddddd"
@@ -494,27 +671,38 @@ def render_plot(
                     va="center",
                     linespacing=label_linespacing,
                     fontfamily=font_family,
-                    arrowprops={
-                        "arrowstyle": "-",
-                        "linewidth": 0.5,
-                        "color": arrow_color,
-                        **arrowprops,
-                    },
+                    arrowprops=(
+                        {
+                            "arrowstyle": "-",
+                            "linewidth": 0.5,
+                            "color": arrow_color,
+                            **arrowprops,
+                        }
+                        if not label_over_points
+                        else None
+                    ),
                     fontsize=(
                         highlight_label_keywords.get("fontsize", font_size)
                         if label_text[i] in highlight
                         else font_size
                     )
-                    + (
-                        label_size_adjustments[i]
-                        if label_size_adjustments is not None
-                        else 0.0
+                    if font_sizes is None
+                    else font_sizes[i],
+                    path_effects=(
+                        [
+                            patheffects.Stroke(linewidth=3, foreground=outline_color),
+                            patheffects.Normal(),
+                        ]
+                        if label_over_points
+                        else None
                     ),
                     bbox=bbox_keywords if label_text[i] in highlight else None,
                     color=text_color,
-                    fontweight=highlight_label_keywords.get("fontweight", font_weight)
-                    if label_text[i] in highlight
-                    else font_weight,
+                    fontweight=(
+                        highlight_label_keywords.get("fontweight", font_weight)
+                        if label_text[i] in highlight
+                        else (font_weights[i] if font_weights is not None else font_weight)
+                    ),
                 )
             )
 
@@ -543,6 +731,8 @@ def render_plot(
         y_max += 0.05 * height
 
     # decorate the plot
+    if verbose:
+        print("Decorating plot...")
     ax.set(xticks=[], yticks=[])
     if sub_title is not None:
         if sub_title_keywords is not None:

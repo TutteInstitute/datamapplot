@@ -10,6 +10,7 @@ def palette_from_datamap(
     hue_shift=0.0,
     theta_range=np.pi / 16,
     radius_weight_power=1.0,
+    min_lightness=10,
 ):
     if label_locations.shape[0] == 0:
         return []
@@ -59,7 +60,7 @@ def palette_from_datamap(
             ) * 80 + 20
             lightness = (
                 1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
-            ) * 70 + 10
+            ) * (80 - min_lightness) + min_lightness
             location_lightness.append(
                 np.interp(
                     r,
@@ -94,7 +95,7 @@ def palette_from_datamap(
             ) * 80 + 20
             lightness = (
                 1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
-            ) * 70 + 10
+            ) * (80 - min_lightness) + min_lightness
             sorted_chroma.append(np.sort(chroma))
             sorted_lightness.append(np.sort(lightness)[::-1])
             sorted_radii.append(np.sort(data_map_radii[r_mask]))

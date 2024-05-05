@@ -40,6 +40,7 @@ def create_plot(
     highlight_labels=None,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_min_lightness=10,
     use_medoids=False,
     cmap=None,
     marker_color_array=None,
@@ -80,13 +81,17 @@ def create_plot(
         The colour to use for unlabelled or noise points in the data map. This should usually
         be a muted or neutral colour to distinguish background points from the labelled clusters.
 
-    color_label_text: bool (optional, default=True)
+    color_label_text: str or bool (optional, default=True)
         Whether to use colours for the text labels generated in the plot. If ``False`` then
         the text labels will default to either black or white depending on ``darkmode``.
+        If a string is provided it should be a valid matplotlib colour specification and all
+        text labels will be this colour.
 
-    color_label_arrows: bool (optional, default=True)
+    color_label_arrows: str or bool (optional, default=True)
         Whether to use colours for the arrows between the text labels and clusters. If ``False``
-        then the arrows will default to either black or white depending on ``darkmode``.
+        then the arrows will default to either black or white depending on ``darkmode``. If a 
+        string is provided it should eb a valid matplotlib colour specification and all arrows
+        will be this colour.
 
     label_wrap_width: int (optional, default=16)
         The number of characters to apply text-wrapping at when creating text labels for
@@ -197,6 +202,7 @@ def create_plot(
                 label_locations,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
+                min_lightness=palette_min_lightness,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -204,6 +210,7 @@ def create_plot(
                 data_map_coords,
                 label_locations,
                 radius_weight_power=palette_hue_radius_dependence,
+                lightness_bounds=(palette_min_lightness, 80),
             )
         label_to_index_map = {
             name: index for index, name in enumerate(unique_non_noise_labels)
@@ -231,7 +238,9 @@ def create_plot(
 
     label_colors = [label_color_map[x] for x in unique_non_noise_labels]
 
-    if color_label_text and len(label_colors) > 0:
+    if type(color_label_text) == str:
+        label_text_colors = color_label_text
+    elif color_label_text and len(label_colors) > 0:
         # Darken and reduce chroma of label colors to get text labels
         if darkmode:
             label_text_colors = pastel_palette(label_colors)
@@ -240,25 +249,17 @@ def create_plot(
     else:
         label_text_colors = None
 
-    if color_label_arrows:
+    if type(color_label_arrows) == str:
+        label_arrow_colors = color_label_arrows
+    elif color_label_arrows:
         label_arrow_colors = label_colors
     else:
         label_arrow_colors = None
 
-    if dynamic_label_size:
-        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-        cluster_sizes = np.sqrt(pd.Series(cluster_label_vector).value_counts())
-        label_size_adjustments = cluster_sizes - cluster_sizes.min()
-        label_size_adjustments /= label_size_adjustments.max()
-        label_size_adjustments *= (
-            render_plot_kwds.get("label_font_size", font_scale_factor) + 2
-        )
-        label_size_adjustments = dict(label_size_adjustments - 2)
-        label_size_adjustments = [
-            label_size_adjustments[x] for x in unique_non_noise_labels
-        ]
-    else:
-        label_size_adjustments = [0.0] * len(unique_non_noise_labels)
+    cluster_sizes = pd.Series(cluster_label_vector).value_counts()
+    label_cluster_sizes = np.asarray([
+            cluster_sizes[x] for x in unique_non_noise_labels
+    ])
 
     # Heuristics for point size and alpha values
     n_points = data_map_coords.shape[0]
@@ -282,6 +283,7 @@ def create_plot(
         color_list,
         label_text,
         label_locations,
+        label_cluster_sizes,
         title=title,
         sub_title=sub_title,
         point_size=point_size,
@@ -291,7 +293,7 @@ def create_plot(
         highlight_colors=[label_color_map[x] for x in unique_non_noise_labels],
         figsize=figsize,
         noise_color=noise_color,
-        label_size_adjustments=label_size_adjustments,
+        dynamic_label_size=dynamic_label_size,
         dpi=dpi,
         force_matplotlib=force_matplotlib,
         darkmode=darkmode,
