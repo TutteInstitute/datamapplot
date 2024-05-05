@@ -30,7 +30,7 @@ fig, ax = datamapplot.create_plot(
     logo_width=0.28,
     use_medoids=True,
     arrowprops={"arrowstyle": "wedge,tail_width=0.85,shrink_factor=0.15", "linewidth": 0.4, "fc": "#33333377", "ec": "#333333aa"},
-    fontfamily="Marcellus SC",
+    font_family="Marcellus SC",
     label_linespacing=1.25,
     label_direction_bias=1.25,
     title_keywords={"fontsize":62.5}
