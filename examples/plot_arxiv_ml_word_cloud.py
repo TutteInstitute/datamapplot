@@ -40,3 +40,5 @@ fig, ax = datamapplot.create_plot(
     logo=arxiv_logo,
     logo_width=0.1,
 )
+fig.savefig("plot_arxiv_ml.png", bbox_inches="tight")
+plt.show()
