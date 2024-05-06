@@ -36,6 +36,13 @@ Using darkmode and some custom font choices:
    :alt: A data map plot of papers from ArXiv ML
    :align: center
 
+With labels over points in a word-cloud style:
+
+.. image:: examples/plot_arxiv_ml_word_cloud.png
+   :width: 1024
+   :alt: A word cloud style data map plot of papers from ArXiv ML
+   :align: center
+
 Alternative custom styling:
 
 .. image:: examples/plot_wikipedia.png
