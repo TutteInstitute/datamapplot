@@ -204,6 +204,7 @@ def render_plot(
     pylabeladjust_adjust_by_size=True,
     pylabeladjust_margin_percentage=7.5,
     pylabeladjust_radius_scale=1.05,
+    ax=None,
     verbose=False,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
@@ -410,6 +411,9 @@ def render_plot(
     verbose: bool (optional, default=False)
         Print progress as the plot is being created.
 
+    ax: None or matplotlib.axes (optional, default=None)
+        If not None, render the plot to this axis, otherwise create a new figure and axis.
+
     Returns
     -------
     fig: matplotlib.Figure
@@ -420,7 +424,11 @@ def render_plot(
 
     """
     # Create the figure
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
+    else:
+        fig = ax.get_figure()
+
 
     if verbose:
         print("Getting any required fonts...")
