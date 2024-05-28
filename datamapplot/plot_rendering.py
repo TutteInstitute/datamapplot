@@ -31,6 +31,18 @@ import requests
 import re
 
 
+class GoogleAPIUnreachable(Warning):
+    pass
+
+
+def _can_reach_google_fonts(timeout: float = 5.0) -> bool:
+    try:
+        response = requests.get("https://fonts.googleapis.com/css?family=Roboto", timeout=timeout)
+        return response.ok
+    except requests.RequestException:
+        return False
+
+
 def get_google_font(fontname):
     try:
         api_fontname = fontname.replace(" ", "+")
@@ -430,17 +442,23 @@ def render_plot(
         fig = ax.get_figure()
 
 
-    if verbose:
-        print("Getting any required fonts...")
-    # Get any google fonts if required
-    get_google_font(font_family)
-    get_google_font(font_family.split()[0])
-    if title_keywords is not None and "fontfamily" in title_keywords:
-        get_google_font(title_keywords["fontfamily"])
-        get_google_font(title_keywords["fontfamily"].split()[0])
-    if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
-        get_google_font(sub_title_keywords["fontfamily"])
-        get_google_font(sub_title_keywords["fontfamily"].split()[0])
+    if _can_reach_google_fonts(timeout=5.0):
+        if verbose:
+            print("Getting any required fonts...")
+        # Get any google fonts if required
+        get_google_font(font_family)
+        get_google_font(font_family.split()[0])
+        if title_keywords is not None and "fontfamily" in title_keywords:
+            get_google_font(title_keywords["fontfamily"])
+            get_google_font(title_keywords["fontfamily"].split()[0])
+        if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
+            get_google_font(sub_title_keywords["fontfamily"])
+            get_google_font(sub_title_keywords["fontfamily"].split()[0])
+    else:
+        warnings.warn(
+            "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
+            GoogleAPIUnreachable
+        )
 
     # Apply matplotlib or datashader based on heuristics
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:
