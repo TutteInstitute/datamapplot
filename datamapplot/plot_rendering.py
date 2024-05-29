@@ -455,7 +455,7 @@ def render_plot(
             get_google_font(sub_title_keywords["fontfamily"])
             get_google_font(sub_title_keywords["fontfamily"].split()[0])
     else:
-        warnings.warn(
+        warn(
             "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
             GoogleAPIUnreachable
         )
