@@ -216,6 +216,8 @@ def render_plot(
     pylabeladjust_adjust_by_size=True,
     pylabeladjust_margin_percentage=7.5,
     pylabeladjust_radius_scale=1.05,
+    label_font_stroke_width=3,
+    label_font_outline_alpha=0.5,
     ax=None,
     verbose=False,
 ):
@@ -676,7 +678,8 @@ def render_plot(
             else:
                 text_color = "black"
 
-            outline_color = "#00000077" if darkmode else "#ffffff77"
+            outline_alpha = hex(int(255 * label_font_outline_alpha)).removeprefix('0x')
+            outline_color = f"#000000{outline_alpha}" if darkmode else f"#ffffff{outline_alpha}"
 
             if type(label_arrow_colors) == str:
                 arrow_color = label_arrow_colors
@@ -716,7 +719,7 @@ def render_plot(
                     else font_sizes[i],
                     path_effects=(
                         [
-                            patheffects.Stroke(linewidth=3, foreground=outline_color),
+                            patheffects.Stroke(linewidth=label_font_stroke_width, foreground=outline_color),
                             patheffects.Normal(),
                         ]
                         if label_over_points

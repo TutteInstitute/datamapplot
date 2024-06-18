@@ -531,10 +531,10 @@ def create_interactive_plot(
         }
     )
     if hover_text is not None:
-        point_dataframe["hover_text"] = hover_text
+        point_dataframe["hover_text"] = np.asarray(hover_text)
 
     if marker_size_array is not None:
-        point_dataframe["size"] = marker_size_array
+        point_dataframe["size"] = np.asarray(marker_size_array)
 
     if marker_color_array is None:
         color_vector = np.asarray(

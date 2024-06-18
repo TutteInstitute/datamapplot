@@ -517,6 +517,7 @@ def render_html(
     max_fontsize=28,
     text_outline_width=8,
     text_outline_color="#eeeeeedd",
+    point_size_scale=None,
     point_hover_color="#aa0000bb",
     point_radius_min_pixels=0.01,
     point_radius_max_pixels=24,
@@ -644,6 +645,9 @@ def render_html(
         contrasting colour to the colour of the label text. By default this is white
         when ``darkmode`` is ``False`` and black when ``darkmode`` is ``True``.
 
+    point_size_scale: float or None (optional, default=None)
+        The size scale of points. If None the size scale will be determined from the data.
+
     point_hover_color: str (optional, default="#aa0000bb")
         The colour of the highlighted point a user is hovering over.
 
@@ -742,12 +746,16 @@ def render_html(
     """
     # Compute point scaling
     n_points = point_dataframe.shape[0]
-    magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+    if point_size_scale is not None:
+        magic_number = point_size_scale / 100.0
+    else:
+        magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+        
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
         point_dataframe["size"] = magic_number * (
-            point_dataframe["size"] / point_dataframe["size"].median()
+            point_dataframe["size"] / point_dataframe["size"].mean()
         )
         point_size = -1
 
