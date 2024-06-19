@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import textwrap
+import colorcet
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb
@@ -43,6 +44,7 @@ def create_plot(
     palette_min_lightness=10,
     use_medoids=False,
     cmap=None,
+    cvd_safer=False,
     marker_color_array=None,
     **render_plot_kwds,
 ):
@@ -146,6 +148,14 @@ def create_plot(
         (see the colorcet package for some good options). If not a cyclic cmap it will be
         "made" cyclic by reflecting it. If ``None`` then a custom method will be used instead.
 
+    cvd_safer: bool (optional, default=False)
+        Whether to use a colour palette that is safer for colour vision deficiency (CVD).
+        This will override any provided cmap and use a CVD safer palette instead.
+
+    marker_color_array: np.ndarray or None (optional, default=None)
+        An array of colours for each of the points in the data map scatterplot. If provided
+        this will override any colouring provided by the ``labels`` array.
+
     **render_plot_kwds
         All other keyword arguments are passed through the ``render_plot`` which provides
         significant further control over the aesthetics of the plot.
@@ -195,6 +205,8 @@ def create_plot(
         ]
 
     # If we don't have a color map, generate one
+    if cvd_safer:
+        cmap = colorcet.cm.CET_C2s
     if label_color_map is None:
         if cmap is None:
             palette = palette_from_datamap(
@@ -326,6 +338,7 @@ def create_interactive_plot(
     cluster_boundary_polygons=False,
     color_cluster_boundaries=True,
     polygon_alpha=0.1,
+    cvd_safer=False,
     **render_html_kwds,
 ):
     """
@@ -419,6 +432,10 @@ def create_interactive_plot(
     polygon_alpha: float (optional, default=0.1)
         The alpha value to use when genrating alpha-shape based boundaries around clusters.
 
+    cvd_safer: bool (optional, default=False)
+        Whether to use a colour palette that is safer for colour vision deficiency (CVD).
+        This will override any provided cmap and use a CVD safer palette instead.
+
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
         see the docstring of that function for further options that can control the
@@ -452,6 +469,8 @@ def create_interactive_plot(
             ]
         )
 
+    if cvd_safer:
+        cmap = colorcet.cm.CET_C2s
     if label_color_map is None:
         if cmap is None:
             palette = palette_from_datamap(

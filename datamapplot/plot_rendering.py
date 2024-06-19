@@ -422,6 +422,17 @@ def render_plot(
         positioning when doing labels over points. If ``label_over_points`` is ``False`` then
         this will have no effect.
 
+    label_font_stroke_width: float (optional, default=3)
+        The width of the stroke to use when rendering the font. This is used to create an outline
+        that distinguishes the text from the background. Larger values will make text more visible 
+        against the background at some loss of font legibility. You may need to change this value
+        when rendering at particularly high resolutions.
+
+    label_font_outline_alpha: float (optional, default=0.5)
+        The alpha value to use when rendering the font outline. This is used to create an outline
+        that distinguishes the text from the background. Larger values will make text more visible
+        against the background at some loss of font legibility.
+
     verbose: bool (optional, default=False)
         Print progress as the plot is being created.
 
