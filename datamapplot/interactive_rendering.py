@@ -538,7 +538,6 @@ def render_html(
     custom_html=None,
     custom_css=None,
     custom_js=None,
-    alpha=180 / 255,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
