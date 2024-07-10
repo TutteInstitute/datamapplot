@@ -225,7 +225,7 @@ _DECKGL_TEMPLATE_STR = """
                 data.src.r[index], 
                 data.src.g[index], 
                 data.src.b[index],
-                180
+                data.src.a[index],
             ]
         },
         getLineColor: (object, {index, data}) => {
@@ -538,6 +538,7 @@ def render_html(
     custom_html=None,
     custom_css=None,
     custom_js=None,
+    alpha=180 / 255,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -750,7 +751,7 @@ def render_html(
         magic_number = point_size_scale / 100.0
     else:
         magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
-        
+
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
@@ -826,7 +827,11 @@ def render_html(
                 get_tooltip = "({index}) => hoverData.data.hover_text[index]"
 
             if on_click is not None:
-                on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
+                on_click = (
+                    "({index, picked}, event) => { if (picked) {"
+                    + on_click.format_map(replacements)
+                    + " } }"
+                )
         else:
             hover_data = point_dataframe[["hover_text"]]
             get_tooltip = "({index}) => hoverData.data.hover_text[index]"
@@ -839,7 +844,11 @@ def render_html(
             )
 
             if on_click is not None:
-                on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
+                on_click = (
+                    "({index, picked}, event) => { if (picked) {"
+                    + on_click.format_map(replacements)
+                    + " } }"
+                )
     elif extra_point_data is not None:
         hover_data = extra_point_data
         replacements = FormattingDict(
@@ -858,7 +867,11 @@ def render_html(
             get_tooltip = "null"
 
         if on_click is not None:
-            on_click = "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
+            on_click = (
+                "({index, picked}, event) => { if (picked) {"
+                + on_click.format_map(replacements)
+                + " } }"
+            )
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
@@ -882,8 +895,12 @@ def render_html(
         base64_point_data = ""
         base64_hover_data = ""
         base64_label_data = ""
-        file_prefix = offline_data_prefix if offline_data_prefix is not None else "datamapplot"
-        point_data.to_feather(f"{file_prefix}_point_df.arrow", compression="uncompressed")
+        file_prefix = (
+            offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+        )
+        point_data.to_feather(
+            f"{file_prefix}_point_df.arrow", compression="uncompressed"
+        )
         hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
         with zipfile.ZipFile(
             f"{file_prefix}_point_hover_data.zip",
@@ -895,7 +912,10 @@ def render_html(
         os.remove("point_hover_data.arrow")
         label_dataframe.to_json("label_data.json", orient="records")
         with zipfile.ZipFile(
-            f"{file_prefix}_label_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+            f"{file_prefix}_label_data.zip",
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
         ) as f:
             f.write("label_data.json")
         os.remove("label_data.json")
@@ -929,7 +949,9 @@ def render_html(
         api_fontname = None
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
-        resp = requests.get(f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}")
+        resp = requests.get(
+            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}"
+        )
         if not resp.ok:
             api_tooltip_fontname = None
     else:
