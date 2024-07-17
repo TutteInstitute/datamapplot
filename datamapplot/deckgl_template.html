@@ -1,164 +1,193 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
     <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
     <title>{{title}}</title>
+
     {% if google_font %}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap"
+      rel="stylesheet"
+    />
+
     {% if google_tooltip_font %}
-    <link href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap" rel="stylesheet">
-    {% endif %}
-    {% endif %}
-       
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css" />
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap"
+      rel="stylesheet"
+    />
+    {% endif %} {% endif %}
+
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+    />
     <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+
     {% if inline_data %}
     <script src="https://unpkg.com/fflate@0.8.0"></script>
     {% endif %}
+
     <style>
-        body {
-          margin: 0;
-          padding: 0;
-          overflow: hidden;
-          background: {{page_background_color}};
-        }
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: {{page_background_color}};
+      }
 
-        #deck-container {
-          width: 100vw;
-          height: 100vh;
-        }
+      #deck-container {
+        width: 100vw;
+        height: 100vh;
+      }
 
-        #deck-container canvas {
-          z-index: 1;
-          background: {{page_background_color}};
-        }
+      #deck-container canvas {
+        z-index: 1;
+        background: {{page_background_color}};
+      }
 
-        .deck-tooltip {
-            {{tooltip_css}}
-        }
-        
-        #loading {
-            width: 100%;
-            height: 100%;
-            top: 0px;
-            left: 0px;
-            position: absolute;
-            display: block; 
-            z-index: 99
-        }
+      .deck-tooltip {
+          {{tooltip_css}}
+      }
 
-        #loading-image {
-            position: absolute;
-            top: 45%;
-            left: 47.5%;
-            z-index: 100
-        }
-        
-        #title-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            margin: 16px;
-            padding: 12px;
-            border-radius: 16px;
-            line-height: 0.95;
-            z-index: 2;
-            font-family: {{title_font_family}};
-            color: {{title_font_color}};
-            background: {{title_background}};
-            box-shadow: 2px 3px 10px {{shadow_color}};
-        }
-        {% if logo %}
-        #logo-container {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            margin: 16px;
-            padding: 12px;
-            border-radius: 16px;
-            z-index: 2;
-            background: {{title_background}};
-            box-shadow: 2px 3px 10px {{shadow_color}};
-        }
-        img {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        {% endif %}
-        {% if search %}
-        #search-container{
-            position: absolute;
-            left: -16px;
-            margin: 16px;
-            padding: 12px;
-            border-radius: 16px;
-            z-index: 2;
-            font-family: {{font_family}};
-            color: {{title_font_color}};
-            background: {{title_background}};
-            width: fit-content;
-            box-shadow: 2px 3px 10px {{shadow_color}};
-        }
-        input {
-            margin: 2px;
-            padding: 4px;
-            border-radius: 8px;
-            color: {{title_font_color}};
-            background: {{input_background}};
-            border: 1px solid {{input_border}};
-            transition: 0.5s;
-            outline: none;
-        }
-        input:focus {
-          border: 2px solid #555;
-        }
-        {% endif %}
-        {% if custom_css %}
-        {{custom_css}}
-        {% endif %}
+      #loading {
+        width: 100%;
+        height: 100%;
+        top: 0px;
+        left: 0px;
+        position: absolute;
+        display: block;
+        z-index: 99
+      }
+
+      #loading-image {
+        position: absolute;
+        top: 45%;
+        left: 47.5%;
+        z-index: 100
+      }
+
+      #title-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        margin: 16px;
+        padding: 12px;
+        border-radius: 16px;
+        line-height: 0.95;
+        z-index: 2;
+        font-family: {{title_font_family}};
+        color: {{title_font_color}};
+        background: {{title_background}};
+        box-shadow: 2px 3px 10px {{shadow_color}};
+      }
+
+      {% if logo %}
+      #logo-container {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        margin: 16px;
+        padding: 12px;
+        border-radius: 16px;
+        z-index: 2;
+        background: {{title_background}};
+        box-shadow: 2px 3px 10px {{shadow_color}};
+      }
+      img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      {% endif %}
+
+      {% if search %}
+      #search-container{
+        position: absolute;
+        left: -16px;
+        margin: 16px;
+        padding: 12px;
+        border-radius: 16px;
+        z-index: 2;
+        font-family: {{font_family}};
+        color: {{title_font_color}};
+        background: {{title_background}};
+        width: fit-content;
+        box-shadow: 2px 3px 10px {{shadow_color}};
+      }
+      input {
+        margin: 2px;
+        padding: 4px;
+        border-radius: 8px;
+        color: {{title_font_color}};
+        background: {{input_background}};
+        border: 1px solid {{input_border}};
+        transition: 0.5s;
+        outline: none;
+      }
+      input:focus {
+        border: 2px solid #555;
+      }
+      {% endif %}
+
+      {% if custom_css %}
+      {{custom_css}}
+      {% endif %}
     </style>
   </head>
   <body>
     <div id="loading">
-        <img id="loading-image" src="https://i.gifer.com/ZKZg.gif" alt="Loading..." width="5%"/>
+      <img
+        id="loading-image"
+        src="https://i.gifer.com/ZKZg.gif"
+        alt="Loading..."
+        width="5%"
+      />
     </div>
+
     {% if use_title %}
     <div id="title-container">
-        <span style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}">
-            {{title}}
-        </span><br/>
-        <span style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}">
-            {{sub_title}}
-        </span>
-        {% if search %}
-        <div id="search-container">
-            <input autocomplete="off" type="search" id="search" placeholder="🔍">
-        </div>
-        {% endif %}
+      <span
+        style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}"
+      >
+        {{title}}
+      </span>
+      <br />
+      <span
+        style="font-family:{{title_font_family}};font-size:{{sub_title_font_size}}pt;color:{{sub_title_font_color}}"
+      >
+        {{sub_title}}
+      </span>
+
+      {% if search %}
+      <div id="search-container">
+        <input autocomplete="off" type="search" id="search" placeholder="🔍" />
+      </div>
+      {% endif %}
     </div>
     {% elif search %}
-    <div id="search-container" style="left:0 !important">
-        <input autocomplete="off" type="search" id="search" placeholder="🔍">
+    <div id="search-container" style="left: 0 !important">
+      <input autocomplete="off" type="search" id="search" placeholder="🔍" />
     </div>
-    {% endif %}
-    {% if logo %}
+    {% endif %} {% if logo %}
     <div id="logo-container">
-      <img src={{logo}} style="width:{{logo_width}}px">
+      <img src="{{logo}}" style="width:{{logo_width}}px" />
     </div>
     {% endif %}
-    <div id="deck-container">
-    </div>
-    {% if custom_html %}
-    {{custom_html}}
-    {% endif %}
+
+    <div id="deck-container"></div>
+
+    {% if custom_html %} {{custom_html}} {% endif %}
   </body>
   <script type="module">
     import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
     import { JSONLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/json@4.0.5/+esm'
+
     {% if not inline_data %}
     import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
     import { CSVLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/csv@4.1.0-alpha.10/+esm'
@@ -174,7 +203,7 @@
     const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
     const labelDataBase64 = "{{base64_label_data}}";
     const labelDataBuffer = fflate.strToU8(atob(labelDataBase64), true);
-    const unzippedLabelData = fflate.gunzipSync(labelDataBuffer);    
+    const unzippedLabelData = fflate.gunzipSync(labelDataBuffer);
     const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
     {% else %}
     const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
@@ -183,100 +212,103 @@
     const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
     const labelData = await loaders.parse(unzippedLabelData["label_data.json"], JSONLoader);
     {% endif %}
-    
+
     const DATA = {src: pointData.data, length: pointData.data.x.length}
 
     const container = document.getElementById('deck-container');
     const pointLayer = new deck.ScatterplotLayer({
-        id: 'dataPointLayer',
-        data: DATA,
-        getPosition: (object, {index, data}) => {
-            return [data.src.x[index], data.src.y[index]];
-        },
-        {% if point_size < 0 %}
-        getRadius: (object, {index, data}) => {
-            return data.src.size[index];
-        },
-        {% else %}
-        getRadius: {{point_size}},
-        {% endif %}
-        getFillColor: (object, {index, data}) => {
-            return [
-                data.src.r[index], 
-                data.src.g[index], 
-                data.src.b[index],
-                data.src.a[index],
-            ]
-        },
-        getLineColor: (object, {index, data}) => {
-            return [
-                data.src.r[index], 
-                data.src.g[index], 
-                data.src.b[index],
-                32
-            ]
-        },       
-        getLineColor: {{point_outline_color}},
-        getLineWidth: {{point_line_width}},
-        highlightColor: {{point_hover_color}}, 
-        lineWidthMaxPixels: {{point_line_width_max_pixels}},
-        lineWidthMinPixels: {{point_line_width_min_pixels}},
-        radiusMaxPixels: {{point_radius_max_pixels}}, 
-        radiusMinPixels: {{point_radius_min_pixels}},
-        radiusUnits: "common", 
-        lineWidthUnits: "common", 
-        autoHighlight: true,
-        pickable: true, 
-        stroked: true
+      id: 'dataPointLayer',
+      data: DATA,
+      getPosition: (object, {index, data}) => {
+        return [data.src.x[index], data.src.y[index]];
+      },
+
+      {% if point_size < 0 %}
+      getRadius: (object, {index, data}) => {
+        return data.src.size[index];
+      },
+      {% else %}
+      getRadius: {{point_size}},
+      {% endif %}
+
+      getFillColor: (object, {index, data}) => {
+        return [
+          data.src.r[index],
+          data.src.g[index],
+          data.src.b[index],
+          data.src.a[index],
+        ]
+      },
+      getLineColor: (object, {index, data}) => {
+        return [
+          data.src.r[index],
+          data.src.g[index],
+          data.src.b[index],
+          32
+        ]
+      },
+      getLineColor: {{point_outline_color}},
+      getLineWidth: {{point_line_width}},
+      highlightColor: {{point_hover_color}},
+      lineWidthMaxPixels: {{point_line_width_max_pixels}},
+      lineWidthMinPixels: {{point_line_width_min_pixels}},
+      radiusMaxPixels: {{point_radius_max_pixels}},
+      radiusMinPixels: {{point_radius_min_pixels}},
+      radiusUnits: "common",
+      lineWidthUnits: "common",
+      autoHighlight: true,
+      pickable: true,
+      stroked: true
     });
     const labelLayer = new deck.TextLayer({
-        id: "textLabelLayer",
-        data: labelData,
-        pickable: false,
-        getPosition: d => [d.x, d.y],
-        getText: d => d.label,
-        getColor: {{label_text_color}},
-        getSize: d => d.size,
-        sizeScale: 1,
-        sizeMinPixels: {{text_min_pixel_size}},
-        sizeMaxPixels: {{text_max_pixel_size}},
-        outlineWidth: {{text_outline_width}},
-        outlineColor: {{text_outline_color}},
-        getBackgroundColor: {{text_background_color}},
-        getBackgroundPadding: [15, 15, 15, 15],
-        background: true,
-        characterSet: "auto",
-        fontFamily: "{{font_family}}",
-        fontWeight: {{font_weight}},
-        lineHeight: {{line_spacing}},
-        fontSettings: {"sdf": true},
-        getTextAnchor: "middle",
-        getAlignmentBaseline: "center",
-        lineHeight: 0.95,
-        elevation: 100,
-        // CollideExtension options
-        collisionEnabled: true,
-        getCollisionPriority: d => d.size,
-        collisionTestProps: {
-          sizeScale: {{text_collision_size_scale}},
-          sizeMaxPixels: {{text_max_pixel_size}} * 2,
-          sizeMinPixels: {{text_min_pixel_size}} * 2
-        },
-        extensions: [new deck.CollisionFilterExtension()],
+      id: "textLabelLayer",
+      data: labelData,
+      pickable: false,
+      getPosition: d => [d.x, d.y],
+      getText: d => d.label,
+      getColor: {{label_text_color}},
+      getSize: d => d.size,
+      sizeScale: 1,
+      sizeMinPixels: {{text_min_pixel_size}},
+      sizeMaxPixels: {{text_max_pixel_size}},
+      outlineWidth: {{text_outline_width}},
+      outlineColor: {{text_outline_color}},
+      getBackgroundColor: {{text_background_color}},
+      getBackgroundPadding: [15, 15, 15, 15],
+      background: true,
+      characterSet: "auto",
+      fontFamily: "{{font_family}}",
+      fontWeight: {{font_weight}},
+      lineHeight: {{line_spacing}},
+      fontSettings: {"sdf": true},
+      getTextAnchor: "middle",
+      getAlignmentBaseline: "center",
+      lineHeight: 0.95,
+      elevation: 100,
+      // CollideExtension options
+      collisionEnabled: true,
+      getCollisionPriority: d => d.size,
+      collisionTestProps: {
+        sizeScale: {{text_collision_size_scale}},
+        sizeMaxPixels: {{text_max_pixel_size}} * 2,
+        sizeMinPixels: {{text_min_pixel_size}} * 2
+      },
+      extensions: [new deck.CollisionFilterExtension()],
     });
+
     {% if cluster_boundary_polygons %}
     const boundaryLayer = new deck.PolygonLayer({
-        data: labelData,
-        stroked: true,
-        filled: false,
-        getLineColor: d => [d.r, d.g, d.b, d.a],
-        getPolygon: d => d.polygon,
-        lineWidthUnits: "common",
-        getLineWidth: d => d.size * d.size,
-        lineWidthScale: {{cluster_boundary_line_width}} * 5e-5,
-        lineJointRounded: true,
-        lineWidthMaxPixels: 4,
-        lineWidthMinPixels: 0.0,
+      data: labelData,
+      stroked: true,
+      filled: false,
+      getLineColor: d => [d.r, d.g, d.b, d.a],
+      getPolygon: d => d.polygon,
+      lineWidthUnits: "common",
+      getLineWidth: d => d.size * d.size,
+      lineWidthScale: {{cluster_boundary_line_width}} * 5e-5,
+      lineJointRounded: true,
+      lineWidthMaxPixels: 4,
+      lineWidthMinPixels: 0.0,
     });
     {% endif %}
 
@@ -288,62 +320,63 @@
         zoom: {{zoom_level}}
       },
       controller: true,
+
       {% if cluster_boundary_polygons %}
       layers: [pointLayer, boundaryLayer, labelLayer],
       {% else %}
       layers: [pointLayer, labelLayer],
       {% endif %}
+
       {% if on_click %}
       onClick: {{on_click}},
       {% endif %}
+
       getTooltip: {{get_tooltip}}
     });
-    
+
     document.getElementById("loading").style.display = "none";
-        
+
     {% if search %}
-        function selectPoints(item, conditional) {
-        var layerId;
-        if (item) {
-            for (var i = 0; i < DATA.length; i++) {
-                if (conditional(i)) {
-                    DATA.src.selected[i] = 1;
-                } else {
-                    DATA.src.selected[i] = 0;
-                }
-            }
-            layerId = 'selectedPointLayer' + item;
-        } else {
-            for (var i = 0; i < DATA.length; i++) {
-                DATA.src.selected[i] = 1;
-            }
-            layerId = 'dataPointLayer';
+    function selectPoints(item, conditional) {
+      var layerId;
+      if (item) {
+        for (var i = 0; i < DATA.length; i++) {
+          if (conditional(i)) {
+            DATA.src.selected[i] = 1;
+          } else {
+            DATA.src.selected[i] = 0;
+          }
         }
-        const selectedPointLayer = pointLayer.clone(
-            {
-                id: layerId,
-                data: DATA,
-                getFilterValue: (object, {index, data}) => data.src.selected[index],
-                filterRange: [1, 2],
-                extensions: [new deck.DataFilterExtension({filterSize: 1})]
-            }
-        );
-        deckgl.setProps(
-            {layers: 
-                [selectedPointLayer].concat(deckgl.props.layers.slice(1,))
-            }
-        );
+        layerId = 'selectedPointLayer' + item;
+      } else {
+        for (var i = 0; i < DATA.length; i++) {
+          DATA.src.selected[i] = 1;
+        }
+        layerId = 'dataPointLayer';
+      }
+      const selectedPointLayer = pointLayer.clone({
+        id: layerId,
+        data: DATA,
+        getFilterValue: (object, {index, data}) => data.src.selected[index],
+        filterRange: [1, 2],
+        extensions: [new deck.DataFilterExtension({filterSize: 1})]
+      });
+      deckgl.setProps({
+        layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,))
+      });
     }
-    
+
     const search = document.getElementById("search");
-    search.addEventListener("input", (event) => {
-            const search_term = event.target.value.toLowerCase();
-            selectPoints(search_term, (i) => hoverData.data.{{search_field}}[i].toLowerCase().includes(search_term));
-        }
+    search.addEventListener(
+      "input", (event) => {
+        const search_term = event.target.value.toLowerCase();
+        selectPoints(search_term, (i) => hoverData.data.{{search_field}}[i].toLowerCase().includes(search_term));
+      }
     );
     {% endif %}
+
     {% if custom_js %}
     {{custom_js}}
     {% endif %}
-    </script>
+  </script>
 </html>
