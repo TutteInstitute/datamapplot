@@ -1,21 +1,21 @@
-import numpy as np
-import pandas as pd
-
-import jinja2
-import requests
 import base64
-import io
 import gzip
 import html
+import io
+import os
 import warnings
 import zipfile
-import os
 
-from scipy.spatial import Delaunay
+import jinja2
+import numpy as np
+import pandas as pd
+import requests
+from IPython.display import HTML
 from matplotlib.colors import to_rgba
+from scipy.spatial import Delaunay
 
-from datamapplot.medoids import medoid
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
+from datamapplot.medoids import medoid
 
 _DECKGL_TEMPLATE_STR = """
 <!DOCTYPE html>
@@ -415,7 +415,6 @@ class InteractiveFigure:
                 srcdoc="{src_doc}"
             ></iframe>
         """
-        from IPython.display import HTML
 
         with warnings.catch_warnings():
             msg = "Consider using IPython.display.IFrame instead"
@@ -426,7 +425,7 @@ class InteractiveFigure:
 
     def save(self, filename):
         """Save an interactive firgure to the HTML file with name `filename`"""
-        with open(filename, "w+") as f:
+        with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
 
 
@@ -444,14 +443,13 @@ def label_text_and_polygon_dataframes(
     ]
     label_map = {n: i for i, n in enumerate(unique_non_noise_labels)}
     label_map[noise_label] = -1
-    label_unmap = {i: n for n, i in label_map.items()}
     cluster_idx_vector = np.asarray(pd.Series(cluster_label_vector).map(label_map))
 
     label_locations = []
     cluster_sizes = []
     polygons = []
 
-    for i, l in enumerate(unique_non_noise_labels):
+    for i, _ in enumerate(unique_non_noise_labels):
         cluster_mask = cluster_idx_vector == i
         cluster_points = data_map_coords[cluster_mask]
         if use_medoids:
@@ -473,25 +471,16 @@ def label_text_and_polygon_dataframes(
 
     label_locations = np.asarray(label_locations)
 
+    data = {
+        "x": label_locations.T[0],
+        "y": label_locations.T[1],
+        "label": unique_non_noise_labels,
+        "size": cluster_sizes,
+    }
     if cluster_polygons:
-        return pd.DataFrame(
-            {
-                "x": label_locations.T[0],
-                "y": label_locations.T[1],
-                "label": unique_non_noise_labels,
-                "size": cluster_sizes,
-                "polygon": polygons,
-            }
-        )
-    else:
-        return pd.DataFrame(
-            {
-                "x": label_locations.T[0],
-                "y": label_locations.T[1],
-                "label": unique_non_noise_labels,
-                "size": cluster_sizes,
-            }
-        )
+        data["polygon"] = polygons
+
+    return pd.DataFrame(data)
 
 
 def render_html(
@@ -750,6 +739,7 @@ def render_html(
         magic_number = point_size_scale / 100.0
     else:
         magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
@@ -942,13 +932,17 @@ def render_html(
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
-    resp = requests.get(f"https://fonts.googleapis.com/css?family={api_fontname}")
+    resp = requests.get(
+        f"https://fonts.googleapis.com/css?family={api_fontname}",
+        timeout=300,
+    )
     if not resp.ok:
         api_fontname = None
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
         resp = requests.get(
-            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}"
+            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
+            timeout=300,
         )
         if not resp.ok:
             api_tooltip_fontname = None
