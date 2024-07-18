@@ -27,11 +27,8 @@
       rel="stylesheet"
       href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
     />
-    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
 
-    {% if inline_data %}
-    <script src="https://unpkg.com/fflate@0.8.0"></script>
-    {% endif %}
+    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
 
     <style>
       body {
@@ -190,20 +187,42 @@
 
     {% if not inline_data %}
     import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
-    import { CSVLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/csv@4.1.0-alpha.10/+esm'
     {% endif %}
+
+    // Correctly convert between Base64 strings and Uint8Arrays.
+    // https://developer.mozilla.org/docs/Glossary/Base64#the_unicode_problem
+    function base64ToBytes(base64) {
+      return Uint8Array.from(atob(base64), (m) => m.codePointAt(0));
+    }
+
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+          "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility",
+      );
+    }
+    // Use the Compression Streams API.
+    // https://developer.mozilla.org/docs/Web/API/Compression_Streams_API
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
 
     {% if inline_data %}
     const pointDataBase64 = "{{base64_point_data}}";
-    const pointDataBuffer = fflate.strToU8(atob(pointDataBase64), true);
+    const pointDataBuffer = base64ToBytes(pointDataBase64);
     const pointData = await loaders.parse(pointDataBuffer, ArrowLoader);
     const hoverDataBase64 = "{{base64_hover_data}}";
-    const hoverDataBuffer = fflate.strToU8(atob(hoverDataBase64), true);
-    const unzippedHoverData = fflate.gunzipSync(hoverDataBuffer);
+    const hoverDataBuffer = base64ToBytes(hoverDataBase64);
+    const unzippedHoverData = await DecompressBytes(hoverDataBuffer);
     const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
     const labelDataBase64 = "{{base64_label_data}}";
-    const labelDataBuffer = fflate.strToU8(atob(labelDataBase64), true);
-    const unzippedLabelData = fflate.gunzipSync(labelDataBuffer);
+    const labelDataBuffer = base64ToBytes(labelDataBase64);
+    const unzippedLabelData = await DecompressBytes(labelDataBuffer);
     const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
     {% else %}
     const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
