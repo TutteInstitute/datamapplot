@@ -750,7 +750,6 @@ def render_html(
         magic_number = point_size_scale / 100.0
     else:
         magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
-
     if "size" not in point_dataframe.columns:
         point_size = magic_number
     else:
@@ -827,9 +826,7 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
+                    "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
                 )
         else:
             hover_data = point_dataframe[["hover_text"]]
@@ -844,9 +841,7 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
+                    "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
                 )
     elif extra_point_data is not None:
         hover_data = extra_point_data
@@ -867,9 +862,7 @@ def render_html(
 
         if on_click is not None:
             on_click = (
-                "({index, picked}, event) => { if (picked) {"
-                + on_click.format_map(replacements)
-                + " } }"
+                "({index, picked}, event) => { if (picked) {" + on_click.format_map(replacements) + " } }"
             )
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
@@ -894,18 +887,11 @@ def render_html(
         base64_point_data = ""
         base64_hover_data = ""
         base64_label_data = ""
-        file_prefix = (
-            offline_data_prefix if offline_data_prefix is not None else "datamapplot"
-        )
-        point_data.to_feather(
-            f"{file_prefix}_point_df.arrow", compression="uncompressed"
-        )
+        file_prefix = offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+        point_data.to_feather(f"{file_prefix}_point_df.arrow", compression="uncompressed")
         hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
         with zipfile.ZipFile(
-            f"{file_prefix}_point_hover_data.zip",
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
+            f"{file_prefix}_point_hover_data.zip", "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9,
         ) as f:
             f.write("point_hover_data.arrow")
         os.remove("point_hover_data.arrow")

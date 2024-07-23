@@ -173,9 +173,7 @@ def create_plot(
     if labels is None:
         label_locations = np.zeros((0, 2), dtype=np.float32)
         label_text = []
-        cluster_label_vector = np.full(
-            data_map_coords.shape[0], "Unlabelled", dtype=object
-        )
+        cluster_label_vector = np.full(data_map_coords.shape[0], "Unlabelled", dtype=object)
         unique_non_noise_labels = []
     else:
         cluster_label_vector = np.asarray(labels)
@@ -271,8 +269,8 @@ def create_plot(
         label_arrow_colors = None
 
     cluster_sizes = pd.Series(cluster_label_vector).value_counts()
-    label_cluster_sizes = np.asarray(
-        [cluster_sizes[x] for x in unique_non_noise_labels]
+    label_cluster_sizes = np.asarray([
+        cluster_sizes[x] for x in unique_non_noise_labels]
     )
 
     # Heuristics for point size and alpha values
