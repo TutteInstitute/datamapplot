@@ -173,7 +173,9 @@ def create_plot(
     if labels is None:
         label_locations = np.zeros((0, 2), dtype=np.float32)
         label_text = []
-        cluster_label_vector = np.full(data_map_coords.shape[0], "Unlabelled", dtype=object)
+        cluster_label_vector = np.full(
+            data_map_coords.shape[0], "Unlabelled", dtype=object
+        )
         unique_non_noise_labels = []
     else:
         cluster_label_vector = np.asarray(labels)
@@ -269,9 +271,9 @@ def create_plot(
         label_arrow_colors = None
 
     cluster_sizes = pd.Series(cluster_label_vector).value_counts()
-    label_cluster_sizes = np.asarray([
-            cluster_sizes[x] for x in unique_non_noise_labels
-    ])
+    label_cluster_sizes = np.asarray(
+        [cluster_sizes[x] for x in unique_non_noise_labels]
+    )
 
     # Heuristics for point size and alpha values
     n_points = data_map_coords.shape[0]
@@ -334,6 +336,7 @@ def create_interactive_plot(
     cmap=None,
     marker_size_array=None,
     marker_color_array=None,
+    marker_alpha_array=None,
     use_medoids=False,
     cluster_boundary_polygons=False,
     color_cluster_boundaries=True,
@@ -419,6 +422,9 @@ def create_interactive_plot(
 
     marker_size_array: np.ndarray or None (optional, default=None)
         An array of sizes for each of the points in the data map scatterplot.
+
+    marker_alpha_array: np.ndarray or None (optional, default=None)
+        An array of alpha values for each of the points in the data map scatterplot.
 
     use_medoids: bool (optional, default=False)
         Whether to use medoids instead of centroids to determine the "location" of the cluster,
@@ -587,6 +593,10 @@ def create_interactive_plot(
     point_dataframe["g"] = color_vector.T[1].astype(np.uint8)
     point_dataframe["b"] = color_vector.T[2].astype(np.uint8)
     point_dataframe["a"] = np.uint8(180)
+    if marker_alpha_array is not None:
+        if (marker_alpha_array <= 1).all():
+            marker_alpha_array *= 255
+        point_dataframe["a"] = marker_alpha_array.astype(np.uint8)
 
     html_str = render_html(
         point_dataframe,
