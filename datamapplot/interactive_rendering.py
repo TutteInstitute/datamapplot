@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 import requests
 from importlib_resources import files
-from IPython.display import HTML
 from matplotlib.colors import to_rgba
 from scipy.spatial import Delaunay
 
@@ -68,6 +67,7 @@ class InteractiveFigure:
                 srcdoc="{src_doc}"
             ></iframe>
         """
+        from IPython.display import HTML
 
         with warnings.catch_warnings():
             msg = "Consider using IPython.display.IFrame instead"
