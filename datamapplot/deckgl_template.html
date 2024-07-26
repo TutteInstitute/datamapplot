@@ -183,7 +183,6 @@
   </body>
   <script type="module">
     import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
-    import { JSONLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/json@4.0.5/+esm'
 
     {% if not inline_data %}
     import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
@@ -223,13 +222,13 @@
     const labelDataBase64 = "{{base64_label_data}}";
     const labelDataBuffer = base64ToBytes(labelDataBase64);
     const unzippedLabelData = await DecompressBytes(labelDataBuffer);
-    const labelData = await loaders.parse(unzippedLabelData, JSONLoader);
+    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData));
     {% else %}
     const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
     const unzippedHoverData = await loaders.load("{{file_prefix}}_point_hover_data.zip", ZipLoader);
     const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
     const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
-    const labelData = await loaders.parse(unzippedLabelData["label_data.json"], JSONLoader);
+    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
     {% endif %}
 
     const DATA = {src: pointData.data, length: pointData.data.x.length}
