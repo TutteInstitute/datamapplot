@@ -181,6 +181,11 @@
 
     {% if custom_html %} {{custom_html}} {% endif %}
   </body>
+  {% for _, js_src in js_dependencies_src.items() %}
+  <script>
+    {{ js_src | safe }}
+  </script>
+  {% endfor %}
   <script type="module">
     import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
 
@@ -355,42 +360,52 @@
     document.getElementById("loading").style.display = "none";
 
     {% if search %}
-    function selectPoints(item, conditional) {
-      var layerId;
-      if (item) {
-        for (var i = 0; i < DATA.length; i++) {
-          if (conditional(i)) {
-            DATA.src.selected[i] = 1;
-          } else {
-            DATA.src.selected[i] = 0;
-          }
-        }
-        layerId = 'selectedPointLayer' + item;
-      } else {
-        for (var i = 0; i < DATA.length; i++) {
-          DATA.src.selected[i] = 1;
-        }
-        layerId = 'dataPointLayer';
+    const dataSelectionManager = new DataSelectionManager();
+    const searchItemId = "search";
+    const searchItem = document.getElementById(searchItemId);
+
+    function selectPoints(itemId) {
+      const selectedIndices = dataSelectionManager.getSelectedIndices();
+      const hasSelectedIndices = selectedIndices.size !== 0;
+      const layerId = hasSelectedIndices
+        ? `selectedPointLayer_${itemId}_${new Date().toISOString()}`
+        : 'dataPointLayer';
+
+      for (let i = 0; i < DATA.length; i++) {
+        DATA.src.selected[i] = hasSelectedIndices ? selectedIndices.has(i) : 1;
       }
+
       const selectedPointLayer = pointLayer.clone({
         id: layerId,
         data: DATA,
-        getFilterValue: (object, {index, data}) => data.src.selected[index],
+        getFilterValue: (object, { index, data }) => data.src.selected[index],
         filterRange: [1, 2],
-        extensions: [new deck.DataFilterExtension({filterSize: 1})]
+        extensions: [new deck.DataFilterExtension({ filterSize: 1 })]
       });
-      deckgl.setProps({
-        layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,))
-      });
+
+      deckgl.setProps({ layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,)) });
     }
 
-    const search = document.getElementById("search");
-    search.addEventListener(
-      "input", (event) => {
-        const search_term = event.target.value.toLowerCase();
-        selectPoints(search_term, (i) => hoverData.data.{{search_field}}[i].toLowerCase().includes(search_term));
+    searchItem.addEventListener("input", event => {
+      const searchTerm = event.target.value.toLowerCase();
+      const selectedIndices = hoverData.data.hover_text.reduce((indices, d, i) => {
+        if (d.toLowerCase().includes(searchTerm)) {
+          indices.push(i);
+        }
+        return indices;
+      }, []);
+
+      // update data manager
+      if (searchTerm !== "") {
+        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
       }
-    );
+      else {
+        dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
+      }
+
+      // update datamap plot
+      selectPoints(searchItemId);
+    });
     {% endif %}
 
     {% if custom_js %}
