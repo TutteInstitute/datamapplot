@@ -19,7 +19,7 @@ from datamapplot.medoids import medoid
 
 _DECKGL_TEMPLATE_STR = (
     files("datamapplot") / "deckgl_template.html"
-).read_text()
+).read_text(encoding='utf-8')
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
