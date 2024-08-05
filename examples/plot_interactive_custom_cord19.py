@@ -114,25 +114,36 @@ custom_js = """
     const legend = document.getElementById('legend');
     legend.addEventListener('click', function (event) {
             const primary_field = event.srcElement.id;
-            selectPoints(primary_field, (i) => (hoverData.data.primary_field[i] == primary_field));
-            for (const row of legend.children) {
-                for (const item of row.children) {
-                    if (item.id == primary_field) {
-                        item.innerHTML = "✓";
-                    } else {
-                        item.innerHTML = "";
+            const alreadySelected = event.srcElement.innerHTML === "✓";
+            const selectedIndices = hoverData.data.primary_field.reduce((indices, d, i) => {
+                if (d === primary_field) {
+                  indices.push(i);
+                }
+                return indices;
+            }, []);
+            if (primary_field) {
+                if (alreadySelected) {
+                    dataSelectionManager.removeSelectedIndicesOfItem('legend');
+                    event.srcElement.innerHTML = "";
+                } else {
+                    dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, 'legend');
+                    event.srcElement.innerHTML = "✓";
+                }
+            } else {
+                dataSelectionManager.removeSelectedIndicesOfItem('legend');
+            }
+            selectPoints(searchItemId);
+            if (!alreadySelected) {
+                for (const row of legend.children) {
+                    for (const item of row.children) {
+                        if (item.id == primary_field) {
+                            item.innerHTML = "✓";
+                        } else {
+                            item.innerHTML = "";
+                        }
                     }
                 }
             }
-            search.value = "";
-        });
-
-        search.addEventListener("input", (event) => {
-            for (const row of legend.children) {
-                for (const item of row.children) {
-                        item.innerHTML = "";
-                    }
-                }
         });
 """
 
