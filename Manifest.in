@@ -1,0 +1,3 @@
+
+include datamapplot/deckgl_template.html
+include datamapplot/static/*.js

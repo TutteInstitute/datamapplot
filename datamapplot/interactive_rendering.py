@@ -12,6 +12,8 @@ import pandas as pd
 import requests
 from importlib_resources import files
 from matplotlib.colors import to_rgba
+from pathlib import Path
+from rjsmin import jsmin
 from scipy.spatial import Delaunay
 
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
@@ -19,7 +21,7 @@ from datamapplot.medoids import medoid
 
 _DECKGL_TEMPLATE_STR = (
     files("datamapplot") / "deckgl_template.html"
-).read_text()
+).read_text(encoding='utf-8')
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -81,6 +83,36 @@ class InteractiveFigure:
         with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
 
+def _get_js_dependencies(minify_js, enable_search):
+    """
+    Gather the necessary JavaScript dependency files for embedding in the HTML template.
+
+    Parameters
+    ----------
+    minify_js : bool
+        Whether to minify the JS files.
+    enable_search : bool 
+        Whether to include JS dependencies for the search functionality.
+
+    Returns
+    -------
+    dict
+        A dictionary where keys are the names of JS files and values are their 
+        source content.
+    """
+    static_dir = Path(__file__).resolve().parent / "static"
+    js_dependencies = []
+    js_dependencies_src = {}
+    
+    if enable_search:
+        js_dependencies.append("data_selection_manager.js")
+
+    for js_file in js_dependencies:
+        with open(static_dir / js_file, 'r', encoding='utf-8') as file:
+            js_src = file.read()
+            js_dependencies_src[js_file] = jsmin(js_src) if minify_js else js_src
+    
+    return js_dependencies_src
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -180,6 +212,7 @@ def render_html(
     custom_html=None,
     custom_css=None,
     custom_js=None,
+    minify_js_deps=True
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -379,7 +412,10 @@ def render_html(
         A string of custom Javascript code that is to be added after the code for rendering
         the scatterplot. This can include code to interact with the plot which is stored
         as ``deckgl``.
-
+        
+    minify_js_deps: bool (optional, default=True)
+        Whether to minify the JavaScript dependency files before embedding in the HTML template.
+        
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -583,6 +619,9 @@ def render_html(
     else:
         page_background_color = background_color
 
+    # Pepare JS dependencies for embedding in the HTML template
+    js_dependencies_src = _get_js_dependencies(minify_js_deps, enable_search)
+
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
     resp = requests.get(
@@ -656,5 +695,6 @@ def render_html(
         get_tooltip=get_tooltip,
         search_field=search_field,
         custom_js=custom_js,
+        js_dependencies_src=js_dependencies_src
     )
     return html_str
