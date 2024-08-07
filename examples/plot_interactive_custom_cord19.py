@@ -111,40 +111,38 @@ hover_text_template = f"""
 # Add custom javascript to make the legend interactive/clickable,
 # and interact with search selection
 custom_js = """
-    const legend = document.getElementById('legend');
+    const legendItemID = 'legend';
+    const legend = document.getElementById(legendItemID);
+    const selectedPrimaryFields = new Set();
+
     legend.addEventListener('click', function (event) {
-            const primary_field = event.srcElement.id;
-            const alreadySelected = event.srcElement.innerHTML === "✓";
-            const selectedIndices = hoverData.data.primary_field.reduce((indices, d, i) => {
-                if (d === primary_field) {
-                  indices.push(i);
-                }
-                return indices;
-            }, []);
-            if (primary_field) {
-                if (alreadySelected) {
-                    dataSelectionManager.removeSelectedIndicesOfItem('legend');
-                    event.srcElement.innerHTML = "";
-                } else {
-                    dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, 'legend');
-                    event.srcElement.innerHTML = "✓";
-                }
+        const primaryField = event.srcElement.id;
+
+        if (primaryField) {
+            if (selectedPrimaryFields.has(primaryField)) {
+                selectedPrimaryFields.delete(primaryField);
+                event.srcElement.innerHTML = "";
             } else {
-                dataSelectionManager.removeSelectedIndicesOfItem('legend');
+                selectedPrimaryFields.add(primaryField);
+                event.srcElement.innerHTML = "✓";
             }
-            selectPoints(searchItemId);
-            if (!alreadySelected) {
-                for (const row of legend.children) {
-                    for (const item of row.children) {
-                        if (item.id == primary_field) {
-                            item.innerHTML = "✓";
-                        } else {
-                            item.innerHTML = "";
-                        }
-                    }
-                }
+        }
+
+        const selectedIndices = hoverData.data.primary_field.reduce((indices, d, i) => {
+            if (selectedPrimaryFields.has(d)) {
+                indices.push(i);
             }
-        });
+            return indices;
+        }, []);
+
+        if (selectedIndices.length === 0) {
+            dataSelectionManager.removeSelectedIndicesOfItem(legendItemID);
+        } else {
+            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, legendItemID);
+        }
+ 
+        selectPoints(legendItemID);
+    });
 """
 
 plot = datamapplot.create_interactive_plot(
