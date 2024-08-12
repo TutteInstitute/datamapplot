@@ -13,6 +13,7 @@ import requests
 from importlib_resources import files
 from matplotlib.colors import to_rgba
 from pathlib import Path
+from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
 
@@ -83,16 +84,20 @@ class InteractiveFigure:
         with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
 
-def _get_js_dependencies(minify_js, enable_search):
+def _get_js_dependency_sources(minify, enable_search, enable_histogram):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
     Parameters
     ----------
-    minify_js : bool
+    minify : bool
         Whether to minify the JS files.
+        
     enable_search : bool 
         Whether to include JS dependencies for the search functionality.
+        
+    enable_histogram: bool
+        Whether to include JS dependencies for the histogram functionality.
 
     Returns
     -------
@@ -100,19 +105,80 @@ def _get_js_dependencies(minify_js, enable_search):
         A dictionary where keys are the names of JS files and values are their 
         source content.
     """
-    static_dir = Path(__file__).resolve().parent / "static"
+    static_dir = Path(__file__).resolve().parent / "static" / "js"
     js_dependencies = []
     js_dependencies_src = {}
     
-    if enable_search:
+    if enable_search or enable_histogram:
         js_dependencies.append("data_selection_manager.js")
+        
+    if enable_histogram:        
+        js_dependencies.append("d3_histogram.js")
 
     for js_file in js_dependencies:
         with open(static_dir / js_file, 'r', encoding='utf-8') as file:
             js_src = file.read()
-            js_dependencies_src[js_file] = jsmin(js_src) if minify_js else js_src
+            js_dependencies_src[js_file] = jsmin(js_src) if minify else js_src
     
     return js_dependencies_src
+
+def _get_css_dependency_sources(minify, enable_histogram):
+    """
+    Gather the necessary CSS dependency files for embedding in the HTML template.
+
+    Parameters
+    ----------
+    minify : bool
+        Whether to minify the CSS files.
+
+    enable_histogram: bool
+        Whether to include CSS dependencies for the histogram functionality.
+        
+    Returns
+    -------
+    dict
+        A dictionary where keys are the names of CSS files and values are their 
+        source content.
+    """
+    static_dir = Path(__file__).resolve().parent / "static" / "css"
+    css_dependencies = []
+    css_dependencies_src = {}
+    
+    if enable_histogram:        
+        css_dependencies.append("d3_histogram_style.css")
+        
+    for css_file in css_dependencies:
+        with open(static_dir / css_file, 'r', encoding='utf-8') as file:
+            css_src = file.read()
+            css_dependencies_src[css_file] = cssmin(css_src) if minify else css_src
+
+    return css_dependencies_src
+
+def _get_js_dependency_urls(enable_histogram):
+    """
+    Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
+
+    Parameters
+    ----------
+    enable_histogram: bool
+        Whether to include JS URLs for the histogram functionality.
+
+    Returns
+    -------
+    list
+        A list of URLs that point to the required JavaScript dependencies.
+    """
+    js_dependency_urls = []
+    
+    # Add common dependencies (if any)
+    common_js_urls = [ "https://unpkg.com/deck.gl@latest/dist.min.js" ]
+    js_dependency_urls.extend(common_js_urls)
+    
+    # Conditionally add dependencies based on functionality
+    if enable_histogram:
+        js_dependency_urls.append("https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js")
+
+    return js_dependency_urls
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -208,11 +274,13 @@ def render_html(
     extra_point_data=None,
     enable_search=False,
     search_field="hover_text",
+    histogram_data=None,
+    histogram_settings={},
     on_click=None,
     custom_html=None,
     custom_css=None,
     custom_js=None,
-    minify_js_deps=True
+    minify_deps=True
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -393,6 +461,35 @@ def render_html(
         this column of the ``extra_point_data`` dataframe, or use hover_text if set to
         ``"hover_text"``.
 
+    histogram_data: list, pandas.Series, or None (optional, default=None)
+        The data used to generate a histogram. The histogram data can be passed as a list or 
+        Pandas Series; if `None`, the histogram is disabled. The length of the list or Series
+        must match the number of rows in `point_dataframe`. The values within the list or Series 
+        must be of type unsigned integer, signed integer, floating-point number, string, or a
+        date string in the format `YYYY-MM-DD`.
+    
+    histogram_settings: dict or None (optional, default={})
+        A dictionary containing custom settings for the histogram, if enabled. If
+        `histogram_data` is provided, this dictionary allows you to customize the 
+        appearance of the histogram. The dictionary can include the following keys:
+        
+        - "histogram_width": str
+            The width of the histogram in pixels.
+        - "histogram_height": str
+            The height of the histogram in pixels.
+        - "histogram_bin_count": int
+            The number of bins in the histogram.
+        - "histogram_title": str
+            The title of the histogram.
+        - "histogram_bin_fill_color": str
+            The fill HEX color of the histogram bins (e.g. `#6290C3`).
+        - "histogram_bin_selected_fill_color": str
+            The fill HEX color of the selected histogram bins (e.g. `#2EBFA5`).
+        - "histogram_bin_unselected_fill_color": str
+            The fill HEX color of the unselected histogram bins (e.g. `#9E9E9E`).
+        - "histogram_bin_context_fill_color": str
+            The fill HEX color of the contextual bins in the histogram (e.g. `#E6E6E6`).
+
     on_click: str or None (optional, default=None)
         A javascript action to be taken if a point in the data map is clicked. The javascript
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
@@ -413,8 +510,8 @@ def render_html(
         the scatterplot. This can include code to interact with the plot which is stored
         as ``deckgl``.
         
-    minify_js_deps: bool (optional, default=True)
-        Whether to minify the JavaScript dependency files before embedding in the HTML template.
+    minify_deps: bool (optional, default=True)
+        Whether to minify the JavaScript and CSS dependency files before embedding in the HTML template.
         
     Returns
     -------
@@ -467,21 +564,26 @@ def render_html(
     else:
         label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
 
-    # Prep data for inlining or storage
-    if enable_search:
+    # Prep data for inlining or storage    
+    enable_histogram = histogram_data is not None
+    histogram_data_attr = "histogram_data_attr"
+    histogram_ctx = { "enable_histogram": enable_histogram, "histogram_data_attr": histogram_data_attr, **histogram_settings }
+    
+    point_data_cols = ["x", "y", "r", "g", "b", "a"]
+    
+    if point_size < 0:
+        point_data_cols.append("size")
+        
+    if enable_search or enable_histogram:
         point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
-        if point_size < 0:
-            point_data = point_dataframe[
-                ["x", "y", "r", "g", "b", "a", "size", "selected"]
-            ]
-        else:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "selected"]]
-    else:
-        if point_size < 0:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a", "size"]]
-        else:
-            point_data = point_dataframe[["x", "y", "r", "g", "b", "a"]]
+        point_data_cols.append("selected")
+        
+    if enable_histogram:
+        point_dataframe[histogram_data_attr] = histogram_data
+        point_data_cols.append(histogram_data_attr)
 
+    point_data = point_dataframe[point_data_cols]
+  
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
             hover_data = pd.concat(
@@ -619,8 +721,12 @@ def render_html(
     else:
         page_background_color = background_color
 
-    # Pepare JS dependencies for embedding in the HTML template
-    js_dependencies_src = _get_js_dependencies(minify_js_deps, enable_search)
+    # Pepare JS/CSS dependencies for embedding in the HTML template
+    dependencies_ctx = {
+        "js_dependency_urls": _get_js_dependency_urls(enable_histogram),
+        "js_dependency_srcs": _get_js_dependency_sources(minify_deps, enable_search, enable_histogram),
+        "css_dependency_srcs": _get_css_dependency_sources(minify_deps, enable_histogram)
+    }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
@@ -648,6 +754,7 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
+        **histogram_ctx,
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
@@ -695,6 +802,6 @@ def render_html(
         get_tooltip=get_tooltip,
         search_field=search_field,
         custom_js=custom_js,
-        js_dependencies_src=js_dependencies_src
+        **dependencies_ctx
     )
     return html_str
