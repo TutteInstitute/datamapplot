@@ -4,32 +4,38 @@
     <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
     <title>{{title}}</title>
 
-    {% if google_font %}
+    {%- if google_font %}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap"
       rel="stylesheet"
     />
-
-    {% if google_tooltip_font %}
+    {%- if google_tooltip_font %}
     <link
       href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap"
       rel="stylesheet"
     />
-    {% endif %} {% endif %}
-
+    {%- endif -%} 
+    {%- endif %}
     <link
-      rel="stylesheet"
       href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+      rel="stylesheet"
     />
     <link
-      rel="stylesheet"
       href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+      rel="stylesheet"
     />
 
-    <script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+    {% for url in js_dependency_urls -%}
+    <script src="{{ url }}"></script>
+    {% endfor -%}
 
+    {% for _, css_src in css_dependency_srcs.items() -%}
+    <style>
+      {{ css_src | safe }}
+    </style>
+    {%- endfor %}
     <style>
       body {
         margin: 0;
@@ -37,21 +43,17 @@
         overflow: hidden;
         background: {{page_background_color}};
       }
-
       #deck-container {
         width: 100vw;
         height: 100vh;
       }
-
       #deck-container canvas {
         z-index: 1;
         background: {{page_background_color}};
       }
-
       .deck-tooltip {
           {{tooltip_css}}
       }
-
       #loading {
         width: 100%;
         height: 100%;
@@ -61,14 +63,12 @@
         display: block;
         z-index: 99
       }
-
       #loading-image {
         position: absolute;
         top: 45%;
         left: 47.5%;
         z-index: 100
       }
-
       #title-container {
         position: absolute;
         top: 0;
@@ -84,7 +84,7 @@
         box-shadow: 2px 3px 10px {{shadow_color}};
       }
 
-      {% if logo %}
+      {%- if logo %}
       #logo-container {
         position: absolute;
         bottom: 0;
@@ -101,9 +101,9 @@
         margin-left: auto;
         margin-right: auto;
       }
-      {% endif %}
+      {%- endif %}
 
-      {% if search %}
+      {%- if search %}
       #search-container{
         position: absolute;
         left: -16px;
@@ -130,11 +130,20 @@
       input:focus {
         border: 2px solid #555;
       }
-      {% endif %}
+      {%- endif %}
 
-      {% if custom_css %}
+      {%- if enable_histogram %}
+      #d3histogram-container {
+        background: {{ title_background }};
+        color: {{ title_font_color }};
+        font-family: {{ title_font_family }};
+        box-shadow: 2px 3px 10px {{ shadow_color }};
+      }
+      {%- endif %}
+
+      {%- if custom_css %}
       {{custom_css}}
-      {% endif %}
+      {%- endif %}
     </style>
   </head>
   <body>
@@ -179,17 +188,20 @@
 
     <div id="deck-container"></div>
 
-    {% if custom_html %} {{custom_html}} {% endif %}
+    {%- if enable_histogram %}
+    <div id="d3histogram-container"></div>
+    {%- endif -%}
+
+    {% if custom_html %} {{custom_html}} {%- endif -%}
   </body>
-  {% for _, js_src in js_dependencies_src.items() %}
+  {%- for _, js_src in js_dependency_srcs.items() %}
   <script>
     {{ js_src | safe }}
   </script>
-  {% endfor %}
+  {%- endfor %}
   <script type="module">
     import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
-
-    {% if not inline_data %}
+    {%- if not inline_data %}
     import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
     {% endif %}
 
@@ -234,10 +246,15 @@
     const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
     const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
     const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
-    {% endif %}
-
+    {% endif -%}
     const DATA = {src: pointData.data, length: pointData.data.x.length}
 
+    const dataSelectionManager = {% if search or enable_histogram %} new DataSelectionManager() {% else %} null {% endif %};
+    const searchItemId = "search";
+    const histogramItemId = "d3histogram-container";
+    const searchItem = document.getElementById(searchItemId);
+    let histogramItem = null;
+    
     const container = document.getElementById('deck-container');
     const pointLayer = new deck.ScatterplotLayer({
       id: 'dataPointLayer',
@@ -359,11 +376,7 @@
 
     document.getElementById("loading").style.display = "none";
 
-    {% if search %}
-    const dataSelectionManager = new DataSelectionManager();
-    const searchItemId = "search";
-    const searchItem = document.getElementById(searchItemId);
-
+    {% if search or enable_histogram %}
     function selectPoints(itemId) {
       const selectedIndices = dataSelectionManager.getSelectedIndices();
       const hasSelectedIndices = selectedIndices.size !== 0;
@@ -385,7 +398,10 @@
 
       deckgl.setProps({ layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,)) });
     }
+    {% endif -%}
 
+    {% if search %}
+    /* Search */
     searchItem.addEventListener("input", event => {
       const searchTerm = event.target.value.toLowerCase();
       const selectedIndices = hoverData.data.hover_text.reduce((indices, d, i) => {
@@ -395,7 +411,16 @@
         return indices;
       }, []);
 
-      // update data manager
+      // Update histogram, if any
+      if (histogramItem) {
+        if (searchTerm !== "") {
+          histogramItem.drawChartWithSelection(selectedIndices);
+        } else {
+          histogramItem.removeChartWithSelection(selectedIndices);
+        }
+      }
+
+      // Update data manager
       if (searchTerm !== "") {
         dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
       }
@@ -403,13 +428,58 @@
         dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
       }
 
-      // update datamap plot
+      // Update datamap plot
       selectPoints(searchItemId);
     });
-    {% endif %}
+    {% endif -%}
+
+    {% if enable_histogram %}
+    /*Histogram*/
+    const chartSelectionCallback = chartSelectedIndices => {
+      // Update data manager
+      if (chartSelectedIndices === null) {
+        dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
+      } else {
+        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
+      }
+
+      // Update datamap plot
+      selectPoints(histogramItemId);
+    };
+
+    histogramItem = D3Histogram.create({
+      data: DATA.src["{{ histogram_data_attr }}"],
+      chartContainerId: histogramItemId,
+      {%- if histogram_width %}
+      chartWidth: {{ histogram_width }},
+      {%- endif %}
+      {%- if histogram_height %}
+      chartHeight: {{ histogram_height }},
+      {%- endif %}
+      {%- if histogram_bin_count %}
+      binCount: {{ histogram_bin_count }},
+      {%- endif %}
+      {%- if histogram_title %}
+      title: "{{ histogram_title }}",
+      {%- endif %}
+      {%- if histogram_bin_fill_color %}
+      binDefaultFillColor: "{{ histogram_bin_fill_color }}",
+      {%- endif %}
+      {%- if histogram_bin_selected_fill_color %}
+      binSelectedFillColor: "{{ histogram_bin_selected_fill_color }}",
+      {%- endif %}
+      {%- if histogram_bin_unselected_fill_color %}
+      binUnselectedFillColor: "{{ histogram_bin_unselected_fill_color }}",
+      {%- endif %}
+      {%- if histogram_bin_context_fill_color %}
+      binContextFillColor: "{{ histogram_bin_context_fill_color }}",
+      {%- endif %}
+      chartSelectionCallback
+    });
+    {% endif -%}
 
     {% if custom_js %}
-    {{custom_js}}
-    {% endif %}
+    {{ custom_js }}
+    {% endif -%}
   </script>
 </html>

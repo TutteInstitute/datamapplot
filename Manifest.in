@@ -1,3 +1,4 @@
 
 include datamapplot/deckgl_template.html
-include datamapplot/static/*.js
+include datamapplot/static/js/*.js
+include datamapplot/static/css/*.css

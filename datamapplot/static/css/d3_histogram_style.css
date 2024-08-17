@@ -1,0 +1,39 @@
+/* Histogram's container */
+#d3histogram-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    margin: 16px;
+    padding: 12px;
+    border-radius: 16px;
+    z-index: 2;
+}
+
+/* Histogram's title & subtitle */
+#d3histogram-title,
+#d3histogram-subtitle {
+    position: absolute;
+    top: 5px;
+    font-size: small;
+}
+#d3histogram-subtitle {
+    right: 15px;
+}
+
+/* Histogram's axes */
+.d3histogram-axis {
+    font-family: inherit;
+}
+.d3histogram-axis path {
+    display: none;
+}
+.d3histogram-axis .tick > line {
+    stroke-width: 0.5;
+}
+
+/* Histogram's interaction container */
+#d3histogram-interactioncontainer > .selection {
+    fill: #c2c2c2;
+    stroke: #cecece;
+    stroke-width: 0.5;
+}
