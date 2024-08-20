@@ -377,6 +377,13 @@
     document.getElementById("loading").style.display = "none";
 
     {% if search or enable_histogram %}
+    function debounce(func, timeout = 150){
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+    }
     function selectPoints(itemId) {
       const selectedIndices = dataSelectionManager.getSelectedIndices();
       const hasSelectedIndices = selectedIndices.size !== 0;
@@ -402,35 +409,38 @@
 
     {% if search %}
     /* Search */
-    searchItem.addEventListener("input", event => {
-      const searchTerm = event.target.value.toLowerCase();
-      const selectedIndices = hoverData.data.hover_text.reduce((indices, d, i) => {
-        if (d.toLowerCase().includes(searchTerm)) {
-          indices.push(i);
-        }
-        return indices;
-      }, []);
+    const textSearchArray = hoverData.data.hover_text.map((d) => d.toLowerCase());
+    searchItem.addEventListener("input", debounce(
+        event => {
+          const searchTerm = event.target.value.toLowerCase();
+          const selectedIndices = textSearchArray.reduce((indices, d, i) => {
+            if (d.indexOf(searchTerm) >= 0) {
+              indices.push(i);
+            }
+            return indices;
+          }, []);
 
-      // Update histogram, if any
-      if (histogramItem) {
-        if (searchTerm !== "") {
-          histogramItem.drawChartWithSelection(selectedIndices);
-        } else {
-          histogramItem.removeChartWithSelection(selectedIndices);
-        }
-      }
+          // Update data manager
+          if (searchTerm !== "") {
+            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
+          }
+          else {
+            dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
+          }
 
-      // Update data manager
-      if (searchTerm !== "") {
-        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
-      }
-      else {
-        dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
-      }
+          // Update datamap plot
+          selectPoints(searchItemId);
 
-      // Update datamap plot
-      selectPoints(searchItemId);
-    });
+          // Update histogram, if any
+          if (histogramItem) {
+            if (searchTerm !== "") {
+              histogramItem.drawChartWithSelection(selectedIndices);
+            } else {
+              histogramItem.removeChartWithSelection(selectedIndices);
+            }
+          }
+        })
+    );
     {% endif -%}
 
     {% if enable_histogram %}
