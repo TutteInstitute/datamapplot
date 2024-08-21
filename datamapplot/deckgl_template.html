@@ -377,7 +377,7 @@
     document.getElementById("loading").style.display = "none";
 
     {% if search or enable_histogram %}
-    function debounce(func, timeout = 150){
+    function debounce(func, timeout = 250){
         let timer;
         return (...args) => {
             clearTimeout(timer);
