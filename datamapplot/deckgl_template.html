@@ -431,6 +431,7 @@
           // Update datamap plot
           selectPoints(searchItemId);
 
+          {%- if histogram_link_selection %}
           // Update histogram, if any
           if (histogramItem) {
             if (searchTerm !== "") {
@@ -439,6 +440,7 @@
               histogramItem.removeChartWithSelection(selectedIndices);
             }
           }
+          {% endif}
         })
     );
     {% endif -%}

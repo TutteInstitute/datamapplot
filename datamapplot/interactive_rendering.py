@@ -275,6 +275,7 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
+    histogram_link_selection=True,
     histogram_settings={},
     on_click=None,
     custom_html=None,
@@ -467,6 +468,11 @@ def render_html(
         must match the number of rows in `point_dataframe`. The values within the list or Series 
         must be of type unsigned integer, signed integer, floating-point number, string, or a
         date string in the format `YYYY-MM-DD`.
+
+    histogram_link_selection: bool (optional, default=True)
+        Whether to link the selection in the histogram to the selection in the data map from
+        search. Since selection rendering on the histogram scales poorly with dataset size it
+        can be beneficial to disable the selection linking for large datasets.
     
     histogram_settings: dict or None (optional, default={})
         A dictionary containing custom settings for the histogram, if enabled. If
@@ -567,7 +573,12 @@ def render_html(
     # Prep data for inlining or storage    
     enable_histogram = histogram_data is not None
     histogram_data_attr = "histogram_data_attr"
-    histogram_ctx = { "enable_histogram": enable_histogram, "histogram_data_attr": histogram_data_attr, **histogram_settings }
+    histogram_ctx = { 
+        "enable_histogram": enable_histogram, 
+        "histogram_data_attr": histogram_data_attr,
+        "histogram_link_selection": histogram_link_selection,
+        **histogram_settings 
+    }
     
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
     
