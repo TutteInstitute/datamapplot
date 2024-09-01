@@ -13,10 +13,13 @@ class DataSelectionManager {
      * @param {string} itemId - The item key associated with the indices.
      * @returns {undefined} No return value.
     */
-    addOrUpdateSelectedIndicesOfItem(indices, itemId) {
+    addOrUpdateSelectedIndicesOfItem(indices, itemId, clearOthers = false) {
         const isNewItem = !this.selectedIndicesByItem.hasOwnProperty(itemId);
-
-        this.selectedIndicesByItem[itemId] = new Set(indices);
+        if (clearOthers || isNewItem) {
+            this.selectedIndicesByItem[itemId] = new Set(indices);
+        } else {
+            this.selectedIndicesByItem[itemId] = this.selectedIndicesByItem[itemId].union(new Set(indices));
+        }
         this.#updateSelectedIndicesCommon(isNewItem ? this.selectedIndicesByItem[itemId] : null);
     }
 

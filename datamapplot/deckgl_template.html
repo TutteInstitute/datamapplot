@@ -229,13 +229,13 @@
     }
 
     {% if inline_data %}
-    const pointDataBase64 = "{{base64_point_data}}";
-    const pointDataBuffer = base64ToBytes(pointDataBase64);
-    const pointData = await loaders.parse(pointDataBuffer, ArrowLoader);
-    const hoverDataBase64 = "{{base64_hover_data}}";
-    const hoverDataBuffer = base64ToBytes(hoverDataBase64);
-    const unzippedHoverData = await DecompressBytes(hoverDataBuffer);
-    const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
+    const pointDataBase64 = {{base64_point_data|safe}};
+    const pointDataBuffer = pointDataBase64.map(base64Data => base64ToBytes(base64Data));
+    const pointData = await Promise.all(pointDataBuffer.map(buffer => loaders.parse(buffer, ArrowLoader)));
+    const hoverDataBase64 = {{base64_hover_data|safe}};
+    const hoverDataBuffer = hoverDataBase64.map(base64Data => base64ToBytes(base64Data));
+    const unzippedHoverData = hoverDataBuffer.map(buffer => DecompressBytes(buffer));
+    const hoverData = await Promise.all(unzippedHoverData.map(zippedData => loaders.parse(zippedData, ArrowLoader)));
     const labelDataBase64 = "{{base64_label_data}}";
     const labelDataBuffer = base64ToBytes(labelDataBase64);
     const unzippedLabelData = await DecompressBytes(labelDataBuffer);
@@ -247,7 +247,6 @@
     const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
     const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
     {% endif -%}
-    const DATA = {src: pointData.data, length: pointData.data.x.length}
 
     const dataSelectionManager = {% if search or enable_histogram %} new DataSelectionManager() {% else %} null {% endif %};
     const searchItemId = "search";
@@ -255,51 +254,13 @@
     const searchItem = document.getElementById(searchItemId);
     let histogramItem = null;
     
+    {%- if search %}
+    const textPartitions = hoverData.map(data => data.data.hover_text.map((d) => d.toLowerCase()));
+    const selectedVectors = pointData.map(chunk => new Uint8Array(chunk.data.x.length).fill(1));
+    let updateTriggerCounter = new Uint32Array(pointData.length).fill(0);
+    {% endif %}
+
     const container = document.getElementById('deck-container');
-    const pointLayer = new deck.ScatterplotLayer({
-      id: 'dataPointLayer',
-      data: DATA,
-      getPosition: (object, {index, data}) => {
-        return [data.src.x[index], data.src.y[index]];
-      },
-
-      {% if point_size < 0 %}
-      getRadius: (object, {index, data}) => {
-        return data.src.size[index];
-      },
-      {% else %}
-      getRadius: {{point_size}},
-      {% endif %}
-
-      getFillColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          data.src.a[index],
-        ]
-      },
-      getLineColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          32
-        ]
-      },
-      getLineColor: {{point_outline_color}},
-      getLineWidth: {{point_line_width}},
-      highlightColor: {{point_hover_color}},
-      lineWidthMaxPixels: {{point_line_width_max_pixels}},
-      lineWidthMinPixels: {{point_line_width_min_pixels}},
-      radiusMaxPixels: {{point_radius_max_pixels}},
-      radiusMinPixels: {{point_radius_min_pixels}},
-      radiusUnits: "common",
-      lineWidthUnits: "common",
-      autoHighlight: true,
-      pickable: true,
-      stroked: true
-    });
     const labelLayer = new deck.TextLayer({
       id: "textLabelLayer",
       data: labelData,
@@ -336,7 +297,7 @@
       extensions: [new deck.CollisionFilterExtension()],
     });
 
-    {% if cluster_boundary_polygons %}
+    {%- if cluster_boundary_polygons %}
     const boundaryLayer = new deck.PolygonLayer({
       data: labelData,
       stroked: true,
@@ -350,7 +311,58 @@
       lineWidthMaxPixels: 4,
       lineWidthMinPixels: 0.0,
     });
-    {% endif %}
+    {% endif -%}
+
+    document.getElementById("loading").style.display = "none";
+
+    const pointLayers = pointData.map((dataChunk, chunkIndex) => {
+      const positions = new Float32Array(dataChunk.data.x.length * 2);
+      const colors = new Uint8Array(dataChunk.data.x.length * 4);
+
+      // Populate the arrays
+      for (let i = 0; i < dataChunk.data.x.length; i++) {
+        positions[i * 2] = dataChunk.data.x[i];
+        positions[i * 2 + 1] = dataChunk.data.y[i];
+        colors[i * 4] = dataChunk.data.r[i];
+        colors[i * 4 + 1] = dataChunk.data.g[i];
+        colors[i * 4 + 2] = dataChunk.data.b[i];
+        colors[i * 4 + 3] = dataChunk.data.a[i];
+      }
+      return new deck.ScatterplotLayer({
+        id: `dataPointLayer-${chunkIndex}`,
+        data: {
+          length: dataChunk.data.x.length,
+          attributes: {
+            getPosition: {value: positions, size: 2},
+            getFillColor: {value: colors, size: 4},
+            {%- if point_size < 0 %}
+            getRadius: {value: dataChunk.data.size, size: 1},
+            {% endif %}
+            getFilterValue: {value: selectedVectors[chunkIndex], size: 1}
+          }
+        },
+        {%- if point_size >= 0 %}
+        getRadius: {{point_size}},
+        {% endif -%}
+        getLineColor: {{point_outline_color}},
+        getLineWidth: {{point_line_width}},
+        highlightColor: {{point_hover_color}},
+        lineWidthMaxPixels: {{point_line_width_max_pixels}},
+        lineWidthMinPixels: {{point_line_width_min_pixels}},
+        radiusMaxPixels: {{point_radius_max_pixels}},
+        radiusMinPixels: {{point_radius_min_pixels}},
+        radiusUnits: "common",
+        lineWidthUnits: "common",
+        autoHighlight: true,
+        pickable: true,
+        stroked: true,
+        extensions: [new deck.DataFilterExtension({ filterSize: 1 })],
+        filterRange: [1, 1],
+        updateTriggers: {
+            getFilterValue: updateTriggerCounter[chunkIndex]
+        },
+        instanceCount: dataChunk.data.x.length,
+    })});
 
     const deckgl = new deck.DeckGL({
       container: container,
@@ -360,107 +372,127 @@
         zoom: {{zoom_level}}
       },
       controller: true,
-
-      {% if cluster_boundary_polygons %}
-      layers: [pointLayer, boundaryLayer, labelLayer],
-      {% else %}
-      layers: [pointLayer, labelLayer],
+      {%- if cluster_boundary_polygons %}
+      layers: [...pointLayers, boundaryLayer, labelLayer],
+      {%- else %}
+      layers: [...pointLayers, labelLayer],
       {% endif %}
-
-      {% if on_click %}
+      {%- if on_click %}
       onClick: {{on_click}},
       {% endif %}
-
       getTooltip: {{get_tooltip}}
     });
 
-    document.getElementById("loading").style.display = "none";
+    {% if search %}
+    /* Search */
+    // Blob for search worker
+    const searchWorkerBlob = new Blob([`
+        self.onmessage = function(event) {
+            const { searchTerm, textPartition } = event.data;
+            const results = textPartition.reduce((acc, str, index) => {
+                if (str.indexOf(searchTerm) >= 0) {
+                    acc.push(index);
+                }
+                return acc;
+            }, []);
+            self.postMessage(results);
+        };
+    `], { type: 'application/javascript' });
 
-    {% if search or enable_histogram %}
-    function debounce(func, timeout = 250){
+    const searchWorkers = Array.from({ length: pointData.length }, () => new Worker(URL.createObjectURL(searchWorkerBlob)));
+
+    function debounce(func, timeout = 300){
         let timer;
         return (...args) => {
             clearTimeout(timer);
             timer = setTimeout(() => { func.apply(this, args); }, timeout);
         };
     }
-    function selectPoints(itemId) {
-      const selectedIndices = dataSelectionManager.getSelectedIndices();
-      const hasSelectedIndices = selectedIndices.size !== 0;
-      const layerId = hasSelectedIndices
-        ? `selectedPointLayer_${itemId}_${new Date().toISOString()}`
-        : 'dataPointLayer';
+    // Handle input event for search
+    searchItem.addEventListener('input', debounce(function(event) {
+        const searchTerm = event.target.value;
+        dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
+        if (searchTerm.length > 0) {
+            // Send search request to each worker for its text partition
+            searchWorkers.forEach((worker, i) => {
+                worker.postMessage({
+                    searchTerm: searchTerm,
+                    textPartition: textPartitions[i]
+                });
 
-      for (let i = 0; i < DATA.length; i++) {
-        DATA.src.selected[i] = hasSelectedIndices ? selectedIndices.has(i) : 1;
-      }
+                worker.onmessage = function(e) {
+                    updateSelectedVector(e.data, i);
+                };
+            });
+        } else {
+            // Reset filters if search is empty
+            selectedVectors.forEach(vector => vector.fill(1));  // Reset all selected vectors
+            updateLayers();
+        }
+    }));
 
-      const selectedPointLayer = pointLayer.clone({
-        id: layerId,
-        data: DATA,
-        getFilterValue: (object, { index, data }) => data.src.selected[index],
-        filterRange: [1, 2],
-        extensions: [new deck.DataFilterExtension({ filterSize: 1 })]
-      });
-
-      deckgl.setProps({ layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,)) });
+    function updateSelectedVector(results, chunkIndex) {
+        const selectedVector = selectedVectors[chunkIndex];
+        selectedVector.fill(0);  // Reset the selected vector
+        const chunkSize = pointData[0].data.x.length;
+        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(results.map(x => x + chunkIndex * chunkSize), searchItemId, false);
+        results.forEach(index => selectedVector[index] = 1);  // Set selected indices to 1
+        updateLayers();
     }
-    {% endif -%}
 
-    {% if search %}
-    /* Search */
-    const textSearchArray = hoverData.data.hover_text.map((d) => d.toLowerCase());
-    searchItem.addEventListener("input", debounce(
-        event => {
-          const searchTerm = event.target.value.toLowerCase();
-          const selectedIndices = textSearchArray.reduce((indices, d, i) => {
-            if (d.indexOf(searchTerm) >= 0) {
-              indices.push(i);
-            }
-            return indices;
-          }, []);
+    function updateLayers() {
+        const layers = pointData.map((dataPartition, chunkIndex) => {
+            const existingLayer = deckgl.props.layers.find(layer => layer.id === `dataPointLayer-${chunkIndex}`);
+            updateTriggerCounter[chunkIndex]++;  // Increment the update trigger counter
+            // Clone the existing layer and update the filter
+            const layer = existingLayer ? existingLayer.clone({
+                data: {
+                  ...existingLayer.props.data,
+                  attributes: {
+                    ...existingLayer.props.data.attributes,
+                    getFilterValue: {value: selectedVectors[chunkIndex], size: 1}
+                  }
+                },
+                updateTriggers: {
+                    getFilterValue: updateTriggerCounter[chunkIndex]  // Trigger update when selected vector changes
+                },
+            }) : null;
 
-          // Update data manager
-          if (searchTerm !== "") {
-            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
-          }
-          else {
-            dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
-          }
+            return layer;
+        });
 
-          // Update datamap plot
-          selectPoints(searchItemId);
-
-          {%- if histogram_link_selection %}
-          // Update histogram, if any
-          if (histogramItem) {
-            if (searchTerm !== "") {
-              histogramItem.drawChartWithSelection(selectedIndices);
-            } else {
-              histogramItem.removeChartWithSelection(selectedIndices);
-            }
-          }
-          {% endif -%}
-        })
-    );
+        deckgl.setProps({ layers: [...layers, boundaryLayer, labelLayer] });
+    }
     {% endif -%}
 
     {% if enable_histogram %}
     /*Histogram*/
+    function selectPoints() {
+      const selectedIndices = dataSelectionManager.getSelectedIndices();
+      const hasSelectedIndices = selectedIndices.size !== 0;
+      const chunkSize = pointData[0].data.x.length;
+      if (hasSelectedIndices) {
+        selectedVectors.forEach(selected => selected.fill(0));
+        selectedIndices.forEach(index => selectedVectors[(index/chunkSize)>>0][index % chunkSize] = 1);
+      } else {
+        selectedVectors.forEach(selected => selected.fill(1));
+      }
+      updateLayers();
+    }
     const chartSelectionCallback = chartSelectedIndices => {
       // Update data manager
       if (chartSelectedIndices === null) {
         dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
       } else {
-        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
+        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId, true);
       }
 
       // Update datamap plot
-      selectPoints(histogramItemId);
+      selectPoints();
     };
 
     histogramItem = D3Histogram.create({
-      data: DATA.src["{{ histogram_data_attr }}"],
+      data: pointData.reduce((acc, chunk, index) => acc.concat(chunk.data["{{ histogram_data_attr }}"]), []),
       chartContainerId: histogramItemId,
       {%- if histogram_width %}
       chartWidth: {{ histogram_width }},
