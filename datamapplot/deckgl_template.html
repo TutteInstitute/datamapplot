@@ -438,6 +438,14 @@
         dataSelectionManager.addOrUpdateSelectedIndicesOfItem(results.map(x => x + chunkIndex * chunkSize), searchItemId, false);
         results.forEach(index => selectedVector[index] = 1);  // Set selected indices to 1
         updateLayers();
+        if (histogramItem) {
+          const selectedIndices = dataSelectionManager.getSelectedIndices();
+          if (selectedIndices.size > 0) {
+            debounce(histogramItem.drawChartWithSelection(Array.from(selectedIndices)), 50);
+          } else {
+            histogramItem.removeChartWithSelection(selectedIndices);
+          }
+        }
     }
 
     function updateLayers() {
