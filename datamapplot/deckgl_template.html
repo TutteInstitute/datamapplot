@@ -428,8 +428,13 @@
             // Reset filters if search is empty
             selectedVectors.forEach(vector => vector.fill(1));  // Reset all selected vectors
             updateLayers();
+            if (histogramItem) {
+              histogramItem.removeChartWithSelection(Array.from(dataSelectionManager.getSelectedIndices()));
+            }
         }
     }));
+
+    let chunksSearched = 0;
 
     function updateSelectedVector(results, chunkIndex) {
         const selectedVector = selectedVectors[chunkIndex];
@@ -439,11 +444,15 @@
         results.forEach(index => selectedVector[index] = 1);  // Set selected indices to 1
         updateLayers();
         if (histogramItem) {
-          const selectedIndices = dataSelectionManager.getSelectedIndices();
-          if (selectedIndices.size > 0) {
-            debounce(histogramItem.drawChartWithSelection(Array.from(selectedIndices)), 50);
-          } else {
-            histogramItem.removeChartWithSelection(selectedIndices);
+          chunksSearched++;
+          if (chunksSearched === pointData.length) {
+            chunksSearched = 0;
+            const selectedIndices = dataSelectionManager.getSelectedIndices();
+            if (selectedIndices.size > 0) {
+              debounce(histogramItem.drawChartWithSelection(Array.from(selectedIndices)), 250);
+            } else {
+              histogramItem.removeChartWithSelection(Array.from(selectedIndices));
+            }
           }
         }
     }
