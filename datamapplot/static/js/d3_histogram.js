@@ -562,22 +562,28 @@ const D3Histogram = (() => {
         /**
          * Cleans and parses the selected data for use in the focus chart.
          * 
-         * @param {Array<number>} selectedIndices - An array holding the indices of the selected data points.
+         * @param {Array<number>} selectedSet - An Set holding the indices of the selected data points.
          * @returns {undefined} No return value.
          * @private
         */
-        #parseFocusData(selectedIndices) {
+        #parseFocusData(selectedSet) {
             const { binsData, indicesData } = this.state.data;
         
             // Use a Map to quickly lookup bins
-            const rawFocusData = new Map(binsData);
-            rawFocusData.forEach(bin => {
-                bin.indices = new Set();
-                bin.values = [];
+            const rawFocusData = new Map();
+            binsData.forEach((bin, binId, map) => {
+                rawFocusData.set(binId, {
+                    id: bin.id,
+                    indices: new Set(),
+                    values: [],
+                    min: bin.min,
+                    max: bin.max,
+                    mean: bin.mean,
+                    label: bin.label
+                })
             });
     
             // Use Set operations for faster lookups
-            const selectedSet = new Set(selectedIndices);
             for (const [index, { binId, value }] of indicesData) {
                 if (selectedSet.has(index)) {
                     const bin = rawFocusData.get(binId);
@@ -1398,7 +1404,10 @@ const D3Histogram = (() => {
 
             // Update y-scale and y-axis
             const pannedDomain = originalXScaleRange.map(xScale.invert, xScale);
-            const pannedBinsData = binsData.filter(d => xAccessor(d) >= pannedDomain[0] && xAccessor(d) <= pannedDomain[1]);
+            // const pannedBinsData = binsData.filter(d => xAccessor(d) >= pannedDomain[0] && xAccessor(d) <= pannedDomain[1]);
+            const pannedBinsData = Array.from(binsData.values()).filter(d => 
+                xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]
+            );
 
             yScale.domain([0, d3.max(pannedBinsData, yAccessor)]);      
             wrapper.select(`#${YAXIS_GROUP_ID}`)
@@ -1415,7 +1424,7 @@ const D3Histogram = (() => {
             this.state.interactions.prevPanX = prevPanX;
         }
         
-        /*#handleZoom(e) {
+        #handleZoom(e) {
             const { isBrushingActive } = this.state.interactions;
             const { dimensions, wrapper } = this.state.chart;
             const { binsData } = this.state.data;
@@ -1442,7 +1451,10 @@ const D3Histogram = (() => {
 
             // Update y-scale and y-axis
             const zoomedDomain = originalXScaleRange.map(xScale.invert, xScale);
-            const zoomedData = binsData.filter(d => xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]);
+            // const zoomedData = binsData.filter(d => xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]);
+            const zoomedData = Array.from(binsData.values()).filter(d => 
+                xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]
+            );
 
             yScale.domain([0, d3.max(zoomedData, yAccessor)]);           
             wrapper.select(`#${YAXIS_GROUP_ID}`)
@@ -1458,136 +1470,6 @@ const D3Histogram = (() => {
                 .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d)))
 
             this.state.interactions.prevZoomK = prevZoomK;
-        }*/
-        #handleZoom(e) {
-            const { isBrushingActive } = this.state.interactions;
-            const { dimensions, bounds } = this.state.chart;
-            const { binsData } = this.state.data;
-            const { 
-                XAXIS_GROUP_ID, YAXIS_GROUP_ID, XAXIS_TICKS_NB, 
-                BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID 
-            } = D3Histogram;
-            const { 
-                originalXScaleRange, xAccessor, yAccessor, 
-                xScale, yScale
-            } = this.state.peripherals.axes; 
-            let { prevZoomK } = this.state.interactions;
-    
-            if (isBrushingActive || e.sourceEvent.type !== "wheel" || prevZoomK === e.transform.k) return;
-            prevZoomK = e.transform.k;
-        
-            // Update x-scale
-            xScale.range([0, dimensions.boundedWidth].map(d => e.transform.applyX(d)));
-            
-            // Update y-scale
-            const zoomedDomain = originalXScaleRange.map(xScale.invert, xScale);
-            const zoomedData = Array.from(binsData.values()).filter(d => 
-                xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]
-            );
-            yScale.domain([0, d3.max(zoomedData, yAccessor)]);           
-            
-            // Update axes
-            this.#updateAxes(xScale, yScale, XAXIS_TICKS_NB * e.transform.k, YAXIS_GROUP_ID);
-    
-            // Update bins
-            this.#updateBins(xScale, yScale, dimensions.boundedHeight);
-    
-            this.state.interactions.prevZoomK = prevZoomK;
-        }
-        
-        #updateBins(xScale, yScale, boundedHeight) {
-            const { BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
-            const { bounds } = this.state.chart;
-            const { xAccessor, yAccessor } = this.state.peripherals.axes;
-    
-            bounds.selectAll(`.${BIN_RECT_CLASS_ID}, .${BIN_FOCUS_RECT_CLASS_ID}`)
-                .transition()
-                .attr("x", d => xScale(xAccessor(d)))
-                .attr("y", d => yScale(yAccessor(d)))
-                .attr("width", xScale.bandwidth())       
-                .attr("height", d => boundedHeight - yScale(yAccessor(d)));
-        }
- 
-        /**
-         * Handles the zoom interaction on the chart. 
-         * It updates the chart's scales, axes, and bins when a zoom event occurs. 
-         * 
-         * @param {Object} e - The zoom event object containing the transform information.
-         * @returns {undefined} No return value.
-         * @private
-         */
-        /*#handleZoom(e) {
-            const { isBrushingActive } = this.state.interactions;
-            const { dimensions } = this.state.chart;
-            const { binsData } = this.state.data;
-            const { XAXIS_TICKS_NB, YAXIS_TICKS_NB } = D3Histogram;
-            const { 
-                originalXScaleRange, xAccessor, yAccessor, 
-                xScale, yScale
-            } = this.state.peripherals.axes; 
-            let { prevZoomK } = this.state.interactions;
-
-            if (isBrushingActive || e.sourceEvent.type !== "wheel" || prevZoomK === e.transform.k) return;
-            prevZoomK = e.transform.k;
-        
-            // Update x-scale
-            const newXScale = xScale.copy()
-                .range(originalXScaleRange.map(d => e.transform.applyX(d)));
-            
-            // Update y-scale
-            const zoomedDomain = originalXScaleRange.map(newXScale.invert, newXScale);
-            const zoomedData = Array.from(binsData.values()).filter(d => 
-                xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]
-            );
-            const newYScale = yScale.copy()
-                .domain([0, d3.max(zoomedData, yAccessor)]);           
-            
-            // Update axes and bins
-            this.#updateAxes(newXScale, newYScale, XAXIS_TICKS_NB * e.transform.k, YAXIS_TICKS_NB);
-            this.#updateBins(newXScale, newYScale);
-
-            // Update state
-            this.state.peripherals.axes.xScale = newXScale;
-            this.state.peripherals.axes.yScale = newYScale;
-            this.state.interactions.prevZoomK = prevZoomK;
-        }*/
-
-        /*
-        #updateBins(xScale, yScale) {
-            const { BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
-            const { bounds, dimensions } = this.state.chart;
-            const { xAccessor, yAccessor } = this.state.peripherals.axes;
-
-            bounds.selectAll(`.${BIN_RECT_CLASS_ID}, .${BIN_FOCUS_RECT_CLASS_ID}`)
-                .transition()
-                .attr("x", d => xScale(xAccessor(d)))
-                .attr("y", d => yScale(yAccessor(d)))
-                .attr("width", xScale.bandwidth())       
-                .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d)));
-        }
-
-
-        #getFormattedAxisTickValue(value) {
-            const { dataType } = this.state.data;
-            const { DATA_TYPE_E } = D3Histogram;
-
-            switch (dataType) {
-                case DATA_TYPE_E.NUMERICAL:
-                    return d3.format(".2s")(value);
-                case DATA_TYPE_E.TEMPORAL:
-                    return d3.timeFormat("%b %Y")(value);
-                case DATA_TYPE_E.CATEGORICAL:
-                    return value;
-                default:
-                    return value;
-            }
-        }
-        */
-        
-        #getAxisTickValues(scale, tickCount) {
-            const domain = scale.domain();
-            const step = Math.max(1, Math.floor(domain.length / tickCount));
-            return domain.filter((_, i) => i % step === 0);
         }
 //#endregion Interactions
 
@@ -1596,7 +1478,7 @@ const D3Histogram = (() => {
         // **********************************************************************************
 //#region  Peripherals
         // **********************************************************************************
-        /*
+        
         #getAxisTickValues = (scale, numTicks) => {         
             const domain = scale.domain();
             const ticksInterval = Math.max(1, Math.floor(domain.length / numTicks));
@@ -1614,8 +1496,8 @@ const D3Histogram = (() => {
             }
 
             return tickValues;
-        }*/
-
+        }
+        
         #getFormattedAxisTickValue(value) {
             const { DATA_TYPE_E } = D3Histogram;
             const { dataType } = this.state.data;

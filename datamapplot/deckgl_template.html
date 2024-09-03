@@ -449,7 +449,7 @@
             chunksSearched = 0;
             const selectedIndices = dataSelectionManager.getSelectedIndices();
             if (selectedIndices.size > 0) {
-              debounce(histogramItem.drawChartWithSelection(Array.from(selectedIndices)), 250);
+              debounce(histogramItem.drawChartWithSelection(selectedIndices), 250);
             } else {
               histogramItem.removeChartWithSelection();
             }
