@@ -429,7 +429,7 @@
             selectedVectors.forEach(vector => vector.fill(1));  // Reset all selected vectors
             updateLayers();
             if (histogramItem) {
-              histogramItem.removeChartWithSelection(Array.from(dataSelectionManager.getSelectedIndices()));
+              histogramItem.removeChartWithSelection();
             }
         }
     }));
@@ -451,7 +451,7 @@
             if (selectedIndices.size > 0) {
               debounce(histogramItem.drawChartWithSelection(Array.from(selectedIndices)), 250);
             } else {
-              histogramItem.removeChartWithSelection(Array.from(selectedIndices));
+              histogramItem.removeChartWithSelection();
             }
           }
         }

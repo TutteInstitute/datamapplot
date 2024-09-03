@@ -603,7 +603,7 @@ const D3Histogram = (() => {
             binsFocusData = null;
             
             this.state.data.rawFocusData = rawFocusData;
-            this.state.data.binsFocusData = binsFocusData;         
+            this.state.data.binsFocusData = binsFocusData;    
         }
 
 //#endregion Data
@@ -722,6 +722,27 @@ const D3Histogram = (() => {
                 .range([0, dimensions.boundedWidth])
                 .padding(0.1);
     
+            xScale.invert = function(_) {
+                const scale = this;
+                const domain = scale.domain;
+                const paddingOuter = scale.paddingOuter();
+                // const paddingInner = scale.paddingInner();
+                const step = scale.step();
+            
+                const range = scale.range();
+                var domainIndex,
+                    n = domain().length,
+                    reverse = range[1] < range[0],
+                    start = range[reverse - 0],
+                    stop = range[1 - reverse];
+            
+                if (_ < start + paddingOuter * step) domainIndex = 0;
+                else if (_ > stop - paddingOuter * step) domainIndex = n - 1;
+                else domainIndex = Math.floor((_ - start - paddingOuter * step) / step);
+            
+                return domain()[domainIndex];
+            };
+
             const yScale = d3.scaleLinear()
                 .domain([0, d3.max(binsData, yAccessor)])
                 .range([dimensions.boundedHeight, 0]);
@@ -1154,7 +1175,10 @@ const D3Histogram = (() => {
             d3.select(`#${subtitleDiv.id}`).html(subtitle);
 
             // Update datamap plot
-            const brushedIndices = brushedBins.map(d => d.indices).flat();
+            let brushedIndices = new Set();
+            brushedBins.forEach(b => {
+              brushedIndices = brushedIndices.union(b.indices);
+            });
             chartSelectionCallback(brushedIndices);
 
             this.state.interactions.isBrushingActive = isBrushingActive;
@@ -1391,7 +1415,7 @@ const D3Histogram = (() => {
             this.state.interactions.prevPanX = prevPanX;
         }
         
-        #handleZoom(e) {
+        /*#handleZoom(e) {
             const { isBrushingActive } = this.state.interactions;
             const { dimensions, wrapper } = this.state.chart;
             const { binsData } = this.state.data;
@@ -1434,8 +1458,8 @@ const D3Histogram = (() => {
                 .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d)))
 
             this.state.interactions.prevZoomK = prevZoomK;
-        }
-        /*#handleZoom(e) {
+        }*/
+        #handleZoom(e) {
             const { isBrushingActive } = this.state.interactions;
             const { dimensions, bounds } = this.state.chart;
             const { binsData } = this.state.data;
@@ -1482,7 +1506,7 @@ const D3Histogram = (() => {
                 .attr("y", d => yScale(yAccessor(d)))
                 .attr("width", xScale.bandwidth())       
                 .attr("height", d => boundedHeight - yScale(yAccessor(d)));
-        }*/
+        }
  
         /**
          * Handles the zoom interaction on the chart. 
