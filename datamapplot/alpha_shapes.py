@@ -38,6 +38,8 @@ def create_boundary_polygons(points, simplices, alpha=0.1):
                     else:
                         boundary.remove((e[1], e[0]))
 
+    if len(boundary) == 0:
+        raise ValueError("The value of polygon_alpha was too low, and no boundary was formed. Try increasing polygon_alpha.")
     polygons = []
     search_set = boundary.copy()
     sequence = list(search_set.pop())
