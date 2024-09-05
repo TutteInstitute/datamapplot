@@ -247,7 +247,25 @@
     const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
     const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
     {% endif -%}
-    const DATA = {src: pointData.data, length: pointData.data.x.length}
+    // Assume DATA is your original data structure
+    const numPoints = pointData.data.x.length;
+    const positions = new Float32Array(numPoints * 2);
+    const colors = new Uint8Array(numPoints * 4);
+    const sizes = new Float32Array(numPoints);
+    const selected = new Uint8Array(numPoints).fill(1);
+
+    // Populate the arrays
+    for (let i = 0; i < numPoints; i++) {
+      positions[i * 2] = pointData.data.x[i];
+      positions[i * 2 + 1] = pointData.data.y[i];
+      colors[i * 4] = pointData.data.r[i];
+      colors[i * 4 + 1] = pointData.data.g[i];
+      colors[i * 4 + 2] = pointData.data.b[i];
+      colors[i * 4 + 3] = pointData.data.a[i];
+      {%- if point_size < 0 %}
+      sizes[i] = pointData.data.size[i];
+      {% endif %}
+    }
 
     const dataSelectionManager = {% if search or enable_histogram %} new DataSelectionManager() {% else %} null {% endif %};
     const searchItemId = "search";
@@ -258,35 +276,22 @@
     const container = document.getElementById('deck-container');
     const pointLayer = new deck.ScatterplotLayer({
       id: 'dataPointLayer',
-      data: DATA,
-      getPosition: (object, {index, data}) => {
-        return [data.src.x[index], data.src.y[index]];
+      data: {
+        length: numPoints,
+        attributes: {
+          getPosition: {value: positions, size: 2},
+          getFillColor: {value: colors, size: 4},
+          // getLineColor: {value: colors, size: 4},
+          {%- if point_size < 0 %}
+          getRadius: {value: sizes, size: 1},
+          {% endif %}
+          getFilterValue: {value: selected, size: 1}
+        }
       },
 
-      {% if point_size < 0 %}
-      getRadius: (object, {index, data}) => {
-        return data.src.size[index];
-      },
-      {% else %}
+      {% if point_size >= 0 %}
       getRadius: {{point_size}},
       {% endif %}
-
-      getFillColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          data.src.a[index],
-        ]
-      },
-      getLineColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          32
-        ]
-      },
       getLineColor: {{point_outline_color}},
       getLineWidth: {{point_line_width}},
       highlightColor: {{point_hover_color}},
@@ -298,8 +303,15 @@
       lineWidthUnits: "common",
       autoHighlight: true,
       pickable: true,
-      stroked: true
+      stroked: true,
+      extensions: [new deck.DataFilterExtension({filterSize: 1})],
+      filterRange: [1, 2],
+      updateTriggers: {
+        getFilterValue: 0  // We'll increment this to trigger updates
+      },
+      instanceCount: numPoints,
     });
+
     const labelLayer = new deck.TextLayer({
       id: "textLabelLayer",
       data: labelData,
@@ -359,18 +371,15 @@
         longitude: {{data_center_x}},
         zoom: {{zoom_level}}
       },
-      controller: true,
-
+      controller: { scrollZoom: {speed: 0.01, smooth: true} },
       {% if cluster_boundary_polygons %}
       layers: [pointLayer, boundaryLayer, labelLayer],
       {% else %}
       layers: [pointLayer, labelLayer],
       {% endif %}
-
       {% if on_click %}
       onClick: {{on_click}},
       {% endif %}
-
       getTooltip: {{get_tooltip}}
     });
 
@@ -384,26 +393,37 @@
             timer = setTimeout(() => { func.apply(this, args); }, timeout);
         };
     }
+    let updateTriggerCounter = 0;
     function selectPoints(itemId) {
       const selectedIndices = dataSelectionManager.getSelectedIndices();
       const hasSelectedIndices = selectedIndices.size !== 0;
-      const layerId = hasSelectedIndices
-        ? `selectedPointLayer_${itemId}_${new Date().toISOString()}`
-        : 'dataPointLayer';
 
-      for (let i = 0; i < DATA.length; i++) {
-        DATA.src.selected[i] = hasSelectedIndices ? selectedIndices.has(i) : 1;
+      // Update selected array
+      if (hasSelectedIndices) {
+        selected.fill(0);
+        for (let i of selectedIndices) {
+          selected[i] = 1;
+        }
+      } else {
+        selected.fill(1);
       }
+      // Increment update trigger
+      updateTriggerCounter++;
 
-      const selectedPointLayer = pointLayer.clone({
-        id: layerId,
-        data: DATA,
-        getFilterValue: (object, { index, data }) => data.src.selected[index],
-        filterRange: [1, 2],
-        extensions: [new deck.DataFilterExtension({ filterSize: 1 })]
+      const updatedPointLayer = pointLayer.clone({
+        data: {
+          ...pointLayer.props.data,
+          attributes: {
+            ...pointLayer.props.data.attributes,
+            getFilterValue: {value: selected, size: 1}
+          }
+        },
+        updateTriggers: {
+          getFilterValue: updateTriggerCounter
+        }
       });
 
-      deckgl.setProps({ layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,)) });
+      deckgl.setProps({ layers: [updatedPointLayer].concat(deckgl.props.layers.slice(1,)) });
     }
     {% endif -%}
 
@@ -460,7 +480,7 @@
     };
 
     histogramItem = D3Histogram.create({
-      data: DATA.src["{{ histogram_data_attr }}"],
+      data: pointData.data["{{ histogram_data_attr }}"],
       chartContainerId: histogramItemId,
       {%- if histogram_width %}
       chartWidth: {{ histogram_width }},
