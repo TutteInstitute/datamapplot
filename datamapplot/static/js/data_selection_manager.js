@@ -48,32 +48,28 @@ class DataSelectionManager {
      */
     #updateSelectedIndicesCommon(newSet = null) {
         const sets = Object.values(this.selectedIndicesByItem);
-
-        if (sets.length === 0) { 
+    
+        if (sets.length === 0) {
             this.selectedIndicesCommon = new Set();
-            return; 
-        }
-        if (sets.length === 1) { 
-            this.selectedIndicesCommon = sets[0];
-            return; 
-        }
-        if (newSet) { 
-            this.selectedIndicesCommon = new Set(
-                [...this.selectedIndicesCommon].filter(i => newSet.has(i)));
             return;
         }
-
-        // Sort sets by size (ascending order) to minimize comparisons
-        sets.sort((a, b) => a.size - b.size);
-
-        // Start with the smallest set
+        if (sets.length === 1) {
+            this.selectedIndicesCommon = sets[0];
+            return;
+        }
+        if (newSet) {
+            this.selectedIndicesCommon = this.selectedIndicesCommon.intersection(newSet);
+            return;
+        }
+    
+        // Use the first set as the starting point
         this.selectedIndicesCommon = sets[0];
-
-        // Iteratively compute the intersection with the next set
-        for (let j = 1; j < sets.length; j++) {
-            this.selectedIndicesCommon = new Set([...this.selectedIndicesCommon].filter(i => sets[j].has(i)));
+    
+        // Iteratively intersect with the remaining sets
+        for (let i = 1; i < sets.length; i++) {
+            this.selectedIndicesCommon = this.selectedIndicesCommon.intersection(sets[i]);
             if (this.selectedIndicesCommon.size === 0) {
-                break; // early exit if the selectedIdices is empty
+                break; // Early exit if the intersection is empty
             }
         }
     }
