@@ -995,7 +995,7 @@ const D3Histogram = (() => {
             d3.select(`#${subtitleDiv.id}`).html(subtitle);
 
             // Update datamap plot
-            const brushedIndices = new Set();
+            let brushedIndices = new Set();
             brushedBins.forEach(b => {
               brushedIndices = brushedIndices.union(b.indices);
             });
