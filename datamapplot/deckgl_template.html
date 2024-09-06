@@ -200,14 +200,19 @@
   </script>
   {%- endfor %}
   <script type="module">
-    import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
-    {%- if not inline_data %}
-    import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
-    {% endif %}
+    async function simpleArrowParser(arrow_bytes) {
+      const table = await Arrow.tableFromIPC(arrow_bytes);
+      const result = {};
+      table.schema.fields.forEach((field) => {
+        result[field.name] = table.getChild(field.name).toArray();
+      });
+      return result;
+    }
 
+    {% if inline_data %}
     // Correctly convert between Base64 strings and Uint8Arrays.
     // https://developer.mozilla.org/docs/Glossary/Base64#the_unicode_problem
-    function base64ToBytes(base64) {
+    async function base64ToBytes(base64) {
       return Uint8Array.from(atob(base64), (m) => m.codePointAt(0));
     }
 
@@ -228,27 +233,38 @@
       return new Uint8Array(arr);
     }
 
-    {% if inline_data %}
     const pointDataBase64 = "{{base64_point_data}}";
-    const pointDataBuffer = base64ToBytes(pointDataBase64);
-    const pointData = await loaders.parse(pointDataBuffer, ArrowLoader);
+    const pointData = await base64ToBytes(pointDataBase64)
+      .then(buffer => simpleArrowParser(buffer));
     const hoverDataBase64 = "{{base64_hover_data}}";
-    const hoverDataBuffer = base64ToBytes(hoverDataBase64);
-    const unzippedHoverData = await DecompressBytes(hoverDataBuffer);
-    const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
+    const hoverData = await base64ToBytes(hoverDataBase64)
+      .then(buffer => DecompressBytes(buffer))
+      .then(buffer => simpleArrowParser(buffer));
     const labelDataBase64 = "{{base64_label_data}}";
-    const labelDataBuffer = base64ToBytes(labelDataBase64);
-    const unzippedLabelData = await DecompressBytes(labelDataBuffer);
-    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData));
+    const labelData = await base64ToBytes(labelDataBase64)
+      .then(buffer => DecompressBytes(buffer))
+      .then(buffer => JSON.parse(new TextDecoder("utf-8").decode(buffer)));
     {% else %}
-    const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
-    const unzippedHoverData = await loaders.load("{{file_prefix}}_point_hover_data.zip", ZipLoader);
-    const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
-    const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
+    async function DecompressFile(filename) {
+      const blob = await fetch(filename).then((response) => response.blob());
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer();
+      return new Uint8Array(arr);
+    }
+
+    const pointData = await fetch("{{file_prefix}}_point_df.arrow")
+      .then((response) => response.arrayBuffer())
+      .then((buffer) => simpleArrowParser(buffer));
+    const unzippedHoverData = await DecompressFile("{{file_prefix}}_point_hover_data.zip");
+    const hoverData = await simpleArrowParser(unzippedHoverData["point_hover_data.arrow"]);
+    const unzippedLabelData = await DecompressFile("{{file_prefix}}_label_data.zip");
     const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
     {% endif -%}
+
     // Assume DATA is your original data structure
-    const numPoints = pointData.data.x.length;
+    const numPoints = pointData.x.length;
     const positions = new Float32Array(numPoints * 2);
     const colors = new Uint8Array(numPoints * 4);
     const sizes = new Float32Array(numPoints);
@@ -256,14 +272,14 @@
 
     // Populate the arrays
     for (let i = 0; i < numPoints; i++) {
-      positions[i * 2] = pointData.data.x[i];
-      positions[i * 2 + 1] = pointData.data.y[i];
-      colors[i * 4] = pointData.data.r[i];
-      colors[i * 4 + 1] = pointData.data.g[i];
-      colors[i * 4 + 2] = pointData.data.b[i];
-      colors[i * 4 + 3] = pointData.data.a[i];
+      positions[i * 2] = pointData.x[i];
+      positions[i * 2 + 1] = pointData.y[i];
+      colors[i * 4] = pointData.r[i];
+      colors[i * 4 + 1] = pointData.g[i];
+      colors[i * 4 + 2] = pointData.b[i];
+      colors[i * 4 + 3] = pointData.a[i];
       {%- if point_size < 0 %}
-      sizes[i] = pointData.data.size[i];
+      sizes[i] = pointData.size[i];
       {% endif %}
     }
 
@@ -429,7 +445,7 @@
 
     {% if search %}
     /* Search */
-    const textSearchArray = hoverData.data.hover_text.map((d) => d.toLowerCase());
+    const textSearchArray = hoverData.hover_text.map((d) => d.toLowerCase());
     searchItem.addEventListener("input", debounce(
         event => {
           const searchTerm = event.target.value.toLowerCase();
@@ -480,7 +496,7 @@
     };
 
     histogramItem = D3Histogram.create({
-      data: pointData.data["{{ histogram_data_attr }}"],
+      data: hoverData["{{ histogram_data_attr }}"],
       chartContainerId: histogramItemId,
       {%- if histogram_width %}
       chartWidth: {{ histogram_width }},

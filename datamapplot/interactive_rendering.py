@@ -171,7 +171,10 @@ def _get_js_dependency_urls(enable_histogram):
     js_dependency_urls = []
     
     # Add common dependencies (if any)
-    common_js_urls = [ "https://unpkg.com/deck.gl@latest/dist.min.js" ]
+    common_js_urls = [ 
+        "https://unpkg.com/deck.gl@latest/dist.min.js", 
+        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"
+    ]
     js_dependency_urls.extend(common_js_urls)
     
     # Conditionally add dependencies based on functionality
@@ -589,10 +592,6 @@ def render_html(
         point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
         point_data_cols.append("selected")
         
-    if enable_histogram:
-        point_dataframe[histogram_data_attr] = histogram_data
-        point_data_cols.append(histogram_data_attr)
-
     point_data = point_dataframe[point_data_cols]
   
     if "hover_text" in point_dataframe.columns:
@@ -603,7 +602,7 @@ def render_html(
             )
             replacements = FormattingDict(
                 **{
-                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    str(name): f"${{hoverData.{name}[index]}}"
                     for name in hover_data.columns
                 }
             )
@@ -614,7 +613,7 @@ def render_html(
                     + "`} : null"
                 )
             else:
-                get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+                get_tooltip = "({index}) => hoverData.hover_text[index]"
 
             if on_click is not None:
                 on_click = (
@@ -623,12 +622,12 @@ def render_html(
                     + " } }"
                 )
         else:
-            hover_data = point_dataframe[["hover_text"]]
-            get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+            hover_data = point_dataframe[["hover_text"]].copy()
+            get_tooltip = "({index}) => hoverData.hover_text[index]"
 
             replacements = FormattingDict(
                 **{
-                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    str(name): f"${{hoverData.{name}[index]}}"
                     for name in hover_data.columns
                 }
             )
@@ -640,10 +639,10 @@ def render_html(
                     + " } }"
                 )
     elif extra_point_data is not None:
-        hover_data = extra_point_data
+        hover_data = extra_point_data.copy()
         replacements = FormattingDict(
             **{
-                str(name): f"${{hoverData.data.{name}[index]}}"
+                str(name): f"${{hoverData.{name}[index]}}"
                 for name in hover_data.columns
             }
         )
@@ -665,6 +664,10 @@ def render_html(
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
+
+    if enable_histogram:
+        hover_data[histogram_data_attr] = histogram_data
+
 
     if inline_data:
         buffer = io.BytesIO()
@@ -691,24 +694,15 @@ def render_html(
         point_data.to_feather(
             f"{file_prefix}_point_df.arrow", compression="uncompressed"
         )
-        hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
-        with zipfile.ZipFile(
-            f"{file_prefix}_point_hover_data.zip",
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
-        ) as f:
-            f.write("point_hover_data.arrow")
-        os.remove("point_hover_data.arrow")
-        label_dataframe.to_json("label_data.json", orient="records")
-        with zipfile.ZipFile(
-            f"{file_prefix}_label_data.zip",
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
-        ) as f:
-            f.write("label_data.json")
-        os.remove("label_data.json")
+        buffer = io.BytesIO()
+        hover_data.to_feather(buffer, compression="uncompressed")
+        buffer.seek(0)
+        with gzip.open(f"{file_prefix}_point_hover_data.zip", "wb") as f:
+            f.write(buffer.read())
+        label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
+        with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
+            f.write(bytes(label_data_json, "utf-8"))
+
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
