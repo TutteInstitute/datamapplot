@@ -283,9 +283,10 @@
       {% endif %}
     }
 
-    const dataSelectionManager = {% if search or enable_histogram %} new DataSelectionManager() {% else %} null {% endif %};
+    const dataSelectionManager = {% if search or enable_histogram or enable_lasso_selection %} new DataSelectionManager() {% else %} null {% endif %};
     const searchItemId = "search";
     const histogramItemId = "d3histogram-container";
+    const selectionItemId = "lasso-select";
     const searchItem = document.getElementById(searchItemId);
     let histogramItem = null;
     
@@ -401,7 +402,7 @@
 
     document.getElementById("loading").style.display = "none";
 
-    {% if search or enable_histogram %}
+    {% if search or enable_histogram or enable_lasso_selection %}
     function debounce(func, timeout = 250){
         let timer;
         return (...args) => {
@@ -440,6 +441,15 @@
       });
 
       deckgl.setProps({ layers: [updatedPointLayer].concat(deckgl.props.layers.slice(1,)) });
+
+      // Update histogram, if any
+      if (histogramItem && itemId !== histogramItemId) {
+        if (hasSelectedIndices) {
+            histogramItem.drawChartWithSelection(selectedIndices);
+        } else {
+            histogramItem.removeChartWithSelection(selectedIndices);
+        }
+      }
     }
     {% endif -%}
 
@@ -466,17 +476,6 @@
 
           // Update datamap plot
           selectPoints(searchItemId);
-
-          {%- if histogram_link_selection %}
-          // Update histogram, if any
-          if (histogramItem) {
-            if (searchTerm !== "") {
-              histogramItem.drawChartWithSelection(selectedIndices);
-            } else {
-              histogramItem.removeChartWithSelection(selectedIndices);
-            }
-          }
-          {% endif -%}
         })
     );
     {% endif -%}
@@ -525,189 +524,19 @@
       chartSelectionCallback
     });
     {% endif -%}
-
-    {%- if enable_selection %}
-let canvas, ctx;
-
-// Create a canvas for drawing the lasso
-function createLassoCanvas() {
-  canvas = document.createElement('canvas');
-  canvas.width = container.clientWidth;
-  canvas.height = container.clientHeight;
-  canvas.style.position = 'absolute';
-  canvas.style.top = 0;
-  canvas.style.left = 0;
-  canvas.style.pointerEvents = 'none';  // Prevents interfering with other interactions
-  canvas.style.zIndex = 1000;  // Ensure it is on top of deck.gl's canvas
-  document.body.appendChild(canvas);
-  ctx = canvas.getContext('2d');
-}
-
-// Draw the lasso as a polygon on the canvas
-function drawLasso(lassoPolygon) {
-  if (!ctx) createLassoCanvas();
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);  // Clear previous lasso
-
-  ctx.beginPath();
-
-  // Convert spatial coordinates back to screen coordinates for drawing
-  lassoPolygon.forEach(({ x, y }, index) => {
-    const [screenX, screenY] = deckgl.viewManager.getViewports()[0].project([x, y]);
-    if (index === 0) {
-      ctx.moveTo(screenX, screenY);
-    } else {
-      ctx.lineTo(screenX, screenY);
-    }
-  });
-
-  ctx.closePath();
-
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(0, 128, 255, 0.8)';
-  ctx.stroke();
-
-  ctx.fillStyle = 'rgba(0, 128, 255, 0.1)';
-  ctx.fill();
-}
-
-function handleSelection(selectedPoints) {
-      // Update data manager
-      if (selectedPoints.length === 0) {
-        dataSelectionManager.removeSelectedIndicesOfItem(selectionItemId);
-      } else {
-        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedPoints, selectionItemId);
-      }
-      // Update datamap plot
-      selectPoints(histogramItemId);
-
-      // Update histogram, if any
-      if (histogramItem) {
-          if (selectedPoints.length > 0) {
-              histogramItem.drawChartWithSelection(selectedPoints);
-          } else {
-              histogramItem.removeChartWithSelection(selectedPoints);
-          }
-      }
-      handleSelectedPoints(selectedPoints);
-}
-
-function onLassoComplete(lassoPolygon) {
-  const selectedPoints = [];
-  let currentSelectedIndices = dataSelectionManager.getSelectedIndices();
-  if (dataSelectionManager.selectedIndicesByItem[selectionItemId]) {
-    currentSelectedIndices = currentSelectedIndices.difference(dataSelectionManager.selectedIndicesByItem[selectionItemId])
-  }
-
-  deckgl.props.layers.forEach(layer  => {
-    if (layer instanceof deck.ScatterplotLayer) {
-      const { attributes } = layer.props.data;
-      const positions = attributes.getPosition.value;
-
-      if (currentSelectedIndices.size > 0) {
-        currentSelectedIndices.forEach(i => {
-            const point = { x: positions[2 * i], y: positions[2 * i + 1] };
-            if (isPointInPolygon(point, lassoPolygon)) {
-              selectedPoints.push(i);
-            }
-        });
-      } else {
-        for (let i = 0; i < positions.length; i += 2) {
-            const point = { x: positions[i], y: positions[i + 1] };
-            if (isPointInPolygon(point, lassoPolygon)) {
-              selectedPoints.push((i / 2) >> 0);
-            }
-        }
-      }
-    }
-  });
-
-  handleSelection(selectedPoints);
-}
-
-function isPointInPolygon(point, polygon) {
-  let isInside = false;
-  const { x, y } = point;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i].x, yi = polygon[i].y;
-    const xj = polygon[j].x, yj = polygon[j].y;
-
-    const intersect = ((yi > y) !== (yj > y)) &&
-                      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    if (intersect) isInside = !isInside;
-  }
-
-  return isInside;
-}
-
-let selectionMode = false;
-let lassoPolygon = [];
-const selectionItemId = "lasso-selection";
-
-function setSelectionMode(enabled) {
-  selectionMode = enabled;
-
-  // Adjust the deck.gl controller based on the selection mode
-  deckgl.setProps({
-    controller: {
-      dragPan: !selectionMode,
-      dragRotate: !selectionMode,
-    }
-  });
-
-  // Optionally clear the lasso canvas when toggling off selection mode
-  if (!enabled && ctx) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  }
-}
-
-// Listen for the Shift key press
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Shift' && !selectionMode) {
-    setSelectionMode(true);
-  }
-});
-
-document.addEventListener('keyup', (e) => {
-  if (e.key === 'Shift' && selectionMode) {
-    setSelectionMode(false);
-  }
-});
-
-function getSpatialCoordinates(screenX, screenY) {
-  const viewport = deckgl.viewManager.getViewports()[0];
-
-  // Convert screen coordinates to world coordinates
-  return viewport.unproject([screenX, screenY]);
-}
-
-container.addEventListener('mousedown', (e) => {
-  if (selectionMode) {
-    const [x, y] = getSpatialCoordinates(e.clientX, e.clientY);
-    lassoPolygon = [{ x, y }];
-  }
-});
-
-container.addEventListener('mousemove', (e) => {
-  if (selectionMode && lassoPolygon.length > 0) {
-    const [x, y] = getSpatialCoordinates(e.clientX, e.clientY);
-    lassoPolygon.push({ x, y });
-    drawLasso(lassoPolygon);
-  }
-});
-
-container.addEventListener('mouseup', (e) => {
-  if (selectionMode && lassoPolygon.length > 0) {
-    const [x, y] = getSpatialCoordinates(e.clientX, e.clientY);
-    lassoPolygon.push({ x, y });
-    onLassoComplete(lassoPolygon);
-    lassoPolygon = [];
-  }
-});
-    {% endif -%}
     {% if custom_js %}
     {{ custom_js }}
+    {% endif -%}
+    {%- if enable_lasso_selection %}
+    /* Lasso Selection */
+    const lassoSelector = new LassoSelectionTool(
+      container, 
+      deckgl, 
+      dataSelectionManager, 
+      selectionItemId, 
+      selectPoints,
+      lassoSelectionCallback
+    );
     {% endif -%}
   </script>
 </html>

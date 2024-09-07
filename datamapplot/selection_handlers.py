@@ -41,13 +41,11 @@ const shuffle = ([...arr]) => {{
 }};
 const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
 
-function handleSelectedPoints(selectedPoints) {{
+function lassoSelectionCallback(selectedPoints) {{
     const n_samples = {self.n_samples};
     if (selectedPoints.length == 0) {{
         const selectionContainer = document.getElementById('selection-container');
         selectionContainer.style.display = 'none';
-
-        dataSelectionManager.removeSelectedIndicesOfItem(selectionItemId);
         return;       
     }}
     if (selectedPoints.length > n_samples) {{
@@ -89,11 +87,7 @@ function clearSelection() {{
     selectionContainer.style.display = 'none';
 
     dataSelectionManager.removeSelectedIndicesOfItem(selectionItemId);
-    selectPoints();
-
-    if (histogramItem) {{
-        histogramItem.removeChartWithSelection();
-    }}
+    selectPoints(selectionItemId);
 }}
         """
     

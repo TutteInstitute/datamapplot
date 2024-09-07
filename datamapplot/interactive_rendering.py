@@ -20,9 +20,9 @@ from scipy.spatial import Delaunay
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 
-_DECKGL_TEMPLATE_STR = (
-    files("datamapplot") / "deckgl_template.html"
-).read_text(encoding='utf-8')
+_DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
+    encoding="utf-8"
+)
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -84,7 +84,8 @@ class InteractiveFigure:
         with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
 
-def _get_js_dependency_sources(minify, enable_search, enable_histogram):
+
+def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
@@ -92,35 +93,42 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram):
     ----------
     minify : bool
         Whether to minify the JS files.
-        
-    enable_search : bool 
+
+    enable_search : bool
         Whether to include JS dependencies for the search functionality.
-        
+
     enable_histogram: bool
         Whether to include JS dependencies for the histogram functionality.
+
+    enable_lasso_selection: bool
+        Whether to include JS dependencies for the lasso selection functionality.
 
     Returns
     -------
     dict
-        A dictionary where keys are the names of JS files and values are their 
+        A dictionary where keys are the names of JS files and values are their
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "js"
     js_dependencies = []
     js_dependencies_src = {}
-    
+
     if enable_search or enable_histogram:
         js_dependencies.append("data_selection_manager.js")
-        
-    if enable_histogram:        
+
+    if enable_histogram:
         js_dependencies.append("d3_histogram.js")
 
+    if enable_lasso_selection:
+        js_dependencies.append("lasso_selection.js")
+
     for js_file in js_dependencies:
-        with open(static_dir / js_file, 'r', encoding='utf-8') as file:
+        with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
             js_dependencies_src[js_file] = jsmin(js_src) if minify else js_src
-    
+
     return js_dependencies_src
+
 
 def _get_css_dependency_sources(minify, enable_histogram):
     """
@@ -133,26 +141,27 @@ def _get_css_dependency_sources(minify, enable_histogram):
 
     enable_histogram: bool
         Whether to include CSS dependencies for the histogram functionality.
-        
+
     Returns
     -------
     dict
-        A dictionary where keys are the names of CSS files and values are their 
+        A dictionary where keys are the names of CSS files and values are their
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "css"
     css_dependencies = []
     css_dependencies_src = {}
-    
-    if enable_histogram:        
+
+    if enable_histogram:
         css_dependencies.append("d3_histogram_style.css")
-        
+
     for css_file in css_dependencies:
-        with open(static_dir / css_file, 'r', encoding='utf-8') as file:
+        with open(static_dir / css_file, "r", encoding="utf-8") as file:
             css_src = file.read()
             css_dependencies_src[css_file] = cssmin(css_src) if minify else css_src
 
     return css_dependencies_src
+
 
 def _get_js_dependency_urls(enable_histogram):
     """
@@ -169,19 +178,22 @@ def _get_js_dependency_urls(enable_histogram):
         A list of URLs that point to the required JavaScript dependencies.
     """
     js_dependency_urls = []
-    
+
     # Add common dependencies (if any)
-    common_js_urls = [ 
-        "https://unpkg.com/deck.gl@latest/dist.min.js", 
-        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"
+    common_js_urls = [
+        "https://unpkg.com/deck.gl@latest/dist.min.js",
+        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js",
     ]
     js_dependency_urls.extend(common_js_urls)
-    
+
     # Conditionally add dependencies based on functionality
     if enable_histogram:
-        js_dependency_urls.append("https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js")
+        js_dependency_urls.append(
+            "https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js"
+        )
 
     return js_dependency_urls
+
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -278,14 +290,13 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
-    histogram_link_selection=True,
     histogram_settings={},
     on_click=None,
     selection_handler=None,
     custom_html=None,
     custom_css=None,
     custom_js=None,
-    minify_deps=True
+    minify_deps=True,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -467,22 +478,17 @@ def render_html(
         ``"hover_text"``.
 
     histogram_data: list, pandas.Series, or None (optional, default=None)
-        The data used to generate a histogram. The histogram data can be passed as a list or 
+        The data used to generate a histogram. The histogram data can be passed as a list or
         Pandas Series; if `None`, the histogram is disabled. The length of the list or Series
-        must match the number of rows in `point_dataframe`. The values within the list or Series 
+        must match the number of rows in `point_dataframe`. The values within the list or Series
         must be of type unsigned integer, signed integer, floating-point number, string, or a
         date string in the format `YYYY-MM-DD`.
 
-    histogram_link_selection: bool (optional, default=True)
-        Whether to link the selection in the histogram to the selection in the data map from
-        search. Since selection rendering on the histogram scales poorly with dataset size it
-        can be beneficial to disable the selection linking for large datasets.
-    
     histogram_settings: dict or None (optional, default={})
         A dictionary containing custom settings for the histogram, if enabled. If
-        `histogram_data` is provided, this dictionary allows you to customize the 
+        `histogram_data` is provided, this dictionary allows you to customize the
         appearance of the histogram. The dictionary can include the following keys:
-        
+
         - "histogram_width": str
             The width of the histogram in pixels.
         - "histogram_height": str
@@ -527,10 +533,10 @@ def render_html(
         A string of custom Javascript code that is to be added after the code for rendering
         the scatterplot. This can include code to interact with the plot which is stored
         as ``deckgl``.
-        
+
     minify_deps: bool (optional, default=True)
         Whether to minify the JavaScript and CSS dependency files before embedding in the HTML template.
-        
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -582,27 +588,27 @@ def render_html(
     else:
         label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
 
-    # Prep data for inlining or storage    
+    # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
     histogram_data_attr = "histogram_data_attr"
-    histogram_ctx = { 
-        "enable_histogram": enable_histogram, 
+    histogram_ctx = {
+        "enable_histogram": enable_histogram,
         "histogram_data_attr": histogram_data_attr,
-        "histogram_link_selection": histogram_link_selection,
-        **histogram_settings 
+        **histogram_settings,
     }
-    
+    enable_lasso_selection = selection_handler is not None
+
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
-    
+
     if point_size < 0:
         point_data_cols.append("size")
-        
-    if enable_search or enable_histogram:
-        point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
-        point_data_cols.append("selected")
-        
+
+    # if enable_search or enable_histogram or enable_lasso_selection:
+    #     point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
+    #     point_data_cols.append("selected")
+
     point_data = point_dataframe[point_data_cols]
-  
+
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
             hover_data = pd.concat(
@@ -677,7 +683,6 @@ def render_html(
     if enable_histogram:
         hover_data[histogram_data_attr] = histogram_data
 
-
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
@@ -712,7 +717,6 @@ def render_html(
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
 
-
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
     title_background = "#ffffffaa" if not darkmode else "#000000aa"
@@ -738,8 +742,12 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(enable_histogram),
-        "js_dependency_srcs": _get_js_dependency_sources(minify_deps, enable_search, enable_histogram),
-        "css_dependency_srcs": _get_css_dependency_sources(minify_deps, enable_histogram)
+        "js_dependency_srcs": _get_js_dependency_sources(
+            minify_deps, enable_search, enable_histogram, enable_lasso_selection
+        ),
+        "css_dependency_srcs": _get_css_dependency_sources(
+            minify_deps, enable_histogram
+        ),
     }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
@@ -829,10 +837,10 @@ def render_html(
         data_center_x=data_center[0],
         data_center_y=data_center[1],
         on_click=on_click,
-        enable_selection=selection_handler is not None,
+        enable_lasso_selection=enable_lasso_selection,
         get_tooltip=get_tooltip,
         search_field=search_field,
         custom_js=custom_js,
-        **dependencies_ctx
+        **dependencies_ctx,
     )
     return html_str
