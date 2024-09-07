@@ -577,10 +577,17 @@ const D3Histogram = (() => {
             const { binsData, indicesData } = this.state.data;
            
             // Set up focus raw data
-            const rawFocusData = new Map(binsData);
-            rawFocusData.forEach(bin => {
-                bin.indices = new Set();
-                bin.values = [];
+            const rawFocusData = new Map();
+            binsData.forEach(bin => {
+                rawFocusData[bin] = {
+                    indices: new Set(),
+                    values: [],
+                    binId: bin.id,
+                    min: bin.min,
+                    max: bin.max,
+                    mean: bin.mean,
+                    label: bin.label
+                };
             });
 
             // Use Set operations for faster lookups
