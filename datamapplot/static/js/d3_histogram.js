@@ -579,7 +579,7 @@ const D3Histogram = (() => {
             // Set up focus raw data
             const rawFocusData = new Map();
             binsData.forEach(bin => {
-                rawFocusData[bin] = {
+                const focusBin = {
                     indices: new Set(),
                     values: [],
                     binId: bin.id,
@@ -588,6 +588,7 @@ const D3Histogram = (() => {
                     mean: bin.mean,
                     label: bin.label
                 };
+                rawFocusData.set(bin.id, focusBin);
             });
 
             // Use Set operations for faster lookups
