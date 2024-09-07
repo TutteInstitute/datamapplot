@@ -281,6 +281,7 @@ def render_html(
     histogram_link_selection=True,
     histogram_settings={},
     on_click=None,
+    selection_handler=None,
     custom_html=None,
     custom_css=None,
     custom_js=None,
@@ -504,6 +505,14 @@ def render_html(
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
         could provide ``"window.open(`http://google.com/search?q=\"{hover_text}\"`)"`` to
         open a new window with a google search for the hover_text of the clicked point.
+
+    selection_handler: instance of datamapplot.selection_handlers.SelectionHandlerBase or None (optional, default=None)
+        A selection handler to be used to handle selections in the data map. If None, the
+        interactive selection will not be enabled. If a selection handler is provided, the
+        selection handler will be used to determine how to react to selections made on the
+        data map. Selection handlers can be found in the `datamapplot.selection_handlers`
+        module, or custom selection handlers can be created by subclassing the `SelectionHandlerBase`
+        class.
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
@@ -752,6 +761,22 @@ def render_html(
     else:
         api_tooltip_fontname = None
 
+    if selection_handler is not None:
+        if custom_html is None:
+            custom_html = selection_handler.html
+        else:
+            custom_html += selection_handler.html
+
+        if custom_js is None:
+            custom_js = selection_handler.javascript
+        else:
+            custom_js += selection_handler.javascript
+
+        if custom_css is None:
+            custom_css = selection_handler.css
+        else:
+            custom_css += selection_handler.css
+
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
@@ -804,6 +829,7 @@ def render_html(
         data_center_x=data_center[0],
         data_center_y=data_center[1],
         on_click=on_click,
+        enable_selection=selection_handler is not None,
         get_tooltip=get_tooltip,
         search_field=search_field,
         custom_js=custom_js,
