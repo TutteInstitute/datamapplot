@@ -160,20 +160,7 @@ class LassoSelectionTool {
         }, this.points);
     
         let selectedPoints = [];
-        let currentSelectedIndices = this.dataSelectionManager.getSelectedIndices();
-        if (this.dataSelectionManager.selectedIndicesByItem[this.selectionItemId]) {
-            const otherSelectionItems = Object.keys(this.dataSelectionManager.selectedIndicesByItem)
-                .filter(key => key !== this.selectionItemId);
-            if (otherSelectionItems.length > 0) {
-                currentSelectedIndices = this.dataSelectionManager.selectedIndicesByItem[otherSelectionItems[0]];
-                for (let i = 1; i < otherSelectionItems.length; i++) {
-                    const otherSelection = this.dataSelectionManager.selectedIndicesByItem[otherSelectionItems[i]];
-                    currentSelectedIndices = currentSelectedIndices.intersection(otherSelection);
-                }
-            } else {
-                currentSelectedIndices = new Set();
-            }
-        }
+        const currentSelectedIndices = this.dataSelectionManager.getBasicSelectedIndices();
         const selectFromAllPoints = currentSelectedIndices.size === 0;
 
         // Check which points are actually inside the lasso
@@ -182,8 +169,8 @@ class LassoSelectionTool {
                 this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
             );
         } else {
-            potentialIndices = Set.from(potentialIndices).intersection(currentSelectedIndices);
             selectedPoints = potentialIndices.filter(index =>
+                currentSelectedIndices.has(index) &&
                 this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
             );
         }

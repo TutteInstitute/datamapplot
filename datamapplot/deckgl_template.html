@@ -283,10 +283,10 @@
       {% endif %}
     }
 
-    const dataSelectionManager = {% if search or enable_histogram or enable_lasso_selection %} new DataSelectionManager() {% else %} null {% endif %};
     const searchItemId = "search";
     const histogramItemId = "d3histogram-container";
     const selectionItemId = "lasso-select";
+    const dataSelectionManager = {% if search or enable_histogram or enable_lasso_selection %} new DataSelectionManager(selectionItemId) {% else %} null {% endif %};
     const searchItem = document.getElementById(searchItemId);
     let histogramItem = null;
     
