@@ -277,8 +277,8 @@ def render_html(
     point_hover_color="#aa0000bb",
     point_radius_min_pixels=0.01,
     point_radius_max_pixels=24,
-    point_line_width_min_pixels=0.1,
-    point_line_width_max_pixels=8,
+    point_line_width_min_pixels=0.001,
+    point_line_width_max_pixels=3,
     point_line_width=0.001,
     cluster_boundary_line_width=1,
     initial_zoom_fraction=1.0,
@@ -422,10 +422,10 @@ def render_html(
         This allows zooming in to differentiate points that are otherwise overtop of one
          another.
 
-    point_line_width_min_pixels: float (optional, default=0.1)
+    point_line_width_min_pixels: float (optional, default=0.001)
         The minimum pixel width of the outline around points.
 
-    point_line_width_max_pixels: float (optional, default=8)
+    point_line_width_max_pixels: float (optional, default=3)
         The maximum pixel width of the outline around points.
 
     point_line_width: float (optional, default=0.001)

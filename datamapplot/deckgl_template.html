@@ -268,7 +268,7 @@
     const positions = new Float32Array(numPoints * 2);
     const colors = new Uint8Array(numPoints * 4);
     const sizes = new Float32Array(numPoints);
-    const selected = new Uint8Array(numPoints).fill(1);
+    const selected = new Float32Array(numPoints).fill(1.0);
 
     // Populate the arrays
     for (let i = 0; i < numPoints; i++) {
@@ -322,7 +322,8 @@
       pickable: true,
       stroked: true,
       extensions: [new deck.DataFilterExtension({filterSize: 1})],
-      filterRange: [1, 2],
+      filterRange: [-0.5, 1.5],
+      filterSoftRange: [0.75, 1.25],
       updateTriggers: {
         getFilterValue: 0  // We'll increment this to trigger updates
       },
@@ -413,16 +414,37 @@
     let updateTriggerCounter = 0;
     function selectPoints(itemId) {
       const selectedIndices = dataSelectionManager.getSelectedIndices();
+      const semiSelectedIndices = dataSelectionManager.getBasicSelectedIndices();
       const hasSelectedIndices = selectedIndices.size !== 0;
+      const hasSemiSelectedIndices = semiSelectedIndices.size !== 0;
+      const hasLassoSelection = dataSelectionManager.hasSpecialSelection();
 
       // Update selected array
-      if (hasSelectedIndices) {
-        selected.fill(0);
-        for (let i of selectedIndices) {
-          selected[i] = 1;
+      if (hasLassoSelection) {
+        if (hasSelectedIndices) {
+          if (hasSemiSelectedIndices) {
+            selected.fill(-1.0);
+            for (let i of semiSelectedIndices) {
+              selected[i] = 0.0;
+            }
+          } else {
+            selected.fill(0.0);
+          }
+          for (let i of selectedIndices) {
+            selected[i] = 1.0;
+          }
+        } else {
+          selected.fill(1.0);
         }
       } else {
-        selected.fill(1);
+        if (hasSelectedIndices) {
+          selected.fill(-1.0);
+          for (let i of selectedIndices) {
+            selected[i] = 1.0;
+          }
+        } else {
+          selected.fill(1.0);
+        }
       }
       // Increment update trigger
       updateTriggerCounter++;

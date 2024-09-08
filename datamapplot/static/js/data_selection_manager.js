@@ -46,6 +46,10 @@ class DataSelectionManager {
         return this.selectedIndicesBasicCommon;
     }
 
+    hasSpecialSelection() {
+        return this.selectedIndicesByItem.hasOwnProperty(this.excludeItem);
+    }
+
     /**
      * Updates the common selected indices across all items.
      * @param {Set<number>} [newSet=null] - The new set of indices to intersect with the current common selection.
