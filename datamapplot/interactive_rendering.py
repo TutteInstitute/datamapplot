@@ -121,6 +121,7 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
 
     if enable_lasso_selection:
         js_dependencies.append("lasso_selection.js")
+        js_dependencies.append("quad_tree.js")
 
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:

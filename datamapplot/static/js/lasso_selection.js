@@ -29,10 +29,52 @@ class LassoSelectionTool {
 
         this.selectionMode = false;
         this.lassoPolygon = [];
+        this.quadTree = null;
+        this.points = null;
 
         this.initCanvas();
         this.initEventListeners();
+        this.initQuadTree();
     }
+
+    /**
+    * Initializes the QuadTree with the current scatter plot data.
+    */
+    initQuadTree() {
+        const scatterLayer = this.deckgl.props.layers.find(layer => layer instanceof deck.ScatterplotLayer);
+        if (!scatterLayer) return;
+
+        const { attributes } = scatterLayer.props.data;
+        this.points = attributes.getPosition.value;
+
+        // Find the bounds of the data
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (let i = 0; i < this.points.length; i += 2) {
+            minX = Math.min(minX, this.points[i]);
+            maxX = Math.max(maxX, this.points[i]);
+            minY = Math.min(minY, this.points[i + 1]);
+            maxY = Math.max(maxY, this.points[i + 1]);
+        }
+
+        // Estimate leaf size based on the number of points
+        const numPoints = this.points.length / 2;
+        const leafSize = Math.max(Math.ceil(Math.sqrt(numPoints)), 64);
+
+        // Create the QuadTree
+        const boundary = {
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
+        };
+        this.quadTree = new QuadTree(boundary, leafSize);  // Capacity of 4 points per quad
+
+        // Insert points into the QuadTree
+        for (let i = 0; i < this.points.length / 2; i++) {
+            this.quadTree.insert(this.points, i);
+        }
+    }
+
 
     /**
      * Initializes the canvas for drawing the lasso.
@@ -98,7 +140,26 @@ class LassoSelectionTool {
      * @param {Array<Object>} lassoPolygon - Array of points forming the lasso polygon.
      */
     onLassoComplete(lassoPolygon) {
-        const selectedPoints = [];
+        if (!this.quadTree || !this.points) return;
+
+        // Find the bounds of the lasso
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const point of lassoPolygon) {
+          minX = Math.min(minX, point.x);
+          maxX = Math.max(maxX, point.x);
+          minY = Math.min(minY, point.y);
+          maxY = Math.max(maxY, point.y);
+        }
+    
+        // Query the QuadTree for points within the lasso bounds
+        let potentialIndices = this.quadTree.query({
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY
+        }, this.points);
+    
+        let selectedPoints = [];
         let currentSelectedIndices = this.dataSelectionManager.getSelectedIndices();
         if (this.dataSelectionManager.selectedIndicesByItem[this.selectionItemId]) {
             const otherSelectionItems = Object.keys(this.dataSelectionManager.selectedIndicesByItem)
@@ -115,28 +176,17 @@ class LassoSelectionTool {
         }
         const selectFromAllPoints = currentSelectedIndices.size === 0;
 
-        this.deckgl.props.layers.forEach(layer => {
-            if (layer instanceof deck.ScatterplotLayer) {
-                const { attributes } = layer.props.data;
-                const positions = attributes.getPosition.value;
-
-                if (selectFromAllPoints) {
-                    for (let i = 0; i < positions.length; i += 2) {
-                        const point = { x: positions[i], y: positions[i + 1] };
-                        if (this.isPointInPolygon(point, lassoPolygon)) {
-                            selectedPoints.push((i / 2) >> 0);
-                        }
-                    }
-                } else {
-                    currentSelectedIndices.forEach(index => {
-                        const point = { x: positions[index * 2], y: positions[index * 2 + 1] };
-                        if (this.isPointInPolygon(point, lassoPolygon)) {
-                            selectedPoints.push(index);
-                        }
-                    });
-                }
-            }
-        });
+        // Check which points are actually inside the lasso
+        if (selectFromAllPoints) {
+            selectedPoints = potentialIndices.filter(index => 
+                this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
+            );
+        } else {
+            potentialIndices = Set.from(potentialIndices).intersection(currentSelectedIndices);
+            selectedPoints = potentialIndices.filter(index =>
+                this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
+            );
+        }
 
         this.handleSelection(selectedPoints);
     }
