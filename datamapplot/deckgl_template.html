@@ -245,22 +245,50 @@
       .then(buffer => DecompressBytes(buffer))
       .then(buffer => JSON.parse(new TextDecoder("utf-8").decode(buffer)));
     {% else %}
-    async function DecompressFile(filename) {
-      const blob = await fetch(filename).then((response) => response.blob());
-      const decompressedStream = blob.stream().pipeThrough(
-        new DecompressionStream("gzip")
-      );
-      const arr = await new Response(decompressedStream).arrayBuffer();
-      return new Uint8Array(arr);
+    async function decompressFile(filename) {
+      try {
+        const response = await fetch(filename);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const reader = response.body
+          .pipeThrough(new DecompressionStream("gzip"))
+          .getReader();
+
+        let chunks = [];
+        let totalSize = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          chunks.push(value);
+          totalSize += value.length;
+        }
+
+        // Concatenate chunks into a single Uint8Array
+        const decompressedData = new Uint8Array(totalSize);
+        let position = 0;
+        for (const chunk of chunks) {
+          decompressedData.set(chunk, position);
+          position += chunk.length;
+        }
+
+        return decompressedData;
+      } catch (error) {
+        console.error('Decompression failed:', error);
+        throw error;
+      }
     }
 
     const pointData = await fetch("{{file_prefix}}_point_df.arrow")
       .then((response) => response.arrayBuffer())
       .then((buffer) => simpleArrowParser(buffer));
-    const unzippedHoverData = await DecompressFile("{{file_prefix}}_point_hover_data.zip");
-    const hoverData = await simpleArrowParser(unzippedHoverData["point_hover_data.arrow"]);
-    const unzippedLabelData = await DecompressFile("{{file_prefix}}_label_data.zip");
-    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
+    const hoverData = await decompressFile("{{file_prefix}}_point_hover_data.zip")
+      .then(unzippedHoverData => simpleArrowParser(unzippedHoverData));
+    const labelData = await decompressFile("{{file_prefix}}_label_data.zip")
+      .then(unzippedLabelData => JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData)));
     {% endif -%}
 
     // Assume DATA is your original data structure

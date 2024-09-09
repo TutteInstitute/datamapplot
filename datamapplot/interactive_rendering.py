@@ -709,11 +709,8 @@ def render_html(
         point_data.to_feather(
             f"{file_prefix}_point_df.arrow", compression="uncompressed"
         )
-        buffer = io.BytesIO()
-        hover_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
         with gzip.open(f"{file_prefix}_point_hover_data.zip", "wb") as f:
-            f.write(buffer.read())
+            hover_data.to_feather(f, compression="uncompressed")
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
