@@ -2,7 +2,10 @@
 class SelectionHandlerBase:
 
     def __init__(self, **kwargs):
-        pass
+        if "dependencies" in kwargs:
+            self.dependencies = kwargs["dependencies"]
+        else:
+            self.dependencies = []
 
     @property
     def javascript(self):
@@ -20,6 +23,7 @@ class SelectionHandlerBase:
 class DisplaySample(SelectionHandlerBase):
 
     def __init__(self, n_samples=256, font_family=None, **kwargs):
+        super().__init__(dependencies=["https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"], **kwargs)
         self.n_samples = n_samples
         self.font_family = "Roboto, sans-serif" if font_family is None else font_family
 
@@ -61,7 +65,7 @@ function lassoSelectionCallback(selectedPoints) {{
         listItems.appendChild(document.createElement('li')).textContent = hoverData.hover_text[index];
     }});
     selectionDisplayDiv.appendChild(listItems);
-    selectionContainer.style.display = 'block';
+    $(selectionContainer).animate({{width:'show'}}, 500);
 }}
 
 function resampleSelection() {{
@@ -84,7 +88,7 @@ function resampleSelection() {{
 
 function clearSelection() {{
     const selectionContainer = document.getElementById('selection-container');
-    selectionContainer.style.display = 'none';
+    $(selectionContainer).animate({{width:'hide'}}, 500);
 
     dataSelectionManager.removeSelectedIndicesOfItem(selectionItemId);
     selectPoints(selectionItemId);
@@ -150,5 +154,40 @@ function clearSelection() {{
         <button class="button resample-button">Resample</button>
         <button class="button clear-selection-button"></button>
         <div id="selection-display"></div>
+    </div>
+        """
+    
+
+class TagSelection(SelectionHandlerBase):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    @property
+    def javascript(self):
+        return f"""
+    const tags = new Map();
+    const tagButton = document.getElementsByClassName("tag-button")[0]
+    tagButton.onclick = createNewTag();
+
+    function lassoSelectionCallback(selectedPoints) {{
+        if (selectedPoints.length == 0) {{
+            tagButton.classList.add("enabled");
+        }} else {{
+            tagButton.classList.add("enabled");
+        }}
+    }}
+        """
+    
+    @property
+    def html(self):
+        return f"""
+    <div id="tag-container">
+        <div id="tag-display">
+        </div>
+        <span>
+            <button class="button tag-button">Create New Tag</button>
+            <input type="text" id="tag-input" placeholder="Enter tag name">
+        </span>
     </div>
         """

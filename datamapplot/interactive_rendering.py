@@ -85,7 +85,7 @@ class InteractiveFigure:
             f.write(self._html_str)
 
 
-def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
+def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection, selection_handler):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
@@ -122,6 +122,9 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
     if enable_lasso_selection:
         js_dependencies.append("lasso_selection.js")
         js_dependencies.append("quad_tree.js")
+
+        if selection_handler is not None:
+            js_dependencies.extend(selection_handler.dependencies)
 
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
@@ -741,7 +744,7 @@ def render_html(
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(enable_histogram),
         "js_dependency_srcs": _get_js_dependency_sources(
-            minify_deps, enable_search, enable_histogram, enable_lasso_selection
+            minify_deps, enable_search, enable_histogram, enable_lasso_selection, selection_handler
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
             minify_deps, enable_histogram
