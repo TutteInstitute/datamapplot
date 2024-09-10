@@ -85,7 +85,7 @@ class InteractiveFigure:
             f.write(self._html_str)
 
 
-def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection, selection_handler):
+def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
@@ -122,9 +122,6 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
     if enable_lasso_selection:
         js_dependencies.append("lasso_selection.js")
         js_dependencies.append("quad_tree.js")
-
-        if selection_handler is not None:
-            js_dependencies.extend(selection_handler.dependencies)
 
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
@@ -167,7 +164,7 @@ def _get_css_dependency_sources(minify, enable_histogram):
     return css_dependencies_src
 
 
-def _get_js_dependency_urls(enable_histogram):
+def _get_js_dependency_urls(enable_histogram, selection_handler=None):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -195,6 +192,9 @@ def _get_js_dependency_urls(enable_histogram):
         js_dependency_urls.append(
             "https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js"
         )
+
+    if selection_handler is not None:
+        js_dependency_urls.extend(selection_handler.dependencies)
 
     return js_dependency_urls
 
@@ -742,9 +742,9 @@ def render_html(
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
-        "js_dependency_urls": _get_js_dependency_urls(enable_histogram),
+        "js_dependency_urls": _get_js_dependency_urls(enable_histogram, selection_handler),
         "js_dependency_srcs": _get_js_dependency_sources(
-            minify_deps, enable_search, enable_histogram, enable_lasso_selection, selection_handler
+            minify_deps, enable_search, enable_histogram, enable_lasso_selection,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
             minify_deps, enable_histogram
