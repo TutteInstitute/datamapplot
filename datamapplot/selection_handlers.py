@@ -61,9 +61,13 @@ function lassoSelectionCallback(selectedPoints) {{
     while (selectionDisplayDiv.firstChild) {{
         selectionDisplayDiv.removeChild(selectionDisplayDiv.firstChild);
     }}
-    selectedPoints.forEach((index) => {{
-        listItems.appendChild(document.createElement('li')).textContent = hoverData.hover_text[index];
-    }});
+    if (datamap.metaData) {{
+      selectedPoints.forEach((index) => {{
+          listItems.appendChild(document.createElement('li')).textContent = datamap.metaData.hover_text[index];
+      }});
+    }} else {{
+        listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
+    }}
     selectionDisplayDiv.appendChild(listItems);
     $(selectionContainer).animate({{width:'show'}}, 500);
 }}
@@ -80,9 +84,13 @@ function resampleSelection() {{
     while (selectionDisplayDiv.firstChild) {{
         selectionDisplayDiv.removeChild(selectionDisplayDiv.firstChild);
     }}
-    selectedPoints.forEach((index) => {{
-        listItems.appendChild(document.createElement('li')).textContent = hoverData.hover_text[index];
-    }});
+    if (datamap.metaData) {{
+      selectedPoints.forEach((index) => {{
+          listItems.appendChild(document.createElement('li')).textContent = datamap.metaData.hover_text[index];
+      }});
+    }} else {{
+        listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
+    }}
     selectionDisplayDiv.appendChild(listItems);
 }}
 
