@@ -292,24 +292,6 @@
       .then(unzippedLabelData => JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData)));
     {% endif -%}
 
-    const numPoints = pointData.x.length;
-    const positions = new Float32Array(numPoints * 2);
-    const colors = new Uint8Array(numPoints * 4);
-    const sizes = {% if point_size < 0 %} new Float32Array(numPoints) {% else %} null {% endif %};
-
-    // Populate the arrays
-    for (let i = 0; i < numPoints; i++) {
-      positions[i * 2] = pointData.x[i];
-      positions[i * 2 + 1] = pointData.y[i];
-      colors[i * 4] = pointData.r[i];
-      colors[i * 4 + 1] = pointData.g[i];
-      colors[i * 4 + 2] = pointData.b[i];
-      colors[i * 4 + 3] = pointData.a[i];
-      {%- if point_size < 0 %}
-      sizes[i] = pointData.size[i];
-      {% endif %}
-    }
-
     const searchItemId = "text-search";
     const histogramItemId = "d3histogram-container";
     const selectionItemId = "lasso-select";
@@ -327,7 +309,7 @@
     });
 
     datamap.addPoints(
-      { positions, colors, sizes },
+      pointData,
       {
         pointSize: {{point_size}},
         pointOutlineColor: {{point_outline_color}},

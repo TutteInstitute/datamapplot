@@ -43,8 +43,30 @@ class DataMap {
     pointRadiusMaxPixels = 16,
     pointRadiusMinPixels = 0.2,
   }) {
-    const { positions, colors, sizes } = pointData;
-    const numPoints = positions.length / 2;
+    // Parse out and reformat data for deck.gl
+    const numPoints = pointData.x.length;
+    const positions = new Float32Array(numPoints * 2);
+    const colors = new Uint8Array(numPoints * 4);
+    const variableSize = pointSize < 0;
+    let sizes;
+    if (variableSize) {
+      sizes = new Float32Array(numPoints);
+    } else {
+      sizes = null;
+    }
+
+    // Populate the arrays
+    for (let i = 0; i < numPoints; i++) {
+      positions[i * 2] = pointData.x[i];
+      positions[i * 2 + 1] = pointData.y[i];
+      colors[i * 4] = pointData.r[i];
+      colors[i * 4 + 1] = pointData.g[i];
+      colors[i * 4 + 2] = pointData.b[i];
+      colors[i * 4 + 3] = pointData.a[i];
+      if (variableSize) {
+        sizes[i] = pointData.size[i];
+      }
+    }
     this.selected = new Float32Array(numPoints).fill(1.0);
     this.pointSize = pointSize;
     this.pointOutlineColor = pointOutlineColor;
@@ -60,7 +82,7 @@ class DataMap {
       getFillColor: { value: colors, size: 4 },
       getFilterValue: { value: this.selected, size: 1 }
     };
-    if (sizes) {
+    if (variableSize) {
       scatterAttributes.getRadius = { value: sizes, size: 1 };
     }
 
