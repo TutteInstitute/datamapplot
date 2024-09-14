@@ -711,10 +711,9 @@ def render_html(
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
-        point_data.to_feather(
-            f"{file_prefix}_point_df.arrow", compression="uncompressed"
-        )
-        with gzip.open(f"{file_prefix}_point_hover_data.zip", "wb") as f:
+        with gzip.open(f"{file_prefix}_point_data.zip", "wb") as f:
+            point_data.to_feather(f, compression="uncompressed")
+        with gzip.open(f"{file_prefix}_meta_data.zip", "wb") as f:
             hover_data.to_feather(f, compression="uncompressed")
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:

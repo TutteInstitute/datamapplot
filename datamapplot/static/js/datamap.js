@@ -109,14 +109,14 @@ class DataMap {
       filterRange: [-0.5, 1.5],
       filterSoftRange: [0.75, 1.25],
       updateTriggers: {
-        getFilterValue: 0  // We'll increment this to trigger updates
+        getFilterValue: this.updateTriggerCounter  // We'll increment this to trigger updates
       },
       instanceCount: numPoints,
     });
 
     this.layers.push(this.pointLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: this.layers });
+    this.deckgl.setProps({ layers: [...this.layers] });
   }
 
   addLabels(labelData, {
@@ -182,7 +182,7 @@ class DataMap {
 
     this.layers.push(this.labelLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: this.layers });
+    this.deckgl.setProps({ layers: [...this.layers] });
   }
 
   addBoundaries(boundaryData, {clusterBoundaryLineWidth = 0.5}) {
@@ -190,6 +190,7 @@ class DataMap {
     this.clusterBoundaryLineWidth = clusterBoundaryLineWidth;
 
     this.boundaryLayer = new deck.PolygonLayer({
+      id: 'boundaryLayer',
       data: boundaryData,
       stroked: true,
       filled: false,
@@ -206,7 +207,7 @@ class DataMap {
 
     this.layers.push(this.boundaryLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: this.layers });
+    this.deckgl.setProps({ layers: [...this.layers] });
   }
 
   addMetaData(metaData, {
