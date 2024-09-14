@@ -172,13 +172,13 @@
 
       {% if search %}
       <div id="search-container">
-        <input autocomplete="off" type="search" id="search" placeholder="🔍" />
+        <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
     </div>
     {% elif search %}
     <div id="search-container" style="left: 0 !important">
-      <input autocomplete="off" type="search" id="search" placeholder="🔍" />
+      <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
     </div>
     {% endif %} {% if logo %}
     <div id="logo-container">
@@ -235,6 +235,7 @@
 
     const pointDataBase64 = "{{base64_point_data}}";
     const pointData = await base64ToBytes(pointDataBase64)
+      .then(buffer => DecompressBytes(buffer))
       .then(buffer => simpleArrowParser(buffer));
     const hoverDataBase64 = "{{base64_hover_data}}";
     const hoverData = await base64ToBytes(hoverDataBase64)
@@ -295,8 +296,7 @@
     const numPoints = pointData.x.length;
     const positions = new Float32Array(numPoints * 2);
     const colors = new Uint8Array(numPoints * 4);
-    const sizes = new Float32Array(numPoints);
-    const selected = new Float32Array(numPoints).fill(1.0);
+    const sizes = {% if point_size < 0 %} new Float32Array(numPoints) {% else %} null {% endif %};
 
     // Populate the arrays
     for (let i = 0; i < numPoints; i++) {
@@ -311,127 +311,63 @@
       {% endif %}
     }
 
-    const searchItemId = "search";
+    const searchItemId = "text-search";
     const histogramItemId = "d3histogram-container";
     const selectionItemId = "lasso-select";
-    const dataSelectionManager = {% if search or enable_histogram or enable_lasso_selection %} new DataSelectionManager(selectionItemId) {% else %} null {% endif %};
     const searchItem = document.getElementById(searchItemId);
     let histogramItem = null;
     
     const container = document.getElementById('deck-container');
-    const pointLayer = new deck.ScatterplotLayer({
-      id: 'dataPointLayer',
-      data: {
-        length: numPoints,
-        attributes: {
-          getPosition: {value: positions, size: 2},
-          getFillColor: {value: colors, size: 4},
-          // getLineColor: {value: colors, size: 4},
-          {%- if point_size < 0 %}
-          getRadius: {value: sizes, size: 1},
-          {% endif %}
-          getFilterValue: {value: selected, size: 1}
-        }
-      },
 
-      {% if point_size >= 0 %}
-      getRadius: {{point_size}},
-      {% endif %}
-      getLineColor: {{point_outline_color}},
-      getLineWidth: {{point_line_width}},
-      highlightColor: {{point_hover_color}},
-      lineWidthMaxPixels: {{point_line_width_max_pixels}},
-      lineWidthMinPixels: {{point_line_width_min_pixels}},
-      radiusMaxPixels: {{point_radius_max_pixels}},
-      radiusMinPixels: {{point_radius_min_pixels}},
-      radiusUnits: "common",
-      lineWidthUnits: "common",
-      autoHighlight: true,
-      pickable: true,
-      stroked: true,
-      extensions: [new deck.DataFilterExtension({filterSize: 1})],
-      filterRange: [-0.5, 1.5],
-      filterSoftRange: [0.75, 1.25],
-      updateTriggers: {
-        getFilterValue: 0  // We'll increment this to trigger updates
-      },
-      instanceCount: numPoints,
+    const datamap = new DataMap({
+      container: container,
+      dataCenter: [{{data_center_x}}, {{data_center_y}}],
+      zoomLevel: {{zoom_level}},
+      searchItemId: searchItemId,
+      lassoSelectionItemId: selectionItemId,      
     });
 
-    const labelLayer = new deck.TextLayer({
-      id: "textLabelLayer",
-      data: labelData,
-      pickable: false,
-      getPosition: d => [d.x, d.y],
-      getText: d => d.label,
-      getColor: {{label_text_color}},
-      getSize: d => d.size,
-      sizeScale: 1,
-      sizeMinPixels: {{text_min_pixel_size}},
-      sizeMaxPixels: {{text_max_pixel_size}},
-      outlineWidth: {{text_outline_width}},
-      outlineColor: {{text_outline_color}},
-      getBackgroundColor: {{text_background_color}},
-      getBackgroundPadding: [15, 15, 15, 15],
-      background: true,
-      characterSet: "auto",
+    datamap.addPoints(
+      { positions, colors, sizes },
+      {
+        pointSize: {{point_size}},
+        pointOutlineColor: {{point_outline_color}},
+        pointLineWidth: {{point_line_width}},
+        pointHoverColor: {{point_hover_color}},
+        pointLineWidthMaxPixels: {{point_line_width_max_pixels}},
+        pointLineWidthMinPixels: {{point_line_width_min_pixels}},
+        pointRadiusMaxPixels: {{point_radius_max_pixels}},
+        pointRadiusMinPixels: {{point_radius_min_pixels}},
+      }
+    );
+    datamap.addLabels(labelData, {
+      labelTextColor: {{label_text_color}},
+      textMinPixelSize: {{text_min_pixel_size}},
+      textMaxPixelSize: {{text_max_pixel_size}},
+      textOutlineWidth: {{text_outline_width}},
+      textOutlineColor: {{text_outline_color}},
+      textBackgroundColor: {{text_background_color}},
       fontFamily: "{{font_family}}",
       fontWeight: {{font_weight}},
-      lineHeight: {{line_spacing}},
-      fontSettings: {"sdf": true},
-      getTextAnchor: "middle",
-      getAlignmentBaseline: "center",
-      lineHeight: 0.95,
-      elevation: 100,
-      // CollideExtension options
-      collisionEnabled: true,
-      getCollisionPriority: d => d.size,
-      collisionTestProps: {
-        sizeScale: {{text_collision_size_scale}},
-        sizeMaxPixels: {{text_max_pixel_size}} * 2,
-        sizeMinPixels: {{text_min_pixel_size}} * 2
-      },
-      extensions: [new deck.CollisionFilterExtension()],
+      lineSpacing: {{line_spacing}},
+      textCollisionSizeScale: {{text_collision_size_scale}},
     });
 
     {% if cluster_boundary_polygons %}
-    const boundaryLayer = new deck.PolygonLayer({
-      data: labelData,
-      stroked: true,
-      filled: false,
-      getLineColor: d => [d.r, d.g, d.b, d.a],
-      getPolygon: d => d.polygon,
-      lineWidthUnits: "common",
-      getLineWidth: d => d.size * d.size,
-      lineWidthScale: {{cluster_boundary_line_width}} * 5e-5,
-      lineJointRounded: true,
-      lineWidthMaxPixels: 4,
-      lineWidthMinPixels: 0.0,
+    datamap.addBoundaries(labelData, {
+      clusterBoundaryLineWidth: {{cluster_boundary_line_width}},
     });
     {% endif %}
 
-    const deckgl = new deck.DeckGL({
-      container: container,
-      initialViewState: {
-        latitude: {{data_center_y}},
-        longitude: {{data_center_x}},
-        zoom: {{zoom_level}}
-      },
-      controller: { scrollZoom: {speed: 0.01, smooth: true} },
-      {% if cluster_boundary_polygons %}
-      layers: [pointLayer, boundaryLayer, labelLayer],
-      {% else %}
-      layers: [pointLayer, labelLayer],
-      {% endif %}
-      {% if on_click %}
-      onClick: {{on_click}},
-      {% endif %}
-      getTooltip: {{get_tooltip}}
+    datamap.addMetaData(hoverData, {
+      //tooltipFunction: {{get_tooltip}},
+      onClickFunction: {{on_click if on_click else "null"}},
+      searchField: "{{search_field}}",
     });
 
     document.getElementById("loading").style.display = "none";
 
-    {% if search or enable_histogram or enable_lasso_selection %}
+    {% if search %}
     function debounce(func, timeout = 250){
         let timer;
         return (...args) => {
@@ -439,95 +375,10 @@
             timer = setTimeout(() => { func.apply(this, args); }, timeout);
         };
     }
-    let updateTriggerCounter = 0;
-    function selectPoints(itemId) {
-      const selectedIndices = dataSelectionManager.getSelectedIndices();
-      const semiSelectedIndices = dataSelectionManager.getBasicSelectedIndices();
-      const hasSelectedIndices = selectedIndices.size !== 0;
-      const hasSemiSelectedIndices = semiSelectedIndices.size !== 0;
-      const hasLassoSelection = dataSelectionManager.hasSpecialSelection();
 
-      // Update selected array
-      if (hasLassoSelection) {
-        if (hasSelectedIndices) {
-          if (hasSemiSelectedIndices) {
-            selected.fill(-1.0);
-            for (let i of semiSelectedIndices) {
-              selected[i] = 0.0;
-            }
-          } else {
-            selected.fill(0.0);
-          }
-          for (let i of selectedIndices) {
-            selected[i] = 1.0;
-          }
-        } else {
-          selected.fill(1.0);
-        }
-      } else {
-        if (hasSelectedIndices) {
-          selected.fill(-1.0);
-          for (let i of selectedIndices) {
-            selected[i] = 1.0;
-          }
-        } else {
-          selected.fill(1.0);
-        }
-      }
-      // Increment update trigger
-      updateTriggerCounter++;
-
-      const updatedPointLayer = pointLayer.clone({
-        data: {
-          ...pointLayer.props.data,
-          attributes: {
-            ...pointLayer.props.data.attributes,
-            getFilterValue: {value: selected, size: 1}
-          }
-        },
-        updateTriggers: {
-          getFilterValue: updateTriggerCounter
-        }
-      });
-
-      deckgl.setProps({ layers: [updatedPointLayer].concat(deckgl.props.layers.slice(1,)) });
-
-      // Update histogram, if any
-      if (histogramItem && itemId !== histogramItemId) {
-        if (hasSelectedIndices) {
-            histogramItem.drawChartWithSelection(selectedIndices);
-        } else {
-            histogramItem.removeChartWithSelection(selectedIndices);
-        }
-      }
-    }
-    {% endif -%}
-
-    {% if search %}
     /* Search */
-    const textSearchArray = hoverData.{{search_field}}.map((d) => d.toLowerCase());
-    searchItem.addEventListener("input", debounce(
-        event => {
-          const searchTerm = event.target.value.toLowerCase();
-          const selectedIndices = textSearchArray.reduce((indices, d, i) => {
-            if (d.indexOf(searchTerm) >= 0) {
-              indices.push(i);
-            }
-            return indices;
-          }, []);
+    searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
 
-          // Update data manager
-          if (searchTerm !== "") {
-            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
-          }
-          else {
-            dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
-          }
-
-          // Update datamap plot
-          selectPoints(searchItemId);
-        })
-    );
     {% endif -%}
 
     {% if enable_histogram %}
@@ -535,13 +386,13 @@
     const chartSelectionCallback = chartSelectedIndices => {
       // Update data manager
       if (chartSelectedIndices === null) {
-        dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
+        datamap.dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
       } else {
-        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
+        datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
       }
 
       // Update datamap plot
-      selectPoints(histogramItemId);
+      datamap.highlightPoints(histogramItemId);
     };
 
     histogramItem = D3Histogram.create({
@@ -573,18 +424,18 @@
       {%- endif %}
       chartSelectionCallback
     });
+
+    datamap.connectHistogram(histogramItem);
     {% endif -%}
+
     {% if custom_js %}
     {{ custom_js }}
     {% endif -%}
+    
     {%- if enable_lasso_selection %}
     /* Lasso Selection */
     const lassoSelector = new LassoSelectionTool(
-      container, 
-      deckgl, 
-      dataSelectionManager, 
-      selectionItemId, 
-      selectPoints,
+      datamap,
       lassoSelectionCallback
     );
     {% endif -%}

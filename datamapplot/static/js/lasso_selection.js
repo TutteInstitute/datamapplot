@@ -13,19 +13,12 @@ class LassoSelectionTool {
      * @param {Function} handleSelectedPoints - Callback function to handle selected points.
      */
     constructor(
-        container,
-        deckgl,
-        dataSelectionManager,
-        selectionItemId,
-        selectPoints,
+        datamap,
         handleSelectedPoints
     ) {
-        this.container = container;
-        this.deckgl = deckgl;
-        this.dataSelectionManager = dataSelectionManager;
-        this.selectionItemId = selectionItemId;
-        this.selectPoints = selectPoints;
+        this.datamap = datamap;
         this.handleSelectedPoints = handleSelectedPoints;
+        this.itemId = datamap.lassoSelectionItemId;
 
         this.selectionMode = false;
         this.lassoPolygon = [];
@@ -41,7 +34,7 @@ class LassoSelectionTool {
     * Initializes the QuadTree with the current scatter plot data.
     */
     initQuadTree() {
-        const scatterLayer = this.deckgl.props.layers.find(layer => layer instanceof deck.ScatterplotLayer);
+        const scatterLayer = this.datamap.deckgl.props.layers.find(layer => layer instanceof deck.ScatterplotLayer);
         if (!scatterLayer) return;
 
         const { attributes } = scatterLayer.props.data;
@@ -82,8 +75,8 @@ class LassoSelectionTool {
      */
     initCanvas() {
         this.canvas = document.createElement('canvas');
-        this.canvas.width = this.container.clientWidth;
-        this.canvas.height = this.container.clientHeight;
+        this.canvas.width = this.datamap.container.clientWidth;
+        this.canvas.height = this.datamap.container.clientHeight;
         this.canvas.style.position = 'absolute';
         this.canvas.style.top = '0';
         this.canvas.style.left = '0';
@@ -103,7 +96,7 @@ class LassoSelectionTool {
         this.ctx.beginPath();
 
         lassoPolygon.forEach(({ x, y }, index) => {
-            const [screenX, screenY] = this.deckgl.viewManager.getViewports()[0].project([x, y]);
+            const [screenX, screenY] = this.datamap.deckgl.viewManager.getViewports()[0].project([x, y]);
             if (index === 0) {
                 this.ctx.moveTo(screenX, screenY);
             } else {
@@ -127,11 +120,11 @@ class LassoSelectionTool {
      */
     handleSelection(selectedPoints) {
         if (selectedPoints.length === 0) {
-            this.dataSelectionManager.removeSelectedIndicesOfItem(this.selectionItemId);
+            this.datamap.dataSelectionManager.removeSelectedIndicesOfItem(this.itemId);
         } else {
-            this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedPoints, this.selectionItemId);
+            this.datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedPoints, this.itemId);
         }
-        this.selectPoints(this.selectionItemId);
+        this.datamap.highlightPoints(this.itemId);
         this.handleSelectedPoints(selectedPoints);
     }
 
@@ -160,7 +153,7 @@ class LassoSelectionTool {
         }, this.points);
     
         let selectedPoints = [];
-        const currentSelectedIndices = this.dataSelectionManager.getBasicSelectedIndices();
+        const currentSelectedIndices = this.datamap.dataSelectionManager.getBasicSelectedIndices();
         const selectFromAllPoints = currentSelectedIndices.size === 0;
 
         // Check which points are actually inside the lasso
@@ -207,7 +200,7 @@ class LassoSelectionTool {
     setSelectionMode(enabled) {
         this.selectionMode = enabled;
 
-        this.deckgl.setProps({
+        this.datamap.deckgl.setProps({
             controller: {
                 dragPan: !this.selectionMode,
                 dragRotate: !this.selectionMode,
@@ -226,7 +219,7 @@ class LassoSelectionTool {
      * @returns {Array<number>} The spatial coordinates [x, y].
      */
     getSpatialCoordinates(screenX, screenY) {
-        const viewport = this.deckgl.viewManager.getViewports()[0];
+        const viewport = this.datamap.deckgl.viewManager.getViewports()[0];
         return viewport.unproject([screenX, screenY]);
     }
 
@@ -247,14 +240,14 @@ class LassoSelectionTool {
             }
         });
 
-        this.container.addEventListener('mousedown', (e) => {
+        this.datamap.container.addEventListener('mousedown', (e) => {
             if (this.selectionMode) {
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon = [{ x, y }];
             }
         });
 
-        this.container.addEventListener('mousemove', (e) => {
+        this.datamap.container.addEventListener('mousemove', (e) => {
             if (this.selectionMode && this.lassoPolygon.length > 0) {
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon.push({ x, y });
@@ -262,7 +255,7 @@ class LassoSelectionTool {
             }
         });
 
-        this.container.addEventListener('mouseup', (e) => {
+        this.datamap.container.addEventListener('mouseup', (e) => {
             if (this.selectionMode && this.lassoPolygon.length > 0) {
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon.push({ x, y });

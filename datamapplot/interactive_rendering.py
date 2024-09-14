@@ -110,7 +110,7 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "js"
-    js_dependencies = []
+    js_dependencies = ["datamap.js"]
     js_dependencies_src = {}
 
     if enable_search or enable_histogram:
@@ -691,7 +691,9 @@ def render_html(
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
         buffer.seek(0)
-        base64_point_data = base64.b64encode(buffer.read()).decode()
+        arrow_bytes = buffer.read()
+        gzipped_bytes = gzip.compress(arrow_bytes)        
+        base64_point_data = base64.b64encode(gzipped_bytes).decode()
         buffer = io.BytesIO()
         hover_data.to_feather(buffer, compression="uncompressed")
         buffer.seek(0)
