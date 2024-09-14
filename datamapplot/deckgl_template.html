@@ -292,7 +292,6 @@
       .then(unzippedLabelData => JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData)));
     {% endif -%}
 
-    // Assume DATA is your original data structure
     const numPoints = pointData.x.length;
     const positions = new Float32Array(numPoints * 2);
     const colors = new Uint8Array(numPoints * 4);
