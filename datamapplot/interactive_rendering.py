@@ -5,6 +5,7 @@ import io
 import os
 import warnings
 import zipfile
+import json
 
 import jinja2
 import numpy as np
@@ -694,10 +695,7 @@ def render_html(
         arrow_bytes = buffer.read()
         gzipped_bytes = gzip.compress(arrow_bytes)        
         base64_point_data = base64.b64encode(gzipped_bytes).decode()
-        buffer = io.BytesIO()
-        hover_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
-        arrow_bytes = buffer.read()
+        arrow_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
         gzipped_bytes = gzip.compress(arrow_bytes)
         base64_hover_data = base64.b64encode(gzipped_bytes).decode()
         label_data_json = label_dataframe.to_json(orient="records")
@@ -714,7 +712,7 @@ def render_html(
         with gzip.open(f"{file_prefix}_point_data.zip", "wb") as f:
             point_data.to_feather(f, compression="uncompressed")
         with gzip.open(f"{file_prefix}_meta_data.zip", "wb") as f:
-            hover_data.to_feather(f, compression="uncompressed")
+            f.write(json.dumps(hover_data.to_dict(orient="list")).encode())
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))

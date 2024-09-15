@@ -224,7 +224,7 @@
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
       self.onmessage = async function(event) {
-      const base64Data = event.data;
+      const { encodedData, JSONParse } = event.data;
         // Function to parse base64 to Uint8Array
         async function DecompressBytes(bytes) {
           const blob = new Blob([bytes]);
@@ -237,10 +237,15 @@
         async function decodeBase64(base64) {
             return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
         }
-        const binaryData = await decodeBase64(base64Data).then(buffer => DecompressBytes(buffer));
+        const binaryData = await decodeBase64(encodedData).then(buffer => DecompressBytes(buffer));
 
-        // Send the parsed table back to the main thread
-        self.postMessage({ data: binaryData });
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ data: binaryData });
+        }
       }
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
@@ -255,7 +260,7 @@
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
       self.onmessage = async function(event) {
-      const filename = event.data;
+      const { encodedData, JSONParse } = event.data;
       async function decompressFile(filename) {
         try {
           const response = await fetch(filename);
@@ -292,10 +297,14 @@
           throw error;
         }
       }
-      const binaryData = await decompressFile(filename);
-
-      // Send the parsed table back to the main thread
-      self.postMessage({ data: binaryData });
+      const binaryData = await decompressFile(encodedData);
+      if (JSONParse) {
+        const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+        self.postMessage({ data: parsedData });
+      } else {
+        // Send the parsed table back to the main thread
+        self.postMessage({ data: binaryData });
+      }
       }
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
@@ -322,7 +331,7 @@
     });
 
     function loadPointDataLayer() {
-      pointDataWorker.postMessage(pointDataEncoded);
+      pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
 
       pointDataWorker.onmessage = async function(event) {
         const { data } = event.data;
@@ -353,11 +362,11 @@
     }
 
     function loadLabelDataLayer() {
-      labelDataWorker.postMessage(labelDataEncoded);
+      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
 
       labelDataWorker.onmessage = async function(event) {
         const { data } = event.data;
-        const labelData = JSON.parse(new TextDecoder("utf-8").decode(data));
+        const labelData = data; //JSON.parse(new TextDecoder("utf-8").decode(data));
         datamap.addLabels(labelData, {
           labelTextColor: {{label_text_color}},
           textMinPixelSize: {{text_min_pixel_size}},
@@ -381,11 +390,12 @@
     }
 
     function loadMetaData() {
-      metaDataWorker.postMessage(hoverDataEncoded);
+      metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
 
       metaDataWorker.onmessage = async function(event) {
         const { data } = event.data;
-        const hoverData = await simpleArrowParser(data);
+        // const hoverData = await simpleArrowParser(data);
+        const hoverData = data; //JSON.parse(new TextDecoder("utf-8").decode(data));
         datamap.addMetaData(hoverData, {
           //tooltipFunction: {{get_tooltip}},
           onClickFunction: {{on_click if on_click else "null"}},
