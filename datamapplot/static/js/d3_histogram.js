@@ -165,7 +165,7 @@ const D3Histogram = (() => {
                     dataType: null,
                     rawData: data,
                     binsData: new Map(),
-                    indicesData: new Map(),
+                    indicesData: new Int16Array(),
                     rawFocusData: null,
                     binsFocusData: null,
                     binCount: binCount != -1 ? binCount : null,
@@ -296,7 +296,7 @@ const D3Histogram = (() => {
 
             // Initialize the bins Map and indicesData Map
             binsData = new Map();
-            indicesData = new Map();
+            indicesData = new Int16Array(numArray.length);
     
             for (let i = 0; i < binCount; i++) {
                 const min = minVal + i * binSize;
@@ -305,7 +305,6 @@ const D3Histogram = (() => {
 
                 binsData.set(i, {
                     id: i,
-                    values: [],
                     indices: new Set(),
                     min: min,
                     max: max,
@@ -321,10 +320,9 @@ const D3Histogram = (() => {
                     binCount - 1 // Ensure the value goes into the last bin if it's the maximum value
                 );
                 const bin = binsData.get(binIndex);
-                bin.values.push(value);
                 bin.indices.add(i);
     
-                indicesData.set(i, { binId: binIndex, value: value });              
+                indicesData[i] = binIndex;         
             });
     
             this.state.data.binsData = binsData;
@@ -350,14 +348,13 @@ const D3Histogram = (() => {
     
             // Initialize bins
             binsData = new Map();
-            indicesData = new Map();
+            indicesData = new Int16Array(categoryArray.length);
 
             uniqueCategories.forEach((category, i) => {
                 binsData.set(i, {
                     id: i,
                     label: category,
                     indices: new Set(),
-                    values: [],
                     min: i,
                     max: i,
                     mean: i
@@ -372,9 +369,8 @@ const D3Histogram = (() => {
                 const binId = categoryToBinId.get(category);
                 const bin = binsData.get(binId);
                 bin.indices.add(i);
-                bin.values.push(category);
 
-                indicesData.set(i, { binId: binId, value: category });
+                indicesData[i] = binId;
             });
 
             this.state.data.binsData = binsData;
@@ -412,7 +408,7 @@ const D3Histogram = (() => {
 
             // Initialize bins as a Map
             binsData = new Map();
-            indicesData = new Map();
+            indicesData = new Int16Array(dateArray.length);
 
 
             for (let binId = 0; binId < binCount; binId++) {
@@ -424,7 +420,6 @@ const D3Histogram = (() => {
                 binsData.set(binId, {
                     binId,
                     indices: new Set(),
-                    values: [],
                     min,
                     max,
                     mean,
@@ -435,11 +430,10 @@ const D3Histogram = (() => {
             // Assign dates to bins
             validDates.forEach((item, _) => {
                 const binIndex = Math.floor((item.date - overallMin) / binRange);
-                const bin = binsData[Math.min(binIndex, binCount - 1)];
+                const bin = binsData.get(Math.min(binIndex, binCount - 1));
 
                 bin.indices.add(item.index);
-                bin.values.push(item.date);
-                indicesData.set(item.index, { binId: bin.binId, value: item.date });
+                indicesData[item.index] = bin.binId;
             });
 
             this.state.data.binsData = binsData;
@@ -488,7 +482,7 @@ const D3Histogram = (() => {
             binCount = allYears.length;
 
              // Initialize binsData and indicesData as Maps
-             indicesData = new Map();
+             indicesData = new Int16Array(dateArray.length);
              binsData = new Map();
  
              allYears.forEach((year, binIndex) => {
@@ -499,7 +493,6 @@ const D3Histogram = (() => {
  
                  const bin = {
                      id: binIndex,
-                     values: [],
                      indices: new Set(),
                      min,
                      max,
@@ -507,13 +500,9 @@ const D3Histogram = (() => {
                      label
                  };
                  datesByYear[year].forEach(({ date, index }) => {
-                     bin.values.push(date);
                      bin.indices.add(index);
-                     indicesData.set(index, { binId: binIndex, value: date });
+                     indicesData[index] = binIndex;
                  });
- 
-                 // Sort dates in the bin (based on UTC time)
-                 bin.values.sort((a, b) => a.getTime() - b.getTime());
  
                  binsData.set(binIndex, bin);
              });
@@ -581,7 +570,6 @@ const D3Histogram = (() => {
             binsData.forEach(bin => {
                 const focusBin = {
                     indices: new Set(),
-                    values: [],
                     binId: bin.id,
                     min: bin.min,
                     max: bin.max,
@@ -593,13 +581,12 @@ const D3Histogram = (() => {
 
             // Use Set operations for faster lookups
             const selectedSet = new Set(selectedIndices);
-            for (const [index, { binId, value }] of indicesData) {
+            indicesData.forEach((binId, index) => {
                 if (selectedSet.has(index)) {
                     const bin = rawFocusData.get(binId);
                     bin.indices.add(index);
-                    bin.values.push(value);
                 }
-            }
+            });
 
             // Aggregate raw data based on its type
             const binsFocusData = rawFocusData;
@@ -672,7 +659,7 @@ const D3Histogram = (() => {
             // Define accessors & scales
             // --------------------------
             const xAccessor = d => d.mean;
-            const yAccessor = d => d.values.length;
+            const yAccessor = d => d.indices.size;
             
             const xScale = d3.scaleBand()
                 .domain(binsData.map(d => xAccessor(d)))
