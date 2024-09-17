@@ -220,6 +220,8 @@
     const pointDataEncoded = "{{base64_point_data}}";
     const hoverDataEncoded = "{{base64_hover_data}}";
     const labelDataEncoded = "{{base64_label_data}}";
+    const histogramBinDataEncoded = "{{base64_histogram_bin_data}}";
+    const histogramIndexDataEncoded = "{{base64_histogram_index_data}}";
 
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
@@ -321,6 +323,10 @@
     const labelDataWorker = new Worker(workerUrl);
     const pointDataWorker = new Worker(workerUrl);
     const metaDataWorker = new Worker(workerUrl);
+    {% if enable_histogram %}
+    const histogramBinDataWorker = new Worker(workerUrl);
+    const histogramIndexDataWorker = new Worker(workerUrl);
+    {% endif -%}
 
     const datamap = new DataMap({
       container: container,
@@ -414,23 +420,51 @@
         /* Search */
         searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
         {% endif -%}
+        document.getElementById("loading").style.display = "none";
+      };
+    }
 
-        {% if enable_histogram %}
-        /*Histogram*/
-        const chartSelectionCallback = chartSelectedIndices => {
-          // Update data manager
-          if (chartSelectedIndices === null) {
-            datamap.dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
-          } else {
-            datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
-          }
+    {% if enable_histogram %}
+    function loadHistogramBinData() {
+      return new Promise((resolve, reject) => {
+        histogramBinDataWorker.postMessage({encodedData: histogramBinDataEncoded, JSONParse: true});
 
-          // Update datamap plot
-          datamap.highlightPoints(histogramItemId);
+        histogramBinDataWorker.onmessage = async function(event) {
+          const { data } = event.data;
+          const histogramBinData = data;
+          resolve(histogramBinData);
         };
+      });
+    }
 
+    function loadHistogramIndexData() {
+      return new Promise((resolve, reject) => {
+        histogramIndexDataWorker.postMessage({encodedData: histogramIndexDataEncoded, JSONParse: false});
+
+        histogramIndexDataWorker.onmessage = async function(event) {
+          const { data } = event.data;
+          const histogramIndexData = simpleArrowParser(data);
+          resolve(histogramIndexData);
+        };
+      });
+    }
+
+    function loadHistogramData() {
+      const chartSelectionCallback = chartSelectedIndices => {
+        // Update data manager
+        if (chartSelectedIndices === null) {
+          datamap.dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
+        } else {
+          datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
+        }
+        // Update datamap plot
+        datamap.highlightPoints(histogramItemId);
+      };
+
+      Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {
+        const histogramData = { rawBinData: histogramBinData, rawIndexData: histogramIndexData };
         histogramItem = D3Histogram.create({
-          data: hoverData["{{ histogram_data_attr }}"],
+          data: histogramData, //hoverData["{{ histogram_data_attr }}"],
           chartContainerId: histogramItemId,
           {%- if histogram_width %}
           chartWidth: {{ histogram_width }},
@@ -460,14 +494,16 @@
         });
 
         datamap.connectHistogram(histogramItem);
-        {% endif -%}
-        document.getElementById("loading").style.display = "none";
-      };
+      });
     }
+    {% endif -%}
 
     loadPointDataLayer();
     loadLabelDataLayer();
     loadMetaData();
+    {%- if enable_histogram %}
+    loadHistogramData();
+    {% endif -%}
     {% if custom_js %}
     {{ custom_js }}
     {% endif -%}

@@ -18,6 +18,9 @@ from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
 
+from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
+
+from datamapplot.histograms import generate_bins_from_numeric_data, generate_bins_from_categorical_data, generate_bins_from_temporal_data
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 
@@ -230,7 +233,7 @@ def label_text_and_polygon_dataframes(
 
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
         if cluster_polygons:
-            simplices = Delaunay(cluster_points).simplices
+            simplices = Delaunay(cluster_points, qhull_options="Qbb Qc Qz Q12 Q7").simplices
             polygons.append(
                 [
                     smooth_polygon(x).tolist()
@@ -295,6 +298,8 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
+    histogram_n_bins=20,
+    histogram_group_datetime_by=None,
     histogram_settings={},
     on_click=None,
     selection_handler=None,
@@ -686,7 +691,18 @@ def render_html(
         get_tooltip = "null"
 
     if enable_histogram:
-        hover_data[histogram_data_attr] = histogram_data
+        # hover_data[histogram_data_attr] = histogram_data
+        if isinstance(histogram_data.dtype, pd.CategoricalDtype):
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins)
+        elif is_string_dtype(histogram_data.dtype):
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins)
+        elif is_datetime64_any_dtype(histogram_data.dtype):
+            if histogram_group_datetime_by is not None:
+                bin_data, index_data = generate_bins_from_temporal_data(histogram_data, histogram_group_datetime_by)
+            else:
+                bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins)
+        else:
+            bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins)
 
     if inline_data:
         buffer = io.BytesIO()
@@ -695,12 +711,25 @@ def render_html(
         arrow_bytes = buffer.read()
         gzipped_bytes = gzip.compress(arrow_bytes)        
         base64_point_data = base64.b64encode(gzipped_bytes).decode()
-        arrow_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
-        gzipped_bytes = gzip.compress(arrow_bytes)
+        json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
+        gzipped_bytes = gzip.compress(json_bytes)
         base64_hover_data = base64.b64encode(gzipped_bytes).decode()
         label_data_json = label_dataframe.to_json(orient="records")
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
+        if enable_histogram:
+            json_bytes = bin_data.to_json(orient="records").encode()
+            gzipped_bytes = gzip.compress(json_bytes)
+            base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
+            buffer = io.BytesIO()
+            index_data.to_frame().to_feather(buffer, compression="uncompressed")
+            buffer.seek(0)
+            arrow_bytes = buffer.read()
+            gzipped_bytes = gzip.compress(arrow_bytes)
+            base64_histogram_index_data = base64.b64encode(gzipped_bytes).decode()
+        else:
+            base64_histogram_bin_data = None
+            base64_histogram_index_data = None
         file_prefix = None
     else:
         base64_point_data = ""
@@ -716,6 +745,11 @@ def render_html(
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
+        if enable_histogram:
+            with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
+                f.write(bin_data.to_json(orient="records").encode())
+            with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
+                index_data.to_feather(f, compression="uncompressed")
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
@@ -812,6 +846,8 @@ def render_html(
         base64_point_data=base64_point_data,
         base64_hover_data=base64_hover_data,
         base64_label_data=base64_label_data,
+        base64_histogram_bin_data=base64_histogram_bin_data,
+        base64_histogram_index_data=base64_histogram_index_data,
         file_prefix=file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,

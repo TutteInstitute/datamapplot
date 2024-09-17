@@ -62,6 +62,9 @@ def generate_bins_from_numeric_data(data: pd.Series, n_bins: int = 20):
         - min_value: The minimum value of the bin.
         - max_value: The maximum value of the bin.
         - mean_value: The mean value of the bin.
+
+    pd.Series
+    A Series with the bin ids, one per entry in the data.
     """
     bins_ids, bin_edges = pd.cut(data, bins=n_bins, labels=False, retbins=True)
     all_bins = pd.DataFrame({"id": range(n_bins)})
@@ -83,7 +86,7 @@ def generate_bins_from_numeric_data(data: pd.Series, n_bins: int = 20):
         lambda x: x if isinstance(x, list) else []
     )
 
-    return bin_data, bins_ids.astype(np.int16)
+    return bin_data, bins_ids.astype(np.int16).rename("bin_id")
 
 
 def generate_bins_from_categorical_data(data: pd.Series, max_bins: int = 20):
@@ -107,7 +110,10 @@ def generate_bins_from_categorical_data(data: pd.Series, max_bins: int = 20):
         - min_value: The minimum value of the bin.
         - max_value: The maximum value of the bin.
         - mean_value: The mean value of the bin.
-    """
+ 
+    pd.Series
+    A Series with the bin ids, one per entry in the data.
+   """
     top_values = data.value_counts().head(max_bins - 1).index
     bins_ids = data.apply(lambda x: x if x in top_values else "Other")
     bin_data = (
@@ -125,7 +131,7 @@ def generate_bins_from_categorical_data(data: pd.Series, max_bins: int = 20):
         lambda x: x if isinstance(x, list) else []
     )
 
-    return bin_data, bins_ids.map(dict(bin_data[["label", "id"]].values)).astype(np.int16)
+    return bin_data, bins_ids.map(dict(bin_data[["label", "id"]].values)).astype(np.int16).rename("bin_id")
 
 def generate_bins_from_temporal_data(data: pd.Series, group_by: str = "year"):
     """
@@ -148,6 +154,9 @@ def generate_bins_from_temporal_data(data: pd.Series, group_by: str = "year"):
         - min_value: The minimum value of the bin.
         - max_value: The maximum value of the bin.
         - mean_value: The mean value of the bin.
+ 
+    pd.Series
+    A Series with the bin ids, one per entry in the data.
     """
     frequency_code = _NAME_TO_FREQ_CODE.get(group_by, group_by)
     period_code = _NAME_TO_PERIOD_CODE[group_by]
@@ -178,4 +187,4 @@ def generate_bins_from_temporal_data(data: pd.Series, group_by: str = "year"):
         lambda x: x if isinstance(x, list) else []
     )
 
-    return bin_data, bins_ids.astype(np.int16)
+    return bin_data, bins_ids.astype(np.int16).rename("bin_id")

@@ -102,14 +102,14 @@ const D3Histogram = (() => {
         }) {
 
             // Parameter validation
-            if (!data || data.length === 0 || !(Array.isArray(data) || isTypedArray(data))) {
-                console.error('Error: data must be a non-null, non-empty array.');
-                return null;
-            }
-            if (!isValidDataType(data)){
-                console.error("Invalid input type. Expected a number, string, Date, or valid date string.");
-                return null;
-            }
+            // if (!data || data.length === 0 || !(Array.isArray(data) || isTypedArray(data))) {
+            //     console.error('Error: data must be a non-null, non-empty array.');
+            //     return null;
+            // }
+            // if (!isValidDataType(data)){
+            //     console.error("Invalid input type. Expected a number, string, Date, or valid date string.");
+            //     return null;
+            // }
             if (!chartContainerId) {
                 console.error("Error: chart container ID was not provided.");
                 return null;
@@ -218,6 +218,7 @@ const D3Histogram = (() => {
                 }
             };
             
+            // this.#parseData();
             this.#parseData();
             this.#drawCanvas();
             this.#drawChart();
@@ -263,296 +264,44 @@ const D3Histogram = (() => {
 //#region Data
         // **********************************************************************************
         
-        /**
-         * Bins numerical data.
-         * 
-         * This function taskes an array of numerical data and assigns each data point to the
-         * corresponding bin. If there is no user-specified number of bins, this function 
-         * calculates the appropriate number of bins based on the chart dimensions.
-         * 
-         * @param {Array<number>} numArray - An array of numerical data to be binned.
-         * @returns {undefined} No return value.
-         * @private
-         */
-        #binNumericalData(numArray) {
-            const { BIN_MIN_WIDTH } = D3Histogram;
-            const { dimensions } = this.state.chart;
-            let { binsData, indicesData, binCount } = this.state.data;
-
-            // Get number of bins
-            binCount = binCount ?? Math.ceil(dimensions.boundedWidth / BIN_MIN_WIDTH);
-
-            // Find the minimum and maximum values in the array
-            let minVal = Infinity;
-            let maxVal = -Infinity;
-            
-            for (let value of numArray) {
-                if (value < minVal) minVal = value;
-                if (value > maxVal) maxVal = value;
-            }
-    
-            // Calculate the bin size
-            const binSize = (maxVal - minVal) / binCount;
-
-            // Initialize the bins Map and indicesData Map
-            binsData = new Map();
-            indicesData = new Int16Array(numArray.length);
-    
-            for (let i = 0; i < binCount; i++) {
-                const min = minVal + i * binSize;
-                const max = minVal + (i + 1) * binSize;
-                const mean = (min + max) / 2;
-
-                binsData.set(i, {
-                    id: i,
-                    indices: new Set(),
-                    min: min,
-                    max: max,
-                    mean: mean,
-                    label: mean
-                });
-            }
-    
-            // Iterate over the values and assign them to the appropriate bin
-            numArray.forEach((value, i) => {
-                const binIndex = Math.min(
-                    Math.floor((value - minVal) / binSize),
-                    binCount - 1 // Ensure the value goes into the last bin if it's the maximum value
-                );
-                const bin = binsData.get(binIndex);
-                bin.indices.add(i);
-    
-                indicesData[i] = binIndex;         
-            });
-    
-            this.state.data.binsData = binsData;
-            this.state.data.indicesData = indicesData;
-            this.state.data.binCount = binsData.size;
-        }
-
-        /**
-         * Bins categorical data.
-         * This function takes an array of categorical data, identifies unique categories, and 
-         * bins the data accordingly. If a user-specified number of bins is provided, it is overridden 
-         * to match the number of unique categories.
-         * 
-         * @param {Array} categoryArray - An array of categorical data to be binned.
-         * @returns {undefined} No return value.
-         * @private
-         */
-        #binCategoricalData(categoryArray) {
-            let { binsData, indicesData, binCount } = this.state.data;
-
-            // Find the unique categories
-            const uniqueCategories = [...new Set(categoryArray)];
-    
-            // Initialize bins
-            binsData = new Map();
-            indicesData = new Int16Array(categoryArray.length);
-
-            uniqueCategories.forEach((category, i) => {
-                binsData.set(i, {
-                    id: i,
-                    label: category,
-                    indices: new Set(),
-                    min: i,
-                    max: i,
-                    mean: i
-                });
-            });
-    
-            // Create a map for quick lookup of bin indices by category
-            const categoryToBinId = new Map(uniqueCategories.map((category, i) => [category, i]));
-    
-            // Iterate over the category array and assign each one to the corresponding bin
-            categoryArray.forEach((category, i) => {
-                const binId = categoryToBinId.get(category);
-                const bin = binsData.get(binId);
-                bin.indices.add(i);
-
-                indicesData[i] = binId;
-            });
-
-            this.state.data.binsData = binsData;
-            this.state.data.indicesData = indicesData;
-            this.state.data.binCount = binsData.size;
-        }
-
-        /**
-         * Bins temporal data.
-         * If no user-specified number of bins is provided, this function aggregates dates by year.
-         * 
-         * @param {Array<string>} dateArray - Array of date strings
-         * @returns {void} No return value
-         * @private
-         */
-        #binTemporalData(dateArray) {
-            let { binsData, indicesData, binCount } = this.state.data;
-
-            if (!binCount) {
-                this.#binTemporalDataByYear(dateArray);
-                return;
-            }
-    
-            // Parse and filter out invalid dates
-            const validDates = this.#parseAndFilterDates(dateArray);
-
-            // Sort valid dates chronologically
-            validDates.sort((a, b) => a.date - b.date);
-
-            // Determine the overall date/bin range
-            const overallMin = validDates[0].date;
-            const overallMax = validDates[validDates.length - 1].date;
-            const timeSpan = overallMax - overallMin;
-            const binRange = timeSpan / binCount;
-
-            // Initialize bins as a Map
-            binsData = new Map();
-            indicesData = new Int16Array(dateArray.length);
-
-
-            for (let binId = 0; binId < binCount; binId++) {
-                const min = overallMin.getTime() + binId * binRange;
-                const max = min + binRange;
-                const mean = (min + max) / 2;
-                const label = new Date(mean);
-        
-                binsData.set(binId, {
-                    binId,
-                    indices: new Set(),
-                    min,
-                    max,
-                    mean,
-                    label
-                });
-            }
-            
-            // Assign dates to bins
-            validDates.forEach((item, _) => {
-                const binIndex = Math.floor((item.date - overallMin) / binRange);
-                const bin = binsData.get(Math.min(binIndex, binCount - 1));
-
-                bin.indices.add(item.index);
-                indicesData[item.index] = bin.binId;
-            });
-
-            this.state.data.binsData = binsData;
-            this.state.data.indicesData = indicesData;
-            this.state.data.binCount = binsData.size;            
-        }
-
-        /**
-         * Bins temporal data by year.
-         * 
-         * @param {Array<string>} dateArray - Array of date strings
-         * @returns {void} No return value
-         * @private
-         */
-        #binTemporalDataByYear(dateArray) {
-            let { binsData, indicesData, binCount } = this.state.data;
-        
-            // Parse and filter out invalid dates
-            const validDates = this.#parseAndFilterDates(dateArray);
-            
-            // Parse the input dates and group them by year (in UTC)
-            const datesByYear = validDates.reduce((acc, { date, index }) => {
-                const year = date.getUTCFullYear();
-                if (!acc[year]) {
-                    acc[year] = [];
-                }
-                acc[year].push({ date, index });
-                return acc;
-            }, {});
-        
-            // Extract the unique years and sort them
-            const uniqueYears = Object.keys(datesByYear).map(Number).sort((a, b) => a - b);
-
-            // Ensure all years between the earliest and latest year are included
-            const earliestYear = uniqueYears[0];
-            const latestYear = uniqueYears[uniqueYears.length - 1];
-            const allYears = [];
-            for (let year = earliestYear; year <= latestYear; year++) {
-                allYears.push(year);
-                if (!datesByYear[year]) {
-                    datesByYear[year] = [];
-                }
-            }
-        
-            // Determine number of bins
-            binCount = allYears.length;
-
-             // Initialize binsData and indicesData as Maps
-             indicesData = new Int16Array(dateArray.length);
-             binsData = new Map();
- 
-             allYears.forEach((year, binIndex) => {
-                 const min = Date.UTC(year, 0, 1);
-                 const max = Date.UTC(year, 11, 31);
-                 const mean = (min + max) / 2;
-                 const label = new Date(mean);
- 
-                 const bin = {
-                     id: binIndex,
-                     indices: new Set(),
-                     min,
-                     max,
-                     mean,
-                     label
-                 };
-                 datesByYear[year].forEach(({ date, index }) => {
-                     bin.indices.add(index);
-                     indicesData[index] = binIndex;
-                 });
- 
-                 binsData.set(binIndex, bin);
-             });
-            
-            this.state.data.binsData = binsData;
-            this.state.data.indicesData = indicesData;
-            this.state.data.binCount = binsData.size;
-        }
-
-        /**
-         * Parses date strings into Date objects.
-         * 
-         * @param {Array<string>} dateArray - Array of date strings
-         * @returns {Array<Object>} - Array of valid date objects with associated indices
-         */
-        #parseAndFilterDates = dateArray => {
-            const parseDate = d3.utcParse("%Y-%m-%d");
-            return dateArray
-                .filter(dateStr => !isNaN((new Date(dateStr)).getTime()))
-                .map((dateStr, index) => ({ dateStr, date: parseDate(dateStr), index }));
-        };
-
-        /**
-         * Cleans and parses the original, raw data for use in the chart.
-         * 
-         * @returns {undefined} No return value.
-         * @private
-        */
         #parseData() {
             const { DATA_TYPE_E } = D3Histogram;
-            const { rawData } = this.state.data;
             let { dataType } = this.state.data;
+            let { binsData, indicesData } = this.state.data;
+            const { rawData } = this.state.data;
+            const { rawBinData, rawIndexData } = rawData;
 
             // Get data type, and aggregate the raw data based on its type
-            const value = rawData[0];
+            const value = rawBinData[0].mean_value;
 
             if (typeof value === 'number') { 
                 dataType = DATA_TYPE_E.NUMERICAL;
-                this.#binNumericalData(rawData);
             }
             else if (isValidDateStr(value)) { 
                 dataType = DATA_TYPE_E.TEMPORAL;
-                this.#binTemporalData(rawData);
             }
             else {
                 dataType = DATA_TYPE_E.CATEGORICAL; 
-                this.#binCategoricalData(rawData);
             }
 
+            rawBinData.forEach(bin => {
+                const parsedBin = {
+                  id: bin.id,
+                  min: bin.min_value, 
+                  max: bin.max_value, 
+                  mean: dataType === DATA_TYPE_E.CATEGORICAL ? bin.id : bin.mean_value, 
+                  label: bin.mean_value, 
+                  indices: new Set(bin.indices)
+                };
+                binsData.set(bin.id, parsedBin);
+            });
+
+            indicesData = new Int16Array(rawIndexData["bin_id"]);
+
             this.state.data.dataType = dataType;
+            this.state.data.binsData = binsData;
+            this.state.data.indicesData = indicesData;
+            this.state.data.binCount = binsData.size;
         }
 
         /**
@@ -1351,7 +1100,7 @@ const D3Histogram = (() => {
             const { dataType, binsData } = this.state.data;           
 
             if (dataType === DATA_TYPE_E.CATEGORICAL) { 
-                return range[0] === range[1] ? `<b>${binsData[range[0]].label}</b>` : '';
+                return range[0] === range[1] ? `<b>${binsData.get(range[0]).label}</b>` : '';
             }
             
             let formattedRange = null;
