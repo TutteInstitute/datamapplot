@@ -15,31 +15,32 @@ def circumradius(points):
     return np.sqrt(ux * ux + uy * uy)
 
 
-def create_boundary_polygons(points, simplices, alpha=0.1):
-    all_edges = set([(np.int32(0), np.int32(0)) for i in range(0)])
-    boundary = set([(np.int32(0), np.int32(0)) for i in range(0)])
+@numba.njit(locals={"candidate_idx": numba.uint64})
+def find_boundary_candidates(points, simplices, alpha=0.1):
+    candidates = np.full((simplices.shape[0] * 3, 2), -1, dtype=np.int32)
+    candidate_idx = 0
     for simplex in simplices:
         if circumradius(points[simplex]) < alpha:
-            for e in (
-                (simplex[0], simplex[1]),
-                (simplex[0], simplex[2]),
-                (simplex[1], simplex[2]),
-            ):
-                if e[0] < e[1]:
-                    if (e[0], e[1]) not in all_edges:
-                        all_edges.add((e[0], e[1]))
-                        boundary.add((e[0], e[1]))
-                    else:
-                        boundary.remove((e[0], e[1]))
-                else:
-                    if (e[1], e[0]) not in all_edges:
-                        all_edges.add((e[1], e[0]))
-                        boundary.add((e[1], e[0]))
-                    else:
-                        boundary.remove((e[1], e[0]))
+            candidates[candidate_idx] = (simplex[0], simplex[1])
+            candidates[candidate_idx + 1] = (simplex[0], simplex[2])
+            candidates[candidate_idx + 2] = (simplex[1], simplex[2])
+            candidate_idx += 3
+    return candidates[:candidate_idx]
 
-    if len(boundary) == 0:
-        raise ValueError("The value of polygon_alpha was too low, and no boundary was formed. Try increasing polygon_alpha.")
+@numba.njit()
+def boundary_from_candidates(boundary_candidates):
+    occurrence_counts = {(np.int32(0), np.int32(0)):0 for i in range(0)}
+    for candidate in boundary_candidates:
+        tuple_candidate = (candidate[0], candidate[1])
+        if tuple_candidate in occurrence_counts:
+            occurrence_counts[tuple_candidate] += 1
+        else:
+            occurrence_counts[tuple_candidate] = 1
+
+    return set([x for x in occurrence_counts if occurrence_counts[x] == 1])
+
+@numba.njit()
+def build_polygons(boundary):
     polygons = []
     search_set = boundary.copy()
     sequence = list(search_set.pop())
@@ -59,6 +60,15 @@ def create_boundary_polygons(points, simplices, alpha=0.1):
             sequence = list(search_set.pop())
 
     polygons.append(sequence)
+    return polygons
+
+def create_boundary_polygons(points, simplices, alpha=0.1):
+    simplices.sort(axis=1)
+    boundary_candidates = find_boundary_candidates(points, simplices, alpha=alpha)
+    boundary = boundary_from_candidates(boundary_candidates)
+    if len(boundary) == 0:
+        raise ValueError("The value of polygon_alpha was too low, and no boundary was formed. Try increasing polygon_alpha.")
+    polygons = build_polygons(boundary)
 
     result = [
         np.empty((len(sequence) + 1, 2), dtype=np.float32) for sequence in polygons
