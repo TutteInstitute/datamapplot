@@ -749,7 +749,7 @@ def render_html(
             with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
                 f.write(bin_data.to_json(orient="records").encode())
             with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
-                index_data.to_feather(f, compression="uncompressed")
+                index_data.to_frame().to_feather(f, compression="uncompressed")
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
