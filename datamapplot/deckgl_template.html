@@ -42,6 +42,17 @@
         padding: 0;
         overflow: hidden;
         background: {{page_background_color}};
+        font-family: {{title_font_family}};
+        color: {{title_font_color}};
+      }
+      .container-box {
+        margin: 16px;
+        padding: 12px;
+        border-radius: 16px;
+        line-height: 0.95;
+        z-index: 2;
+        background: {{title_background}};
+        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       #deck-container {
         width: 100vw;
@@ -73,15 +84,6 @@
         position: absolute;
         top: 0;
         left: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        line-height: 0.95;
-        z-index: 2;
-        font-family: {{title_font_family}};
-        color: {{title_font_color}};
-        background: {{title_background}};
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
 
       {%- if logo %}
@@ -89,12 +91,6 @@
         position: absolute;
         bottom: 0;
         right: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        z-index: 2;
-        background: {{title_background}};
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       img {
         display: block;
@@ -108,14 +104,7 @@
         position: absolute;
         left: -16px;
         margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        z-index: 2;
-        font-family: {{font_family}};
-        color: {{title_font_color}};
-        background: {{title_background}};
         width: fit-content;
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       input {
         margin: 2px;
@@ -131,16 +120,6 @@
         border: 2px solid #555;
       }
       {%- endif %}
-
-      {%- if enable_histogram %}
-      #d3histogram-container {
-        background: {{ title_background }};
-        color: {{ title_font_color }};
-        font-family: {{ title_font_family }};
-        box-shadow: 2px 3px 10px {{ shadow_color }};
-      }
-      {%- endif %}
-
       {%- if custom_css %}
       {{custom_css}}
       {%- endif %}
@@ -157,7 +136,7 @@
     </div>
 
     {% if use_title %}
-    <div id="title-container">
+    <div id="title-container" class="container-box">
       <span
         style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}"
       >
@@ -171,7 +150,7 @@
       </span>
 
       {% if search %}
-      <div id="search-container">
+      <div id="search-container" class="container-box">
         <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
@@ -181,7 +160,7 @@
       <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
     </div>
     {% endif %} {% if logo %}
-    <div id="logo-container">
+    <div id="logo-container" class="container-box">
       <img src="{{logo}}" style="width:{{logo_width}}px" />
     </div>
     {% endif %}
@@ -189,7 +168,7 @@
     <div id="deck-container"></div>
 
     {%- if enable_histogram %}
-    <div id="d3histogram-container"></div>
+    <div id="d3histogram-container" class="container-box"></div>
     {%- endif -%}
 
     {% if custom_html %} {{custom_html}} {%- endif -%}
@@ -493,6 +472,9 @@
           {%- endif %}
           {%- if histogram_bin_context_fill_color %}
           binContextFillColor: "{{ histogram_bin_context_fill_color }}",
+          {%- endif %}
+          {%- if histogram_log_scale %}
+          logScale: {{ histogram_log_scale|lower }},
           {%- endif %}
           chartSelectionCallback
         });

@@ -98,6 +98,7 @@ const D3Histogram = (() => {
             binSelectedFillColor = "#2EBFA5",
             binUnselectedFillColor = "#9E9E9E",
             binContextFillColor = "#E6E6E6",
+            logScale = false,
             chartSelectionCallback = () => {}
         }) {
 
@@ -130,6 +131,7 @@ const D3Histogram = (() => {
                     binSelectedFillColor,
                     binUnselectedFillColor,
                     binContextFillColor,
+                    logScale,
                     chartSelectionCallback
                 });
             } catch (error) {
@@ -152,6 +154,7 @@ const D3Histogram = (() => {
             binSelectedFillColor,
             binUnselectedFillColor,
             binContextFillColor,
+            logScale,
             chartSelectionCallback
         }) {
             // Define chart dimensions
@@ -185,6 +188,7 @@ const D3Histogram = (() => {
                     binSelectedFillColor,
                     binUnselectedFillColor,
                     binContextFillColor,
+                    logScale,
                     binFocusDefaultFillColor: binDefaultFillColor,
                     binFocusSelectedFillColor: binSelectedFillColor,
                     binFocusUnselectedFillColor: binUnselectedFillColor,
@@ -400,7 +404,7 @@ const D3Histogram = (() => {
                 CLIP_BOUNDS_ID, BIN_RECT_CLASS_ID, AXIS_CLASS_ID, XAXIS_GROUP_ID, YAXIS_GROUP_ID, 
                 XAXIS_TICKS_NB, YAXIS_TICKS_NB 
             } = D3Histogram;
-            const { dimensions, chartContainerId, bounds, binDefaultFillColor } = this.state.chart;
+            const { dimensions, chartContainerId, bounds, binDefaultFillColor, logScale } = this.state.chart;
             const { title } = this.state.peripherals.header;
             const binsData = Array.from(this.state.data.binsData.values());
             let { overallBinMin, overallBinMax } = this.state.data;
@@ -436,9 +440,16 @@ const D3Histogram = (() => {
                 return domain()[domainIndex];
             };
 
-            const yScale = d3.scaleLinear()
+            let yScale = null;
+            if (logScale) {
+                 yScale = d3.scaleSymlog()
+                    .domain([0, d3.max(binsData, yAccessor)])
+                    .range([dimensions.boundedHeight, 0]);
+            } else {
+                yScale = d3.scaleLinear()
                 .domain([0, d3.max(binsData, yAccessor)])
                 .range([dimensions.boundedHeight, 0]);
+            }                
 
 
             this.state.peripherals.axes.originalXScaleRange = xScale.range();

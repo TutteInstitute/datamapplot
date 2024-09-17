@@ -113,14 +113,8 @@ function clearSelection() {{
         right: 0;
         height: 95%;
         max-width: 33%;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
         z-index: 10;
         font-family: {self.font_family};
-        color: #000000;
-        background: #ffffffcc;
-        box-shadow: 2px 3px 10px #aaaaaa44;
     }}
     #selection-display {{
         overflow-y: auto;
@@ -158,7 +152,7 @@ function clearSelection() {{
     @property
     def html(self):
         return f"""
-    <div id="selection-container">
+    <div id="selection-container" class="container-box">
         <button class="button resample-button">Resample</button>
         <button class="button clear-selection-button"></button>
         <div id="selection-display"></div>
