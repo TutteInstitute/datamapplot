@@ -112,6 +112,9 @@ class DataMap {
         getFilterValue: this.updateTriggerCounter  // We'll increment this to trigger updates
       },
       instanceCount: numPoints,
+      parameters: {
+        depthTest: false
+      }
     });
 
     this.layers.push(this.pointLayer);
@@ -178,6 +181,9 @@ class DataMap {
       },
       extensions: [new deck.CollisionFilterExtension()],
       instanceCount: numLabels,
+      parameters: {
+        depthTest: false
+      }
     });
 
     this.layers.push(this.labelLayer);
@@ -203,6 +209,9 @@ class DataMap {
       lineWidthMaxPixels: 4,
       lineWidthMinPixels: 0.0,
       instanceCount: numBoundaries,
+      parameters: {
+        depthTest: false
+      }
     });
 
     this.layers.push(this.boundaryLayer);
@@ -308,6 +317,16 @@ class DataMap {
         this.histogramItem.removeChartWithSelection(selectedIndices);
       }
     }
+  }
+
+  addSelection(selectedIndices, selectionKind) {
+    this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, selectionKind);
+    this.highlightPoints(selectionKind);
+  }
+
+  removeSelection(selectionKind) {
+    this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);
+    this.highlightPoints(selectionKind);
   }
 
   searchText(searchTerm) {

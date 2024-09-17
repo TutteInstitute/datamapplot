@@ -436,12 +436,10 @@
       const chartSelectionCallback = chartSelectedIndices => {
         // Update data manager
         if (chartSelectedIndices === null) {
-          datamap.dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
+          datamap.removeSelection(histogramItemId);
         } else {
-          datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
+          datamap.addSelection(chartSelectedIndices, histogramItemId);
         }
-        // Update datamap plot
-        datamap.highlightPoints(histogramItemId);
       };
 
       Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {

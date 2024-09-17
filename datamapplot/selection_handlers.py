@@ -98,8 +98,7 @@ function clearSelection() {{
     const selectionContainer = document.getElementById('selection-container');
     $(selectionContainer).animate({{width:'hide'}}, 500);
 
-    datamap.dataSelectionManager.removeSelectedIndicesOfItem(datamap.lassoSelectionItemId);
-    datamap.highlightPoints(datamap.lassoSelectionItemId);
+    datamap.removeSelection(datamap.lassoSelectionItemId);
 }}
         """
     

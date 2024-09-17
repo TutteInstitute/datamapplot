@@ -120,11 +120,10 @@ class LassoSelectionTool {
      */
     handleSelection(selectedPoints) {
         if (selectedPoints.length === 0) {
-            this.datamap.dataSelectionManager.removeSelectedIndicesOfItem(this.itemId);
+            this.datamap.removeSelection(this.itemId);
         } else {
-            this.datamap.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedPoints, this.itemId);
+            this.datamap.addSelection(selectedPoints, this.itemId);
         }
-        this.datamap.highlightPoints(this.itemId);
         this.handleSelectedPoints(selectedPoints);
     }
 
