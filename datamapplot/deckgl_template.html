@@ -258,6 +258,10 @@
     const pointDataEncoded = `${originURL}/{{file_prefix}}_point_data.zip`;
     const hoverDataEncoded = `${originURL}/{{file_prefix}}_meta_data.zip`;
     const labelDataEncoded = `${originURL}/{{file_prefix}}_label_data.zip`;
+    {% if enable_histogram %}
+    const histogramBinDataEncoded = `${originURL}/{{file_prefix}}_histogram_bin_data.zip`;
+    const histogramIndexDataEncoded = `${originURL}/{{file_prefix}}_histogram_index_data.zip`;
+    {% endif %}
 
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
