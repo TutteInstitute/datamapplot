@@ -232,14 +232,10 @@
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
     {% else %}
-    let originURL = "";
-    if (self.location.pathname === "srcdoc") {
-      originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/') + 1);
-    } else {
-      const currentURL = self.location.pathname;
-      const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
-      originURL = self.location.origin + directoryPath;
-    }
+    const currentURL = self.location.pathname;
+    const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
+    const originURL = self.location.origin + directoryPath;
+
     const pointDataEncoded = `${originURL}/{{file_prefix}}_point_data.zip`;
     const hoverDataEncoded = `${originURL}/{{file_prefix}}_meta_data.zip`;
     const labelDataEncoded = `${originURL}/{{file_prefix}}_label_data.zip`;
@@ -251,51 +247,51 @@
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
       self.onmessage = async function(event) {
-      const { encodedData, JSONParse } = event.data;
-      async function decompressFile(filename) {
-        try {
-          const response = await fetch(filename);
-          if (!response.ok) {
-            throw new Error(\`HTTP error! status: \${response.status}\`);
-          }
-          const reader = response.body
-            .pipeThrough(new DecompressionStream("gzip"))
-            .getReader();
-
-          let chunks = [];
-          let totalSize = 0;
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              break;
+        const { encodedData, JSONParse } = event.data;
+        async function decompressFile(filename) {
+          try {
+            const response = await fetch(filename);
+            if (!response.ok) {
+              throw new Error(\`HTTP error! status: \${response.status}\`);
             }
-            chunks.push(value);
-            totalSize += value.length;
-          }
+            const reader = response.body
+              .pipeThrough(new DecompressionStream("gzip"))
+              .getReader();
 
-          // Concatenate chunks into a single Uint8Array
-          const decompressedData = new Uint8Array(totalSize);
-          let position = 0;
-          for (const chunk of chunks) {
-            decompressedData.set(chunk, position);
-            position += chunk.length;
-          }
+            let chunks = [];
+            let totalSize = 0;
 
-          return decompressedData;
-        } catch (error) {
-          console.error('Decompression failed:', error);
-          throw error;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                break;
+              }
+              chunks.push(value);
+              totalSize += value.length;
+            }
+
+            // Concatenate chunks into a single Uint8Array
+            const decompressedData = new Uint8Array(totalSize);
+            let position = 0;
+            for (const chunk of chunks) {
+              decompressedData.set(chunk, position);
+              position += chunk.length;
+            }
+
+            return decompressedData;
+          } catch (error) {
+            console.error('Decompression failed:', error);
+            throw error;
+          }
         }
-      }
-      const binaryData = await decompressFile(encodedData);
-      if (JSONParse) {
-        const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-        self.postMessage({ data: parsedData });
-      } else {
-        // Send the parsed table back to the main thread
-        self.postMessage({ data: binaryData });
-      }
+        const binaryData = await decompressFile(encodedData);
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ data: binaryData });
+        }
       }
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);

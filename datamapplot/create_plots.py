@@ -342,6 +342,7 @@ def create_interactive_plot(
     color_cluster_boundaries=True,
     polygon_alpha=0.1,
     cvd_safer=False,
+    jupyterhub_api_token=None,
     **render_html_kwds,
 ):
     """
@@ -441,6 +442,11 @@ def create_interactive_plot(
     cvd_safer: bool (optional, default=False)
         Whether to use a colour palette that is safer for colour vision deficiency (CVD).
         This will override any provided cmap and use a CVD safer palette instead.
+
+    jupyterhub_api_token: str or None (optional, default=None)
+        The JupyterHub API token to use when rendering the plot inline in a notebook via jupyterhub. 
+        This should not be necessary for most users, but can be useful in some environments where
+        the default token is not available.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -607,4 +613,4 @@ def create_interactive_plot(
         **render_html_kwds,
     )
 
-    return InteractiveFigure(html_str, width=width, height=height)
+    return InteractiveFigure(html_str, width=width, height=height, api_token=jupyterhub_api_token)

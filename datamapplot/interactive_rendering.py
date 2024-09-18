@@ -40,6 +40,46 @@ _TOOL_TIP_CSS = """
             max-width: 25%;
 """
 
+_NOTEBOOK_NON_INLINE_WORKER = """
+    const parsingWorkerBlob = new Blob([`
+      async function DecompressBytes(bytes) {
+          const blob = new Blob([bytes]);
+          const decompressedStream = blob.stream().pipeThrough(
+            new DecompressionStream("gzip")
+          );
+          const arr = await new Response(decompressedStream).arrayBuffer()
+          return new Uint8Array(arr);
+      }
+      async function decodeBase64(base64) {
+          return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      }
+      async function decompressFile(filename) {
+          const response = await fetch(filename, {
+            headers: {Authorization: 'Token API_TOKEN'}
+          });
+          if (!response.ok) {
+            throw new Error(\`HTTP error! status: \${response.status}\`);
+          }
+          const data = await response.json()
+            .then(data => data.content)
+            .then(base64data => decodeBase64(base64data))
+            .then(buffer => DecompressBytes(buffer));
+          return data;
+      }
+      self.onmessage = async function(event) {
+        const { encodedData, JSONParse } = event.data;
+        const binaryData = await decompressFile(encodedData);
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ data: binaryData });
+        }
+      }
+    `], { type: 'application/javascript' });
+"""
+
 
 class FormattingDict(dict):
     def __missing__(self, key):
@@ -54,10 +94,11 @@ class InteractiveFigure:
     be used to save the results to an HTML file while can then be shared.
     """
 
-    def __init__(self, html_str, width="100%", height=800):
+    def __init__(self, html_str, width="100%", height=800, api_token=None):
         self._html_str = html_str
         self.width = width
         self.height = height
+        self.api_token = api_token or os.environ.get("JUPYTERHUB_API_TOKEN", None)
 
     def __repr__(self):
         return f"<InteractiveFigure width={self.width} height={self.height}>"
@@ -66,7 +107,32 @@ class InteractiveFigure:
         return self._html_str
 
     def _repr_html_(self):
-        src_doc = html.escape(self._html_str)
+        if "originURL" in self._html_str:
+            # We need to redirect the fetch to use the jupyter API endpoint
+            # for use in a notebook...
+            jupyter_html_str = self._html_str.replace(
+                "originURL = self.location.origin + directoryPath;", 
+                "originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/')).replace(/(notebooks|lab.*tree)/, 'api/contents');"
+            )
+            jupyter_html_str = re.sub(
+                r'const parsingWorkerBlob.*?\'application/javascript\' \}\);', 
+                _NOTEBOOK_NON_INLINE_WORKER,
+                jupyter_html_str,
+                flags=re.DOTALL
+            )
+            if self.api_token is not None:
+                jupyter_html_str = jupyter_html_str.replace(
+                    "headers: {Authorization: 'Token API_TOKEN'}",
+                    f"headers: {{Authorization: 'Token {self.api_token}'}}"
+                )
+            else:
+                jupyter_html_str = jupyter_html_str.replace(
+                    "headers: {Authorization    : 'Token API_TOKEN'}",
+                    ""
+                )
+            src_doc =  html.escape(jupyter_html_str)
+        else:
+            src_doc = html.escape(self._html_str)
         iframe = f"""
             <iframe
                 width={self.width}
@@ -88,6 +154,15 @@ class InteractiveFigure:
         """Save an interactive firgure to the HTML file with name `filename`"""
         with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
+
+    def save_bundle(self, filename):
+        """Save an interactive figure to a zip file with name `filename`"""
+        with zipfile.ZipFile(filename, "w") as zf:
+            zf.writestr("index.html", self._html_str)
+            for filename in re.findall(r'/(.*?_data\.zip)', self._html_str):
+                print(f"Adding {filename} to bundle")
+                zf.write(filename)
+
 
 
 def get_google_font_for_embedding(fontname):
