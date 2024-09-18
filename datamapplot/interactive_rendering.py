@@ -11,6 +11,7 @@ import jinja2
 import numpy as np
 import pandas as pd
 import requests
+import re
 from importlib_resources import files
 from matplotlib.colors import to_rgba
 from pathlib import Path
@@ -89,6 +90,29 @@ class InteractiveFigure:
             f.write(self._html_str)
 
 
+def get_google_font_for_embedding(fontname):
+    api_fontname = fontname.replace(" ", "+")
+    api_response = requests.get(
+        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
+        timeout=10,
+    )
+    if api_response.ok:
+        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
+        font_links = []
+        for url in font_urls:
+            if url.endswith(".ttf"):
+                font_links.append(
+                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/ttf" />'
+                )
+            elif url.endswith(".woff2"):
+                font_links.append(
+                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/woff2" />'
+                )
+        return "\n".join(font_links) + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
+    else:
+        return ""
+
+
 def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -114,11 +138,8 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "js"
-    js_dependencies = ["datamap.js"]
+    js_dependencies = ["datamap.js", "data_selection_manager.js"]
     js_dependencies_src = {}
-
-    if enable_search or enable_histogram:
-        js_dependencies.append("data_selection_manager.js")
 
     if enable_histogram:
         js_dependencies.append("d3_histogram.js")
@@ -255,7 +276,7 @@ def label_text_and_polygon_dataframes(
         data["polygon"] = polygons
 
     return pd.DataFrame(data)
-
+    
 
 def render_html(
     point_dataframe,
@@ -269,7 +290,7 @@ def render_html(
     text_min_pixel_size=18,
     text_max_pixel_size=36,
     font_family="Roboto",
-    font_weight=900,
+    font_weight=600,
     tooltip_font_family=None,
     tooltip_font_weight=300,
     logo=None,
@@ -364,7 +385,7 @@ def render_html(
         google font then the required google font api handling will automatically
         make the font available, so any google font family is acceptable.
 
-    font_weight: str or int (optional, default=900)
+    font_weight: str or int (optional, default=600)
         The font weight to use for the text labels within the plot. Either weight
         specification such as "thin", "normal", or "bold" or an integer value
         between 0 (ultra-thin) and 1000 (ultra-black).
@@ -606,7 +627,7 @@ def render_html(
         "histogram_data_attr": histogram_data_attr,
         **histogram_settings,
     }
-    enable_lasso_selection = selection_handler is not None
+    enable_lasso_selection = selection_handler is not None        
 
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
 
@@ -691,7 +712,6 @@ def render_html(
         get_tooltip = "null"
 
     if enable_histogram:
-        # hover_data[histogram_data_attr] = histogram_data
         if isinstance(histogram_data.dtype, pd.CategoricalDtype):
             bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins)
         elif is_string_dtype(histogram_data.dtype):
@@ -735,6 +755,8 @@ def render_html(
         base64_point_data = ""
         base64_hover_data = ""
         base64_label_data = ""
+        base64_histogram_bin_data = ""
+        base64_histogram_index_data = ""
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
@@ -786,17 +808,14 @@ def render_html(
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
-    resp = requests.get(
-        f"https://fonts.googleapis.com/css?family={api_fontname}",
-        timeout=300,
-    )
-    if not resp.ok:
+    font_data = get_google_font_for_embedding(font_family)
+    if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
         resp = requests.get(
             f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
-            timeout=300,
+            timeout=30,
         )
         if not resp.ok:
             api_tooltip_fontname = None
@@ -823,6 +842,7 @@ def render_html(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
+        google_font_data=font_data,
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,

@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap"
       rel="stylesheet"
     />
+    {{google_font_data}}
     {%- if google_tooltip_font %}
     <link
       href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap"
@@ -156,7 +157,7 @@
       {% endif %}
     </div>
     {% elif search %}
-    <div id="search-container" style="left: 0 !important">
+    <div id="search-container" class="container-box" style="left: 0 !important">
       <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
     </div>
     {% endif %} {% if logo %}
@@ -231,9 +232,14 @@
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
     {% else %}
-    const currentURL = self.location.pathname;
-    const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
-    const originURL = self.location.origin + directoryPath;
+    let originURL = "";
+    if (self.location.pathname === "srcdoc") {
+      originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/') + 1);
+    } else {
+      const currentURL = self.location.pathname;
+      const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
+      originURL = self.location.origin + directoryPath;
+    }
     const pointDataEncoded = `${originURL}/{{file_prefix}}_point_data.zip`;
     const hoverDataEncoded = `${originURL}/{{file_prefix}}_meta_data.zip`;
     const labelDataEncoded = `${originURL}/{{file_prefix}}_label_data.zip`;
