@@ -63,19 +63,15 @@ custom_css = """
     width:10px;
     border-radius:2px;
     margin-right:5px;
+    padding:0px 0 1px 0;
+    text-align:center;
+    color: white;
+    font-size: 14px;
 }
 #legend {
     position: absolute;
     top: 0;
     right: 0;
-    margin: 16px;
-    padding: 12px;
-    border-radius: 16px;
-    z-index: 2;
-    background: #ffffffcc;
-    font-family: Cinzel;
-    font-size: 8pt;
-    box-shadow: 2px 3px 10px #aaaaaa44;
 }
 #title-container {
     max-width: 75%;
@@ -83,13 +79,11 @@ custom_css = """
 """
 # Construct HTML for the legend
 custom_html = """
-<div id="legend">
+<div id="legend" class="container-box">
 """
 for field, color in color_mapping.items():
-    custom_html += f'    <div class="row"><div id="{field}" class="box" style="background-color:{color};padding:0px 0 1px 0;text-align:center"></div>{field}</div>\n'
-custom_html += """
-</div>
-"""
+    custom_html += f'    <div class="row"><div id="{field}" class="box" style="background-color:{color};"></div>{field}</div>\n'
+custom_html += "</div>\n"
 
 # Create a custom tooltip, highlighting the field of research and citation count
 badge_css = """
@@ -111,38 +105,29 @@ hover_text_template = f"""
 # Add custom javascript to make the legend interactive/clickable,
 # and interact with search selection
 custom_js = """
-    const legendItemID = 'legend';
-    const legend = document.getElementById(legendItemID);
-    const selectedPrimaryFields = new Set();
+const legend = document.getElementById("legend");
+const selectedPrimaryFields = new Set();
 
-    legend.addEventListener('click', function (event) {
-        const primaryField = event.srcElement.id;
+legend.addEventListener('click', function (event) {
+    const selectedField = event.srcElement.id;
 
-        if (primaryField) {
-            if (selectedPrimaryFields.has(primaryField)) {
-                selectedPrimaryFields.delete(primaryField);
-                event.srcElement.innerHTML = "";
-            } else {
-                selectedPrimaryFields.add(primaryField);
-                event.srcElement.innerHTML = "✓";
-            }
-        }
-
-        const selectedIndices = hoverData.data.primary_field.reduce((indices, d, i) => {
-            if (selectedPrimaryFields.has(d)) {
-                indices.push(i);
-            }
-            return indices;
-        }, []);
-
-        if (selectedIndices.length === 0) {
-            dataSelectionManager.removeSelectedIndicesOfItem(legendItemID);
+    if (selectedField) {
+        if (selectedPrimaryFields.has(selectedField)) {
+            selectedPrimaryFields.delete(selectedField);
+            event.srcElement.innerHTML = "";
         } else {
-            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, legendItemID);
+            selectedPrimaryFields.add(selectedField);
+            event.srcElement.innerHTML = "✓";
         }
- 
-        selectPoints(legendItemID);
+    }
+    const selectedIndices = [];
+    datamap.metaData.primary_field.forEach((field, i) => {
+        if (selectedPrimaryFields.has(field)) {
+            selectedIndices.push(i);
+        }
     });
+    datamap.addSelection(selectedIndices, "legend");
+});
 """
 
 plot = datamapplot.create_interactive_plot(
