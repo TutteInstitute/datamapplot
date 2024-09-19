@@ -357,7 +357,7 @@
 
       labelDataWorker.onmessage = async function(event) {
         const { data } = event.data;
-        const labelData = data; //JSON.parse(new TextDecoder("utf-8").decode(data));
+        const labelData = data; 
         datamap.addLabels(labelData, {
           labelTextColor: {{label_text_color}},
           textMinPixelSize: {{text_min_pixel_size}},
@@ -385,10 +385,9 @@
 
       metaDataWorker.onmessage = async function(event) {
         const { data } = event.data;
-        // const hoverData = await simpleArrowParser(data);
-        const hoverData = data; //JSON.parse(new TextDecoder("utf-8").decode(data));
+        const hoverData = data;
         datamap.addMetaData(hoverData, {
-          //tooltipFunction: {{get_tooltip}},
+          tooltipFunction: {{get_tooltip}},
           onClickFunction: {{on_click if on_click else "null"}},
           searchField: "{{search_field}}",
         });
