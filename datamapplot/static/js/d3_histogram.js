@@ -291,8 +291,8 @@ const D3Histogram = (() => {
             rawBinData.forEach(bin => {
                 const parsedBin = {
                   id: bin.id,
-                  min: bin.min_value, 
-                  max: bin.max_value, 
+                  min: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.min_value) : bin.min_value, 
+                  max: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.max_value) : bin.max_value, 
                   mean: dataType === DATA_TYPE_E.CATEGORICAL ? bin.id : bin.mean_value, 
                   label: bin.mean_value, 
                   indices: new Set(bin.indices)
@@ -486,7 +486,7 @@ const D3Histogram = (() => {
             // Axes
             const yAxisTickFormat = d3.format(".1s");
             const yAxis = d3.axisRight(yScale)
-                .ticks(YAXIS_TICKS_NB)
+                .ticks(logScale ? 2 * YAXIS_TICKS_NB : YAXIS_TICKS_NB)
                 .tickFormat(d => d === yScale.domain()[0] ? '' : yAxisTickFormat(d));
             bounds.append("g")
                 .attr("id", YAXIS_GROUP_ID)
