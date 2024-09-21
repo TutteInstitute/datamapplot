@@ -329,6 +329,10 @@ class DataMap {
     this.highlightPoints(selectionKind);
   }
 
+  getSelectedIndices() {
+    return this.dataSelectionManager.getSelectedIndices();
+  }
+
   searchText(searchTerm) {
     const searchTermLower = searchTerm.toLowerCase();
     const selectedIndices = this.searchArray.reduce((indices, d, i) => {
