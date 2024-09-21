@@ -396,6 +396,7 @@ def render_html(
     histogram_data=None,
     histogram_n_bins=20,
     histogram_group_datetime_by=None,
+    histogram_range=None,
     histogram_settings={},
     on_click=None,
     selection_handler=None,
@@ -590,6 +591,21 @@ def render_html(
         must be of type unsigned integer, signed integer, floating-point number, string, or a
         date string in the format `YYYY-MM-DD`.
 
+    histogram_n_bins: int (optional, default=20)
+        The number of bins in the histogram. It is the maximum number of bins if binning categorical
+        data. If the number of unique values in the data is less than or equal to `histogram_n_bins`,
+        the number of bins will be the number of unique values.
+
+    histogram_group_datetime_by: str or None (optional, default=None)
+        The time unit to group the datetime data by. If `None`, the datetime data will not be
+        grouped. The time unit can be one of the following: `year`, `quarter`, `month`, `week`,
+        `day`, `hour`, `minute`, or `second`.
+
+    histogram_range: tuple or None (optional, default=None)
+        The range of the histogram. If `None`, the range is automatically determined from the   
+        histogram data. If a tuple, it should contain two values representing the minimum and
+        maximum values of the histogram.
+
     histogram_settings: dict or None (optional, default={})
         A dictionary containing custom settings for the histogram, if enabled. If
         `histogram_data` is provided, this dictionary allows you to customize the
@@ -611,6 +627,8 @@ def render_html(
             The fill HEX color of the unselected histogram bins (e.g. `#9E9E9E`).
         - "histogram_bin_context_fill_color": str
             The fill HEX color of the contextual bins in the histogram (e.g. `#E6E6E6`).
+        - "histogram_log_scale": bool
+            Whether to use a log scale for y-axis of the histogram.
 
     on_click: str or None (optional, default=None)
         A javascript action to be taken if a point in the data map is clicked. The javascript
@@ -788,16 +806,16 @@ def render_html(
 
     if enable_histogram:
         if isinstance(histogram_data.dtype, pd.CategoricalDtype):
-            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins)
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
         elif is_string_dtype(histogram_data.dtype):
-            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins)
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
         elif is_datetime64_any_dtype(histogram_data.dtype):
             if histogram_group_datetime_by is not None:
-                bin_data, index_data = generate_bins_from_temporal_data(histogram_data, histogram_group_datetime_by)
+                bin_data, index_data = generate_bins_from_temporal_data(histogram_data, histogram_group_datetime_by, histogram_range)
             else:
-                bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins)
+                bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
         else:
-            bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins)
+            bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
 
     if inline_data:
         buffer = io.BytesIO()
@@ -813,7 +831,7 @@ def render_html(
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
         if enable_histogram:
-            json_bytes = bin_data.to_json(orient="records").encode()
+            json_bytes = bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode()
             gzipped_bytes = gzip.compress(json_bytes)
             base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
             buffer = io.BytesIO()
@@ -844,7 +862,7 @@ def render_html(
             f.write(bytes(label_data_json, "utf-8"))
         if enable_histogram:
             with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
-                f.write(bin_data.to_json(orient="records").encode())
+                f.write(bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode())
             with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
                 index_data.to_frame().to_feather(f, compression="uncompressed")
 
