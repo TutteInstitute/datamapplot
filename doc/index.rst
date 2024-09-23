@@ -52,6 +52,7 @@ and followed by guides on basic usage, through to the more complicated options a
    interactive_customization_options
    interactive_sizing_options
    interactive_colour_options
+   selection_and_filtering
 
 .. toctree::
    :maxdepth: 1

@@ -35,3 +35,11 @@ The title is cut off when I save the plot, how do I fix that?
 
 For complex reasons not worth getting into it is necessary to put ``bbox_inches="tight"`` in 
 the call to ``savefig`` to ensure that the title and subtitle don't end up getting clipped.
+
+Something isn't working with my interactive plot, help?
+-------------------------------------------------------
+
+Interactive plots are a bit more complex than static plots, and there are a lot of things that
+can go wrong. The first thing to do is to check the javascript console in your browser for any 
+error messages. The next step is to save the html file and open that in an editor and see if
+there are any obvious issues.
