@@ -446,7 +446,7 @@
       Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {
         const histogramData = { rawBinData: histogramBinData, rawIndexData: histogramIndexData };
         histogramItem = D3Histogram.create({
-          data: histogramData, //hoverData["{{ histogram_data_attr }}"],
+          data: histogramData, 
           chartContainerId: histogramItemId,
           {%- if histogram_width %}
           chartWidth: {{ histogram_width }},

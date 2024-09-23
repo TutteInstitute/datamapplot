@@ -233,4 +233,4 @@ def generate_bins_from_temporal_data(
         lambda x: x if isinstance(x, list) else []
     )
 
-    return bin_data, bins_ids.astype(np.int16).rename("bin_id")
+    return bin_data, bins_ids.fillna(0).astype(np.int16).rename("bin_id")

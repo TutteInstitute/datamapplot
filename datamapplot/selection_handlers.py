@@ -13,20 +13,25 @@ class SelectionHandlerBase:
     @property
     def javascript(self):
         return ""
-    
+
     @property
     def css(self):
         return ""
-    
+
     @property
     def html(self):
         return ""
-    
+
 
 class DisplaySample(SelectionHandlerBase):
 
     def __init__(self, n_samples=256, font_family=None, **kwargs):
-        super().__init__(dependencies=["https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"], **kwargs)
+        super().__init__(
+            dependencies=[
+                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+            ],
+            **kwargs,
+        )
         self.n_samples = n_samples
         self.font_family = font_family
 
@@ -104,7 +109,7 @@ function clearSelection() {{
     datamap.removeSelection(datamap.lassoSelectionItemId);
 }}
         """
-    
+
     @property
     def css(self):
         if self.font_family:
@@ -154,7 +159,7 @@ function clearSelection() {{
         content: "×";
     }}
         """
-        
+
     @property
     def html(self):
         return f"""
@@ -164,18 +169,29 @@ function clearSelection() {{
         <div id="selection-display"></div>
     </div>
         """
-    
 
-class WordCloud (SelectionHandlerBase):
-    
-    def __init__(self, n_words=256, width=500, height=500, font_family=None, stop_words=None, n_rotations=0, color_scale="YlGnBu", **kwargs):
+
+class WordCloud(SelectionHandlerBase):
+
+    def __init__(
+        self,
+        n_words=256,
+        width=500,
+        height=500,
+        font_family=None,
+        stop_words=None,
+        n_rotations=0,
+        color_scale="YlGnBu",
+        location=("bottom", "right"),
+        **kwargs,
+    ):
         super().__init__(
             dependencies=[
-                "https://d3js.org/d3.v5.min.js", 
-                "https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js",
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
-            ], 
-            **kwargs
+                "https://d3js.org/d3.v6.min.js",
+                "https://unpkg.com/d3-cloud@1.2.7/build/d3.layout.cloud.js",
+                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+            ],
+            **kwargs,
         )
         self.n_words = n_words
         self.width = width
@@ -183,19 +199,20 @@ class WordCloud (SelectionHandlerBase):
         self.font_family = font_family
         self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
         self.n_rotations = min(22, n_rotations)
+        self.location = location
         if color_scale.endswith("_r"):
             self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:-2]
             self.color_scale_reversed = True
         else:
-            self.color_scale = string.capwords(color_scale)
+            self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:]
             self.color_scale_reversed = False
- 
+
     @property
     def javascript(self):
         return f"""
 const _STOPWORDS = new Set({self.stop_words});
 const _ROTATIONS = [0, -90, 90, -45, 45, -30, 30, -60, 60, -15, 15, -75, 75, -7.5, 7.5, -22.5, 22.5, -52.5, 52.5, -37.5, 37.5, -67.5, 67.5];
-const svg = d3.select("#word-cloud").append("svg")
+const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .attr("width", {self.width})
     .attr("height", {self.height})
     .append("g")
@@ -238,7 +255,7 @@ function generateWordCloud(words) {{
     const t = d3.transition().duration(500);
     
     // Update existing words
-    const text = svg.selectAll("text")
+    const text = wordCloudSvg.selectAll("text")
       .data(words, d => d.text);
     
     // Remove old words
@@ -271,7 +288,12 @@ function lassoSelectionCallback(selectedPoints) {{
     }} else {{
         $(wordCloudItem).animate({{height:'hide'}}, 250);
     }}
-    const selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+    let selectedText;
+    if (datamap.metaData) {{
+        selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+    }} else {{
+        selectedText = ["Meta data still loading ..."];
+    }}
     const wordCounts = wordCounter(selectedText);
     generateWordCloud(wordCounts);
 }}
@@ -286,15 +308,15 @@ function lassoSelectionCallback(selectedPoints) {{
         return f"""
 #word-cloud {{
     position: absolute;
-    right: 0;
-    bottom: 0;
+    {self.location[1]}: 0;
+    {self.location[0]}: 0;
     display: none;
     width: {self.width}px;
     height: {self.height}px;
     z-index: 10;
 }}
 """
-    
+
 
 class TagSelection(SelectionHandlerBase):
 
@@ -316,7 +338,7 @@ class TagSelection(SelectionHandlerBase):
         }}
     }}
         """
-    
+
     @property
     def html(self):
         return f"""

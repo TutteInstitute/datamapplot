@@ -290,11 +290,13 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None):
     # Conditionally add dependencies based on functionality
     if enable_histogram:
         js_dependency_urls.append(
-            "https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js"
+            "https://d3js.org/d3.v6.min.js"
         )
 
     if selection_handler is not None:
         js_dependency_urls.extend(selection_handler.dependencies)
+
+    js_dependency_urls = list(set(js_dependency_urls))
 
     return js_dependency_urls
 
