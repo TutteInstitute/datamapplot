@@ -8,6 +8,8 @@ from scipy.interpolate import splprep, splev
 def circumradius(points):
     bc = points[1:] - points[0]
     d = 2 * (bc[0, 0] * bc[1, 1] - bc[0, 1] * bc[1, 0])
+    if d == 0:
+        return 0
     b_norm = bc[0, 0] * bc[0, 0] + bc[0, 1] * bc[0, 1]
     c_norm = bc[1, 0] * bc[1, 0] + bc[1, 1] * bc[1, 1]
     ux = (bc[1, 1] * b_norm - bc[0, 1] * c_norm) / d
