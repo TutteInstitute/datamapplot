@@ -231,7 +231,7 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_l
     return js_dependencies_src
 
 
-def _get_css_dependency_sources(minify, enable_histogram):
+def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
 
@@ -242,6 +242,9 @@ def _get_css_dependency_sources(minify, enable_histogram):
 
     enable_histogram: bool
         Whether to include CSS dependencies for the histogram functionality.
+
+    show_loading_progress: bool
+        Whether to have progress bars for data loading.
 
     Returns
     -------
@@ -255,6 +258,9 @@ def _get_css_dependency_sources(minify, enable_histogram):
 
     if enable_histogram:
         css_dependencies.append("d3_histogram_style.css")
+
+    if show_loading_progress:
+        css_dependencies.append("progress_bar_style.css")
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -402,6 +408,7 @@ def render_html(
     histogram_settings={},
     on_click=None,
     selection_handler=None,
+    show_loading_progress=True,
     custom_html=None,
     custom_css=None,
     custom_js=None,
@@ -897,7 +904,7 @@ def render_html(
             minify_deps, enable_search, enable_histogram, enable_lasso_selection,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
-            minify_deps, enable_histogram
+            minify_deps, enable_histogram, show_loading_progress
         ),
     }
 
@@ -991,6 +998,7 @@ def render_html(
         enable_lasso_selection=enable_lasso_selection,
         get_tooltip=get_tooltip,
         search_field=search_field,
+        show_loading_progress=show_loading_progress,
         custom_js=custom_js,
         **dependencies_ctx,
     )
