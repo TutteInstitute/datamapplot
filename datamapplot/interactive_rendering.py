@@ -5,11 +5,13 @@ import io
 import os
 import warnings
 import zipfile
+import json
 
 import jinja2
 import numpy as np
 import pandas as pd
 import requests
+import re
 from importlib_resources import files
 from matplotlib.colors import to_rgba
 from pathlib import Path
@@ -17,12 +19,15 @@ from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
 
+from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
+
+from datamapplot.histograms import generate_bins_from_numeric_data, generate_bins_from_categorical_data, generate_bins_from_temporal_data
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 
-_DECKGL_TEMPLATE_STR = (
-    files("datamapplot") / "deckgl_template.html"
-).read_text(encoding='utf-8')
+_DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
+    encoding="utf-8"
+)
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -33,6 +38,46 @@ _TOOL_TIP_CSS = """
             border-radius: 12px;
             box-shadow: 2px 3px 10px {{shadow_color}};
             max-width: 25%;
+"""
+
+_NOTEBOOK_NON_INLINE_WORKER = """
+    const parsingWorkerBlob = new Blob([`
+      async function DecompressBytes(bytes) {
+          const blob = new Blob([bytes]);
+          const decompressedStream = blob.stream().pipeThrough(
+            new DecompressionStream("gzip")
+          );
+          const arr = await new Response(decompressedStream).arrayBuffer()
+          return new Uint8Array(arr);
+      }
+      async function decodeBase64(base64) {
+          return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+      }
+      async function decompressFile(filename) {
+          const response = await fetch(filename, {
+            headers: {Authorization: 'Token API_TOKEN'}
+          });
+          if (!response.ok) {
+            throw new Error(\`HTTP error! status: \${response.status}\`);
+          }
+          const data = await response.json()
+            .then(data => data.content)
+            .then(base64data => decodeBase64(base64data))
+            .then(buffer => DecompressBytes(buffer));
+          return data;
+      }
+      self.onmessage = async function(event) {
+        const { encodedData, JSONParse } = event.data;
+        const binaryData = await decompressFile(encodedData);
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ data: binaryData });
+        }
+      }
+    `], { type: 'application/javascript' });
 """
 
 
@@ -49,10 +94,11 @@ class InteractiveFigure:
     be used to save the results to an HTML file while can then be shared.
     """
 
-    def __init__(self, html_str, width="100%", height=800):
+    def __init__(self, html_str, width="100%", height=800, api_token=None):
         self._html_str = html_str
         self.width = width
         self.height = height
+        self.api_token = api_token or os.environ.get("JUPYTERHUB_API_TOKEN", None)
 
     def __repr__(self):
         return f"<InteractiveFigure width={self.width} height={self.height}>"
@@ -61,7 +107,32 @@ class InteractiveFigure:
         return self._html_str
 
     def _repr_html_(self):
-        src_doc = html.escape(self._html_str)
+        if "originURL" in self._html_str:
+            # We need to redirect the fetch to use the jupyter API endpoint
+            # for use in a notebook...
+            jupyter_html_str = self._html_str.replace(
+                "originURL = self.location.origin + directoryPath;", 
+                "originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/')).replace(/(notebooks|lab.*tree)/, 'api/contents');"
+            )
+            jupyter_html_str = re.sub(
+                r'const parsingWorkerBlob.*?\'application/javascript\' \}\);', 
+                _NOTEBOOK_NON_INLINE_WORKER,
+                jupyter_html_str,
+                flags=re.DOTALL
+            )
+            if self.api_token is not None:
+                jupyter_html_str = jupyter_html_str.replace(
+                    "headers: {Authorization: 'Token API_TOKEN'}",
+                    f"headers: {{Authorization: 'Token {self.api_token}'}}"
+                )
+            else:
+                jupyter_html_str = jupyter_html_str.replace(
+                    "headers: {Authorization    : 'Token API_TOKEN'}",
+                    ""
+                )
+            src_doc =  html.escape(jupyter_html_str)
+        else:
+            src_doc = html.escape(self._html_str)
         iframe = f"""
             <iframe
                 width={self.width}
@@ -84,7 +155,40 @@ class InteractiveFigure:
         with open(filename, "w+", encoding="utf-8") as f:
             f.write(self._html_str)
 
-def _get_js_dependency_sources(minify, enable_search, enable_histogram):
+    def save_bundle(self, filename):
+        """Save an interactive figure to a zip file with name `filename`"""
+        with zipfile.ZipFile(filename, "w") as zf:
+            zf.writestr("index.html", self._html_str)
+            for filename in re.findall(r'/(.*?_data\.zip)', self._html_str):
+                print(f"Adding {filename} to bundle")
+                zf.write(filename)
+
+
+
+def get_google_font_for_embedding(fontname):
+    api_fontname = fontname.replace(" ", "+")
+    api_response = requests.get(
+        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
+        timeout=10,
+    )
+    if api_response.ok:
+        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
+        font_links = []
+        for url in font_urls:
+            if url.endswith(".ttf"):
+                font_links.append(
+                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/ttf" />'
+                )
+            elif url.endswith(".woff2"):
+                font_links.append(
+                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/woff2" />'
+                )
+        return "\n".join(font_links) + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
+    else:
+        return ""
+
+
+def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
@@ -92,37 +196,42 @@ def _get_js_dependency_sources(minify, enable_search, enable_histogram):
     ----------
     minify : bool
         Whether to minify the JS files.
-        
-    enable_search : bool 
+
+    enable_search : bool
         Whether to include JS dependencies for the search functionality.
-        
+
     enable_histogram: bool
         Whether to include JS dependencies for the histogram functionality.
+
+    enable_lasso_selection: bool
+        Whether to include JS dependencies for the lasso selection functionality.
 
     Returns
     -------
     dict
-        A dictionary where keys are the names of JS files and values are their 
+        A dictionary where keys are the names of JS files and values are their
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "js"
-    js_dependencies = []
+    js_dependencies = ["datamap.js", "data_selection_manager.js"]
     js_dependencies_src = {}
-    
-    if enable_search or enable_histogram:
-        js_dependencies.append("data_selection_manager.js")
-        
-    if enable_histogram:        
+
+    if enable_histogram:
         js_dependencies.append("d3_histogram.js")
 
+    if enable_lasso_selection:
+        js_dependencies.append("lasso_selection.js")
+        js_dependencies.append("quad_tree.js")
+
     for js_file in js_dependencies:
-        with open(static_dir / js_file, 'r', encoding='utf-8') as file:
+        with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
             js_dependencies_src[js_file] = jsmin(js_src) if minify else js_src
-    
+
     return js_dependencies_src
 
-def _get_css_dependency_sources(minify, enable_histogram):
+
+def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
 
@@ -133,28 +242,35 @@ def _get_css_dependency_sources(minify, enable_histogram):
 
     enable_histogram: bool
         Whether to include CSS dependencies for the histogram functionality.
-        
+
+    show_loading_progress: bool
+        Whether to have progress bars for data loading.
+
     Returns
     -------
     dict
-        A dictionary where keys are the names of CSS files and values are their 
+        A dictionary where keys are the names of CSS files and values are their
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "css"
     css_dependencies = []
     css_dependencies_src = {}
-    
-    if enable_histogram:        
+
+    if enable_histogram:
         css_dependencies.append("d3_histogram_style.css")
-        
+
+    if show_loading_progress:
+        css_dependencies.append("progress_bar_style.css")
+
     for css_file in css_dependencies:
-        with open(static_dir / css_file, 'r', encoding='utf-8') as file:
+        with open(static_dir / css_file, "r", encoding="utf-8") as file:
             css_src = file.read()
             css_dependencies_src[css_file] = cssmin(css_src) if minify else css_src
 
     return css_dependencies_src
 
-def _get_js_dependency_urls(enable_histogram):
+
+def _get_js_dependency_urls(enable_histogram, selection_handler=None):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -169,16 +285,27 @@ def _get_js_dependency_urls(enable_histogram):
         A list of URLs that point to the required JavaScript dependencies.
     """
     js_dependency_urls = []
-    
+
     # Add common dependencies (if any)
-    common_js_urls = [ "https://unpkg.com/deck.gl@latest/dist.min.js" ]
+    common_js_urls = [
+        "https://unpkg.com/deck.gl@latest/dist.min.js",
+        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js",
+    ]
     js_dependency_urls.extend(common_js_urls)
-    
+
     # Conditionally add dependencies based on functionality
     if enable_histogram:
-        js_dependency_urls.append("https://cdnjs.cloudflare.com/ajax/libs/d3/6.5.0/d3.min.js")
+        js_dependency_urls.append(
+            "https://d3js.org/d3.v6.min.js"
+        )
+
+    if selection_handler is not None:
+        js_dependency_urls.extend(selection_handler.dependencies)
+
+    js_dependency_urls = list(set(js_dependency_urls))
 
     return js_dependency_urls
+
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -210,7 +337,7 @@ def label_text_and_polygon_dataframes(
 
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
         if cluster_polygons:
-            simplices = Delaunay(cluster_points).simplices
+            simplices = Delaunay(cluster_points, qhull_options="Qbb Qc Qz Q12 Q7").simplices
             polygons.append(
                 [
                     smooth_polygon(x).tolist()
@@ -232,7 +359,7 @@ def label_text_and_polygon_dataframes(
         data["polygon"] = polygons
 
     return pd.DataFrame(data)
-
+    
 
 def render_html(
     point_dataframe,
@@ -246,7 +373,7 @@ def render_html(
     text_min_pixel_size=18,
     text_max_pixel_size=36,
     font_family="Roboto",
-    font_weight=900,
+    font_weight=600,
     tooltip_font_family=None,
     tooltip_font_weight=300,
     logo=None,
@@ -261,8 +388,8 @@ def render_html(
     point_hover_color="#aa0000bb",
     point_radius_min_pixels=0.01,
     point_radius_max_pixels=24,
-    point_line_width_min_pixels=0.1,
-    point_line_width_max_pixels=8,
+    point_line_width_min_pixels=0.001,
+    point_line_width_max_pixels=3,
     point_line_width=0.001,
     cluster_boundary_line_width=1,
     initial_zoom_fraction=1.0,
@@ -275,13 +402,17 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
-    histogram_link_selection=True,
+    histogram_n_bins=20,
+    histogram_group_datetime_by=None,
+    histogram_range=None,
     histogram_settings={},
     on_click=None,
+    selection_handler=None,
+    show_loading_progress=True,
     custom_html=None,
     custom_css=None,
     custom_js=None,
-    minify_deps=True
+    minify_deps=True,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -339,7 +470,7 @@ def render_html(
         google font then the required google font api handling will automatically
         make the font available, so any google font family is acceptable.
 
-    font_weight: str or int (optional, default=900)
+    font_weight: str or int (optional, default=600)
         The font weight to use for the text labels within the plot. Either weight
         specification such as "thin", "normal", or "bold" or an integer value
         between 0 (ultra-thin) and 1000 (ultra-black).
@@ -406,10 +537,10 @@ def render_html(
         This allows zooming in to differentiate points that are otherwise overtop of one
          another.
 
-    point_line_width_min_pixels: float (optional, default=0.1)
+    point_line_width_min_pixels: float (optional, default=0.001)
         The minimum pixel width of the outline around points.
 
-    point_line_width_max_pixels: float (optional, default=8)
+    point_line_width_max_pixels: float (optional, default=3)
         The maximum pixel width of the outline around points.
 
     point_line_width: float (optional, default=0.001)
@@ -463,22 +594,32 @@ def render_html(
         ``"hover_text"``.
 
     histogram_data: list, pandas.Series, or None (optional, default=None)
-        The data used to generate a histogram. The histogram data can be passed as a list or 
+        The data used to generate a histogram. The histogram data can be passed as a list or
         Pandas Series; if `None`, the histogram is disabled. The length of the list or Series
-        must match the number of rows in `point_dataframe`. The values within the list or Series 
+        must match the number of rows in `point_dataframe`. The values within the list or Series
         must be of type unsigned integer, signed integer, floating-point number, string, or a
         date string in the format `YYYY-MM-DD`.
 
-    histogram_link_selection: bool (optional, default=True)
-        Whether to link the selection in the histogram to the selection in the data map from
-        search. Since selection rendering on the histogram scales poorly with dataset size it
-        can be beneficial to disable the selection linking for large datasets.
-    
+    histogram_n_bins: int (optional, default=20)
+        The number of bins in the histogram. It is the maximum number of bins if binning categorical
+        data. If the number of unique values in the data is less than or equal to `histogram_n_bins`,
+        the number of bins will be the number of unique values.
+
+    histogram_group_datetime_by: str or None (optional, default=None)
+        The time unit to group the datetime data by. If `None`, the datetime data will not be
+        grouped. The time unit can be one of the following: `year`, `quarter`, `month`, `week`,
+        `day`, `hour`, `minute`, or `second`.
+
+    histogram_range: tuple or None (optional, default=None)
+        The range of the histogram. If `None`, the range is automatically determined from the   
+        histogram data. If a tuple, it should contain two values representing the minimum and
+        maximum values of the histogram.
+
     histogram_settings: dict or None (optional, default={})
         A dictionary containing custom settings for the histogram, if enabled. If
-        `histogram_data` is provided, this dictionary allows you to customize the 
+        `histogram_data` is provided, this dictionary allows you to customize the
         appearance of the histogram. The dictionary can include the following keys:
-        
+
         - "histogram_width": str
             The width of the histogram in pixels.
         - "histogram_height": str
@@ -495,12 +636,22 @@ def render_html(
             The fill HEX color of the unselected histogram bins (e.g. `#9E9E9E`).
         - "histogram_bin_context_fill_color": str
             The fill HEX color of the contextual bins in the histogram (e.g. `#E6E6E6`).
+        - "histogram_log_scale": bool
+            Whether to use a log scale for y-axis of the histogram.
 
     on_click: str or None (optional, default=None)
         A javascript action to be taken if a point in the data map is clicked. The javascript
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
         could provide ``"window.open(`http://google.com/search?q=\"{hover_text}\"`)"`` to
         open a new window with a google search for the hover_text of the clicked point.
+
+    selection_handler: instance of datamapplot.selection_handlers.SelectionHandlerBase or None (optional, default=None)
+        A selection handler to be used to handle selections in the data map. If None, the
+        interactive selection will not be enabled. If a selection handler is provided, the
+        selection handler will be used to determine how to react to selections made on the
+        data map. Selection handlers can be found in the `datamapplot.selection_handlers`
+        module, or custom selection handlers can be created by subclassing the `SelectionHandlerBase`
+        class.
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
@@ -515,10 +666,10 @@ def render_html(
         A string of custom Javascript code that is to be added after the code for rendering
         the scatterplot. This can include code to interact with the plot which is stored
         as ``deckgl``.
-        
+
     minify_deps: bool (optional, default=True)
         Whether to minify the JavaScript and CSS dependency files before embedding in the HTML template.
-        
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -570,31 +721,27 @@ def render_html(
     else:
         label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
 
-    # Prep data for inlining or storage    
+    # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
     histogram_data_attr = "histogram_data_attr"
-    histogram_ctx = { 
-        "enable_histogram": enable_histogram, 
+    histogram_ctx = {
+        "enable_histogram": enable_histogram,
         "histogram_data_attr": histogram_data_attr,
-        "histogram_link_selection": histogram_link_selection,
-        **histogram_settings 
+        **histogram_settings,
     }
-    
+    enable_lasso_selection = selection_handler is not None        
+
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
-    
+
     if point_size < 0:
         point_data_cols.append("size")
-        
-    if enable_search or enable_histogram:
-        point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
-        point_data_cols.append("selected")
-        
-    if enable_histogram:
-        point_dataframe[histogram_data_attr] = histogram_data
-        point_data_cols.append(histogram_data_attr)
+
+    # if enable_search or enable_histogram or enable_lasso_selection:
+    #     point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
+    #     point_data_cols.append("selected")
 
     point_data = point_dataframe[point_data_cols]
-  
+
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
             hover_data = pd.concat(
@@ -603,7 +750,7 @@ def render_html(
             )
             replacements = FormattingDict(
                 **{
-                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    str(name): f"${{hoverData.{name}[index]}}"
                     for name in hover_data.columns
                 }
             )
@@ -614,7 +761,7 @@ def render_html(
                     + "`} : null"
                 )
             else:
-                get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+                get_tooltip = "({index}) => hoverData.hover_text[index]"
 
             if on_click is not None:
                 on_click = (
@@ -623,12 +770,12 @@ def render_html(
                     + " } }"
                 )
         else:
-            hover_data = point_dataframe[["hover_text"]]
-            get_tooltip = "({index}) => hoverData.data.hover_text[index]"
+            hover_data = point_dataframe[["hover_text"]].copy()
+            get_tooltip = "({index}) => hoverData.hover_text[index]"
 
             replacements = FormattingDict(
                 **{
-                    str(name): f"${{hoverData.data.{name}[index]}}"
+                    str(name): f"${{hoverData.{name}[index]}}"
                     for name in hover_data.columns
                 }
             )
@@ -640,10 +787,10 @@ def render_html(
                     + " } }"
                 )
     elif extra_point_data is not None:
-        hover_data = extra_point_data
+        hover_data = extra_point_data.copy()
         replacements = FormattingDict(
             **{
-                str(name): f"${{hoverData.data.{name}[index]}}"
+                str(name): f"${{hoverData.{name}[index]}}"
                 for name in hover_data.columns
             }
         )
@@ -666,49 +813,67 @@ def render_html(
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
 
+    if enable_histogram:
+        if isinstance(histogram_data.dtype, pd.CategoricalDtype):
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
+        elif is_string_dtype(histogram_data.dtype):
+            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
+        elif is_datetime64_any_dtype(histogram_data.dtype):
+            if histogram_group_datetime_by is not None:
+                bin_data, index_data = generate_bins_from_temporal_data(histogram_data, histogram_group_datetime_by, histogram_range)
+            else:
+                bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
+        else:
+            bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
+
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
         buffer.seek(0)
-        base64_point_data = base64.b64encode(buffer.read()).decode()
-        buffer = io.BytesIO()
-        hover_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
         arrow_bytes = buffer.read()
-        gzipped_bytes = gzip.compress(arrow_bytes)
+        gzipped_bytes = gzip.compress(arrow_bytes)        
+        base64_point_data = base64.b64encode(gzipped_bytes).decode()
+        json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
+        gzipped_bytes = gzip.compress(json_bytes)
         base64_hover_data = base64.b64encode(gzipped_bytes).decode()
         label_data_json = label_dataframe.to_json(orient="records")
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
+        if enable_histogram:
+            json_bytes = bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode()
+            gzipped_bytes = gzip.compress(json_bytes)
+            base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
+            buffer = io.BytesIO()
+            index_data.to_frame().to_feather(buffer, compression="uncompressed")
+            buffer.seek(0)
+            arrow_bytes = buffer.read()
+            gzipped_bytes = gzip.compress(arrow_bytes)
+            base64_histogram_index_data = base64.b64encode(gzipped_bytes).decode()
+        else:
+            base64_histogram_bin_data = None
+            base64_histogram_index_data = None
         file_prefix = None
     else:
         base64_point_data = ""
         base64_hover_data = ""
         base64_label_data = ""
+        base64_histogram_bin_data = ""
+        base64_histogram_index_data = ""
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
-        point_data.to_feather(
-            f"{file_prefix}_point_df.arrow", compression="uncompressed"
-        )
-        hover_data.to_feather("point_hover_data.arrow", compression="uncompressed")
-        with zipfile.ZipFile(
-            f"{file_prefix}_point_hover_data.zip",
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
-        ) as f:
-            f.write("point_hover_data.arrow")
-        os.remove("point_hover_data.arrow")
-        label_dataframe.to_json("label_data.json", orient="records")
-        with zipfile.ZipFile(
-            f"{file_prefix}_label_data.zip",
-            "w",
-            compression=zipfile.ZIP_DEFLATED,
-            compresslevel=9,
-        ) as f:
-            f.write("label_data.json")
-        os.remove("label_data.json")
+        with gzip.open(f"{file_prefix}_point_data.zip", "wb") as f:
+            point_data.to_feather(f, compression="uncompressed")
+        with gzip.open(f"{file_prefix}_meta_data.zip", "wb") as f:
+            f.write(json.dumps(hover_data.to_dict(orient="list")).encode())
+        label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
+        with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
+            f.write(bytes(label_data_json, "utf-8"))
+        if enable_histogram:
+            with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
+                f.write(bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode())
+            with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
+                index_data.to_frame().to_feather(f, compression="uncompressed")
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
@@ -734,34 +899,52 @@ def render_html(
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
-        "js_dependency_urls": _get_js_dependency_urls(enable_histogram),
-        "js_dependency_srcs": _get_js_dependency_sources(minify_deps, enable_search, enable_histogram),
-        "css_dependency_srcs": _get_css_dependency_sources(minify_deps, enable_histogram)
+        "js_dependency_urls": _get_js_dependency_urls(enable_histogram, selection_handler),
+        "js_dependency_srcs": _get_js_dependency_sources(
+            minify_deps, enable_search, enable_histogram, enable_lasso_selection,
+        ),
+        "css_dependency_srcs": _get_css_dependency_sources(
+            minify_deps, enable_histogram, show_loading_progress
+        ),
     }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
     api_fontname = font_family.replace(" ", "+")
-    resp = requests.get(
-        f"https://fonts.googleapis.com/css?family={api_fontname}",
-        timeout=300,
-    )
-    if not resp.ok:
+    font_data = get_google_font_for_embedding(font_family)
+    if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
         resp = requests.get(
             f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
-            timeout=300,
+            timeout=30,
         )
         if not resp.ok:
             api_tooltip_fontname = None
     else:
         api_tooltip_fontname = None
 
+    if selection_handler is not None:
+        if custom_html is None:
+            custom_html = selection_handler.html
+        else:
+            custom_html += selection_handler.html
+
+        if custom_js is None:
+            custom_js = selection_handler.javascript
+        else:
+            custom_js += selection_handler.javascript
+
+        if custom_css is None:
+            custom_css = selection_handler.css
+        else:
+            custom_css += selection_handler.css
+
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
+        google_font_data=font_data,
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
@@ -785,6 +968,8 @@ def render_html(
         base64_point_data=base64_point_data,
         base64_hover_data=base64_hover_data,
         base64_label_data=base64_label_data,
+        base64_histogram_bin_data=base64_histogram_bin_data,
+        base64_histogram_index_data=base64_histogram_index_data,
         file_prefix=file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
@@ -810,9 +995,11 @@ def render_html(
         data_center_x=data_center[0],
         data_center_y=data_center[1],
         on_click=on_click,
+        enable_lasso_selection=enable_lasso_selection,
         get_tooltip=get_tooltip,
         search_field=search_field,
+        show_loading_progress=show_loading_progress,
         custom_js=custom_js,
-        **dependencies_ctx
+        **dependencies_ctx,
     )
     return html_str

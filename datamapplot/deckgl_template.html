@@ -11,6 +11,7 @@
       href="https://fonts.googleapis.com/css2?family={{google_font}}&display=swap"
       rel="stylesheet"
     />
+    {{google_font_data}}
     {%- if google_tooltip_font %}
     <link
       href="https://fonts.googleapis.com/css2?family={{google_tooltip_font}}&display=swap"
@@ -42,6 +43,17 @@
         padding: 0;
         overflow: hidden;
         background: {{page_background_color}};
+        font-family: {{title_font_family}};
+        color: {{title_font_color}};
+      }
+      .container-box {
+        margin: 16px;
+        padding: 12px;
+        border-radius: 16px;
+        line-height: 0.95;
+        z-index: 2;
+        background: {{title_background}};
+        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       #deck-container {
         width: 100vw;
@@ -73,15 +85,6 @@
         position: absolute;
         top: 0;
         left: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        line-height: 0.95;
-        z-index: 2;
-        font-family: {{title_font_family}};
-        color: {{title_font_color}};
-        background: {{title_background}};
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
 
       {%- if logo %}
@@ -89,12 +92,6 @@
         position: absolute;
         bottom: 0;
         right: 0;
-        margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        z-index: 2;
-        background: {{title_background}};
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       img {
         display: block;
@@ -108,14 +105,7 @@
         position: absolute;
         left: -16px;
         margin: 16px;
-        padding: 12px;
-        border-radius: 16px;
-        z-index: 2;
-        font-family: {{font_family}};
-        color: {{title_font_color}};
-        background: {{title_background}};
         width: fit-content;
-        box-shadow: 2px 3px 10px {{shadow_color}};
       }
       input {
         margin: 2px;
@@ -131,16 +121,6 @@
         border: 2px solid #555;
       }
       {%- endif %}
-
-      {%- if enable_histogram %}
-      #d3histogram-container {
-        background: {{ title_background }};
-        color: {{ title_font_color }};
-        font-family: {{ title_font_family }};
-        box-shadow: 2px 3px 10px {{ shadow_color }};
-      }
-      {%- endif %}
-
       {%- if custom_css %}
       {{custom_css}}
       {%- endif %}
@@ -157,7 +137,7 @@
     </div>
 
     {% if use_title %}
-    <div id="title-container">
+    <div id="title-container" class="container-box">
       <span
         style="font-family:{{title_font_family}};font-size:{{title_font_size}}pt;color:{{title_font_color}}"
       >
@@ -171,17 +151,17 @@
       </span>
 
       {% if search %}
-      <div id="search-container">
-        <input autocomplete="off" type="search" id="search" placeholder="🔍" />
+      <div id="search-container" class="container-box">
+        <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
     </div>
     {% elif search %}
-    <div id="search-container" style="left: 0 !important">
-      <input autocomplete="off" type="search" id="search" placeholder="🔍" />
+    <div id="search-container" class="container-box" style="left: 0 !important">
+      <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
     </div>
     {% endif %} {% if logo %}
-    <div id="logo-container">
+    <div id="logo-container" class="container-box">
       <img src="{{logo}}" style="width:{{logo_width}}px" />
     </div>
     {% endif %}
@@ -189,7 +169,38 @@
     <div id="deck-container"></div>
 
     {%- if enable_histogram %}
-    <div id="d3histogram-container"></div>
+    <div id="d3histogram-container" class="container-box"></div>
+    {%- endif -%}
+    {%- if show_loading_progress %}
+    <div id="progress-container" class="datamapplot-progress-container container-box">
+      <div id="point-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+        </span>
+      </div>
+      <div id="label-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+        </span>
+      </div>
+      <div id="meta-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+        </span>
+      </div>
+      {%- if enable_histogram %}
+      <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
+        </span>
+      </div>
+      <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+        </span>
+      </div>
+      {%- endif -%}
+    </div>
     {%- endif -%}
 
     {% if custom_html %} {{custom_html}} {%- endif -%}
@@ -200,15 +211,13 @@
   </script>
   {%- endfor %}
   <script type="module">
-    import { ArrowLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/arrow@4.1.0-alpha.10/+esm'
-    {%- if not inline_data %}
-    import { ZipLoader } from 'https://cdn.jsdelivr.net/npm/@loaders.gl/zip@4.1.0-alpha.10/+esm'
-    {% endif %}
-
-    // Correctly convert between Base64 strings and Uint8Arrays.
-    // https://developer.mozilla.org/docs/Glossary/Base64#the_unicode_problem
-    function base64ToBytes(base64) {
-      return Uint8Array.from(atob(base64), (m) => m.codePointAt(0));
+    async function simpleArrowParser(arrow_bytes) {
+      const table = await Arrow.tableFromIPC(arrow_bytes);
+      const result = {};
+      table.schema.fields.forEach((field) => {
+        result[field.name] = table.getChild(field.name).toArray();
+      });
+      return result;
     }
 
     if (!("CompressionStream" in window)) {
@@ -217,279 +226,369 @@
           "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility",
       );
     }
-    // Use the Compression Streams API.
-    // https://developer.mozilla.org/docs/Web/API/Compression_Streams_API
-    async function DecompressBytes(bytes) {
-      const blob = new Blob([bytes]);
-      const decompressedStream = blob.stream().pipeThrough(
-        new DecompressionStream("gzip")
-      );
-      const arr = await new Response(decompressedStream).arrayBuffer()
-      return new Uint8Array(arr);
-    }
 
     {% if inline_data %}
-    const pointDataBase64 = "{{base64_point_data}}";
-    const pointDataBuffer = base64ToBytes(pointDataBase64);
-    const pointData = await loaders.parse(pointDataBuffer, ArrowLoader);
-    const hoverDataBase64 = "{{base64_hover_data}}";
-    const hoverDataBuffer = base64ToBytes(hoverDataBase64);
-    const unzippedHoverData = await DecompressBytes(hoverDataBuffer);
-    const hoverData = await loaders.parse(unzippedHoverData, ArrowLoader);
-    const labelDataBase64 = "{{base64_label_data}}";
-    const labelDataBuffer = base64ToBytes(labelDataBase64);
-    const unzippedLabelData = await DecompressBytes(labelDataBuffer);
-    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData));
-    {% else %}
-    const pointData = await loaders.load("{{file_prefix}}_point_df.arrow", ArrowLoader);
-    const unzippedHoverData = await loaders.load("{{file_prefix}}_point_hover_data.zip", ZipLoader);
-    const hoverData = await loaders.parse(unzippedHoverData["point_hover_data.arrow"], ArrowLoader);
-    const unzippedLabelData = await loaders.load("{{file_prefix}}_label_data.zip", ZipLoader);
-    const labelData = JSON.parse(new TextDecoder("utf-8").decode(unzippedLabelData["label_data.json"]));
-    {% endif -%}
-    const DATA = {src: pointData.data, length: pointData.data.x.length}
+    const pointDataEncoded = "{{base64_point_data}}";
+    const hoverDataEncoded = "{{base64_hover_data}}";
+    const labelDataEncoded = "{{base64_label_data}}";
+    const histogramBinDataEncoded = "{{base64_histogram_bin_data}}";
+    const histogramIndexDataEncoded = "{{base64_histogram_index_data}}";
 
-    const dataSelectionManager = {% if search or enable_histogram %} new DataSelectionManager() {% else %} null {% endif %};
-    const searchItemId = "search";
+    // Blob for the parsing worker
+    const parsingWorkerBlob = new Blob([`
+      self.onmessage = async function(event) {
+      const { encodedData, JSONParse } = event.data;
+        // Function to parse base64 to Uint8Array
+        async function DecompressBytes(bytes) {
+          const blob = new Blob([bytes]);
+          const decompressedStream = blob.stream().pipeThrough(
+            new DecompressionStream("gzip")
+          );
+          const arr = await new Response(decompressedStream).arrayBuffer()
+          return new Uint8Array(arr);
+        }
+        {%- if show_loading_progress %}
+        async function decodeBase64WithProgress(base64) {
+          const totalLength = base64.length;
+          const chunkSize = 1024 * 1024; // 1MB chunks
+          let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+          let offset = 0;
+
+          for (let i = 0; i < totalLength; i += chunkSize) {
+            const chunk = base64.slice(i, i + chunkSize);
+            const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+            decodedArray.set(decodedChunk, offset);
+            offset += decodedChunk.length;
+
+            const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+            self.postMessage({ type: 'progress', progress: progress });
+
+            // Allow other operations to occur
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+
+          return decodedArray.slice(0, offset);
+        }
+        {%- else %}
+        async function decodeBase64WithProgress(base64) {
+            return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        }
+        {%- endif %}
+        const binaryData = await decodeBase64WithProgress(encodedData).then(buffer => DecompressBytes(buffer));
+
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ type: "data", data: binaryData });
+        }
+      }
+    `], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+    {% else %}
+    const currentURL = self.location.pathname;
+    const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
+    const originURL = self.location.origin + directoryPath;
+
+    const pointDataEncoded = `${originURL}/{{file_prefix}}_point_data.zip`;
+    const hoverDataEncoded = `${originURL}/{{file_prefix}}_meta_data.zip`;
+    const labelDataEncoded = `${originURL}/{{file_prefix}}_label_data.zip`;
+    {% if enable_histogram %}
+    const histogramBinDataEncoded = `${originURL}/{{file_prefix}}_histogram_bin_data.zip`;
+    const histogramIndexDataEncoded = `${originURL}/{{file_prefix}}_histogram_index_data.zip`;
+    {% endif %}
+
+    // Blob for the parsing worker
+    const parsingWorkerBlob = new Blob([`
+      self.onmessage = async function(event) {
+        const { encodedData, JSONParse } = event.data;
+        async function decompressFile(filename) {
+          try {
+            const response = await fetch(filename);
+            if (!response.ok) {
+              throw new Error(\`HTTP error! status: \${response.status}\`);
+            }
+            const reader = response.body
+              .pipeThrough(new DecompressionStream("gzip"))
+              .getReader();
+
+            let chunks = [];
+            let totalSize = 0;
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) {
+                break;
+              }
+              chunks.push(value);
+              totalSize += value.length;
+            }
+
+            // Concatenate chunks into a single Uint8Array
+            const decompressedData = new Uint8Array(totalSize);
+            let position = 0;
+            for (const chunk of chunks) {
+              decompressedData.set(chunk, position);
+              position += chunk.length;
+            }
+
+            return decompressedData;
+          } catch (error) {
+            console.error('Decompression failed:', error);
+            throw error;
+          }
+        }
+        const binaryData = await decompressFile(encodedData);
+        if (JSONParse) {
+          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+          self.postMessage({ data: parsedData });
+        } else {
+          // Send the parsed table back to the main thread
+          self.postMessage({ data: binaryData });
+        }
+      }
+    `], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+    {% endif -%}
+
+    const searchItemId = "text-search";
     const histogramItemId = "d3histogram-container";
+    const selectionItemId = "lasso-select";
     const searchItem = document.getElementById(searchItemId);
     let histogramItem = null;
     
     const container = document.getElementById('deck-container');
-    const pointLayer = new deck.ScatterplotLayer({
-      id: 'dataPointLayer',
-      data: DATA,
-      getPosition: (object, {index, data}) => {
-        return [data.src.x[index], data.src.y[index]];
-      },
 
-      {% if point_size < 0 %}
-      getRadius: (object, {index, data}) => {
-        return data.src.size[index];
-      },
-      {% else %}
-      getRadius: {{point_size}},
-      {% endif %}
+    const labelDataWorker = new Worker(workerUrl);
+    const pointDataWorker = new Worker(workerUrl);
+    const metaDataWorker = new Worker(workerUrl);
+    {% if enable_histogram %}
+    const histogramBinDataWorker = new Worker(workerUrl);
+    const histogramIndexDataWorker = new Worker(workerUrl);
+    {% endif -%}
 
-      getFillColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          data.src.a[index],
-        ]
-      },
-      getLineColor: (object, {index, data}) => {
-        return [
-          data.src.r[index],
-          data.src.g[index],
-          data.src.b[index],
-          32
-        ]
-      },
-      getLineColor: {{point_outline_color}},
-      getLineWidth: {{point_line_width}},
-      highlightColor: {{point_hover_color}},
-      lineWidthMaxPixels: {{point_line_width_max_pixels}},
-      lineWidthMinPixels: {{point_line_width_min_pixels}},
-      radiusMaxPixels: {{point_radius_max_pixels}},
-      radiusMinPixels: {{point_radius_min_pixels}},
-      radiusUnits: "common",
-      lineWidthUnits: "common",
-      autoHighlight: true,
-      pickable: true,
-      stroked: true
-    });
-    const labelLayer = new deck.TextLayer({
-      id: "textLabelLayer",
-      data: labelData,
-      pickable: false,
-      getPosition: d => [d.x, d.y],
-      getText: d => d.label,
-      getColor: {{label_text_color}},
-      getSize: d => d.size,
-      sizeScale: 1,
-      sizeMinPixels: {{text_min_pixel_size}},
-      sizeMaxPixels: {{text_max_pixel_size}},
-      outlineWidth: {{text_outline_width}},
-      outlineColor: {{text_outline_color}},
-      getBackgroundColor: {{text_background_color}},
-      getBackgroundPadding: [15, 15, 15, 15],
-      background: true,
-      characterSet: "auto",
-      fontFamily: "{{font_family}}",
-      fontWeight: {{font_weight}},
-      lineHeight: {{line_spacing}},
-      fontSettings: {"sdf": true},
-      getTextAnchor: "middle",
-      getAlignmentBaseline: "center",
-      lineHeight: 0.95,
-      elevation: 100,
-      // CollideExtension options
-      collisionEnabled: true,
-      getCollisionPriority: d => d.size,
-      collisionTestProps: {
-        sizeScale: {{text_collision_size_scale}},
-        sizeMaxPixels: {{text_max_pixel_size}} * 2,
-        sizeMinPixels: {{text_min_pixel_size}} * 2
-      },
-      extensions: [new deck.CollisionFilterExtension()],
-    });
-
-    {% if cluster_boundary_polygons %}
-    const boundaryLayer = new deck.PolygonLayer({
-      data: labelData,
-      stroked: true,
-      filled: false,
-      getLineColor: d => [d.r, d.g, d.b, d.a],
-      getPolygon: d => d.polygon,
-      lineWidthUnits: "common",
-      getLineWidth: d => d.size * d.size,
-      lineWidthScale: {{cluster_boundary_line_width}} * 5e-5,
-      lineJointRounded: true,
-      lineWidthMaxPixels: 4,
-      lineWidthMinPixels: 0.0,
-    });
-    {% endif %}
-
-    const deckgl = new deck.DeckGL({
+    const datamap = new DataMap({
       container: container,
-      initialViewState: {
-        latitude: {{data_center_y}},
-        longitude: {{data_center_x}},
-        zoom: {{zoom_level}}
-      },
-      controller: true,
-
-      {% if cluster_boundary_polygons %}
-      layers: [pointLayer, boundaryLayer, labelLayer],
-      {% else %}
-      layers: [pointLayer, labelLayer],
-      {% endif %}
-
-      {% if on_click %}
-      onClick: {{on_click}},
-      {% endif %}
-
-      getTooltip: {{get_tooltip}}
+      dataCenter: [{{data_center_x}}, {{data_center_y}}],
+      zoomLevel: {{zoom_level}},
+      searchItemId: searchItemId,
+      lassoSelectionItemId: selectionItemId,      
     });
 
-    document.getElementById("loading").style.display = "none";
-
-    {% if search or enable_histogram %}
-    function debounce(func, timeout = 250){
-        let timer;
-        return (...args) => {
-            clearTimeout(timer);
-            timer = setTimeout(() => { func.apply(this, args); }, timeout);
-        };
+    function updateProgressBar(id, progress) {
+      const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+      const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+      progressBar.style.width = `${progress}%`;
+      progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
     }
-    function selectPoints(itemId) {
-      const selectedIndices = dataSelectionManager.getSelectedIndices();
-      const hasSelectedIndices = selectedIndices.size !== 0;
-      const layerId = hasSelectedIndices
-        ? `selectedPointLayer_${itemId}_${new Date().toISOString()}`
-        : 'dataPointLayer';
 
-      for (let i = 0; i < DATA.length; i++) {
-        DATA.src.selected[i] = hasSelectedIndices ? selectedIndices.has(i) : 1;
+    function checkAllDataLoaded() {
+      const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+      const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+      if (allLoaded) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("progress-container").style.display = "none";
       }
-
-      const selectedPointLayer = pointLayer.clone({
-        id: layerId,
-        data: DATA,
-        getFilterValue: (object, { index, data }) => data.src.selected[index],
-        filterRange: [1, 2],
-        extensions: [new deck.DataFilterExtension({ filterSize: 1 })]
-      });
-
-      deckgl.setProps({ layers: [selectedPointLayer].concat(deckgl.props.layers.slice(1,)) });
     }
-    {% endif -%}
 
-    {% if search %}
-    /* Search */
-    const textSearchArray = hoverData.data.hover_text.map((d) => d.toLowerCase());
-    searchItem.addEventListener("input", debounce(
-        event => {
-          const searchTerm = event.target.value.toLowerCase();
-          const selectedIndices = textSearchArray.reduce((indices, d, i) => {
-            if (d.indexOf(searchTerm) >= 0) {
-              indices.push(i);
+    function loadPointDataLayer() {
+      pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+      pointDataWorker.onmessage = async function(event) {
+        if (event.data.type === "progress") {
+          updateProgressBar('point-data-progress', event.data.progress);
+        } else {
+          const { data } = event.data;
+          const pointData = await simpleArrowParser(data);
+          datamap.addPoints(
+            pointData,
+            {
+              pointSize: {{point_size}},
+              pointOutlineColor: {{point_outline_color}},
+              pointLineWidth: {{point_line_width}},
+              pointHoverColor: {{point_hover_color}},
+              pointLineWidthMaxPixels: {{point_line_width_max_pixels}},
+              pointLineWidthMinPixels: {{point_line_width_min_pixels}},
+              pointRadiusMaxPixels: {{point_radius_max_pixels}},
+              pointRadiusMinPixels: {{point_radius_min_pixels}},
             }
-            return indices;
-          }, []);
+          );
 
-          // Update data manager
-          if (searchTerm !== "") {
-            dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, searchItemId);
-          }
-          else {
-            dataSelectionManager.removeSelectedIndicesOfItem(searchItemId);
-          }
-
-          // Update datamap plot
-          selectPoints(searchItemId);
-
-          {%- if histogram_link_selection %}
-          // Update histogram, if any
-          if (histogramItem) {
-            if (searchTerm !== "") {
-              histogramItem.drawChartWithSelection(selectedIndices);
-            } else {
-              histogramItem.removeChartWithSelection(selectedIndices);
-            }
-          }
+          {%- if enable_lasso_selection %}
+          /* Lasso Selection */
+          const lassoSelector = new LassoSelectionTool(
+            datamap,
+            lassoSelectionCallback
+          );
           {% endif -%}
-        })
-    );
-    {% endif -%}
+          document.getElementById("loading").style.display = "none";
+          updateProgressBar('point-data-progress', 100);
+          checkAllDataLoaded();
+        }
+      };
+    }
+
+    function loadLabelDataLayer() {
+      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+      labelDataWorker.onmessage = async function(event) {
+        if (event.data.type === "progress") {
+          updateProgressBar('label-data-progress', event.data.progress);
+        } else {
+          const { data } = event.data;
+          const labelData = data;
+          datamap.addLabels(labelData, {
+            labelTextColor: {{label_text_color}},
+            textMinPixelSize: {{text_min_pixel_size}},
+            textMaxPixelSize: {{text_max_pixel_size}},
+            textOutlineWidth: {{text_outline_width}},
+            textOutlineColor: {{text_outline_color}},
+            textBackgroundColor: {{text_background_color}},
+            fontFamily: "{{font_family}}",
+            fontWeight: {{font_weight}},
+            lineSpacing: {{line_spacing}},
+            textCollisionSizeScale: {{text_collision_size_scale}},
+          });
+
+          {% if cluster_boundary_polygons %}
+          datamap.addBoundaries(labelData, {
+            clusterBoundaryLineWidth: {{cluster_boundary_line_width}},
+          });
+          {% endif %}
+          document.getElementById("loading").style.display = "none";
+          updateProgressBar('label-data-progress', 100);
+          checkAllDataLoaded();
+        }
+      };
+    }
+
+    function loadMetaData() {
+      metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+      metaDataWorker.onmessage = async function(event) {
+        if (event.data.type === "progress") {
+          updateProgressBar('meta-data-progress', event.data.progress);
+        } else {
+          const { data } = event.data;
+          const hoverData = data;
+          datamap.addMetaData(hoverData, {
+            tooltipFunction: {{get_tooltip}},
+            onClickFunction: {{on_click if on_click else "null"}},
+            searchField: "{{search_field}}",
+          });
+
+          {% if search %}
+          function debounce(func, timeout = 250){
+              let timer;
+              return (...args) => {
+                  clearTimeout(timer);
+                  timer = setTimeout(() => { func.apply(this, args); }, timeout);
+              };
+          }
+
+          /* Search */
+          searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
+          {% endif -%}
+          updateProgressBar('meta-data-progress', 100);
+          checkAllDataLoaded();
+        }
+      };
+    }
 
     {% if enable_histogram %}
-    /*Histogram*/
-    const chartSelectionCallback = chartSelectedIndices => {
-      // Update data manager
-      if (chartSelectedIndices === null) {
-        dataSelectionManager.removeSelectedIndicesOfItem(histogramItemId);
-      } else {
-        dataSelectionManager.addOrUpdateSelectedIndicesOfItem(chartSelectedIndices, histogramItemId);
-      }
+    function loadHistogramBinData() {
+      return new Promise((resolve, reject) => {
+        histogramBinDataWorker.postMessage({encodedData: histogramBinDataEncoded, JSONParse: true});
 
-      // Update datamap plot
-      selectPoints(histogramItemId);
-    };
+        histogramBinDataWorker.onmessage = async function(event) {
+          if (event.data.type === "progress") {
+            updateProgressBar('histogram-bin-data-progress', event.data.progress);
+          } else {
+            const { data } = event.data;
+            const histogramBinData = data;
+            resolve(histogramBinData);
+            updateProgressBar('histogram-bin-data-progress', 100);
+            checkAllDataLoaded();
+          }
+        };
+      });
+    }
 
-    histogramItem = D3Histogram.create({
-      data: DATA.src["{{ histogram_data_attr }}"],
-      chartContainerId: histogramItemId,
-      {%- if histogram_width %}
-      chartWidth: {{ histogram_width }},
-      {%- endif %}
-      {%- if histogram_height %}
-      chartHeight: {{ histogram_height }},
-      {%- endif %}
-      {%- if histogram_bin_count %}
-      binCount: {{ histogram_bin_count }},
-      {%- endif %}
-      {%- if histogram_title %}
-      title: "{{ histogram_title }}",
-      {%- endif %}
-      {%- if histogram_bin_fill_color %}
-      binDefaultFillColor: "{{ histogram_bin_fill_color }}",
-      {%- endif %}
-      {%- if histogram_bin_selected_fill_color %}
-      binSelectedFillColor: "{{ histogram_bin_selected_fill_color }}",
-      {%- endif %}
-      {%- if histogram_bin_unselected_fill_color %}
-      binUnselectedFillColor: "{{ histogram_bin_unselected_fill_color }}",
-      {%- endif %}
-      {%- if histogram_bin_context_fill_color %}
-      binContextFillColor: "{{ histogram_bin_context_fill_color }}",
-      {%- endif %}
-      chartSelectionCallback
-    });
+    function loadHistogramIndexData() {
+      return new Promise((resolve, reject) => {
+        histogramIndexDataWorker.postMessage({encodedData: histogramIndexDataEncoded, JSONParse: false});
+
+        histogramIndexDataWorker.onmessage = async function(event) {
+          if (event.data.type === "progress") {
+            updateProgressBar('histogram-index-data-progress', event.data.progress);
+          } else {
+            const { data } = event.data;
+            const histogramIndexData = simpleArrowParser(data);
+            resolve(histogramIndexData);
+            updateProgressBar('histogram-index-data-progress', 100);
+            checkAllDataLoaded();
+          }
+        };
+      });
+    }
+
+    function loadHistogramData() {
+      const chartSelectionCallback = chartSelectedIndices => {
+        // Update data manager
+        if (chartSelectedIndices === null) {
+          datamap.removeSelection(histogramItemId);
+        } else {
+          datamap.addSelection(chartSelectedIndices, histogramItemId);
+        }
+      };
+
+      Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {
+        const histogramData = { rawBinData: histogramBinData, rawIndexData: histogramIndexData };
+        histogramItem = D3Histogram.create({
+          data: histogramData, 
+          chartContainerId: histogramItemId,
+          {%- if histogram_width %}
+          chartWidth: {{ histogram_width }},
+          {%- endif %}
+          {%- if histogram_height %}
+          chartHeight: {{ histogram_height }},
+          {%- endif %}
+          {%- if histogram_bin_count %}
+          binCount: {{ histogram_bin_count }},
+          {%- endif %}
+          {%- if histogram_title %}
+          title: "{{ histogram_title }}",
+          {%- endif %}
+          {%- if histogram_bin_fill_color %}
+          binDefaultFillColor: "{{ histogram_bin_fill_color }}",
+          {%- endif %}
+          {%- if histogram_bin_selected_fill_color %}
+          binSelectedFillColor: "{{ histogram_bin_selected_fill_color }}",
+          {%- endif %}
+          {%- if histogram_bin_unselected_fill_color %}
+          binUnselectedFillColor: "{{ histogram_bin_unselected_fill_color }}",
+          {%- endif %}
+          {%- if histogram_bin_context_fill_color %}
+          binContextFillColor: "{{ histogram_bin_context_fill_color }}",
+          {%- endif %}
+          {%- if histogram_log_scale %}
+          logScale: {{ histogram_log_scale|lower }},
+          {%- endif %}
+          chartSelectionCallback
+        });
+
+        datamap.connectHistogram(histogramItem);
+      });
+    }
     {% endif -%}
 
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+    {%- if enable_histogram %}
+    loadHistogramData();
+    {% endif -%}
     {% if custom_js %}
     {{ custom_js }}
     {% endif -%}
