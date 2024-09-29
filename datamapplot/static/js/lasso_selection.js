@@ -203,7 +203,8 @@ class LassoSelectionTool {
             controller: {
                 dragPan: !this.selectionMode,
                 dragRotate: !this.selectionMode,
-            }
+            },
+            getCursor: ({isDragging}) => this.selectionMode ? "crosshair" : (isDragging ? "grabbing" : "grab"),
         });
 
         if (!enabled) {
