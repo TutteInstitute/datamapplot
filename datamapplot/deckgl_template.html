@@ -342,10 +342,10 @@
         const binaryData = await decompressFile(encodedData);
         if (JSONParse) {
           const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-          self.postMessage({ data: parsedData });
+          self.postMessage({ type: "data", data: parsedData });
         } else {
           // Send the parsed table back to the main thread
-          self.postMessage({ data: binaryData });
+          self.postMessage({ type: "data", data: binaryData });
         }
       }
     `], { type: 'application/javascript' });

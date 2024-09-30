@@ -32,3 +32,7 @@ python:
    - requirements: doc/requirements.txt
    - method: pip
      path: .
+
+jobs:
+  post_build:
+    - python unmangle_notebook_srcdoc.py
