@@ -14,6 +14,9 @@ build:
     # nodejs: "19"
     # rust: "1.64"
     # golang: "1.19"
+  jobs:
+    post_build:
+      - python unmangle_notebook_srcdoc.py
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
@@ -32,7 +35,3 @@ python:
    - requirements: doc/requirements.txt
    - method: pip
      path: .
-
-jobs:
-  post_build:
-    - python unmangle_notebook_srcdoc.py
