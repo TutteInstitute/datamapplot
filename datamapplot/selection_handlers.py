@@ -388,14 +388,14 @@ function lassoSelectionCallback(selectedPoints) {{
     
 class CohereSummary(SelectionHandlerBase):
     """A selection handler that uses the Cohere API to generate a summary of selected text items.
-    The handler requires an API key to be provided by the end-user in the resulting HTML pahge. 
+    The handler requires an API key to be provided by the end-user in the resulting HTML page. 
     The handler will generate a prompt based on the selected text items and keywords extracted 
     from the text items, and get a Cohere model to summarize this. The summary will be displayed
     in a container on the page.
 
     This handler can likely be adapted to other API services that provide text summarization.
 
-    Note that by using API key handling here is secure enough for private or small-scale use,
+    Note that the API key handling here is secure enough for private or small-scale use,
     but is not suitable for enterprise or production use.
 
     Parameters
