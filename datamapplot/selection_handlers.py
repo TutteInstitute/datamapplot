@@ -3,6 +3,17 @@ import string
 
 
 class SelectionHandlerBase:
+    """Base class for selection handlers. Selection handlers are used to define custom behavior
+    when text items are selected on the plot. This can include displaying additional information
+    about the selected text items, generating visualizations based on the selected text items, or
+    interacting with external APIs to process the selected text items.
+
+    Parameters
+    ----------
+    dependencies : list, optional
+        A list of URLs for external dependencies required by the selection handler. Default is an empty list.
+
+    """
 
     def __init__(self, **kwargs):
         if "dependencies" in kwargs:
@@ -24,6 +35,24 @@ class SelectionHandlerBase:
 
 
 class DisplaySample(SelectionHandlerBase):
+    """A selection handler that displays a sample of the selected text items in a container on the page.
+    The sample will be randomly selected from the full selection of text items, and the number of samples
+    can be controlled by the `n_samples` parameter.
+
+    A resample button is also provided to generate a new sample of text items from the selection.
+
+    Parameters
+    ----------
+    n_samples : int, optional
+        The number of samples to display. Default is 256.
+
+    font_family : str, optional
+        The font family to use for the displayed text. Default is None.
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+
+"""
 
     def __init__(self, n_samples=256, font_family=None, **kwargs):
         super().__init__(
@@ -163,7 +192,7 @@ function clearSelection() {{
     @property
     def html(self):
         return f"""
-    <div id="selection-container" class="container-box">
+    <div id="selection-container" class="container-box more-opaque">
         <button class="button resample-button">Resample</button>
         <button class="button clear-selection-button"></button>
         <div id="selection-display"></div>
@@ -172,6 +201,46 @@ function clearSelection() {{
 
 
 class WordCloud(SelectionHandlerBase):
+    """A selection handler that generates a word cloud from the selected text items. The word cloud
+    is displayed in a container on the page, and the number of words in the cloud can be controlled
+    by the `n_words` parameter.
+    
+    The word cloud is generated using the d3-cloud library, and the appearance of the word cloud can
+    be customized using the `width`, `height`, `font_family`, `stop_words`, `n_rotations`, and `color_scale`
+    parameters.
+    
+    Parameters
+    ----------
+    n_words : int, optional
+        The number of words to display in the word cloud. Default is 256.
+        
+    width : int, optional
+        The width of the word cloud container. Default is 500.
+
+    height : int, optional
+        The height of the word cloud container. Default is 500.
+
+    font_family : str, optional
+        The font family to use for the word cloud. Default is None.
+
+    stop_words : list, optional
+        A list of stop words to exclude from the word cloud. Default is the English stop words from scikit-learn.
+
+    n_rotations : int, optional
+        The number of rotations to use for the words in the word cloud. Default is 0. More rotations can make the
+        word cloud more visually interesting, at the cost of readability.
+
+    color_scale : str, optional
+        The color scale to use for the word cloud. Default is "YlGnBu". The color scale can be any d3 color scale
+        name, with an optional "_r" suffix to reverse the color scale.
+
+    location : tuple, optional
+        The location of the word cloud container on the page. Default is ("bottom", "right").
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+
+        """
 
     def __init__(
         self,
@@ -316,9 +385,198 @@ function lassoSelectionCallback(selectedPoints) {{
     z-index: 10;
 }}
 """
+    
+class CohereSummary(SelectionHandlerBase):
+    """A selection handler that uses the Cohere API to generate a summary of selected text items.
+    The handler requires an API key to be provided by the end-user in the resulting HTML pahge. 
+    The handler will generate a prompt based on the selected text items and keywords extracted 
+    from the text items, and get a Cohere model to summarize this. The summary will be displayed
+    in a container on the page.
 
+    This handler can likely be adapted to other API services that provide text summarization.
+
+    Note that by using API key handling here is secure enough for private or small-scale use,
+    but is not suitable for enterprise or production use.
+
+    Parameters
+    ----------
+    model : str, optional
+        The Cohere model to use for summarization. Default is "command-r". See the Cohere docs
+        for more information on available models.
+
+    stop_words : list, optional
+        A list of stop words to exclude from the keyword extraction. Default is the English stop
+        words from scikit-learn.
+
+    n_keywords : int, optional
+        The number of keywords to extract from the text items. Default is 128.
+
+    n_samples : int, optional
+        The number of samples to use for the summary. Default is 64.
+
+    width : int, optional
+        The width of the summary container. Default is 500.
+
+    location : tuple, optional
+        The location of the summary container on the page. Default is ("top", "right").
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+    """
+
+    def __init__(
+        self, 
+        model="command-r", 
+        stop_words=None,
+        n_keywords=128, 
+        n_samples=64,
+        width=500,
+        location=("top", "right"),
+        **kwargs
+    ):
+        super().__init__(
+            dependencies=[
+                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+            ],
+            **kwargs,
+        )
+        self.model = model
+        self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
+        self.n_keywords = n_keywords
+        self.n_samples = n_samples
+        self.width = width
+        self.location = location
+ 
+    @property
+    def javascript(self):
+        return f"""
+// Stop word list
+const _STOPWORDS = new Set({self.stop_words});
+const summaryContainer = document.getElementById('summary-container');
+
+// Cohere API call
+async function cohereChat(message, apiKey) {{
+  const response = await fetch('https://api.cohere.ai/v1/chat', {{
+    method: 'POST',
+    headers: {{
+      'Authorization': `Bearer ${{apiKey}}`,
+      'Content-Type': 'application/json'
+    }},
+    body: JSON.stringify({{
+      message: message,
+      model: "{self.model}"
+    }})
+  }});
+  if (!response.ok) {{
+    if (response.status === 401) {{
+        return {{ text: "Error! Unauthorized: Please check your API key." }};
+    }} else {{
+        return {{ text: `Error! status: ${{response.status}}` }};
+    }}
+  }}
+  return await response.json();
+}}
+
+// Word counts for keywords
+function wordCounter(textItems) {{
+    const words = textItems.join(' ').toLowerCase().split(/\s+/);
+    const wordCounts = new Map();
+    words.forEach(word => {{
+        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+    }});
+    _STOPWORDS.forEach(stopword => wordCounts.delete(stopword));
+    const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
+                        .sort((a, b) => b.size - a.size).slice(0, {self.n_keywords});
+    const maxSize = Math.max(...(result.map(x => x.size)));
+    return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+}}
+
+// Array shuffling for random sampling
+const shuffle = ([...arr]) => {{
+  let m = arr.length;
+  while (m) {{
+    const i = Math.floor(Math.random() * m--);
+    [arr[m], arr[i]] = [arr[i], arr[m]];
+  }}
+  return arr;
+}};
+const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
+
+// Create a summary using Cohere API
+function generateSummary(textItems) {{
+    const apiKey = document.getElementById("api-key").value;
+    if (apiKey === "") {{
+      summaryContainer.innerHTML = "No API Key provided ... cannot generate a summary!"
+    }} else {{
+        const keywords = wordCounter(textItems).map(d => d.text);
+        const sample_text = sampleSize(textItems, {self.n_samples});
+
+        // Build prompt from keywords and samples with some framing text
+        const prompt = `We have samples of items from a selection of items about a topic.
+Keywords associated to the topic are: ${{keywords.join(", ")}}
+Samples text items associated to the topic are: 
+- ${{sample_text.join("\\n  - ")}}
+
+Please provide a concise summary of the selection of items. Be as specific as possible.
+The summary should be a few sentences long at most, and ideally just a single sentence.
+`;
+        cohereChat(prompt, apiKey).then(response => {{ summaryContainer.innerHTML = response.text }} );
+    }}
+}}
+
+function lassoSelectionCallback(selectedPoints) {{
+    if (selectedPoints.length > 0) {{
+        $(summaryContainer).animate({{width:'show'}}, {self.width});
+    }} else {{
+        $(summaryContainer).animate({{width:'hide'}}, {self.width});
+    }}
+    let selectedText;
+    if (datamap.metaData) {{
+        selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+    }} else {{
+        selectedText = ["Meta data still loading ..."];
+    }}
+    generateSummary(selectedText);
+}}
+        """
+        
+    @property
+    def html(self):
+        return """
+      <div id="api-key-container" class="container-box">
+        <label for="apiKey">Cohere API Key: </label>
+        <input autocomplete="off" type="password" id="api-key" placeholder="Enter your API key here" />
+      </div> 
+      <div id="summary-container" class="container-box more-opaque"></div>
+"""
+
+    @property
+    def css(self):
+        return f"""
+#summary-container {{
+    position: absolute;
+    {self.location[1]}: 0;
+    {self.location[0]}: 5%;
+    display: none;
+    width: {self.width}px;
+    height: fit-content;
+    font-size: 16px;
+    font-weight: 400;
+    z-index: 10;
+}}
+#api-key-container {{
+    position: absolute;
+    {self.location[1]}: 0;
+    {self.location[0]}: 0;
+    width: fit-content;
+    z-index: 10;
+}}
+"""
 
 class TagSelection(SelectionHandlerBase):
+    """
+    Unfinished. TODO: Implement tag selection handler.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

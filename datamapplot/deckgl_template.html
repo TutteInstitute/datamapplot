@@ -55,6 +55,9 @@
         background: {{title_background}};
         box-shadow: 2px 3px 10px {{shadow_color}};
       }
+      .more-opaque {
+        background-color: {{title_background[:-2] + "ee"}};
+      }
       #deck-container {
         width: 100vw;
         height: 100vh;
@@ -65,6 +68,19 @@
       }
       .deck-tooltip {
           {{tooltip_css}}
+      }
+      input {
+        margin: 2px;
+        padding: 4px;
+        border-radius: 8px;
+        color: {{title_font_color}};
+        background: {{input_background}};
+        border: 1px solid {{input_border}};
+        transition: 0.5s;
+        outline: none;
+      }
+      input:focus {
+        border: 2px solid #555;
       }
       #loading {
         width: 100%;
@@ -106,19 +122,6 @@
         left: -16px;
         margin: 16px;
         width: fit-content;
-      }
-      input {
-        margin: 2px;
-        padding: 4px;
-        border-radius: 8px;
-        color: {{title_font_color}};
-        background: {{input_background}};
-        border: 1px solid {{input_border}};
-        transition: 0.5s;
-        outline: none;
-      }
-      input:focus {
-        border: 2px solid #555;
       }
       {%- endif %}
       {%- if custom_css %}
