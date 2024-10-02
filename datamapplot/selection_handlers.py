@@ -1,6 +1,25 @@
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
 
+_DEFAULT_TAG_COLORS = [
+    "#1f77b4", "#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f",
+    "#bcbd22","#17becf","#a6008a","#656100","#8aa6ff","#007155","#ce968a","#6139f3",
+    "#82b692","#ae8210","#ae9ebe","#5d5d79","#ce86ff","#398e92","#b65504","#ce31d7",
+    "#758a55","#9204c6","#187100","#965982","#ef6959","#5d79ff","#7986b2","#b2a66d",
+    "#5d614d","#009e71","#00a2e7","#8ea6ae","#8a9a0c","#9e7d5d","#00c66d","#246979",
+    "#65c210","#865510","#a23118","#9e7dff","#9239fb","#00c2a6","#ae7d9e","#6165b2",
+    "#aaa69e","#005def","#754d8e","#ce7d49","#ba5549","#f35dff","#df9600","#be4dff",
+    "#55716d","#8ab65d","#6d9686","#e75500","#75616d","#4d713d","#5d8200","#9e45a6",
+    "#7daed7","#867596","#5d798e","#ba75c6","#be55a2","#827135","#008641","#5d96b2",
+    "#ae9ae7","#61a261","#b6756d","#5daaa6","#eb41c6","#8e9e7d","#9e8e96","#b69e10",
+    "#6d49b6","#867d00","#a66d2d","#ca92c6","#6592df","#4d8265","#7d6d5d","#7d65ef",
+    "#45658a","#8a8e9e","#d29a55","#b220df","#9a8e4d","#0086eb","#00829e","#969eca",
+    "#c614aa","#007975","#9a86be","#5d6165","#c67100","#755939","#9a4d24","#8e3d7d",
+    "#c23900","#6d7961","#eb8a69","#35baeb","#b29679","#718a8e","#9e69a2","#ae75e3",
+    "#008a00","#3561ae","#8e9692","#a66549","#7d82db","#00a2b6","#24b682","#9e00aa",
+    "#08ba39","#8a49ba","#75659e","#008e79","#5579c6","#927186","#558a41","#755171",
+]
+
 
 class SelectionHandlerBase:
     """Base class for selection handlers. Selection handlers are used to define custom behavior
@@ -52,7 +71,7 @@ class DisplaySample(SelectionHandlerBase):
     **kwargs
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
 
-"""
+    """
 
     def __init__(self, n_samples=256, font_family=None, **kwargs):
         super().__init__(
@@ -204,16 +223,16 @@ class WordCloud(SelectionHandlerBase):
     """A selection handler that generates a word cloud from the selected text items. The word cloud
     is displayed in a container on the page, and the number of words in the cloud can be controlled
     by the `n_words` parameter.
-    
+
     The word cloud is generated using the d3-cloud library, and the appearance of the word cloud can
     be customized using the `width`, `height`, `font_family`, `stop_words`, `n_rotations`, and `color_scale`
     parameters.
-    
+
     Parameters
     ----------
     n_words : int, optional
         The number of words to display in the word cloud. Default is 256.
-        
+
     width : int, optional
         The width of the word cloud container. Default is 500.
 
@@ -240,7 +259,7 @@ class WordCloud(SelectionHandlerBase):
     **kwargs
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
 
-        """
+    """
 
     def __init__(
         self,
@@ -385,11 +404,12 @@ function lassoSelectionCallback(selectedPoints) {{
     z-index: 10;
 }}
 """
-    
+
+
 class CohereSummary(SelectionHandlerBase):
     """A selection handler that uses the Cohere API to generate a summary of selected text items.
-    The handler requires an API key to be provided by the end-user in the resulting HTML page. 
-    The handler will generate a prompt based on the selected text items and keywords extracted 
+    The handler requires an API key to be provided by the end-user in the resulting HTML page.
+    The handler will generate a prompt based on the selected text items and keywords extracted
     from the text items, and get a Cohere model to summarize this. The summary will be displayed
     in a container on the page.
 
@@ -425,14 +445,14 @@ class CohereSummary(SelectionHandlerBase):
     """
 
     def __init__(
-        self, 
-        model="command-r", 
+        self,
+        model="command-r",
         stop_words=None,
-        n_keywords=128, 
+        n_keywords=128,
         n_samples=64,
         width=500,
         location=("top", "right"),
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             dependencies=[
@@ -446,7 +466,7 @@ class CohereSummary(SelectionHandlerBase):
         self.n_samples = n_samples
         self.width = width
         self.location = location
- 
+
     @property
     def javascript(self):
         return f"""
@@ -539,7 +559,7 @@ function lassoSelectionCallback(selectedPoints) {{
     generateSummary(selectedText);
 }}
         """
-        
+
     @property
     def html(self):
         return """
@@ -573,26 +593,148 @@ function lassoSelectionCallback(selectedPoints) {{
 }}
 """
 
+
 class TagSelection(SelectionHandlerBase):
     """
-    Unfinished. TODO: Implement tag selection handler.
+    A selection handler that allows users to create and save tags for selected items.
+    The handler provides a container for displaying existing tags, a button to create a new tag,
+    and a button to save the tags to a JSON file.
+
+    The handler also provides a visual indicator for selected items that have been tagged, and
+    allows users to add selected items to existing tags.
+
+    Parameters
+    ----------
+    tag_colors : list, optional
+        A list of colors to use for the tags. Default is a set of default colors extending the tab10 palette.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, tag_colors=None, **kwargs):
         super().__init__(**kwargs)
+        if tag_colors is None:
+            self.tag_colors = _DEFAULT_TAG_COLORS
+        else:
+            self.tag_colors = tag_colors
 
     @property
     def javascript(self):
         return f"""
+    const tagColors = [
+    {",".join(['"'+x+'"' for x in self.tag_colors])}
+    ];
+
     const tags = new Map();
-    const tagButton = document.getElementsByClassName("tag-button")[0]
-    tagButton.onclick = createNewTag();
+    const tagButton = document.getElementById("new-tag-button");
+    const tagList = document.getElementById("tag-list");
+    const tagInput = document.getElementById("tag-input");
+    const saveTagsButton = document.getElementById("save-tags");
+    const selectedTags = new Set();
+    saveTagsButton.onclick = saveTags;
+    let numTags = 0;
+    
+    function mapToObject(map) {{
+        const obj = {{}};
+        map.forEach((value, key) => {{
+            obj[key] = Array.from(value);
+        }});
+        return obj;
+    }}
+
+    function saveTags() {{
+        const tagsObject = mapToObject(tags);
+        const jsonString = JSON.stringify(tagsObject, null, 2);
+        const blob = new Blob([jsonString], {{ type: 'application/json' }});
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'tags.json';  // Specify the filename
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }}
+
+    function toggleTagSelection(tagName) {{
+        if (selectedTags.has(tagName)) {{
+            selectedTags.delete(tagName);
+            const tagSwatch = document.getElementById(`tag-selector-${{tagName}}`);
+            tagSwatch.innerHTML = "";
+        }} else {{
+            selectedTags.add(tagName);
+            const tagSwatch = document.getElementById(`tag-selector-${{tagName}}`);
+            tagSwatch.innerHTML = "✓";
+        }}
+        const selectedIndices = [];
+        selectedTags.forEach(tag => {{
+            tags.get(tag).forEach(index => {{
+                selectedIndices.push(index);
+            }});
+        }});
+        datamap.addSelection(selectedIndices, "tag-selection");
+    }}
+
+    function addSelectionToTag(tagName, selectedPoints) {{
+        tags.set(tagName, tags.get(tagName).union(new Set(selectedPoints)));
+        const addToTagButton = document.getElementById(`add-to-${{tagName}}`);
+        addToTagButton.classList.remove("enabled");
+        addToTagButton.style.display = "none";
+        addToTagButton.disable = true;
+    }}
+    
+    function createNewTag(selectedPoints) {{
+        const tagName = tagInput.value;
+        if (tags.has(tagName)) {{
+            alert("Tag already exists! Try adding to the existing tag instead.");
+        }} else if (tagName === "") {{
+            alert("Tag name cannot be empty!");
+        }} else {{
+            addTag(tagName);
+            tags.set(tagName, new Set(selectedPoints));
+            tagInput.value = "";
+        }}
+    }}
+
+    function addTag(tagName) {{
+        const tagItem = document.createElement('li');
+        tagItem.innerHTML = `
+<div class="row">
+  <div class="tag-info">
+    <div 
+        id="tag-selector-${{tagName}}" 
+        class="box" 
+        style="background-color: ${{tagColors[numTags]}};" 
+    ></div>
+    ${{tagName}}
+  </div>
+  <button id="add-to-${{tagName}}" class="button tag-button add-to-tag-button" style="display: none;">Add to tag</button>
+</div>`;
+        numTags += 1;
+        tagList.appendChild(tagItem);
+        document.getElementById(`tag-selector-${{tagName}}`).addEventListener("click", () => toggleTagSelection(tagName));
+    }}
 
     function lassoSelectionCallback(selectedPoints) {{
-        if (selectedPoints.length == 0) {{
+        if (selectedPoints.length !== 0) {{
             tagButton.classList.add("enabled");
+            tagButton.onclick = () => createNewTag(selectedPoints);
+            tagButton.disabled = false;
+            tags.forEach((points, tagName, map) => {{
+                    const addToTagButton = document.getElementById(`add-to-${{tagName}}`);
+                    addToTagButton.onclick = () => addSelectionToTag(tagName, selectedPoints);
+                    addToTagButton.classList.add("enabled");
+                    addToTagButton.style.display = "block";
+                    addToTagButton.disable = false;
+            }});
         }} else {{
-            tagButton.classList.add("enabled");
+            tagButton.classList.remove("enabled");
+            tagButton.disabled = true;
+            tags.forEach((points, tagName, map) => {{
+                    const addToTagButton = document.getElementById(`add-to-${{tagName}}`);
+                    addToTagButton.classList.remove("enabled");
+                    addToTagButton.style.display = "none";
+                    addToTagButton.disable = true;
+            }});  
         }}
     }}
         """
@@ -600,12 +742,84 @@ class TagSelection(SelectionHandlerBase):
     @property
     def html(self):
         return f"""
-    <div id="tag-container">
+    <div id="tag-container" class="container-box more-opaque">
         <div id="tag-display">
+            <h3>Existing Tags</h3>
+            <ul id="tag-list">
+            </ul>
         </div>
         <span>
-            <button class="button tag-button">Create New Tag</button>
+            <button id="new-tag-button" class="button tag-button">Create New Tag</button>
             <input type="text" id="tag-input" placeholder="Enter tag name">
         </span>
+        <button id="save-tags" class="button tag-button enabled">Save tags</button>
     </div>
-        """
+"""
+
+    @property
+    def css(self):
+        return f"""
+#tag-container {{
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 25%;
+    height: fit-content;
+    z-index: 10;
+}}
+#tag-display {{
+    overflow-y: auto;
+    max-height: 95%;
+    margin: 8px;
+}}
+.tag-button {{
+    border: none;
+    padding: 4px 8px;
+    text-align: center; 
+    display: inline-block;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 8px;
+}}
+.tag-button:enabled {{
+    background-color: #3ba5e7;
+    color: white;
+}}
+.tag-button:disabled {{
+    background-color: #cccccc;
+    color: #666666;
+}}
+#save-tags {{
+  float: right;
+}}
+#tag-list {{
+    list-style-type: none;
+    width: 75%;
+}}
+.row {{
+    display : flex;
+    align-items : center;
+    width: 100%;
+    justify-content: space-between;
+}}
+.box {{
+    height:10px;
+    width:10px;
+    border-radius:2px;
+    margin-right:5px;
+    padding:0px 0 1px 0;
+    text-align:center;
+    color: white;
+    font-size: 14px;
+}}
+.tag-info {{
+  display: flex;
+  align-items: center;
+}}
+.add-to-tag-button {{
+  float: right;
+  font-size: 8px;
+  padding: 2px 4px;
+  margin: 0px 16px;
+}}
+    """

@@ -11,3 +11,4 @@ Selection Handlers
 
 .. autoclass:: CohereSummary
 
+.. autoclass:: TagSelection
