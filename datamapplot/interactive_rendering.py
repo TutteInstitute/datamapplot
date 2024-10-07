@@ -21,7 +21,11 @@ from scipy.spatial import Delaunay
 
 from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
 
-from datamapplot.histograms import generate_bins_from_numeric_data, generate_bins_from_categorical_data, generate_bins_from_temporal_data
+from datamapplot.histograms import (
+    generate_bins_from_numeric_data,
+    generate_bins_from_categorical_data,
+    generate_bins_from_temporal_data,
+)
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 
@@ -111,26 +115,25 @@ class InteractiveFigure:
             # We need to redirect the fetch to use the jupyter API endpoint
             # for use in a notebook...
             jupyter_html_str = self._html_str.replace(
-                "originURL = self.location.origin + directoryPath;", 
-                "originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/')).replace(/(notebooks|lab.*tree)/, 'api/contents');"
+                "originURL = self.location.origin + directoryPath;",
+                "originURL = document.baseURI.substring(0, document.baseURI.lastIndexOf('/')).replace(/(notebooks|lab.*tree)/, 'api/contents');",
             )
             jupyter_html_str = re.sub(
-                r'const parsingWorkerBlob.*?\'application/javascript\' \}\);', 
+                r"const parsingWorkerBlob.*?\'application/javascript\' \}\);",
                 _NOTEBOOK_NON_INLINE_WORKER,
                 jupyter_html_str,
-                flags=re.DOTALL
+                flags=re.DOTALL,
             )
             if self.api_token is not None:
                 jupyter_html_str = jupyter_html_str.replace(
                     "headers: {Authorization: 'Token API_TOKEN'}",
-                    f"headers: {{Authorization: 'Token {self.api_token}'}}"
+                    f"headers: {{Authorization: 'Token {self.api_token}'}}",
                 )
             else:
                 jupyter_html_str = jupyter_html_str.replace(
-                    "headers: {Authorization    : 'Token API_TOKEN'}",
-                    ""
+                    "headers: {Authorization    : 'Token API_TOKEN'}", ""
                 )
-            src_doc =  html.escape(jupyter_html_str)
+            src_doc = html.escape(jupyter_html_str)
         else:
             src_doc = html.escape(self._html_str)
         iframe = f"""
@@ -159,10 +162,9 @@ class InteractiveFigure:
         """Save an interactive figure to a zip file with name `filename`"""
         with zipfile.ZipFile(filename, "w") as zf:
             zf.writestr("index.html", self._html_str)
-            for filename in re.findall(r'/(.*?_data\.zip)', self._html_str):
+            for filename in re.findall(r"/(.*?_data\.zip)", self._html_str):
                 print(f"Adding {filename} to bundle")
                 zf.write(filename)
-
 
 
 def get_google_font_for_embedding(fontname):
@@ -183,12 +185,17 @@ def get_google_font_for_embedding(fontname):
                 font_links.append(
                     f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/woff2" />'
                 )
-        return "\n".join(font_links) + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
+        return (
+            "\n".join(font_links)
+            + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
+        )
     else:
         return ""
 
 
-def _get_js_dependency_sources(minify, enable_search, enable_histogram, enable_lasso_selection):
+def _get_js_dependency_sources(
+    minify, enable_search, enable_histogram, enable_lasso_selection
+):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
 
@@ -295,9 +302,7 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None):
 
     # Conditionally add dependencies based on functionality
     if enable_histogram:
-        js_dependency_urls.append(
-            "https://d3js.org/d3.v6.min.js"
-        )
+        js_dependency_urls.append("https://d3js.org/d3.v6.min.js")
 
     if selection_handler is not None:
         js_dependency_urls.extend(selection_handler.dependencies)
@@ -305,6 +310,27 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None):
     js_dependency_urls = list(set(js_dependency_urls))
 
     return js_dependency_urls
+
+
+def compute_percentile_bounds(points, percentage=99.9):
+    n_points = points.shape[0]
+    n_to_select = np.int32(n_points * (percentage / 100))
+    centroid = np.mean(points, axis=0)
+
+    # Sort points by distance from centroid
+    vectors = points - centroid
+    distances = np.linalg.norm(vectors**2, axis=1)
+    sorted_indices = np.argsort(distances)
+    selected_points = points[sorted_indices[:n_to_select]]
+
+    # Compute bounds
+    xmin, ymin = np.min(selected_points, axis=0)
+    xmax, ymax = np.max(selected_points, axis=0)
+
+    x_padding = 0.01 * (xmax - xmin)
+    y_padding = 0.01 * (ymax - ymin)
+
+    return [xmin - x_padding, xmax + x_padding, ymin - y_padding, ymax + y_padding]
 
 
 def label_text_and_polygon_dataframes(
@@ -337,7 +363,9 @@ def label_text_and_polygon_dataframes(
 
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
         if cluster_polygons:
-            simplices = Delaunay(cluster_points, qhull_options="Qbb Qc Qz Q12 Q7").simplices
+            simplices = Delaunay(
+                cluster_points, qhull_options="Qbb Qc Qz Q12 Q7"
+            ).simplices
             polygons.append(
                 [
                     smooth_polygon(x).tolist()
@@ -359,7 +387,7 @@ def label_text_and_polygon_dataframes(
         data["polygon"] = polygons
 
     return pd.DataFrame(data)
-    
+
 
 def render_html(
     point_dataframe,
@@ -392,7 +420,7 @@ def render_html(
     point_line_width_max_pixels=3,
     point_line_width=0.001,
     cluster_boundary_line_width=1,
-    initial_zoom_fraction=1.0,
+    initial_zoom_fraction=0.999,
     background_color=None,
     darkmode=False,
     offline_data_prefix=None,
@@ -551,9 +579,9 @@ def render_html(
         to cluster size, so this is a scaling factor applied over this.
 
     initial_zoom_fraction: float (optional, default=1.0)
-        The fraction of the total zoom (containing allm the data) to start the
-        map in. A lower value will initialize the plot zoomed in, while values
-        larger than 1.0 will result in the initial start point being zoomed out.
+        The fraction of of data that should be visible in the initial zoom lavel state. Sometimes
+        data maps can have extreme outliers, and lowering this value to prune those out can result
+        in a more useful initial view.
 
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
@@ -611,7 +639,7 @@ def render_html(
         `day`, `hour`, `minute`, or `second`.
 
     histogram_range: tuple or None (optional, default=None)
-        The range of the histogram. If `None`, the range is automatically determined from the   
+        The range of the histogram. If `None`, the range is automatically determined from the
         histogram data. If a tuple, it should contain two values representing the minimum and
         maximum values of the histogram.
 
@@ -691,16 +719,11 @@ def render_html(
         )
         point_size = -1
 
-    # Compute zoom level and initial view location
-    data_width = point_dataframe.x.max() - point_dataframe.x.min()
-    data_height = point_dataframe.y.max() - point_dataframe.y.min()
-    data_center = point_dataframe[["x", "y"]].values.mean(axis=0)
-
-    spread = max(data_width, data_height) * initial_zoom_fraction
-    if spread < (360.0 * np.power(2.0, -20)):
-        zoom_level = 21
-    else:
-        zoom_level = max(1, np.log2(360.0) - np.log2(spread))
+    # Compute bounds for initial view
+    bounds = compute_percentile_bounds(
+        point_dataframe[["x", "y"]].values,
+        percentage=(initial_zoom_fraction * 100),
+    )
 
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"
@@ -729,7 +752,7 @@ def render_html(
         "histogram_data_attr": histogram_data_attr,
         **histogram_settings,
     }
-    enable_lasso_selection = selection_handler is not None        
+    enable_lasso_selection = selection_handler is not None
 
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
 
@@ -815,23 +838,33 @@ def render_html(
 
     if enable_histogram:
         if isinstance(histogram_data.dtype, pd.CategoricalDtype):
-            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
+            bin_data, index_data = generate_bins_from_categorical_data(
+                histogram_data, histogram_n_bins, histogram_range
+            )
         elif is_string_dtype(histogram_data.dtype):
-            bin_data, index_data = generate_bins_from_categorical_data(histogram_data, histogram_n_bins, histogram_range)
+            bin_data, index_data = generate_bins_from_categorical_data(
+                histogram_data, histogram_n_bins, histogram_range
+            )
         elif is_datetime64_any_dtype(histogram_data.dtype):
             if histogram_group_datetime_by is not None:
-                bin_data, index_data = generate_bins_from_temporal_data(histogram_data, histogram_group_datetime_by, histogram_range)
+                bin_data, index_data = generate_bins_from_temporal_data(
+                    histogram_data, histogram_group_datetime_by, histogram_range
+                )
             else:
-                bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
+                bin_data, index_data = generate_bins_from_numeric_data(
+                    histogram_data, histogram_n_bins, histogram_range
+                )
         else:
-            bin_data, index_data = generate_bins_from_numeric_data(histogram_data, histogram_n_bins, histogram_range)
+            bin_data, index_data = generate_bins_from_numeric_data(
+                histogram_data, histogram_n_bins, histogram_range
+            )
 
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
         buffer.seek(0)
         arrow_bytes = buffer.read()
-        gzipped_bytes = gzip.compress(arrow_bytes)        
+        gzipped_bytes = gzip.compress(arrow_bytes)
         base64_point_data = base64.b64encode(gzipped_bytes).decode()
         json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
         gzipped_bytes = gzip.compress(json_bytes)
@@ -840,7 +873,9 @@ def render_html(
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
         if enable_histogram:
-            json_bytes = bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode()
+            json_bytes = bin_data.to_json(
+                orient="records", date_format="iso", date_unit="s"
+            ).encode()
             gzipped_bytes = gzip.compress(json_bytes)
             base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
             buffer = io.BytesIO()
@@ -871,7 +906,11 @@ def render_html(
             f.write(bytes(label_data_json, "utf-8"))
         if enable_histogram:
             with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
-                f.write(bin_data.to_json(orient="records", date_format="iso", date_unit='s').encode())
+                f.write(
+                    bin_data.to_json(
+                        orient="records", date_format="iso", date_unit="s"
+                    ).encode()
+                )
             with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
                 index_data.to_frame().to_feather(f, compression="uncompressed")
 
@@ -899,9 +938,14 @@ def render_html(
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
-        "js_dependency_urls": _get_js_dependency_urls(enable_histogram, selection_handler),
+        "js_dependency_urls": _get_js_dependency_urls(
+            enable_histogram, selection_handler
+        ),
         "js_dependency_srcs": _get_js_dependency_sources(
-            minify_deps, enable_search, enable_histogram, enable_lasso_selection,
+            minify_deps,
+            enable_search,
+            enable_histogram,
+            enable_lasso_selection,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
             minify_deps, enable_histogram, show_loading_progress
@@ -991,9 +1035,7 @@ def render_html(
         text_collision_size_scale=text_collision_size_scale,
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,
-        zoom_level=zoom_level,
-        data_center_x=data_center[0],
-        data_center_y=data_center[1],
+        data_bounds=bounds,
         on_click=on_click,
         enable_lasso_selection=enable_lasso_selection,
         get_tooltip=get_tooltip,

@@ -5,12 +5,59 @@ function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
 }
 
+function isFontLoaded(fontName) {
+  return document.fonts.check(`12px "${fontName}"`);
+}
+
+// Function to wait for a font to load
+function waitForFont(fontName, maxWait = 500) {
+  return new Promise((resolve, reject) => {
+      if (isFontLoaded(fontName)) {
+          resolve();
+      } else {
+          const startTime = Date.now();
+          const interval = setInterval(() => {
+              if (isFontLoaded(fontName)) {
+                  clearInterval(interval);
+                  resolve();
+              } else if (Date.now() - startTime > maxWait) {
+                  clearInterval(interval);
+                  reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
+              }
+          }, 50);
+      }
+  });
+}
+
+function getInitialViewportSize() {
+  const width = document.documentElement.clientWidth;
+  const height = document.documentElement.clientHeight;
+  
+  return { viewportWidth: width, viewportHeight: height };
+}
+
+function calculateZoomLevel(bounds, viewportWidth, viewportHeight, padding = 0) {
+  // Calculate the range of the bounds
+  const lngRange = bounds[1] - bounds[0];
+  const latRange = bounds[3] - bounds[2];
+
+  // Calculate the center of the bounds
+  const centerLng = (bounds[0] + bounds[1]) / 2;
+  const centerLat = (bounds[2] + bounds[3]) / 2;
+
+  // Calculate the zoom level for both dimensions
+  const zoomX = Math.log2(360 / (lngRange / (viewportWidth / 256)));
+  const zoomY = Math.log2(180 / (latRange / (viewportHeight / 256)));
+
+  const zoom = Math.min(zoomX, zoomY) - padding;
+
+  return { zoomLevel: zoom, dataCenter: [centerLng, centerLat] };
+}
 
 class DataMap {
   constructor({
     container,
-    dataCenter,
-    zoomLevel,
+    bounds,
     searchItemId = "text-search",
     lassoSelectionItemId = "lasso-selection",
   }) {
@@ -20,6 +67,8 @@ class DataMap {
     this.pointData = null;
     this.metaData = null;
     this.layers = [];
+    const { viewportWidth, viewportHeight } = getInitialViewportSize();
+    const { zoomLevel, dataCenter } = calculateZoomLevel(bounds, viewportWidth, viewportHeight);
     this.deckgl = new deck.DeckGL({
       container: container,
       initialViewState: {
@@ -145,6 +194,8 @@ class DataMap {
     this.fontWeight = fontWeight;
     this.lineSpacing = lineSpacing;
     this.textCollisionSizeScale = textCollisionSizeScale;
+
+    waitForFont(this.fontFamily);
 
     this.labelLayer = new deck.TextLayer({
       id: 'LabelLayer',

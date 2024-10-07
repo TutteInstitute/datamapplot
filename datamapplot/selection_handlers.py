@@ -389,7 +389,7 @@ function lassoSelectionCallback(selectedPoints) {{
 
     @property
     def html(self):
-        return """<div id="word-cloud" class="container-box"></div>"""
+        return """<div id="word-cloud" class="container-box more-opaque"></div>"""
 
     @property
     def css(self):
@@ -563,32 +563,39 @@ function lassoSelectionCallback(selectedPoints) {{
     @property
     def html(self):
         return """
-      <div id="api-key-container" class="container-box">
-        <label for="apiKey">Cohere API Key: </label>
-        <input autocomplete="off" type="password" id="api-key" placeholder="Enter your API key here" />
-      </div> 
-      <div id="summary-container" class="container-box more-opaque"></div>
+      <div id="layout_container">
+        <div id="api-key-container" class="container-box more-opaque">
+            <label for="apiKey">Cohere API Key: </label>
+            <input autocomplete="off" type="password" id="api-key" placeholder="Enter your API key here" />
+        </div> 
+        <div id="summary-container" class="container-box more-opaque"></div>
+      </div>
 """
 
     @property
     def css(self):
         return f"""
-#summary-container {{
-    position: absolute;
-    {self.location[1]}: 0;
-    {self.location[0]}: 5%;
-    display: none;
-    width: {self.width}px;
-    height: fit-content;
-    font-size: 16px;
-    font-weight: 400;
-    z-index: 10;
-}}
-#api-key-container {{
+#layout_container {{
     position: absolute;
     {self.location[1]}: 0;
     {self.location[0]}: 0;
+    display: flex;
+    flex-direction: column;
+    width: {self.width + 32}px;
+}}
+#summary-container {{
+    display: none;
+    width: {self.width - 24}px;
+    height: fit-content;
+    font-size: 16px;
+    font-weight: 400;
+    margin: 0px 16px 8px 16px;
+    z-index: 10;
+}}
+#api-key-container {{
+    align-self: end;
     width: fit-content;
+    margin: 8px 16px 8px 16px;
     z-index: 10;
 }}
 """
