@@ -458,36 +458,37 @@ def create_interactive_plot(
 
     """
     if len(label_layers) == 0:
-        label_dataframe = pd.DataFrame(
+        label_dataframes = [pd.DataFrame(
             {
                 "x": [data_map_coords.T[0].mean()],
                 "y": [data_map_coords.T[1].mean()],
                 "label": [""],
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
-        )
+        )]
     else:
-        label_dataframe = pd.concat(
-            [
-                label_text_and_polygon_dataframes(
-                    labels,
-                    data_map_coords,
-                    noise_label=noise_label,
-                    use_medoids=use_medoids,
-                    cluster_polygons=cluster_boundary_polygons,
-                    alpha=polygon_alpha,
-                )
-                for labels in label_layers
-            ]
-        )
+        label_dataframes = [
+            label_text_and_polygon_dataframes(
+                labels,
+                data_map_coords,
+                noise_label=noise_label,
+                use_medoids=use_medoids,
+                cluster_polygons=cluster_boundary_polygons,
+                alpha=polygon_alpha,
+                layer_num=layer_num,
+            )
+            for layer_num, labels in enumerate(label_layers)
+        ]
 
     if cvd_safer:
         cmap = colorcet.cm.CET_C2s
+
+    combined_label_dataframe = pd.concat(label_dataframes, ignore_index=True)[["x", "y", "label"]]
     if label_color_map is None:
         if cmap is None:
             palette = palette_from_datamap(
                 data_map_coords,
-                label_dataframe[["x", "y"]].values,
+                combined_label_dataframe[["x", "y"]].values,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
             )
@@ -495,65 +496,55 @@ def create_interactive_plot(
             palette = palette_from_cmap_and_datamap(
                 cmap,
                 data_map_coords,
-                label_dataframe[["x", "y"]].values,
+                combined_label_dataframe[["x", "y"]].values,
                 radius_weight_power=palette_hue_radius_dependence,
             )
-        if not darkmode:
-            text_palette = np.asarray(
-                [
-                    tuple(int(c * 255) for c in to_rgb(color))
-                    for color in deep_palette(palette)
-                ]
-            )
-        else:
-            text_palette = np.asarray(
-                [
-                    tuple(int(c * 255) for c in to_rgb(color))
-                    for color in pastel_palette(palette)
-                ]
-            )
-        palette = [tuple(int(c * 255) for c in to_rgb(color)) for color in palette]
+        label_color_map = {
+            label: color for label, color in zip(combined_label_dataframe.label, palette)
+        }
+        rgb_palette = [tuple(int(c * 255) for c in to_rgb(color)) for color in palette]
         color_map = {
-            label: color for label, color in zip(label_dataframe.label, palette)
+            label: color for label, color in zip(combined_label_dataframe.label, rgb_palette)
         }
     else:
         color_map = {
             label: tuple(int(c * 255) for c in to_rgb(color))
             for label, color in label_color_map.items()
         }
-        if not darkmode:
-            text_palette = np.asarray(
-                [
-                    tuple(int(c * 255) for c in to_rgb(color))
-                    for color in deep_palette(
-                        [label_color_map[label] for label in label_dataframe.label]
-                    )
-                ]
-            )
+
+    for label_dataframe in label_dataframes:
+        if color_label_text or color_cluster_boundaries:
+            if darkmode:
+                text_palette = np.asarray(
+                    [
+                        tuple(int(c * 255) for c in to_rgb(color))
+                        for color in pastel_palette(
+                            [label_color_map[label] for label in label_dataframe.label]
+                        )
+                    ]
+                )
+            else:
+                text_palette = np.asarray(
+                    [
+                        tuple(int(c * 255) for c in to_rgb(color))
+                        for color in deep_palette(
+                            [label_color_map[label] for label in label_dataframe.label]
+                        )
+                    ]
+                )
+            label_dataframe["r"] = text_palette.T[0]
+            label_dataframe["g"] = text_palette.T[1]
+            label_dataframe["b"] = text_palette.T[2]
+            label_dataframe["a"] = 64
         else:
-            text_palette = np.asarray(
-                [
-                    tuple(int(c * 255) for c in to_rgb(color))
-                    for color in pastel_palette(
-                        [label_color_map[label] for label in label_dataframe.label]
-                    )
-                ]
-            )
+            label_dataframe["r"] = 15 if not darkmode else 240
+            label_dataframe["g"] = 15 if not darkmode else 240
+            label_dataframe["b"] = 15 if not darkmode else 240
+            label_dataframe["a"] = 64
 
-    if color_label_text or color_cluster_boundaries:
-        label_dataframe["r"] = text_palette.T[0]
-        label_dataframe["g"] = text_palette.T[1]
-        label_dataframe["b"] = text_palette.T[2]
-        label_dataframe["a"] = 64
-    else:
-        label_dataframe["r"] = 15 if not darkmode else 240
-        label_dataframe["g"] = 15 if not darkmode else 240
-        label_dataframe["b"] = 15 if not darkmode else 240
-        label_dataframe["a"] = 64
-
-    label_dataframe["label"] = label_dataframe.label.map(
-        lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
-    )
+        label_dataframe["label"] = label_dataframe.label.map(
+            lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
+        )
 
     point_dataframe = pd.DataFrame(
         {
@@ -606,7 +597,7 @@ def create_interactive_plot(
 
     html_str = render_html(
         point_dataframe,
-        label_dataframe,
+        label_dataframes,
         inline_data=inline_data,
         color_label_text=color_label_text,
         darkmode=darkmode,

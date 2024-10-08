@@ -340,6 +340,7 @@ def label_text_and_polygon_dataframes(
     use_medoids=False,
     cluster_polygons=False,
     alpha=0.05,
+    layer_num=0,
 ):
     cluster_label_vector = np.asarray(labels)
     unique_non_noise_labels = [
@@ -382,6 +383,7 @@ def label_text_and_polygon_dataframes(
         "y": label_locations.T[1],
         "label": unique_non_noise_labels,
         "size": cluster_sizes,
+        "layer": np.full(len(unique_non_noise_labels), layer_num),
     }
     if cluster_polygons:
         data["polygon"] = polygons
@@ -391,7 +393,7 @@ def label_text_and_polygon_dataframes(
 
 def render_html(
     point_dataframe,
-    label_dataframe,
+    label_dataframes,
     inline_data=True,
     title=None,
     sub_title=None,
@@ -410,8 +412,10 @@ def render_html(
     line_spacing=0.95,
     min_fontsize=18,
     max_fontsize=28,
-    text_outline_width=8,
-    text_outline_color="#eeeeeedd",
+    min_font_weight=400,
+    max_font_weight=900,
+    text_outline_width=10,
+    text_outline_color="#ffffffdd",
     point_size_scale=None,
     point_hover_color="#aa0000bb",
     point_radius_min_pixels=0.01,
@@ -537,6 +541,16 @@ def render_html(
         The maximum font size (in points) of label text. In general label text is scaled
         based on the size of the cluster the label if for; this will set the maximum
         value for that scaling.
+
+    min_font_weight: int (optional, default=300)
+        The minimum font weight of label text. The font weight is based on the layer
+        level of the label. This will set the minimum value for that selection, setting the
+        font weight for the most detailed labels.
+
+    max_font_weight: int (optional, default=900)
+        The maximum font weight of label text. The font weight is based on the layer
+        level of the label. This will set the maximum value for that selection, setting the
+        font weight for the top layer of labels for large clusters.
 
     text_outline_width: float (optional, default=8)
         The size of the outline around the label text. The outline, in a contrasting
@@ -725,8 +739,8 @@ def render_html(
         percentage=(initial_zoom_fraction * 100),
     )
 
-    if darkmode and text_outline_color == "#eeeeeedd":
-        text_outline_color = "#111111dd"
+    if darkmode and text_outline_color == "#ffffffdd":
+        text_outline_color = "#000000dd"
 
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
@@ -736,13 +750,24 @@ def render_html(
         label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
 
     # Compute text scaling
-    size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
-    if size_range > 0:
-        label_dataframe["size"] = (
-            label_dataframe["size"] - label_dataframe["size"].min()
-        ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
-    else:
-        label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
+    combined_label_dataframe = pd.concat(label_dataframes, ignore_index=True)
+    size_range = combined_label_dataframe["size"].max() - combined_label_dataframe["size"].min()
+    for label_dataframe in label_dataframes:
+        if size_range > 0:
+            label_dataframe["size"] = (
+                label_dataframe["size"] - combined_label_dataframe["size"].min()
+            ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
+        else:
+            label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
+
+    weight_range = combined_label_dataframe["layer"].max() - combined_label_dataframe["layer"].min()
+    for label_dataframe in label_dataframes:
+        if weight_range > 0:
+            label_dataframe["weight"] = (
+                label_dataframe["layer"] - combined_label_dataframe["layer"].min()
+            ) * ((max_font_weight - min_font_weight) / weight_range) + min_font_weight
+        else:
+            label_dataframe["weight"] = (max_font_weight + min_font_weight) / 2.0
 
     # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
@@ -758,10 +783,6 @@ def render_html(
 
     if point_size < 0:
         point_data_cols.append("size")
-
-    # if enable_search or enable_histogram or enable_lasso_selection:
-    #     point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
-    #     point_data_cols.append("selected")
 
     point_data = point_dataframe[point_data_cols]
 
@@ -869,7 +890,7 @@ def render_html(
         json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
         gzipped_bytes = gzip.compress(json_bytes)
         base64_hover_data = base64.b64encode(gzipped_bytes).decode()
-        label_data_json = label_dataframe.to_json(orient="records")
+        label_data_json = "[" + ",".join([label_dataframe.to_json(orient="records") for label_dataframe in label_dataframes]) + "]"
         gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
         base64_label_data = base64.b64encode(gzipped_label_data).decode()
         if enable_histogram:
@@ -901,7 +922,7 @@ def render_html(
             point_data.to_feather(f, compression="uncompressed")
         with gzip.open(f"{file_prefix}_meta_data.zip", "wb") as f:
             f.write(json.dumps(hover_data.to_dict(orient="list")).encode())
-        label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
+        label_data_json = "[" + ",".join([label_dataframe.to_json(orient="records") for label_dataframe in label_dataframes]) + "]"
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
         if enable_histogram:
