@@ -532,17 +532,17 @@ def render_html(
     line_spacing: float (optional, default=0.95)
         Line height spacing in label text.
 
-    min_fontsize: float (optional, default=12)
+    min_fontsize: float (optional, default=18)
         The minimum font size (in points) of label text. In general label text is scaled
-        based on the size of the cluster the label if for; this will set the minimum
+        based on the size of the cluster the label is for; this will set the minimum
         value for that scaling.
 
-    max_fontsize: float (optional, default=24)
+    max_fontsize: float (optional, default=28)
         The maximum font size (in points) of label text. In general label text is scaled
-        based on the size of the cluster the label if for; this will set the maximum
+        based on the size of the cluster the label is for; this will set the maximum
         value for that scaling.
 
-    min_font_weight: int (optional, default=300)
+    min_font_weight: int (optional, default=400)
         The minimum font weight of label text. The font weight is based on the layer
         level of the label. This will set the minimum value for that selection, setting the
         font weight for the most detailed labels.

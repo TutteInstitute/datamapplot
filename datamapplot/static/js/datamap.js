@@ -1,9 +1,12 @@
 
-LAYER_ORDER = ['dataPointLayer', 'boundaryLayer', 'LabelLayer'];
+const LAYER_ORDER = ['dataPointLayer', 'boundaryLayer', 'LabelLayer'];
 
+// There is an effective 100 layer limit of label layers or boundary layers...
 function getLayerIndex(object) {
   if (object.id.startsWith('LabelLayer')) {
-    return LAYER_ORDER.indexOf('LabelLayer') + parseInt(object.id.split('-')[1]);
+    return LAYER_ORDER.indexOf('LabelLayer') + (parseInt(object.id.split('-')[1] / 100));
+  } else if (object.id.startsWith('boundaryLayer')) {
+    return LAYER_ORDER.indexOf('boundaryLayer') + (parseInt(object.id.split('-')[1] / 100));
   } else {
     return LAYER_ORDER.indexOf(object.id);
   }
@@ -214,7 +217,7 @@ class DataMap {
         sizeScale: 1,
         sizeMinPixels: this.textMinPixelSize,
         sizeMaxPixels: this.textMaxPixelSize,
-        outlineWidth: this.textOutlineWidth + index,
+        outlineWidth: this.textOutlineWidth,
         outlineColor: this.textOutlineColor,
         getBackgroundColor: this.textBackgroundColor,
         getBackgroundPadding: [15, 15, 15, 15],
@@ -237,7 +240,7 @@ class DataMap {
           sizeMaxPixels: this.textMaxPixelSize * 2,
           sizeMinPixels: this.textMinPixelSize * 2
         },
-        collisionGroup: 'labels',
+        // collisionGroup: 'labels',
         instanceCount: numLabels,
         parameters: {
           depthTest: false
@@ -251,29 +254,31 @@ class DataMap {
   }
 
   addBoundaries(boundaryData, {clusterBoundaryLineWidth = 0.5}) {
-    const numBoundaries = boundaryData.length;
     this.clusterBoundaryLineWidth = clusterBoundaryLineWidth;
 
-    this.boundaryLayer = new deck.PolygonLayer({
-      id: 'boundaryLayer',
-      data: boundaryData,
-      stroked: true,
-      filled: false,
-      getLineColor: d => [d.r, d.g, d.b, d.a],
-      getPolygon: d => d.polygon,
-      lineWidthUnits: "common",
-      getLineWidth: d => d.size * d.size,
-      lineWidthScale: this.clusterBoundaryLineWidth * 5e-5,
-      lineJointRounded: true,
-      lineWidthMaxPixels: 4,
-      lineWidthMinPixels: 0.0,
-      instanceCount: numBoundaries,
-      parameters: {
-        depthTest: false
-      }
+    this.boundaryLayers = boundaryData.map((boundaryLayerData, index) => {
+      const numBoundaries = boundaryLayerData.length;
+      return new deck.PolygonLayer({
+        id: `boundaryLayer-${index}`,
+        data: boundaryLayerData,
+        stroked: true,
+        filled: false,
+        getLineColor: d => [d.r, d.g, d.b, d.a],
+        getPolygon: d => d.polygon,
+        lineWidthUnits: "common",
+        getLineWidth: d => d.size * d.size,
+        lineWidthScale: this.clusterBoundaryLineWidth * 5e-5,
+        lineJointRounded: true,
+        lineWidthMaxPixels: 4,
+        lineWidthMinPixels: 0.0,
+        instanceCount: numBoundaries,
+        parameters: {
+          depthTest: false
+        }
+      });
     });
 
-    this.layers.push(this.boundaryLayer);
+    this.boundaryLayers.forEach(layer => this.layers.push(layer));
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
     this.deckgl.setProps({ layers: [...this.layers] });
   }
