@@ -234,7 +234,7 @@ class DataMap {
         // CollideExtension options
         extensions: [new deck.CollisionFilterExtension()],
         collisionEnabled: true,
-        getCollisionPriority: d => d.size,
+        getCollisionPriority: d => d.layer + d.size / 1000,
         collisionTestProps: {
           sizeScale: this.textCollisionSizeScale,
           sizeMaxPixels: this.textMaxPixelSize * 2,
