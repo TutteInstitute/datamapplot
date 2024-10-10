@@ -26,7 +26,7 @@ plot = datamapplot.create_interactive_plot(
     arxivml_label_layers[2],
     arxivml_label_layers[4],
     hover_text = arxivml_hover_data,
-    initial_zoom_fraction=0.75,
+    initial_zoom_fraction=0.999,
     font_family="Playfair Display SC",
     title="ArXiv Machine Learning Landscape",
     sub_title="A data map of papers from the Machine Learning section of ArXiv",

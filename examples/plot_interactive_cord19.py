@@ -36,7 +36,7 @@ plot = datamapplot.create_interactive_plot(
     cord19_label_layers[4],
     cord19_label_layers[5],
     hover_text=cord19_hover_text,
-    initial_zoom_fraction=0.4,
+    initial_zoom_fraction=0.99,
     title="CORD-19 Data Map",
     sub_title="A data map of papers relating to COVID-19 and SARS-CoV-2",
     font_family="Cinzel",
@@ -48,4 +48,5 @@ plot = datamapplot.create_interactive_plot(
     cluster_boundary_polygons=True,
     enable_search=True,
 )
+plot.save("cord19.html")
 plot
