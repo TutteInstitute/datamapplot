@@ -16,4 +16,5 @@ pillow
 colorcet
 pyarrow
 seaborn
-git+https://github.com/readthedocs/sphinx-build-compatibility#egg=sphinx-build-compatibilityrequests
+requests
+git+https://github.com/readthedocs/sphinx-build-compatibility#egg=sphinx-build-compatibility
