@@ -48,7 +48,7 @@ plot = datamapplot.create_interactive_plot(
     cluster_boundary_polygons=True,
     enable_search=True,
     inline_data=False,
-    file_prefix="cord_gallery",
+    offline_data_prefix="cord_gallery",
 )
 plot.save("cord19.html")
 plot

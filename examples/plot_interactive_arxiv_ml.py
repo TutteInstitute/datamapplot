@@ -36,6 +36,6 @@ plot = datamapplot.create_interactive_plot(
     enable_search=True,
     darkmode=True,
     inline_data=False,
-    file_prefix="arxivml_gallery",
+    offline_data_prefix="arxivml_gallery",
 )
 plot
