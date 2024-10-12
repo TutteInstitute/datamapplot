@@ -104,13 +104,6 @@ def unmangle_notebook_srcdoc(html_str):
 def process_html_files():
     print(f"Processing HTML files from {os.getcwd()}")
     for filename in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + 'html/**/*.html', recursive=True):
-        if "auto_examples" in filename:
-            print("*" * 10 + filename)
-            with open(filename, 'r') as f:
-                html_str = f.read()
-                print(html_str[:1024])
-            print("="*80)
-            continue
         with open(filename, 'r') as f:
             html_str = f.read()
         if "srcdoc" in html_str and "headers: {Authorization:" in html_str:
