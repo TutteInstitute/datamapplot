@@ -40,6 +40,7 @@ extensions = [
     "nbsphinx",
     "sphinx.ext.mathjax",
     "sphinx_gallery.gen_gallery",
+    "sphinx_build_compatibility.extension",
 ]
 
 # this is needed for some reason...

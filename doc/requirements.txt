@@ -12,8 +12,8 @@ nbsphinx
 numpydoc
 sphinx-rtd-theme
 sphinx-gallery
-requests
 pillow
 colorcet
 pyarrow
 seaborn
+git+https://github.com/readthedocs/sphinx-build-compatibility#egg=sphinx-build-compatibilityrequests
