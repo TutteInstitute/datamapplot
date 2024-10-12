@@ -108,8 +108,9 @@ def process_html_files():
             print("*" * 10 + filename)
             with open(filename, 'r') as f:
                 html_str = f.read()
-                print(html_str[:16384])
+                print(html_str[:1024])
             print("="*80)
+            continue
         with open(filename, 'r') as f:
             html_str = f.read()
         if "srcdoc" in html_str and "headers: {Authorization:" in html_str:
