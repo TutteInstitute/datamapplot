@@ -35,5 +35,6 @@ plot = datamapplot.create_interactive_plot(
     on_click="window.open(`http://google.com/search?q=\"{hover_text}\"`)",
     enable_search=True,
     darkmode=True,
+    inline_data=False,
 )
 plot
