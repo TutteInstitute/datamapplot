@@ -330,7 +330,7 @@ def compute_percentile_bounds(points, percentage=99.9):
     x_padding = 0.01 * (xmax - xmin)
     y_padding = 0.01 * (ymax - ymin)
 
-    return [xmin - x_padding, xmax + x_padding, ymin - y_padding, ymax + y_padding]
+    return [float(xmin - x_padding), float(xmax + x_padding), float(ymin - y_padding), float(ymax + y_padding)]
 
 
 def label_text_and_polygon_dataframes(
