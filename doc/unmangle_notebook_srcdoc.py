@@ -104,9 +104,9 @@ def unmangle_notebook_srcdoc(html_str, auto_example=False):
 
 def process_html_files():
     print(f"Processing HTML files from {os.getcwd()}")
-    for zipfile in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + "html/*gallery*.zip"):
-        print(f"Moving {zipfile} to {zipfile.replace('html/', 'html/auto_examples/')}")
-        shutil.copy(zipfile, zipfile.replace("html/", "html/auto_examples/"))
+    for zipfile in glob.glob("examples/*gallery*.zip"):
+        print(f"Moving {zipfile} to {os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/'}")
+        shutil.copy(zipfile, os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/')
     for filename in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + 'html/**/*.html', recursive=True):
         with open(filename, 'r') as f:
             html_str = f.read()
