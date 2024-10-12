@@ -66,6 +66,9 @@ exclude_patterns = [
     "auto_examples/*.py",
 ]
 
+sphinx_gallery_conf = {
+   'copyfile_regex': r'.*\.zip',
+}
 
 # -- Options for HTML output -------------------------------------------------
 
