@@ -164,5 +164,7 @@ plot = datamapplot.create_interactive_plot(
     custom_css=custom_css,
     custom_html=custom_html,
     custom_js=custom_js,
+    inline_data=False,
+    file_prefix="custom_cord_gallery",
 )
 plot

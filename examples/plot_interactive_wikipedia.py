@@ -40,5 +40,7 @@ plot = datamapplot.create_interactive_plot(
     marker_size_array=wikipedia_marker_size_array,
     cluster_boundary_polygons=True,
     initial_zoom_fraction=0.99,
+    inline_data=False,
+    file_prefix="wikipedia_gallery",
 )
 plot

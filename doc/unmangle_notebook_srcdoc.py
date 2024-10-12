@@ -1,6 +1,7 @@
 import os
 import glob
 import html
+import shutil
 
 _ORIGINAL_NON_INLINE_WORKER = """
     const parsingWorkerBlob = new Blob([`
@@ -94,7 +95,7 @@ _NOTEBOOK_NON_INLINE_WORKER = """
     `], { type: 'application/javascript' });
 """
 
-def unmangle_notebook_srcdoc(html_str):
+def unmangle_notebook_srcdoc(html_str, auto_example=False):
     new_html_str = html_str.replace(
         html.escape(_NOTEBOOK_NON_INLINE_WORKER), 
         html.escape(_ORIGINAL_NON_INLINE_WORKER),
@@ -103,6 +104,9 @@ def unmangle_notebook_srcdoc(html_str):
 
 def process_html_files():
     print(f"Processing HTML files from {os.getcwd()}")
+    for zipfile in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + "html/*gallery*.zip"):
+        print(f"Moving {zipfile} to {zipfile.replace('html/', 'html/auto_examples/')}")
+        shutil.copy(zipfile, zipfile.replace("html/", "html/auto_examples/"))
     for filename in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + 'html/**/*.html', recursive=True):
         with open(filename, 'r') as f:
             html_str = f.read()
