@@ -340,6 +340,7 @@ def label_text_and_polygon_dataframes(
     use_medoids=False,
     cluster_polygons=False,
     alpha=0.05,
+    layer_num=0,
 ):
     cluster_label_vector = np.asarray(labels)
     unique_non_noise_labels = [
@@ -382,6 +383,7 @@ def label_text_and_polygon_dataframes(
         "y": label_locations.T[1],
         "label": unique_non_noise_labels,
         "size": cluster_sizes,
+        "layer": np.full(label_locations.shape[0], layer_num, dtype=np.int32),
     }
     if cluster_polygons:
         data["polygon"] = polygons
