@@ -223,6 +223,39 @@
       return result;
     }
 
+    function mergeTypedArrays(arrays) {
+        let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+        let result = new arrays[0].constructor(totalLength);
+        let currentLength = 0;
+        for (let arr of arrays) {
+            result.set(arr, currentLength);
+            currentLength += arr.length;
+        }
+        return result;
+    }
+
+    {% if not inline_data -%}
+    function combineTypedTableChunks(tableChunks) {
+      tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+      const combinedTable = {};
+      Object.keys(tableChunks[0].chunkData).forEach((key) => {
+        const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+        combinedTable[key] = mergeTypedArrays(arrays);
+      });
+      return combinedTable;
+    }
+
+    function combineTableChunks(tableChunks) {
+      tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+      const combinedTable = {};
+      Object.keys(tableChunks[0].chunkData).forEach((key) => {
+        const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+        combinedTable[key] = arrays.flat();
+      });
+      return combinedTable;
+    }
+    {% endif -%}
+
     if (!("CompressionStream" in window)) {
       throw new Error(
         "Your browser doesn't support the Compression Streams API " +
@@ -294,12 +327,20 @@
     const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
     const originURL = self.location.origin + directoryPath;
 
-    const pointDataEncoded = `${originURL}/{{file_prefix}}_point_data.zip`;
-    const hoverDataEncoded = `${originURL}/{{file_prefix}}_meta_data.zip`;
-    const labelDataEncoded = `${originURL}/{{file_prefix}}_label_data.zip`;
+    const pointDataEncoded = [
+      {% for chunk_index in range(n_data_chunks) -%}
+      `${originURL}/{{file_prefix}}_point_data_{{chunk_index}}.zip`,
+      {% endfor -%}
+    ];
+    const hoverDataEncoded = [
+      {% for chunk_index in range(n_data_chunks) -%}
+      `${originURL}/{{file_prefix}}_meta_data_{{chunk_index}}.zip`,
+      {% endfor -%}
+    ];
+    const labelDataEncoded = [`${originURL}/{{file_prefix}}_label_data.zip`];
     {% if enable_histogram %}
-    const histogramBinDataEncoded = `${originURL}/{{file_prefix}}_histogram_bin_data.zip`;
-    const histogramIndexDataEncoded = `${originURL}/{{file_prefix}}_histogram_index_data.zip`;
+    const histogramBinDataEncoded = [`${originURL}/{{file_prefix}}_histogram_bin_data.zip`];
+    const histogramIndexDataEncoded = [`${originURL}/{{file_prefix}}_histogram_index_data.zip`];
     {% endif %}
 
     // Blob for the parsing worker
@@ -342,14 +383,20 @@
             throw error;
           }
         }
-        const binaryData = await decompressFile(encodedData);
-        if (JSONParse) {
-          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-          self.postMessage({ type: "data", data: parsedData });
-        } else {
-          // Send the parsed table back to the main thread
-          self.postMessage({ type: "data", data: binaryData });
-        }
+        let processedCount = 0;
+        const decodedData = encodedData.map(async (file, i) => {
+          const binaryData = await decompressFile(file);
+          processedCount += 1;
+          self.postMessage({ type: "progress", progress: Math.round(((processedCount) / encodedData.length) * 95) });
+
+          if (JSONParse) {
+            const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+            return { chunkIndex: i, chunkData: parsedData };
+          } else {
+            return { chunkIndex: i, chunkData: binaryData };
+          }
+        });
+        self.postMessage({ type: "data", data: await Promise.all(decodedData) });
       }
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
@@ -402,7 +449,14 @@
           updateProgressBar('point-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
+          {% if inline_data %}
           const pointData = await simpleArrowParser(data);
+          {% else %}
+          const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+            return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+          });
+          const pointData = await Promise.all(chunkArray).then(combineTypedTableChunks);
+          {% endif %}
           datamap.addPoints(
             pointData,
             {
@@ -417,6 +471,10 @@
             }
           );
 
+          document.getElementById("loading").style.display = "none";
+          updateProgressBar('point-data-progress', 100);
+          checkAllDataLoaded();
+          
           {%- if enable_lasso_selection %}
           /* Lasso Selection */
           const lassoSelector = new LassoSelectionTool(
@@ -424,9 +482,6 @@
             lassoSelectionCallback
           );
           {% endif -%}
-          document.getElementById("loading").style.display = "none";
-          updateProgressBar('point-data-progress', 100);
-          checkAllDataLoaded();
         }
       };
     }
@@ -439,7 +494,11 @@
           updateProgressBar('label-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
+          {% if inline_data -%}
           const labelData = data;
+          {% else -%}
+          const labelData = data[0].chunkData;
+          {% endif -%}
           datamap.addLabels(labelData, {
             labelTextColor: {{label_text_color}},
             textMinPixelSize: {{text_min_pixel_size}},
@@ -473,7 +532,11 @@
           updateProgressBar('meta-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
+          {% if inline_data -%}
           const hoverData = data;
+          {% else -%}
+          const hoverData = combineTableChunks(data);
+          {% endif -%}
           datamap.addMetaData(hoverData, {
             tooltipFunction: {{get_tooltip}},
             onClickFunction: {{on_click if on_click else "null"}},
@@ -508,7 +571,11 @@
             updateProgressBar('histogram-bin-data-progress', event.data.progress);
           } else {
             const { data } = event.data;
+            {% if inline_data -%}
             const histogramBinData = data;
+            {% else -%}
+            const histogramBinData = data[0].chunkData;
+            {% endif -%}
             resolve(histogramBinData);
             updateProgressBar('histogram-bin-data-progress', 100);
             checkAllDataLoaded();
@@ -526,7 +593,11 @@
             updateProgressBar('histogram-index-data-progress', event.data.progress);
           } else {
             const { data } = event.data;
+            {% if inline_data -%}
             const histogramIndexData = simpleArrowParser(data);
+            {% else -%}
+            const histogramIndexData = simpleArrowParser(data[0].chunkData);
+            {% endif -%}
             resolve(histogramIndexData);
             updateProgressBar('histogram-index-data-progress', 100);
             checkAllDataLoaded();

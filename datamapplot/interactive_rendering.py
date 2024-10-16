@@ -162,7 +162,7 @@ class InteractiveFigure:
         """Save an interactive figure to a zip file with name `filename`"""
         with zipfile.ZipFile(filename, "w") as zf:
             zf.writestr("index.html", self._html_str)
-            for filename in re.findall(r"/(.*?_data\.zip)", self._html_str):
+            for filename in re.findall(r"/(.*?_data(?:_\d)?\.zip)", self._html_str):
                 print(f"Adding {filename} to bundle")
                 zf.write(filename)
 
@@ -888,6 +888,7 @@ def render_html(
             base64_histogram_bin_data = None
             base64_histogram_index_data = None
         file_prefix = None
+        n_chunks = 0
     else:
         base64_point_data = ""
         base64_hover_data = ""
@@ -897,10 +898,14 @@ def render_html(
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
-        with gzip.open(f"{file_prefix}_point_data.zip", "wb") as f:
-            point_data.to_feather(f, compression="uncompressed")
-        with gzip.open(f"{file_prefix}_meta_data.zip", "wb") as f:
-            f.write(json.dumps(hover_data.to_dict(orient="list")).encode())
+        n_chunks = (point_data.shape[0] // 500000) + 1
+        for i in range(n_chunks):
+            chunk_start = i * 500000
+            chunk_end = min((i + 1) * 500000, point_data.shape[0])
+            with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
+                point_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
+            with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
+                f.write(json.dumps(hover_data[chunk_start:chunk_end].to_dict(orient="list")).encode())
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
@@ -1036,6 +1041,7 @@ def render_html(
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,
         data_bounds=bounds,
+        n_data_chunks=n_chunks,
         on_click=on_click,
         enable_lasso_selection=enable_lasso_selection,
         get_tooltip=get_tooltip,
