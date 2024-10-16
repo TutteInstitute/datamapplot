@@ -36,7 +36,7 @@ function getInitialViewportSize() {
   return { viewportWidth: width, viewportHeight: height };
 }
 
-function calculateZoomLevel(bounds, viewportWidth, viewportHeight, padding = 0) {
+function calculateZoomLevel(bounds, viewportWidth, viewportHeight, padding = 0.5) {
   // Calculate the range of the bounds
   const lngRange = bounds[1] - bounds[0];
   const latRange = bounds[3] - bounds[2];
@@ -342,6 +342,8 @@ class DataMap {
     // Increment update trigger
     this.updateTriggerCounter++;
 
+    const sizeAdjust = 1/(1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
+
     const updatedPointLayer = this.pointLayer.clone({
       data: {
         ...this.pointLayer.props.data,
@@ -350,8 +352,10 @@ class DataMap {
           getFilterValue: { value: this.selected, size: 1 }
         }
       },
+      radiusMinPixels: hasSelectedIndices ? 2 * (this.pointRadiusMinPixels + sizeAdjust) : this.pointRadiusMinPixels,
       updateTriggers: {
-        getFilterValue: this.updateTriggerCounter
+        getFilterValue: this.updateTriggerCounter,
+        radiusMinPixels: this.updateTriggerCounter,
       }
     });
 
