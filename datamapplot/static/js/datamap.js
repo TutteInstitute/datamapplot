@@ -200,47 +200,48 @@ class DataMap {
 
     this.labelLayers = [];
     for (let i = 0; i < this.numLabelLayers; i++) {
-    this.labelLayers.push(
-      deck.TextLayer({
-        id: `LabelLayer-${i}`,
-        data: labelData.filter(d => d.layer === i),
-        pickable: false,
-        getPosition: d => [d.x, d.y],
-        getText: d => d.label,
-        getColor: this.labelTextColor,
-        getSize: d => d.size,
-        sizeScale: 1,
-        sizeMinPixels: this.textMinPixelSize,
-        sizeMaxPixels: this.textMaxPixelSize,
-        outlineWidth: this.textOutlineWidth,
-        outlineColor: this.textOutlineColor,
-        getBackgroundColor: this.textBackgroundColor,
-        getBackgroundPadding: [15, 15, 15, 15],
-        background: true,
-        characterSet: "auto",
-        fontFamily: this.fontFamily,
-        fontWeight: this.fontWeight,
-        lineHeight: this.lineSpacing,
-        fontSettings: { "sdf": true },
-        getTextAnchor: "middle",
-        getAlignmentBaseline: "center",
-        lineHeight: 0.95,
-        elevation: 100,
-        // CollideExtension options
-        collisionEnabled: true,
-        getCollisionPriority: d => d.size,
-        collisionTestProps: {
-          sizeScale: this.textCollisionSizeScale,
-          sizeMaxPixels: this.textMaxPixelSize * 2,
-          sizeMinPixels: this.textMinPixelSize * 2
-        },
-        extensions: [new deck.CollisionFilterExtension()],
-        instanceCount: numLabels,
-        parameters: {
-          depthTest: false
-        }
-      })
-    );
+      this.labelLayers.push(
+        deck.TextLayer({
+          id: `LabelLayer-${i}`,
+          data: labelData.filter(d => d.layer === i),
+          pickable: false,
+          getPosition: d => [d.x, d.y],
+          getText: d => d.label,
+          getColor: this.labelTextColor,
+          getSize: d => d.size,
+          sizeScale: 1,
+          sizeMinPixels: this.textMinPixelSize,
+          sizeMaxPixels: this.textMaxPixelSize,
+          outlineWidth: this.textOutlineWidth,
+          outlineColor: this.textOutlineColor,
+          getBackgroundColor: this.textBackgroundColor,
+          getBackgroundPadding: [15, 15, 15, 15],
+          background: true,
+          characterSet: "auto",
+          fontFamily: this.fontFamily,
+          fontWeight: this.fontWeight,
+          lineHeight: this.lineSpacing,
+          fontSettings: { "sdf": true },
+          getTextAnchor: "middle",
+          getAlignmentBaseline: "center",
+          lineHeight: 0.95,
+          elevation: 100,
+          // CollideExtension options
+          collisionEnabled: true,
+          getCollisionPriority: d => d.size,
+          collisionTestProps: {
+            sizeScale: this.textCollisionSizeScale,
+            sizeMaxPixels: this.textMaxPixelSize * 2,
+            sizeMinPixels: this.textMinPixelSize * 2
+          },
+          extensions: [new deck.CollisionFilterExtension()],
+          instanceCount: numLabels,
+          parameters: {
+            depthTest: false
+          }
+        })
+      );
+    }
 
     this.layers.push(...this.labelLayers);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
