@@ -476,8 +476,9 @@ def create_interactive_plot(
                     use_medoids=use_medoids,
                     cluster_polygons=cluster_boundary_polygons,
                     alpha=polygon_alpha,
+                    layer_num=layer_num,
                 )
-                for labels in label_layers
+                for layer_num, labels in enumerate(label_layers)
             ]
         )
 

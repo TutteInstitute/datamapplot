@@ -1,8 +1,13 @@
 
-LAYER_ORDER = ['dataPointLayer', 'boundaryLayer', 'LabelLayer'];
+const LAYER_ORDER = ['dataPointLayer', 'boundaryLayer', 'LabelLayer'];
 
+// There is an effective 100 layer limit of label layers or boundary layers...
 function getLayerIndex(object) {
-  return LAYER_ORDER.indexOf(object.id);
+  if (object.id.startsWith('LabelLayer')) {
+    return LAYER_ORDER.indexOf('LabelLayer') + (parseInt(object.id.split('-')[1] / 100));
+  } else {
+    return LAYER_ORDER.indexOf(object.id);
+  }
 }
 
 function isFontLoaded(fontName) {
@@ -194,14 +199,14 @@ class DataMap {
     this.fontWeight = fontWeight;
     this.lineSpacing = lineSpacing;
     this.textCollisionSizeScale = textCollisionSizeScale;
-    this.numLabelLayers = Math.max(labelData.map(d => d.layer));
+    this.numLabelLayers = Math.max(...labelData.map(d => d.layer));
 
     waitForFont(this.fontFamily);
 
     this.labelLayers = [];
     for (let i = 0; i < this.numLabelLayers; i++) {
       this.labelLayers.push(
-        deck.TextLayer({
+        new deck.TextLayer({
           id: `LabelLayer-${i}`,
           data: labelData.filter(d => d.layer === i),
           pickable: false,
@@ -225,17 +230,19 @@ class DataMap {
           getTextAnchor: "middle",
           getAlignmentBaseline: "center",
           lineHeight: 0.95,
-          elevation: 100,
+          //elevation: 100,
           // CollideExtension options
           collisionEnabled: true,
-          getCollisionPriority: d => d.size,
+          getCollisionPriority: d => d.layer,
+          collisionGroup: "labels",
           collisionTestProps: {
             sizeScale: this.textCollisionSizeScale,
             sizeMaxPixels: this.textMaxPixelSize * 2,
-            sizeMinPixels: this.textMinPixelSize * 2
+            sizeMinPixels: this.textMinPixelSize * 2,
+            getBackgroundPadding: [25, 25, 25, 25],
           },
           extensions: [new deck.CollisionFilterExtension()],
-          instanceCount: numLabels,
+          //instanceCount: numLabels,
           parameters: {
             depthTest: false
           }
