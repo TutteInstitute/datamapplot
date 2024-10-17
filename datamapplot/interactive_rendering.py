@@ -112,6 +112,12 @@ class InteractiveFigure:
 
     def _repr_html_(self):
         if "originURL" in self._html_str:
+            # If we are google colab non inline data won't work
+            try:
+                import google.colab
+                warn("You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly.")
+            except:
+                pass
             # We need to redirect the fetch to use the jupyter API endpoint
             # for use in a notebook...
             jupyter_html_str = self._html_str.replace(
