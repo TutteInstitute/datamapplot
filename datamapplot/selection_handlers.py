@@ -73,10 +73,10 @@ class DisplaySample(SelectionHandlerBase):
 
     """
 
-    def __init__(self, n_samples=256, font_family=None, **kwargs):
+    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", **kwargs):
         super().__init__(
             dependencies=[
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
             ],
             **kwargs,
         )
@@ -271,13 +271,14 @@ class WordCloud(SelectionHandlerBase):
         n_rotations=0,
         color_scale="YlGnBu",
         location=("bottom", "right"),
+        cdn_url="unpkg.com",
         **kwargs,
     ):
         super().__init__(
             dependencies=[
-                "https://d3js.org/d3.v6.min.js",
-                "https://unpkg.com/d3-cloud@1.2.7/build/d3.layout.cloud.js",
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+                f"https://{cdn_url}/d3@latest/dist/d3.min.js",
+                f"https://{cdn_url}/d3-cloud@1.2.7/build/d3.layout.cloud.js",
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
             ],
             **kwargs,
         )
@@ -452,11 +453,12 @@ class CohereSummary(SelectionHandlerBase):
         n_samples=64,
         width=500,
         location=("top", "right"),
+        cdn_url="unpkg.com",
         **kwargs,
     ):
         super().__init__(
             dependencies=[
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
             ],
             **kwargs,
         )

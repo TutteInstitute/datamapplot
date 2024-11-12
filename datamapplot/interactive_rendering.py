@@ -6,6 +6,7 @@ import os
 import warnings
 import zipfile
 import json
+import inspect
 
 import jinja2
 import numpy as np
@@ -28,6 +29,7 @@ from datamapplot.histograms import (
 )
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
+from datamapplot.config import ConfigManager
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
@@ -168,7 +170,7 @@ class InteractiveFigure:
         """Save an interactive figure to a zip file with name `filename`"""
         with zipfile.ZipFile(filename, "w") as zf:
             zf.writestr("index.html", self._html_str)
-            for filename in re.findall(r"/(.*?_data(?:_\d)?\.zip)", self._html_str):
+            for filename in re.findall(r"/(.*?_data(?:_\d+)?\.zip)", self._html_str):
                 print(f"Adding {filename} to bundle")
                 zf.write(filename)
 
@@ -283,7 +285,7 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     return css_dependencies_src
 
 
-def _get_js_dependency_urls(enable_histogram, selection_handler=None):
+def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="unpkg.com"):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -301,14 +303,14 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None):
 
     # Add common dependencies (if any)
     common_js_urls = [
-        "https://unpkg.com/deck.gl@latest/dist.min.js",
-        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js",
+        f"https://{cdn_url}/deck.gl@latest/dist.min.js",
+        f"https://{cdn_url}/apache-arrow@latest/Arrow.es2015.min.js",
     ]
     js_dependency_urls.extend(common_js_urls)
 
     # Conditionally add dependencies based on functionality
     if enable_histogram:
-        js_dependency_urls.append("https://d3js.org/d3.v6.min.js")
+        js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if selection_handler is not None:
         js_dependency_urls.extend(selection_handler.dependencies)
@@ -430,6 +432,7 @@ def render_html(
     background_color=None,
     darkmode=False,
     offline_data_prefix=None,
+    offline_data_chunk_size=500_000,
     tooltip_css=None,
     hover_text_html_template=None,
     extra_point_data=None,
@@ -447,6 +450,7 @@ def render_html(
     custom_css=None,
     custom_js=None,
     minify_deps=True,
+    cdn_url="unpkg.com",
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -710,6 +714,19 @@ def render_html(
         An interactive figure with hover, pan, and zoom. This will display natively
         in a notebook, and can be saved to an HTML file via the `save` method.
     """
+    function_signature = inspect.signature(render_html)
+    function_args = locals()
+    config = ConfigManager()
+
+    for param_name, param_value in function_signature.items():
+        if param_name in ("point_dataframe", "label_dataframe"):
+            continue
+        
+        provided_value = function_args.get(param_name)
+        if provided_value == param_value.default:
+            if param_name in config:
+                function_args[param_name] = config[param_name]
+
     # Compute point scaling
     n_points = point_dataframe.shape[0]
     if point_size_scale is not None:
@@ -904,10 +921,10 @@ def render_html(
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
-        n_chunks = (point_data.shape[0] // 500000) + 1
+        n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
         for i in range(n_chunks):
-            chunk_start = i * 500000
-            chunk_end = min((i + 1) * 500000, point_data.shape[0])
+            chunk_start = i * offline_data_chunk_size
+            chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
             with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
                 point_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
             with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
@@ -950,7 +967,7 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
-            enable_histogram, selection_handler
+            enable_histogram, selection_handler, cdn_url=cdn_url
         ),
         "js_dependency_srcs": _get_js_dependency_sources(
             minify_deps,
