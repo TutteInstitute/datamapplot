@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import textwrap
 import colorcet
+import inspect
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb
@@ -19,6 +20,7 @@ from datamapplot.interactive_rendering import (
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
+from datamapplot.config import ConfigManager
 
 
 def create_plot(
@@ -170,6 +172,19 @@ def create_plot(
         The axes contained within the figure that the plot is rendered to.
 
     """
+    function_signature = inspect.signature(create_plot)
+    function_args = locals()
+    config = ConfigManager()
+
+    for param_name, param_value in function_signature.parameters.items():
+        if param_name in ("data_map_coords", "labels"):
+            continue
+        
+        provided_value = function_args.get(param_name)
+        if provided_value == param_value.default:
+            if param_name in config:
+                function_args[param_name] = config[param_name]
+
     if labels is None:
         label_locations = np.zeros((0, 2), dtype=np.float32)
         label_text = []
@@ -457,6 +472,19 @@ def create_interactive_plot(
     -------
 
     """
+    function_signature = inspect.signature(create_interactive_plot)
+    function_args = locals()
+    config = ConfigManager()
+
+    for param_name, param_value in function_signature.parameters.items():
+        if param_name in ("data_map_coords", "label_layers", "hover_text"):
+            continue
+
+        provided_value = function_args.get(param_name)
+        if provided_value is param_value.default:
+            if param_name in config:
+                function_args[param_name] = config[param_name]
+
     if len(label_layers) == 0:
         label_dataframe = pd.DataFrame(
             {

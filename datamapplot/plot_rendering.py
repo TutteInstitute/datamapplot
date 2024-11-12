@@ -23,12 +23,14 @@ from datamapplot.text_placement import (
     estimate_font_size,
     pylabeladjust_text_locations,
 )
+from datamapplot.config import ConfigManager
 
 from warnings import warn
 from tempfile import NamedTemporaryFile
 
 import requests
 import re
+import inspect
 
 
 class GoogleAPIUnreachable(Warning):
@@ -37,7 +39,9 @@ class GoogleAPIUnreachable(Warning):
 
 def _can_reach_google_fonts(timeout: float = 5.0) -> bool:
     try:
-        response = requests.get("https://fonts.googleapis.com/css?family=Roboto", timeout=timeout)
+        response = requests.get(
+            "https://fonts.googleapis.com/css?family=Roboto", timeout=timeout
+        )
         return response.ok
     except requests.RequestException:
         return False
@@ -448,12 +452,30 @@ def render_plot(
         The axes contained within the figure that the plot is rendered to.
 
     """
+    function_signature = inspect.signature(render_plot)
+    function_args = locals()
+    config = ConfigManager()
+
+    for param_name, param_value in function_signature.parameters.items():
+        if param_name in (
+            "data_map_coords",
+            "color_list",
+            "label_text",
+            "label_locations",
+            "label_cluster_sizes",
+        ):
+            continue
+
+        provided_value = function_args.get(param_name)
+        if provided_value is param_value.default:
+            if param_name in config:
+                function_args[param_name] = config[param_name]
+
     # Create the figure
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)
     else:
         fig = ax.get_figure()
-
 
     if _can_reach_google_fonts(timeout=5.0):
         if verbose:
@@ -470,7 +492,7 @@ def render_plot(
     else:
         warn(
             "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
-            GoogleAPIUnreachable
+            GoogleAPIUnreachable,
         )
 
     # Apply matplotlib or datashader based on heuristics
@@ -689,8 +711,10 @@ def render_plot(
             else:
                 text_color = "black"
 
-            outline_alpha = hex(int(255 * label_font_outline_alpha)).removeprefix('0x')
-            outline_color = f"#000000{outline_alpha}" if darkmode else f"#ffffff{outline_alpha}"
+            outline_alpha = hex(int(255 * label_font_outline_alpha)).removeprefix("0x")
+            outline_color = (
+                f"#000000{outline_alpha}" if darkmode else f"#ffffff{outline_alpha}"
+            )
 
             if type(label_arrow_colors) == str:
                 arrow_color = label_arrow_colors
@@ -722,15 +746,20 @@ def render_plot(
                         else None
                     ),
                     fontsize=(
-                        highlight_label_keywords.get("fontsize", font_size)
-                        if label_text[i] in highlight
-                        else font_size
-                    )
-                    if font_sizes is None
-                    else font_sizes[i],
+                        (
+                            highlight_label_keywords.get("fontsize", font_size)
+                            if label_text[i] in highlight
+                            else font_size
+                        )
+                        if font_sizes is None
+                        else font_sizes[i]
+                    ),
                     path_effects=(
                         [
-                            patheffects.Stroke(linewidth=label_font_stroke_width, foreground=outline_color),
+                            patheffects.Stroke(
+                                linewidth=label_font_stroke_width,
+                                foreground=outline_color,
+                            ),
                             patheffects.Normal(),
                         ]
                         if label_over_points
@@ -741,7 +770,9 @@ def render_plot(
                     fontweight=(
                         highlight_label_keywords.get("fontweight", font_weight)
                         if label_text[i] in highlight
-                        else (font_weights[i] if font_weights is not None else font_weight)
+                        else (
+                            font_weights[i] if font_weights is not None else font_weight
+                        )
                     ),
                 )
             )
