@@ -43,14 +43,20 @@ _ORIGINAL_NON_INLINE_WORKER = """
             throw error;
           }
         }
-        const binaryData = await decompressFile(encodedData);
-        if (JSONParse) {
-          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-          self.postMessage({ type: "data", data: parsedData });
-        } else {
-          // Send the parsed table back to the main thread
-          self.postMessage({ type: "data", data: binaryData });
-        }
+        let processedCount = 0;
+        const decodedData = encodedData.map(async (file, i) => {
+          const binaryData = await decompressFile(file);
+          processedCount += 1;
+          self.postMessage({ type: "progress", progress: Math.round(((processedCount) / encodedData.length) * 95) });
+
+          if (JSONParse) {
+            const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+            return { chunkIndex: i, chunkData: parsedData };
+          } else {
+            return { chunkIndex: i, chunkData: binaryData };
+          }
+        });
+        self.postMessage({ type: "data", data: await Promise.all(decodedData) });
       }
     `], { type: 'application/javascript' });
 """
