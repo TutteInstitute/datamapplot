@@ -718,7 +718,7 @@ def render_html(
     function_args = locals()
     config = ConfigManager()
 
-    for param_name, param_value in function_signature.items():
+    for param_name, param_value in function_signature.parameters.items():
         if param_name in ("point_dataframe", "label_dataframe"):
             continue
         

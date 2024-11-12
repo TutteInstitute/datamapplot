@@ -1,5 +1,8 @@
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
+import inspect
+
+from datamapplot.config import ConfigManager
 
 _DEFAULT_TAG_COLORS = [
     "#1f77b4", "#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f",
@@ -74,6 +77,19 @@ class DisplaySample(SelectionHandlerBase):
     """
 
     def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", **kwargs):
+        function_signature = inspect.signature(DisplaySample.__init__)
+        function_args = locals()
+        config = ConfigManager()
+
+        for param_name, param_value in function_signature.parameters.items():
+            if param_name in ("self", "n_samples"):
+                continue
+            
+            provided_value = function_args.get(param_name)
+            if provided_value == param_value.default:
+                if param_name in config:
+                    function_args[param_name] = config[param_name]
+
         super().__init__(
             dependencies=[
                 f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
@@ -274,6 +290,19 @@ class WordCloud(SelectionHandlerBase):
         cdn_url="unpkg.com",
         **kwargs,
     ):
+        function_signature = inspect.signature(WordCloud.__init__)
+        function_args = locals()
+        config = ConfigManager()
+
+        for param_name, param_value in function_signature.parameters.items():
+            if param_name in ("self", "width", "height", "n_words"):
+                continue
+            
+            provided_value = function_args.get(param_name)
+            if provided_value == param_value.default:
+                if param_name in config:
+                    function_args[param_name] = config[param_name]
+        
         super().__init__(
             dependencies=[
                 f"https://{cdn_url}/d3@latest/dist/d3.min.js",
@@ -456,6 +485,19 @@ class CohereSummary(SelectionHandlerBase):
         cdn_url="unpkg.com",
         **kwargs,
     ):
+        function_signature = inspect.signature(CohereSummary.__init__)
+        function_args = locals()
+        config = ConfigManager()
+
+        for param_name, param_value in function_signature.parameters.items():
+            if param_name in ("self", "width", "n_keywords", "n_samples"):
+                continue
+            
+            provided_value = function_args.get(param_name)
+            if provided_value == param_value.default:
+                if param_name in config:
+                    function_args[param_name] = config[param_name]
+                    
         super().__init__(
             dependencies=[
                 f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",

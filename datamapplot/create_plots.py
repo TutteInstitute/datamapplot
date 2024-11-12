@@ -176,7 +176,7 @@ def create_plot(
     function_args = locals()
     config = ConfigManager()
 
-    for param_name, param_value in function_signature.items():
+    for param_name, param_value in function_signature.parameters.items():
         if param_name in ("data_map_coords", "labels"):
             continue
         
@@ -476,7 +476,7 @@ def create_interactive_plot(
     function_args = locals()
     config = ConfigManager()
 
-    for param_name, param_value in function_signature.items():
+    for param_name, param_value in function_signature.parameters.items():
         if param_name in ("data_map_coords", "label_layers"):
             continue
         
