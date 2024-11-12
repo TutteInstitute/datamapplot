@@ -723,7 +723,7 @@ def render_html(
             continue
         
         provided_value = function_args.get(param_name)
-        if provided_value == param_value.default:
+        if provided_value is param_value.default:
             if param_name in config:
                 function_args[param_name] = config[param_name]
 
