@@ -7,6 +7,7 @@ import warnings
 import zipfile
 import json
 import inspect
+import platformdirs
 
 import jinja2
 import numpy as np
@@ -30,6 +31,7 @@ from datamapplot.histograms import (
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
+from datamapplot import offline_mode_caching
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
@@ -451,6 +453,8 @@ def render_html(
     custom_js=None,
     minify_deps=True,
     cdn_url="unpkg.com",
+    offline_mode=False,
+    offline_mode_data_file=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -1012,6 +1016,18 @@ def render_html(
         else:
             custom_css += selection_handler.css
 
+    if offline_mode:
+        if offline_mode_data_file is None:
+            data_directory = platformdirs.user_data_dir("datamapplot")
+            offline_mode_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
+            if not offline_mode_data_file.is_file():
+                offline_mode_caching.cache_js_files()
+            offline_mode_data = json.load(offline_mode_data_file.open("r"))
+        else:
+            offline_mode_data = json.load(open(offline_mode_data_file, 'r'))
+    else:
+        offline_mode_data = None
+
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
@@ -1071,6 +1087,8 @@ def render_html(
         search_field=search_field,
         show_loading_progress=show_loading_progress,
         custom_js=custom_js,
+        offline_mode=offline_mode,
+        offline_mode_data=offline_mode_data,
         **dependencies_ctx,
     )
     return html_str
