@@ -30,7 +30,9 @@ from tempfile import NamedTemporaryFile
 
 import requests
 import re
-import inspect
+
+
+cfg = ConfigManager()
 
 
 class GoogleAPIUnreachable(Warning):
@@ -167,6 +169,15 @@ def add_glow_to_scatterplot(
         )
 
 
+@cfg.complete(
+    unconfigurable={
+        "data_map_coords",
+        "color_list",
+        "label_text",
+        "label_locations",
+        "label_cluster_sizes",
+    }
+)
 def render_plot(
     data_map_coords,
     color_list,
@@ -452,25 +463,6 @@ def render_plot(
         The axes contained within the figure that the plot is rendered to.
 
     """
-    function_signature = inspect.signature(render_plot)
-    function_args = locals()
-    config = ConfigManager()
-
-    for param_name, param_value in function_signature.parameters.items():
-        if param_name in (
-            "data_map_coords",
-            "color_list",
-            "label_text",
-            "label_locations",
-            "label_cluster_sizes",
-        ):
-            continue
-
-        provided_value = function_args.get(param_name)
-        if provided_value is param_value.default:
-            if param_name in config:
-                function_args[param_name] = config[param_name]
-
     # Create the figure
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize, dpi=dpi, constrained_layout=True)

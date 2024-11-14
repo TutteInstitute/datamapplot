@@ -90,13 +90,13 @@ class ConfigManager:
 
     def complete(
         self,
-        fn_or_unc: Union[None, UnconfigurableParameters, Callable[P, T]],
+        fn_or_unc: Union[None, UnconfigurableParameters, Callable[P, T]] = None,
         unconfigurable: UnconfigurableParameters = set(),
     ) -> Union[Callable[[Callable[P, T]], Callable[P, T]], Callable[P, T]]:
         def decorator(fn: Callable[P, T]) -> Callable[P, T]:
             sig = ins.signature(fn)
 
-            def _complete(*args, **kwargs):
+            def fn_with_config(*args, **kwargs):
                 bound_args = sig.bind(*args, **kwargs)
                 bindings = bound_args.arguments
                 from_config = {}
@@ -120,7 +120,8 @@ class ConfigManager:
                         from_config[name] = self[name]
                 return fn(*bound_args.args, **(bound_args.kwargs | from_config))
 
-            return _complete
+            fn_with_config._gets_completed = True
+            return fn_with_config
 
         if fn_or_unc is None:
             return decorator
@@ -128,6 +129,10 @@ class ConfigManager:
             unconfigurable = cast(UnconfigurableParameters, fn_or_unc)
             return decorator
         return decorator(fn_or_unc)
+
+    @staticmethod
+    def gets_completed(func) -> bool:
+        return hasattr(func, "_gets_completed") and func._gets_completed
 
 
 _KINDS_ADMISSIBLE = {ins.Parameter.POSITIONAL_OR_KEYWORD, ins.Parameter.KEYWORD_ONLY}
