@@ -56,8 +56,9 @@ and followed by guides on basic usage, through to the more complicated options a
 
 .. toctree::
    :maxdepth: 1
-   :caption: Gallery, API and FAQ:
+   :caption: Configuration, gallery, API and FAQ:
 
+   configuration
    auto_examples/index
    api
    faq

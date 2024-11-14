@@ -6,7 +6,6 @@ import os
 import warnings
 import zipfile
 import json
-import inspect
 import platformdirs
 
 import jinja2
@@ -32,6 +31,9 @@ from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
+
+
+cfg = ConfigManager()
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
@@ -399,6 +401,7 @@ def label_text_and_polygon_dataframes(
     return pd.DataFrame(data)
 
 
+@cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
 def render_html(
     point_dataframe,
     label_dataframe,
@@ -718,19 +721,6 @@ def render_html(
         An interactive figure with hover, pan, and zoom. This will display natively
         in a notebook, and can be saved to an HTML file via the `save` method.
     """
-    function_signature = inspect.signature(render_html)
-    function_args = locals()
-    config = ConfigManager()
-
-    for param_name, param_value in function_signature.parameters.items():
-        if param_name in ("point_dataframe", "label_dataframe"):
-            continue
-        
-        provided_value = function_args.get(param_name)
-        if provided_value is param_value.default:
-            if param_name in config:
-                function_args[param_name] = config[param_name]
-
     # Compute point scaling
     n_points = point_dataframe.shape[0]
     if point_size_scale is not None:
