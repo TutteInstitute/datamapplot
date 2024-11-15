@@ -179,8 +179,34 @@ class InteractiveFigure:
                 zf.write(filename)
 
 
-def get_google_font_for_embedding(fontname):
+def get_google_font_for_embedding(fontname, offline_mode=False):
     api_fontname = fontname.replace(" ", "+")
+    if offline_mode:
+        all_encoded_fonts = offline_mode_caching.load_fonts()
+        encoded_fonts = all_encoded_fonts.get(fontname, None)
+        if encoded_fonts is not None:
+            font_descriptions = [
+                f"""
+    @font-face {{ 
+        font-family: '{fontname}'; 
+        font-style: {font_data["style"]};
+        font-weight: {font_data["weight"]};
+        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
+        unicode-range: {font_data["unicode_range"]};
+    }}""" if len(font_data["unicode_range"]) > 0 else f"""
+    @font-face {{ 
+        font-family: '{fontname}'; 
+        font-style: {font_data["style"]};
+        font-weight: {font_data["weight"]};
+        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
+    }}"""    
+                for font_data in encoded_fonts
+            ]
+            return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
+        else:
+            return ""
+
+
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
         timeout=10,
@@ -457,7 +483,8 @@ def render_html(
     minify_deps=True,
     cdn_url="unpkg.com",
     offline_mode=False,
-    offline_mode_data_file=None,
+    offline_mode_js_data_file=None,
+    offline_mode_font_data_file=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -975,8 +1002,28 @@ def render_html(
     }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+
+    if offline_mode:
+        if offline_mode_js_data_file is None:
+            data_directory = platformdirs.user_data_dir("datamapplot")
+            offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
+            if not offline_mode_js_data_file.is_file():
+                offline_mode_caching.cache_js_files()
+            offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
+        else:
+            offline_mode_data = json.load(open(offline_mode_js_data_file, 'r'))
+
+        if offline_mode_font_data_file is None:
+            data_directory = platformdirs.user_data_dir("datamapplot")
+            offline_mode_font_data_file = Path(data_directory) / "datamapplot_font_encoded.json"
+            if not offline_mode_font_data_file.is_file():
+                offline_mode_caching.cache_fonts()
+
+    else:
+        offline_mode_data = None
+    
     api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(font_family)
+    font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
     if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
@@ -1005,18 +1052,6 @@ def render_html(
             custom_css = selection_handler.css
         else:
             custom_css += selection_handler.css
-
-    if offline_mode:
-        if offline_mode_data_file is None:
-            data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
-            if not offline_mode_data_file.is_file():
-                offline_mode_caching.cache_js_files()
-            offline_mode_data = json.load(offline_mode_data_file.open("r"))
-        else:
-            offline_mode_data = json.load(open(offline_mode_data_file, 'r'))
-    else:
-        offline_mode_data = None
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
