@@ -177,7 +177,7 @@ class DataMap {
   }
 
   addLabels(labelData, {
-    labelTextColor = d => [d.r, d.g, d.b],
+    labelTextColor = d => [d.r, d.g, d.b, d.a],
     textMinPixelSize = 18,
     textMaxPixelSize = 36,
     textOutlineWidth = 8,
@@ -204,13 +204,15 @@ class DataMap {
     waitForFont(this.fontFamily);
 
     this.labelLayers = [];
-    for (let i = 0; i < this.numLabelLayers; i++) {
+    for (let i = 0; i <= this.numLabelLayers; i++) {
       this.labelLayers.push(
         new deck.TextLayer({
           id: `LabelLayer-${i}`,
-          data: labelData.filter(d => d.layer === i),
+          data: labelData.filter(d => d.layer >= i).map(d => 
+            ({ position: [d.x, d.y], label: d.label, size: d.size, r: d.r, g: d.g, b: d.b, a: d.layer === i ? 255 : 0 })
+          ),
           pickable: false,
-          getPosition: d => [d.x, d.y],
+          getPosition: d => [d.position],
           getText: d => d.label,
           getColor: this.labelTextColor,
           getSize: d => d.size,
@@ -233,7 +235,7 @@ class DataMap {
           //elevation: 100,
           // CollideExtension options
           collisionEnabled: true,
-          getCollisionPriority: d => d.layer,
+          getCollisionPriority: d => d.size,
           collisionGroup: "labels",
           collisionTestProps: {
             sizeScale: this.textCollisionSizeScale,
