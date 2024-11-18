@@ -249,11 +249,13 @@ def palette_from_cmap_and_datamap(
     return [rgb2hex(color) for color in palette]
 
 
-def deep_palette(base_palette):
+def deep_palette(base_palette, degree=2.5):
     initial_palette = [to_rgb(color) for color in base_palette]
     jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
-    jch_palette[:, 0] = np.clip(jch_palette[:, 0] / 2.0, 10, 50)
-    jch_palette[:, 1] = np.clip(jch_palette[:, 1] - 20, 30, 100)
+    min_lightness = jch_palette.T[0].min()
+    min_chroma = jch_palette.T[1].min()
+    jch_palette[:, 0] = np.clip(jch_palette[:, 0] / degree, min(20 / degree, min_lightness), 50)
+    jch_palette[:, 1] = np.clip(jch_palette[:, 1] / degree, min(40 / degree, min_chroma), 100)
     result = [
         rgb2hex(x)
         for x in np.clip(
@@ -263,11 +265,13 @@ def deep_palette(base_palette):
     return result
 
 
-def pastel_palette(base_palette):
+def pastel_palette(base_palette, degree=2.5):
     initial_palette = [to_rgb(color) for color in base_palette]
     jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
-    jch_palette[:, 0] = np.clip(jch_palette[:, 0] + 30, 60, 100)
-    jch_palette[:, 1] = np.clip(jch_palette[:, 0], 5, 20)
+    min_lightness = jch_palette.T[0].min()
+    min_chroma = jch_palette.T[1].min()
+    jch_palette[:, 0] = np.clip(jch_palette[:, 0] * np.sqrt(degree), min_lightness, 100)
+    jch_palette[:, 1] = np.clip(jch_palette[:, 1] / degree, min(10 / degree, min_chroma), 50)
     result = [
         rgb2hex(x)
         for x in np.clip(
