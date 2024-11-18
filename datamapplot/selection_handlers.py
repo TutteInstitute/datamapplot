@@ -1,6 +1,11 @@
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
 
+from datamapplot.config import ConfigManager
+
+
+cfg = ConfigManager()
+
 _DEFAULT_TAG_COLORS = [
     "#1f77b4", "#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f",
     "#bcbd22","#17becf","#a6008a","#656100","#8aa6ff","#007155","#ce968a","#6139f3",
@@ -73,10 +78,11 @@ class DisplaySample(SelectionHandlerBase):
 
     """
 
-    def __init__(self, n_samples=256, font_family=None, **kwargs):
+    @cfg.complete(unconfigurable={"self", "n_samples"})
+    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", **kwargs):
         super().__init__(
             dependencies=[
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
             ],
             **kwargs,
         )
@@ -261,6 +267,7 @@ class WordCloud(SelectionHandlerBase):
 
     """
 
+    @cfg.complete(unconfigurable={"self", "width", "height", "n_words"})
     def __init__(
         self,
         n_words=256,
@@ -271,13 +278,14 @@ class WordCloud(SelectionHandlerBase):
         n_rotations=0,
         color_scale="YlGnBu",
         location=("bottom", "right"),
+        cdn_url="unpkg.com",
         **kwargs,
     ):
         super().__init__(
             dependencies=[
-                "https://d3js.org/d3.v6.min.js",
-                "https://unpkg.com/d3-cloud@1.2.7/build/d3.layout.cloud.js",
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+                f"https://{cdn_url}/d3@latest/dist/d3.min.js",
+                f"https://{cdn_url}/d3-cloud@1.2.7/build/d3.layout.cloud.js",
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
             ],
             **kwargs,
         )
@@ -444,6 +452,7 @@ class CohereSummary(SelectionHandlerBase):
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
     """
 
+    @cfg.complete(unconfigurable={"self", "width", "n_keywords", "n_samples"})
     def __init__(
         self,
         model="command-r",
@@ -452,11 +461,12 @@ class CohereSummary(SelectionHandlerBase):
         n_samples=64,
         width=500,
         location=("top", "right"),
+        cdn_url="unpkg.com",
         **kwargs,
     ):
         super().__init__(
             dependencies=[
-                "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js",
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
             ],
             **kwargs,
         )

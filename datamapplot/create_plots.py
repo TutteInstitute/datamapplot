@@ -19,8 +19,13 @@ from datamapplot.interactive_rendering import (
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
+from datamapplot.config import ConfigManager
 
 
+cfg = ConfigManager()
+
+
+@cfg.complete(unconfigurable={"data_map_coords", "labels"})
 def create_plot(
     data_map_coords,
     labels=None,
@@ -318,6 +323,7 @@ def create_plot(
     return fig, ax
 
 
+@cfg.complete(unconfigurable={"data_map_coords", "label_layers", "hover_text"})
 def create_interactive_plot(
     data_map_coords,
     *label_layers,

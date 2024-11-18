@@ -77,6 +77,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+.virtual_documents
 
 # IPython
 profile_default/
@@ -158,3 +159,10 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+# Sphinx and documentation intermediates
+examples/*.zip
+examples/*.html
+doc/_build
+doc/auto_examples
+doc/sg_execution_times.rst

@@ -6,6 +6,7 @@ import os
 import warnings
 import zipfile
 import json
+import platformdirs
 
 import jinja2
 import numpy as np
@@ -28,6 +29,11 @@ from datamapplot.histograms import (
 )
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
+from datamapplot.config import ConfigManager
+from datamapplot import offline_mode_caching
+
+
+cfg = ConfigManager()
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
@@ -112,6 +118,12 @@ class InteractiveFigure:
 
     def _repr_html_(self):
         if "originURL" in self._html_str:
+            # If we are google colab non inline data won't work
+            try:
+                import google.colab
+                warn("You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly.")
+            except:
+                pass
             # We need to redirect the fetch to use the jupyter API endpoint
             # for use in a notebook...
             jupyter_html_str = self._html_str.replace(
@@ -162,13 +174,39 @@ class InteractiveFigure:
         """Save an interactive figure to a zip file with name `filename`"""
         with zipfile.ZipFile(filename, "w") as zf:
             zf.writestr("index.html", self._html_str)
-            for filename in re.findall(r"/(.*?_data(?:_\d)?\.zip)", self._html_str):
+            for filename in re.findall(r"/(.*?_data(?:_\d+)?\.zip)", self._html_str):
                 print(f"Adding {filename} to bundle")
                 zf.write(filename)
 
 
-def get_google_font_for_embedding(fontname):
+def get_google_font_for_embedding(fontname, offline_mode=False):
     api_fontname = fontname.replace(" ", "+")
+    if offline_mode:
+        all_encoded_fonts = offline_mode_caching.load_fonts()
+        encoded_fonts = all_encoded_fonts.get(fontname, None)
+        if encoded_fonts is not None:
+            font_descriptions = [
+                f"""
+    @font-face {{ 
+        font-family: '{fontname}'; 
+        font-style: {font_data["style"]};
+        font-weight: {font_data["weight"]};
+        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
+        unicode-range: {font_data["unicode_range"]};
+    }}""" if len(font_data["unicode_range"]) > 0 else f"""
+    @font-face {{ 
+        font-family: '{fontname}'; 
+        font-style: {font_data["style"]};
+        font-weight: {font_data["weight"]};
+        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
+    }}"""    
+                for font_data in encoded_fonts
+            ]
+            return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
+        else:
+            return ""
+
+
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
         timeout=10,
@@ -277,7 +315,7 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     return css_dependencies_src
 
 
-def _get_js_dependency_urls(enable_histogram, selection_handler=None):
+def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="unpkg.com"):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -295,14 +333,14 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None):
 
     # Add common dependencies (if any)
     common_js_urls = [
-        "https://unpkg.com/deck.gl@latest/dist.min.js",
-        "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js",
+        f"https://{cdn_url}/deck.gl@latest/dist.min.js",
+        f"https://{cdn_url}/apache-arrow@latest/Arrow.es2015.min.js",
     ]
     js_dependency_urls.extend(common_js_urls)
 
     # Conditionally add dependencies based on functionality
     if enable_histogram:
-        js_dependency_urls.append("https://d3js.org/d3.v6.min.js")
+        js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if selection_handler is not None:
         js_dependency_urls.extend(selection_handler.dependencies)
@@ -391,6 +429,7 @@ def label_text_and_polygon_dataframes(
     return pd.DataFrame(data)
 
 
+@cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
 def render_html(
     point_dataframe,
     label_dataframe,
@@ -426,6 +465,7 @@ def render_html(
     background_color=None,
     darkmode=False,
     offline_data_prefix=None,
+    offline_data_chunk_size=500_000,
     tooltip_css=None,
     hover_text_html_template=None,
     extra_point_data=None,
@@ -443,6 +483,10 @@ def render_html(
     custom_css=None,
     custom_js=None,
     minify_deps=True,
+    cdn_url="unpkg.com",
+    offline_mode=False,
+    offline_mode_js_data_file=None,
+    offline_mode_font_data_file=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -900,10 +944,10 @@ def render_html(
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
-        n_chunks = (point_data.shape[0] // 500000) + 1
+        n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
         for i in range(n_chunks):
-            chunk_start = i * 500000
-            chunk_end = min((i + 1) * 500000, point_data.shape[0])
+            chunk_start = i * offline_data_chunk_size
+            chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
             with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
                 point_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
             with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
@@ -946,7 +990,7 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
-            enable_histogram, selection_handler
+            enable_histogram, selection_handler, cdn_url=cdn_url
         ),
         "js_dependency_srcs": _get_js_dependency_sources(
             minify_deps,
@@ -960,8 +1004,28 @@ def render_html(
     }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+
+    if offline_mode:
+        if offline_mode_js_data_file is None:
+            data_directory = platformdirs.user_data_dir("datamapplot")
+            offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
+            if not offline_mode_js_data_file.is_file():
+                offline_mode_caching.cache_js_files()
+            offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
+        else:
+            offline_mode_data = json.load(open(offline_mode_js_data_file, 'r'))
+
+        if offline_mode_font_data_file is None:
+            data_directory = platformdirs.user_data_dir("datamapplot")
+            offline_mode_font_data_file = Path(data_directory) / "datamapplot_font_encoded.json"
+            if not offline_mode_font_data_file.is_file():
+                offline_mode_caching.cache_fonts()
+
+    else:
+        offline_mode_data = None
+    
     api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(font_family)
+    font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
     if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
@@ -1050,6 +1114,8 @@ def render_html(
         search_field=search_field,
         show_loading_progress=show_loading_progress,
         custom_js=custom_js,
+        offline_mode=offline_mode,
+        offline_mode_data=offline_mode_data,
         **dependencies_ctx,
     )
     return html_str
