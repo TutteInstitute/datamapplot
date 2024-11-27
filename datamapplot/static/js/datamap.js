@@ -17,27 +17,27 @@ function isFontLoaded(fontName) {
 // Function to wait for a font to load
 function waitForFont(fontName, maxWait = 500) {
   return new Promise((resolve, reject) => {
-      if (isFontLoaded(fontName)) {
+    if (isFontLoaded(fontName)) {
+      resolve();
+    } else {
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        if (isFontLoaded(fontName)) {
+          clearInterval(interval);
           resolve();
-      } else {
-          const startTime = Date.now();
-          const interval = setInterval(() => {
-              if (isFontLoaded(fontName)) {
-                  clearInterval(interval);
-                  resolve();
-              } else if (Date.now() - startTime > maxWait) {
-                  clearInterval(interval);
-                  reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
-              }
-          }, 50);
-      }
+        } else if (Date.now() - startTime > maxWait) {
+          clearInterval(interval);
+          reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
+        }
+      }, 50);
+    }
   });
 }
 
 function getInitialViewportSize() {
   const width = document.documentElement.clientWidth;
   const height = document.documentElement.clientHeight;
-  
+
   return { viewportWidth: width, viewportHeight: height };
 }
 
@@ -184,7 +184,8 @@ class DataMap {
     textOutlineColor = [238, 238, 238, 221],
     textBackgroundColor = [255, 255, 255, 64],
     fontFamily = "Roboto",
-    fontWeight = 900,
+    minFontWeight = 100,
+    maxFontWeight = 900,
     lineSpacing = 0.95,
     textCollisionSizeScale = 3.0,
   }) {
@@ -196,37 +197,56 @@ class DataMap {
     this.textOutlineColor = textOutlineColor;
     this.textBackgroundColor = textBackgroundColor;
     this.fontFamily = fontFamily;
-    this.fontWeight = fontWeight;
+    this.minFontWeight = minFontWeight;
+    this.maxFontWeight = maxFontWeight;
     this.lineSpacing = lineSpacing;
     this.textCollisionSizeScale = textCollisionSizeScale;
     this.numLabelLayers = Math.max(...labelData.map(d => d.layer));
 
+    const maxSize = Math.max(...labelData.map(d => d.size));
+
     waitForFont(this.fontFamily);
 
     this.labelLayers = [];
-    for (let i = 0; i <= this.numLabelLayers; i++) {
+    // for (let i = 0; i <= this.numLabelLayers; i++) {
+    for (let i = 2; i <= 3; i++) {
+      const weightRange = maxFontWeight - minFontWeight;
+      const weight = minFontWeight + (weightRange / this.numLabelLayers) * i;
+      const layerData = labelData
+        .filter(d => (d.layer >= i))
+        .map(
+          d => ({ 
+            x: d.x + Math.random() * 0.001, 
+            y: d.y + Math.random() * 0.001, 
+            label: `${d.layer}: ${d.label}`, 
+            size: d.size, 
+            r: d.r, 
+            g: d.g, 
+            b: d.b, 
+            a: d.layer == i ? 255 : 0,
+            visible: d.layer === i,
+          })
+        )
       this.labelLayers.push(
         new deck.TextLayer({
           id: `LabelLayer-${i}`,
-          data: labelData.filter(d => d.layer >= i).map(d => 
-            ({ position: [d.x, d.y], label: d.label, size: d.size, r: d.r, g: d.g, b: d.b, a: d.layer === i ? 255 : 0 })
-          ),
+          data: layerData,
           pickable: false,
-          getPosition: d => [d.position],
+          getPosition: d => [d.x, d.y],
           getText: d => d.label,
-          getColor: this.labelTextColor,
+          getColor: d => [d.r, d.g, d.b, d.a], //this.labelTextColor,
           getSize: d => d.size,
           sizeScale: 1,
           sizeMinPixels: this.textMinPixelSize,
           sizeMaxPixels: this.textMaxPixelSize,
-          outlineWidth: this.textOutlineWidth,
-          outlineColor: this.textOutlineColor,
-          getBackgroundColor: this.textBackgroundColor,
+          outlineWidth: 0, //this.textOutlineWidth,
+          // outlineColor: this.textOutlineColor,
+          getBackgroundColor: d => (d.visible ? [255, 255, 255, Math.max(0, 200 - 32 * i)] : [0, 0, 0, 0]),
           getBackgroundPadding: [15, 15, 15, 15],
           background: true,
           characterSet: "auto",
           fontFamily: this.fontFamily,
-          fontWeight: this.fontWeight,
+          fontWeight: weight, //this.fontWeight,
           lineHeight: this.lineSpacing,
           fontSettings: { "sdf": true },
           getTextAnchor: "middle",
@@ -235,12 +255,11 @@ class DataMap {
           //elevation: 100,
           // CollideExtension options
           collisionEnabled: true,
-          getCollisionPriority: d => d.size,
-          collisionGroup: "labels",
+          getCollisionPriority: d => d.size,// d.layer + (d.size / maxSize),
           collisionTestProps: {
             sizeScale: this.textCollisionSizeScale,
-            sizeMaxPixels: this.textMaxPixelSize * 2,
-            sizeMinPixels: this.textMinPixelSize * 2,
+            //sizeMaxPixels: this.textMaxPixelSize * 2,
+            //sizeMinPixels: this.textMinPixelSize * 2,
             getBackgroundPadding: [25, 25, 25, 25],
           },
           extensions: [new deck.CollisionFilterExtension()],
@@ -253,11 +272,12 @@ class DataMap {
     }
 
     this.layers.push(...this.labelLayers);
+    console.log(this.layers);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
-  addBoundaries(boundaryData, {clusterBoundaryLineWidth = 0.5}) {
+  addBoundaries(boundaryData, { clusterBoundaryLineWidth = 0.5 }) {
     const numBoundaries = boundaryData.length;
     this.clusterBoundaryLineWidth = clusterBoundaryLineWidth;
 
@@ -286,7 +306,7 @@ class DataMap {
   }
 
   addMetaData(metaData, {
-    tooltipFunction = ({index}) => this.metaData.hover_text[index],
+    tooltipFunction = ({ index }) => this.metaData.hover_text[index],
     onClickFunction = null,
     searchField = null,
 
@@ -294,7 +314,7 @@ class DataMap {
     this.metaData = metaData;
     this.tooltipFunction = tooltipFunction;
     this.onClickFunction = onClickFunction;
-    this.searchField = searchField;    
+    this.searchField = searchField;
 
     // If hover_text is present, add a tooltip
     if (this.metaData.hasOwnProperty('hover_text')) {
@@ -357,7 +377,7 @@ class DataMap {
     // Increment update trigger
     this.updateTriggerCounter++;
 
-    const sizeAdjust = 1/(1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
+    const sizeAdjust = 1 / (1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
 
     const updatedPointLayer = this.pointLayer.clone({
       data: {

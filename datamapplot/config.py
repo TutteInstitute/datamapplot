@@ -121,6 +121,13 @@ class ConfigManager:
                 return fn(*bound_args.args, **(bound_args.kwargs | from_config))
 
             fn_with_config._gets_completed = True
+            fn_with_config.__name__ = fn.__name__
+            fn_with_config.__doc__ = fn.__doc__
+            fn_with_config.__dict__ = fn.__dict__
+            fn_with_config.__module__ = fn.__module__
+            fn_with_config.__annotations__ = fn.__annotations__
+            fn_with_config.__defaults__ = fn.__defaults__
+            fn_with_config.__kwdefaults__ = fn.__kwdefaults__
             return fn_with_config
 
         if fn_or_unc is None:
