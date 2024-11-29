@@ -171,7 +171,7 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description="Cache JS and font files for offline mode")
     parser.add_argument('--js_urls', nargs='+', help='CDN URLs to fetch and cache js from')
-    parser.add_argument('--font_names', nargs='+', help='Names of google fotn fonts to cache')
+    parser.add_argument('--font_names', nargs='+', help='Names of google font fonts to cache')
     parser.add_argument('--refresh', action='store_true', help='Force refresh cached files')
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
