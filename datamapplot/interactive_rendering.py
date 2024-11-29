@@ -742,6 +742,23 @@ def render_html(
     minify_deps: bool (optional, default=True)
         Whether to minify the JavaScript and CSS dependency files before embedding in the HTML template.
 
+    cdn_url: str (optional, default="unpkg.com")
+        The URL of the CDN to use for fetching JavaScript dependencies.
+
+    offline_mode: bool (optional, default=False)
+        Whether to use offline mode for embedding data and fonts in the HTML template. If True,
+        the data and font files will be embedded in the HTML template as base64 encoded strings.
+
+    offline_mode_js_data_file: str or None (optional, default=None)
+        The name of the JavaScript data file to be embedded in the HTML template in offline mode.
+        If None a default location used by dmp_offline_cache will be used, and if the file
+        doesn't exist it will be created.
+
+    offline_mode_font_data_file: str or None (optional, default=None)
+        The name of the font data file to be embedded in the HTML template in offline mode.
+        If None a default location used by dmp_offline_cache will be used, and if the file
+        doesn't exist it will be created.
+
     Returns
     -------
     interactive_plot: InteractiveFigure
