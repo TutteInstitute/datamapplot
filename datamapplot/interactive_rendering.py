@@ -1032,7 +1032,7 @@ def render_html(
 
         if offline_mode_font_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_font_data_file = Path(data_directory) / "datamapplot_font_encoded.json"
+            offline_mode_font_data_file = Path(data_directory) / "datamapplot_fonts_encoded.json"
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
 
