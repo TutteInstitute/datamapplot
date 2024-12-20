@@ -184,6 +184,9 @@
       <img src="{{logo}}" style="width:{{logo_width}}px" />
     </div>
     {% endif %}
+    {%- if enable_colormap_selector %}
+    <div id="colormap-selector-container" class="container-box"></div>
+    {%- endif -%}
 
     <div id="deck-container"></div>
 
@@ -216,6 +219,13 @@
       <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
         <span class="datamapplot-progress-bar-fill" style="width: 0%;">
           <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+        </span>
+      </div>
+      {%- endif -%}
+      {%- if enable_colormap_selector %}
+      <div id="color-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Colormap Data: 0%</span>
         </span>
       </div>
       {%- endif -%}
@@ -285,7 +295,9 @@
     const labelDataEncoded = "{{base64_label_data}}";
     const histogramBinDataEncoded = "{{base64_histogram_bin_data}}";
     const histogramIndexDataEncoded = "{{base64_histogram_index_data}}";
+    {% if enable_colormap_selector %}
     const colorDataEncoded = "{{base64_color_data}}";
+    {% endif %}
 
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
@@ -359,8 +371,12 @@
     const histogramBinDataEncoded = [`${originURL}/{{file_prefix}}_histogram_bin_data.zip`];
     const histogramIndexDataEncoded = [`${originURL}/{{file_prefix}}_histogram_index_data.zip`];
     {% endif %}
-    {% if color_data %}
-    const colorDataEncoded = [`${originURL}/{{file_prefix}}_color_data.zip`];
+    {% if enable_colormap_selector %}
+    const colorDataEncoded = [
+      {% for chunk_index in range(n_data_chunks) -%}
+      `${originURL}/{{file_prefix}}_color_data_{{chunk_index}}.zip`,
+      {% endfor -%}
+    ];
     {% endif %}
 
     // Blob for the parsing worker
@@ -437,7 +453,7 @@
     const histogramBinDataWorker = new Worker(workerUrl);
     const histogramIndexDataWorker = new Worker(workerUrl);
     {% endif -%}
-    {% if color_data %}
+    {% if enable_colormap_selector %}
     const colorDataWorker = new Worker(workerUrl);
     {% endif %}
 
@@ -508,13 +524,13 @@
         }
       };
 
-      {% if color_data %}
+      {% if enable_colormap_selector %}
       colorDataWorker.postMessage({encodedData: colorDataEncoded, JSONParse: false});
 
       colorDataWorker.onmessage = async function(event) {
         if (event.data.type === "progress") {
-          //updateProgressBar('color-data-progress', event.data.progress);
-          console.log("Color data progress: ", event.data.progress);
+          updateProgressBar('color-data-progress', event.data.progress);
+          // console.log("Color data progress: ", event.data.progress);
         } else {
           const { data } = event.data;
           {% if inline_data %}
@@ -525,13 +541,20 @@
           });
           const colorData = await Promise.all(chunkArray).then(combineTypedTableChunks);
           {% endif %}
-          datamap.addColors(colorData, {
-            
-          });
 
           document.getElementById("loading").style.display = "none";
           updateProgressBar('color-data-progress', 100);
           checkAllDataLoaded();
+
+          colorMapContainer = document.getElementById("colormap-selector-container");
+          
+          colorMaps = {{colormap_metadata}};
+          colorSelector = new ColorSelectorTool(
+            colorMaps,
+            colorMapContainer,
+            colorData,
+            datamap,
+          );
         }
       };
       {% endif %}
@@ -713,6 +736,10 @@
     {%- if enable_histogram %}
     loadHistogramData();
     {% endif -%}
+    {% if custom_js %}
+    {{ custom_js }}
+    {% endif -%}
+    {% endif %}
     {% if custom_js %}
     {{ custom_js }}
     {% endif -%}

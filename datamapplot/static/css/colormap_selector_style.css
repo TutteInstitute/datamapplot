@@ -1,0 +1,50 @@
+.color-map-dropdown {
+    position: relative;
+    width: 100%;
+  }
+  .color-map-selected {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .color-map-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+    display: none;
+  }
+  .color-map-option {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+  }
+  .color-map-option:hover {
+    background-color: #f0f0f0;
+  }
+  .color-swatch {
+    display: inline-block;
+    width: 62px;
+    height: 20px;
+    margin-right: 10px;
+    border-radius: 4px;
+  }
+  .color-swatch-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+  }
+  .color-map-text {
+    flex-grow: 1;
+  }

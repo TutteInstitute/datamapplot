@@ -32,6 +32,13 @@ from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
 
+try:
+    import matplotlib
+
+    get_cmap = matplotlib.colormaps.cmap
+except ImportError:
+    from matplotlib.cm import get_cmap
+from matplotlib.colors import rgb2hex
 
 cfg = ConfigManager()
 
@@ -121,7 +128,10 @@ class InteractiveFigure:
             # If we are google colab non inline data won't work
             try:
                 import google.colab
-                warn("You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly.")
+
+                warn(
+                    "You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly."
+                )
             except:
                 pass
             # We need to redirect the fetch to use the jupyter API endpoint
@@ -186,26 +196,29 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
         encoded_fonts = all_encoded_fonts.get(fontname, None)
         if encoded_fonts is not None:
             font_descriptions = [
-                f"""
+                (
+                    f"""
     @font-face {{ 
         font-family: '{fontname}'; 
         font-style: {font_data["style"]};
         font-weight: {font_data["weight"]};
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
         unicode-range: {font_data["unicode_range"]};
-    }}""" if len(font_data["unicode_range"]) > 0 else f"""
+    }}"""
+                    if len(font_data["unicode_range"]) > 0
+                    else f"""
     @font-face {{ 
         font-family: '{fontname}'; 
         font-style: {font_data["style"]};
         font-weight: {font_data["weight"]};
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
-    }}"""    
+    }}"""
+                )
                 for font_data in encoded_fonts
             ]
             return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
         else:
             return ""
-
 
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
@@ -232,7 +245,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
 
 
 def _get_js_dependency_sources(
-    minify, enable_search, enable_histogram, enable_lasso_selection
+    minify, enable_search, enable_histogram, enable_lasso_selection, colormap_selector
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -268,6 +281,9 @@ def _get_js_dependency_sources(
         js_dependencies.append("lasso_selection.js")
         js_dependencies.append("quad_tree.js")
 
+    if colormap_selector:
+        js_dependencies.append("colormap_selector.js")
+
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
@@ -276,7 +292,7 @@ def _get_js_dependency_sources(
     return js_dependencies_src
 
 
-def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress):
+def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress, enable_colormap_selector):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
 
@@ -307,6 +323,9 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     if show_loading_progress:
         css_dependencies.append("progress_bar_style.css")
 
+    if enable_colormap_selector:
+        css_dependencies.append("colormap_selector_style.css")
+
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
             css_src = file.read()
@@ -315,7 +334,9 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     return css_dependencies_src
 
 
-def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="unpkg.com"):
+def _get_js_dependency_urls(
+    enable_histogram, selection_handler=None, cdn_url="unpkg.com"
+):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -350,6 +371,79 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="u
     return js_dependency_urls
 
 
+def cmap_name_to_color_list(cmap_name):
+    cmap = get_cmap(cmap_name)
+    if hasattr(cmap, "colors"):
+        result = [rgb2hex(c) for c in cmap.colors]
+    else:
+        result = [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
+    return result
+
+def array_to_colors(values, cmap_name):
+    values = np.asarray(values)
+    cmap = get_cmap(cmap_name)
+    
+    if values.dtype.kind in ['U', 'S', 'O']:  # If data is string or object type
+        # Get unique values and create a mapping to numbers
+        unique_values = np.unique(values)
+        n_colors = len(cmap.colors) if hasattr(cmap, 'colors') else 256
+        if n_colors >= 20:
+            value_to_num = {val: i for i, val in enumerate(unique_values)}
+            # Convert strings to numbers between 0 and 1
+            normalized_values = np.array([value_to_num[val] for val in values])
+            if len(unique_values) > 1:
+                normalized_values = normalized_values / (len(unique_values) - 1)
+            else:
+                normalized_values = np.zeros_like(normalized_values, dtype=float)
+            colors_array = cmap(normalized_values)
+        else:
+            value_to_color = {val: cmap(i % n_colors) for i, val in enumerate(unique_values)}
+            colors_array = np.asarray([value_to_color[val] for val in values])
+    else:
+        # Normalize values to range [0, 1]
+        vmin, vmax = values.min(), values.max()
+        if vmin != vmax:
+            normalized_values = (values - vmin) / (vmax - vmin)
+        else:
+            normalized_values = np.zeros_like(values, dtype=float)
+        colors_array = cmap(normalized_values)
+        
+    return (colors_array * 255).astype(np.uint8)#.ravel() # we can flatten later for more efficiency; testing for now
+
+def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
+    base_colors_sample = [
+        base_colors[i] for i in range(0, len(base_colors), len(base_colors) // 10)
+    ]
+    colormaps = [
+        {"field": "clusters", "description": "Clusters", "colors": base_colors_sample}
+    ]
+    color_data = []
+
+    for i, (rawdata, metadata) in enumerate(zip(colormap_rawdata, colormap_metadata)):
+        cmap_name = metadata["cmap"]
+        cmap_colors = cmap_name_to_color_list(cmap_name)
+        colormap = {
+            "field": metadata["field"],
+            "description": metadata["description"],
+            "colors": cmap_colors,
+        }
+        colormaps.append(colormap)
+        colors_array = array_to_colors(rawdata, cmap_name)
+        color_data.append(
+            pd.DataFrame(
+                colors_array, 
+                columns=[
+                    f"{metadata["field"]}_r", 
+                    f"{metadata["field"]}_g", 
+                    f"{metadata["field"]}_b", 
+                    f"{metadata["field"]}_a"
+                ]
+            )
+        )
+
+    return colormaps, pd.concat(color_data, axis=1)
+
+
 def compute_percentile_bounds(points, percentage=99.9):
     n_points = points.shape[0]
     n_to_select = np.int32(n_points * (percentage / 100))
@@ -368,7 +462,12 @@ def compute_percentile_bounds(points, percentage=99.9):
     x_padding = 0.01 * (xmax - xmin)
     y_padding = 0.01 * (ymax - ymin)
 
-    return [float(xmin - x_padding), float(xmax + x_padding), float(ymin - y_padding), float(ymax + y_padding)]
+    return [
+        float(xmin - x_padding),
+        float(xmax + x_padding),
+        float(ymin - y_padding),
+        float(ymax + y_padding),
+    ]
 
 
 def label_text_and_polygon_dataframes(
@@ -476,6 +575,8 @@ def render_html(
     histogram_settings={},
     on_click=None,
     selection_handler=None,
+    colormap_rawdata=None,
+    colormap_metadata=None,
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -920,6 +1021,18 @@ def render_html(
                 histogram_data, histogram_n_bins, histogram_range
             )
 
+    if colormap_rawdata is not None:
+        if colormap_metadata is None:
+            raise ValueError("colormap_metadata must be provided if colormap_rawdata is provided")
+        
+        base_colors = [rgb2hex(c) for c in label_dataframe[["r", "g", "b"]].values]
+        color_metadata, color_data = build_colormap_data(colormap_rawdata, colormap_metadata, base_colors)
+        enable_colormap_selector = True
+    else:
+        color_metadata = None
+        color_data = None
+        enable_colormap_selector = False
+
     if inline_data:
         buffer = io.BytesIO()
         point_data.to_feather(buffer, compression="uncompressed")
@@ -948,6 +1061,17 @@ def render_html(
         else:
             base64_histogram_bin_data = None
             base64_histogram_index_data = None
+
+        if enable_colormap_selector:
+            buffer = io.BytesIO()
+            color_data.to_feather(buffer, compression="uncompressed")
+            buffer.seek(0)
+            arrow_bytes = buffer.read()
+            gzipped_bytes = gzip.compress(arrow_bytes)
+            base64_color_data = base64.b64encode(gzipped_bytes).decode()
+        else:
+            base64_color_data = None
+
         file_prefix = None
         n_chunks = 0
     else:
@@ -956,6 +1080,7 @@ def render_html(
         base64_label_data = ""
         base64_histogram_bin_data = ""
         base64_histogram_index_data = ""
+        base64_color_data = ""
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
@@ -964,9 +1089,20 @@ def render_html(
             chunk_start = i * offline_data_chunk_size
             chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
             with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
-                point_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
+                point_data[chunk_start:chunk_end].to_feather(
+                    f, compression="uncompressed"
+                )
             with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
-                f.write(json.dumps(hover_data[chunk_start:chunk_end].to_dict(orient="list")).encode())
+                f.write(
+                    json.dumps(
+                        hover_data[chunk_start:chunk_end].to_dict(orient="list")
+                    ).encode()
+                )
+            if enable_colormap_selector:
+                with gzip.open(f"{file_prefix}_color_data_{i}.zip", "wb") as f:
+                    color_data[chunk_start:chunk_end].to_feather(
+                        f, compression="uncompressed"
+                    )
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
@@ -979,6 +1115,8 @@ def render_html(
                 )
             with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
                 index_data.to_frame().to_feather(f, compression="uncompressed")
+        
+
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
@@ -1012,9 +1150,10 @@ def render_html(
             enable_search,
             enable_histogram,
             enable_lasso_selection,
+            enable_colormap_selector,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
-            minify_deps, enable_histogram, show_loading_progress
+            minify_deps, enable_histogram, show_loading_progress, enable_colormap_selector
         ),
     }
 
@@ -1023,22 +1162,26 @@ def render_html(
     if offline_mode:
         if offline_mode_js_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
+            offline_mode_js_data_file = (
+                Path(data_directory) / "datamapplot_js_encoded.json"
+            )
             if not offline_mode_js_data_file.is_file():
                 offline_mode_caching.cache_js_files()
             offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
         else:
-            offline_mode_data = json.load(open(offline_mode_js_data_file, 'r'))
+            offline_mode_data = json.load(open(offline_mode_js_data_file, "r"))
 
         if offline_mode_font_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_font_data_file = Path(data_directory) / "datamapplot_font_encoded.json"
+            offline_mode_font_data_file = (
+                Path(data_directory) / "datamapplot_font_encoded.json"
+            )
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
 
     else:
         offline_mode_data = None
-    
+
     api_fontname = font_family.replace(" ", "+")
     font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
     if font_data == "":
@@ -1079,6 +1222,8 @@ def render_html(
         page_background_color=page_background_color,
         search=enable_search,
         **histogram_ctx,
+        enable_colormap_selector=enable_colormap_selector,
+        colormap_metadata=color_metadata,
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
@@ -1100,6 +1245,7 @@ def render_html(
         base64_label_data=base64_label_data,
         base64_histogram_bin_data=base64_histogram_bin_data,
         base64_histogram_index_data=base64_histogram_index_data,
+        base64_color_data=base64_color_data,
         file_prefix=file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
