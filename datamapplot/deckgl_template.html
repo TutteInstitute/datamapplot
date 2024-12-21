@@ -63,7 +63,7 @@
         color: {{title_font_color}};
       }
       .container-box {
-        margin: 4ch;
+        margin: 4px;
         padding: 12px;
         border-radius: 16px;
         line-height: 0.95;
@@ -127,12 +127,14 @@
         grid-template-columns: 1fr 1fr;
         grid-template-rows: 1fr 1fr;
         min-height: calc(100vh - 40px); /* Account for padding */
+        pointer-events: none; /* pass pointer events through */
       }
       .stack {
         display: flex;
         flex-direction: column;
         gap: 4px;
         padding: 4px;
+        pointer-events: auto; /* allow pointer events */
       }
       .top-left {
         grid-column: 1;
