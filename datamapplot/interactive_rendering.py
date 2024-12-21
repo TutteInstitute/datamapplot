@@ -35,10 +35,12 @@ from datamapplot import offline_mode_caching
 try:
     import matplotlib
 
-    get_cmap = matplotlib.colormaps.cmap
+    get_cmap = matplotlib.colormaps.get_cmap
 except ImportError:
     from matplotlib.cm import get_cmap
 from matplotlib.colors import rgb2hex
+
+from warnings import warn
 
 cfg = ConfigManager()
 
@@ -379,7 +381,7 @@ def cmap_name_to_color_list(cmap_name):
         result = [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
     return result
 
-def array_to_colors(values, cmap_name):
+def array_to_colors(values, cmap_name, kind='continuous'):
     values = np.asarray(values)
     cmap = get_cmap(cmap_name)
     
@@ -387,7 +389,10 @@ def array_to_colors(values, cmap_name):
         # Get unique values and create a mapping to numbers
         unique_values = np.unique(values)
         n_colors = len(cmap.colors) if hasattr(cmap, 'colors') else 256
-        if n_colors >= 20:
+        if n_colors <= 20 or kind == 'categorical':
+            value_to_color = {val: cmap(i % n_colors) for i, val in enumerate(unique_values)}
+            colors_array = np.asarray([value_to_color[val] for val in values])
+        else:
             value_to_num = {val: i for i, val in enumerate(unique_values)}
             # Convert strings to numbers between 0 and 1
             normalized_values = np.array([value_to_num[val] for val in values])
@@ -396,9 +401,6 @@ def array_to_colors(values, cmap_name):
             else:
                 normalized_values = np.zeros_like(normalized_values, dtype=float)
             colors_array = cmap(normalized_values)
-        else:
-            value_to_color = {val: cmap(i % n_colors) for i, val in enumerate(unique_values)}
-            colors_array = np.asarray([value_to_color[val] for val in values])
     else:
         # Normalize values to range [0, 1]
         vmin, vmax = values.min(), values.max()
@@ -415,7 +417,7 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
         base_colors[i] for i in range(0, len(base_colors), len(base_colors) // 10)
     ]
     colormaps = [
-        {"field": "clusters", "description": "Clusters", "colors": base_colors_sample}
+        {"field": "none", "description": "Clusters", "colors": base_colors_sample, "kind": "categorical"}
     ]
     color_data = []
 
@@ -426,17 +428,18 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "field": metadata["field"],
             "description": metadata["description"],
             "colors": cmap_colors,
+            "kind": metadata.get("kind", "continuous"),
         }
         colormaps.append(colormap)
-        colors_array = array_to_colors(rawdata, cmap_name)
+        colors_array = array_to_colors(rawdata, cmap_name, colormap["kind"])
         color_data.append(
             pd.DataFrame(
                 colors_array, 
                 columns=[
-                    f"{metadata["field"]}_r", 
-                    f"{metadata["field"]}_g", 
-                    f"{metadata["field"]}_b", 
-                    f"{metadata["field"]}_a"
+                    f"{metadata['field']}_r", 
+                    f"{metadata['field']}_g", 
+                    f"{metadata['field']}_b", 
+                    f"{metadata['field']}_a"
                 ]
             )
         )
@@ -586,6 +589,7 @@ def render_html(
     offline_mode=False,
     offline_mode_js_data_file=None,
     offline_mode_font_data_file=None,
+    noise_color="#999999",
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -826,6 +830,18 @@ def render_html(
         module, or custom selection handlers can be created by subclassing the `SelectionHandlerBase`
         class.
 
+    colormap_rawdata: list of numpy.ndarray or None (optional, default=None)
+        A list of numpy arrays containing the raw data to be used for the colormap. Each array
+        should be the same length as the number of points in the data map. If None, the colormap
+        will not be enabled.
+
+    colormap_metadata: list of dict or None (optional, default=None)
+        A list of dictionaries containing metadata about the colormap. Each dictionary should
+        contain the following keys: "field" (str), "description" (str), and "cmap" (str). If None,
+        the colormap will not be enabled. The field should a short (one word) name for the metadata
+        field, the description should be a longer description of the field, and the cmap should be
+        the name of the colormap to use, and must be available in matplotlib colormap registry. 
+
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
         can be used to provide custom styling of other features of the output HTML as required.
@@ -859,6 +875,9 @@ def render_html(
         The name of the font data file to be embedded in the HTML template in offline mode.
         If None a default location used by dmp_offline_cache will be used, and if the file
         doesn't exist it will be created.
+
+    noise_color: str (optional, default="#999999")
+        The colour to use for noise points in the data map.
 
     Returns
     -------
@@ -1021,12 +1040,11 @@ def render_html(
                 histogram_data, histogram_n_bins, histogram_range
             )
 
-    if colormap_rawdata is not None:
-        if colormap_metadata is None:
-            raise ValueError("colormap_metadata must be provided if colormap_rawdata is provided")
-        
-        base_colors = [rgb2hex(c) for c in label_dataframe[["r", "g", "b"]].values]
-        color_metadata, color_data = build_colormap_data(colormap_rawdata, colormap_metadata, base_colors)
+    if colormap_rawdata is not None and colormap_metadata is not None:
+        cluster_colors_rgb = [rgb2hex(c) for c in point_dataframe[["r", "g", "b"]].values / 255]
+        ordered_cluster_colors = pd.Series(cluster_colors_rgb).value_counts().index
+        cluster_colors = [x for x in ordered_cluster_colors if x != noise_color]
+        color_metadata, color_data = build_colormap_data(colormap_rawdata, colormap_metadata, cluster_colors)
         enable_colormap_selector = True
     else:
         color_metadata = None

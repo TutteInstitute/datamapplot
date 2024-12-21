@@ -1,4 +1,4 @@
-class ColormapSelector {
+class ColormapSelectorTool {
 
     constructor(colorMaps, colorMapContainer, colorData, datamap) {
         this.colorMaps = colorMaps;
@@ -9,19 +9,33 @@ class ColormapSelector {
         // Handle color map item selection
         this.selectedColorMap = colorMaps[0];
 
+        // Create a temporary div to measure option widths
+        this.measureDiv = document.createElement("div");
+        this.measureDiv.style.position = "absolute";
+        this.measureDiv.style.visibility = "hidden";
+        this.measureDiv.style.whiteSpace = "nowrap";
+        document.body.appendChild(this.measureDiv);
+
+        // Calculate the maximum width before creating the dropdown
+        const maxWidth = this.calculateMaxWidth();
+
         // Create the required DOM elements
         this.colorMapDropdown = document.createElement("div");
         this.colorMapDropdown.className = "color-map-dropdown";
+        this.colorMapDropdown.style.width = `${maxWidth}px`;
+
         const colorMapSelected = document.createElement("div");
         colorMapSelected.className = "color-map-selected";
         this.selectedColorSwatch = document.createElement("span");
         this.selectedColorSwatch.className = "color-swatch";
         this.selectedColorSwatch.id = "selectedColorSwatch";
         colorMapSelected.appendChild(this.selectedColorSwatch);
+
         this.selectedColorMapText = document.createElement("span");
         this.selectedColorMapText.className = "color-map-text";
         this.selectedColorMapText.id = "selectedColorMapText";
         colorMapSelected.appendChild(this.selectedColorMapText);
+
         const downArrow = document.createElement("span");
         downArrow.className = "dropdown-arrow";
         downArrow.innerHTML = "▼";
@@ -32,6 +46,7 @@ class ColormapSelector {
         this.colorMapOptions.className = "color-map-options";
         this.colorMapOptions.id = "colorMapOptions";
         this.colorMapOptions.style.display = 'none';
+        this.colorMapOptions.style.width = `${maxWidth}px`;
 
         this.colorMapDropdown.appendChild(this.colorMapOptions);
         this.colorMapContainer.appendChild(this.colorMapDropdown);
@@ -43,6 +58,25 @@ class ColormapSelector {
         // Initial setup
         this.updateSelectedColorMap();
         this.populateColorMapOptions();
+
+        // Clean up measurement div
+        document.body.removeChild(this.measureDiv);
+    }
+
+    calculateMaxWidth() {
+        let maxWidth = 0;
+        
+        // Create a sample option with the same styling
+        this.measureDiv.className = "color-map-option";
+        
+        // Measure each option
+        for (const colorMap of this.colorMaps) {
+            this.measureDiv.innerHTML = `${this.createColorSwatch(colorMap.colors)} <span class="color-map-text">${colorMap.field} - ${colorMap.description}</span>`;
+            const width = this.measureDiv.offsetWidth + 40; // Add padding for arrow and borders
+            maxWidth = Math.max(maxWidth, width);
+        }
+        
+        return maxWidth;
     }
 
     // Create a color swatch
@@ -71,7 +105,7 @@ class ColormapSelector {
         this.updateSelectedColorMap();
 
         // Dispatch recolor to the datamap
-        if (colorMap.field === 'None') {
+        if (colorMap.field === 'none') {
             this.datamap.resetPointColors();
         } else {
             this.datamap.recolorPoints(this.colorData, colorMap.field);
