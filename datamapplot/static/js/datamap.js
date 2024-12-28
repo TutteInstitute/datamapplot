@@ -361,9 +361,11 @@ class DataMap {
     });
 
     const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
     this.deckgl.setProps({
-      layers: [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)]
+      layers: this.layers
     });
+    this.pointLayer = updatedPointLayer;
 
     // Update histogram, if any
     if (this.histogramItem && itemId !== this.histogramItemId) {
@@ -427,14 +429,16 @@ class DataMap {
         }
       }
     });
-
+    
     // Increment update trigger
     this.updateTriggerCounter++;
 
     const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
     this.deckgl.setProps({
-      layers: [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)]
+      layers: this.layers
     });
+    this.pointLayer = updatedPointLayer;
   }
 
   resetPointColors() {
@@ -447,13 +451,15 @@ class DataMap {
         }
       }
     });
-
+    
     // Increment update trigger
     this.updateTriggerCounter++;
 
     const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
     this.deckgl.setProps({
-      layers: [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)]
+      layers: this.layers
     });
+    this.pointLayer = updatedPointLayer;
   }
 }

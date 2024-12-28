@@ -19,6 +19,8 @@ from pathlib import Path
 from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
+from colorspacious import cspace_convert
+from sklearn.cluster import KMeans
 
 from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
 
@@ -294,7 +296,9 @@ def _get_js_dependency_sources(
     return js_dependencies_src
 
 
-def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress, enable_colormap_selector):
+def _get_css_dependency_sources(
+    minify, enable_histogram, show_loading_progress, enable_colormap_selector
+):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
 
@@ -381,17 +385,22 @@ def cmap_name_to_color_list(cmap_name):
         result = [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
     return result
 
-def array_to_colors(values, cmap_name, kind='continuous'):
+
+def array_to_colors(values, cmap_name, metadata):
     values = np.asarray(values)
     cmap = get_cmap(cmap_name)
-    
-    if values.dtype.kind in ['U', 'S', 'O']:  # If data is string or object type
+
+    if values.dtype.kind in ["U", "S", "O"]:  # If data is string or object type
         # Get unique values and create a mapping to numbers
         unique_values = np.unique(values)
-        n_colors = len(cmap.colors) if hasattr(cmap, 'colors') else 256
-        if n_colors <= 20 or kind == 'categorical':
-            value_to_color = {val: cmap(i % n_colors) for i, val in enumerate(unique_values)}
+        n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
+        if n_colors <= 20 or metadata["kind"] == "categorical":
+            value_to_color = {
+                val: cmap(i % n_colors) for i, val in enumerate(unique_values)
+            }
             colors_array = np.asarray([value_to_color[val] for val in values])
+            metadata["colorMapping"] = {key:rgb2hex(color) for key, color in value_to_color.items()}
+            metadata["kind"] = "categorical"
         else:
             value_to_num = {val: i for i, val in enumerate(unique_values)}
             # Convert strings to numbers between 0 and 1
@@ -401,6 +410,7 @@ def array_to_colors(values, cmap_name, kind='continuous'):
             else:
                 normalized_values = np.zeros_like(normalized_values, dtype=float)
             colors_array = cmap(normalized_values)
+            metadata["colorMapping"] = {}
     else:
         # Normalize values to range [0, 1]
         vmin, vmax = values.min(), values.max()
@@ -409,15 +419,23 @@ def array_to_colors(values, cmap_name, kind='continuous'):
         else:
             normalized_values = np.zeros_like(values, dtype=float)
         colors_array = cmap(normalized_values)
-        
-    return (colors_array * 255).astype(np.uint8)#.ravel() # we can flatten later for more efficiency; testing for now
+        metadata["valueRange"] = [vmin, vmax]
+
+
+    return (colors_array * 255).astype(
+        np.uint8
+    )  # .ravel() # we can flatten later for more efficiency; testing for now
+
 
 def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
-    base_colors_sample = [
-        base_colors[i] for i in range(0, len(base_colors), len(base_colors) // 10)
-    ]
+    base_colors_sample = base_colors
     colormaps = [
-        {"field": "none", "description": "Clusters", "colors": base_colors_sample, "kind": "categorical"}
+        {
+            "field": "none",
+            "description": "Clusters",
+            "colors": base_colors_sample,
+            "kind": "categorical",
+        }
     ]
     color_data = []
 
@@ -431,16 +449,16 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "kind": metadata.get("kind", "continuous"),
         }
         colormaps.append(colormap)
-        colors_array = array_to_colors(rawdata, cmap_name, colormap["kind"])
+        colors_array = array_to_colors(rawdata, cmap_name, colormap)
         color_data.append(
             pd.DataFrame(
-                colors_array, 
+                colors_array,
                 columns=[
-                    f"{metadata['field']}_r", 
-                    f"{metadata['field']}_g", 
-                    f"{metadata['field']}_b", 
-                    f"{metadata['field']}_a"
-                ]
+                    f"{metadata['field']}_r",
+                    f"{metadata['field']}_g",
+                    f"{metadata['field']}_b",
+                    f"{metadata['field']}_a",
+                ],
             )
         )
 
@@ -840,7 +858,7 @@ def render_html(
         contain the following keys: "field" (str), "description" (str), and "cmap" (str). If None,
         the colormap will not be enabled. The field should a short (one word) name for the metadata
         field, the description should be a longer description of the field, and the cmap should be
-        the name of the colormap to use, and must be available in matplotlib colormap registry. 
+        the name of the colormap to use, and must be available in matplotlib colormap registry.
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
@@ -876,8 +894,8 @@ def render_html(
         If None a default location used by dmp_offline_cache will be used, and if the file
         doesn't exist it will be created.
 
-    noise_color: str (optional, default="#999999")
-        The colour to use for noise points in the data map.
+    cluster_colormap: list of str or None (optional, default=None)
+        The colormap to use for cluster colors; if None we try to infer this from point data.
 
     Returns
     -------
@@ -1041,10 +1059,19 @@ def render_html(
             )
 
     if colormap_rawdata is not None and colormap_metadata is not None:
-        cluster_colors_rgb = [rgb2hex(c) for c in point_dataframe[["r", "g", "b"]].values / 255]
-        ordered_cluster_colors = pd.Series(cluster_colors_rgb).value_counts().index
-        cluster_colors = [x for x in ordered_cluster_colors if x != noise_color]
-        color_metadata, color_data = build_colormap_data(colormap_rawdata, colormap_metadata, cluster_colors)
+        cielab_colors = cspace_convert(
+            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
+        )
+        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
+        cluster_colors = [
+            rgb2hex(c)
+            for c in np.clip(
+                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+            )
+        ]
+        color_metadata, color_data = build_colormap_data(
+            colormap_rawdata, colormap_metadata, cluster_colors
+        )
         enable_colormap_selector = True
     else:
         color_metadata = None
@@ -1133,8 +1160,6 @@ def render_html(
                 )
             with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
                 index_data.to_frame().to_feather(f, compression="uncompressed")
-        
-
 
     title_font_color = "#000000" if not darkmode else "#ffffff"
     sub_title_font_color = "#777777"
@@ -1171,7 +1196,10 @@ def render_html(
             enable_colormap_selector,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
-            minify_deps, enable_histogram, show_loading_progress, enable_colormap_selector
+            minify_deps,
+            enable_histogram,
+            show_loading_progress,
+            enable_colormap_selector,
         ),
     }
 

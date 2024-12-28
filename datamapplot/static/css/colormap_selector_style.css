@@ -47,7 +47,54 @@
     display: inline-block;
     width: 12px;
     height: 12px;
+    color: white;
+    text-align: center;
+    line-height: 16px;
   }
   .color-map-text {
     flex-grow: 1;
+  }
+  .colorbar-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px;
+    font-family: Arial, sans-serif;
+    height: 200px;
+  }
+
+  .colorbar {
+    width: 10px;
+    height: 200px;
+    position: relative;
+  }
+  .tick-container {
+    position: relative;
+    width: 40px;
+    height: 200px;
+  }
+  .tick {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* Adjust vertical positioning to center on the actual value */
+    transform: translateY(-50%);
+  }
+  .tick-line {
+    width: 8px;
+    height: 1px;
+    background: #333;
+  }
+  .tick-label {
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: left;
+    gap: 4px;
+    padding: 4px;
+  }
+  .legend-label {
+    font-size: 12px;
   }
