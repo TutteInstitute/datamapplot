@@ -414,11 +414,11 @@ def default_colormap_options(values_dict):
 
     for name, values in values_dict.items():
         colormap_metadata = {}
-        candidate_field = name.split("")[0]
+        candidate_field = name.split()[0]
         n = 0
         while candidate_field in existing_fields:
             n += 1
-            candidate_field = f"{name.split('')[0]}_{n}"
+            candidate_field = f"{name.split()[0]}_{n}"
         colormap_metadata["field"] = candidate_field
         colormap_metadata["description"] = name
 
