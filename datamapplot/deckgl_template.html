@@ -440,7 +440,7 @@
           try {
             const response = await fetch(filename);
             if (!response.ok) {
-              throw new Error(\`HTTP error! status: \${response.status}\`);
+              throw new Error(\`HTTP error! status: \${response.status}. Failed to fetch: \${filename}\`);
             }
             const reader = response.body
               .pipeThrough(new DecompressionStream("gzip"))
