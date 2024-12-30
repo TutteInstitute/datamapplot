@@ -107,6 +107,7 @@ class ColorLegend {
         this.colorData = colorData;
         this.colorField = colorField;
         this.selectedItems = new Set();
+        this.legendItems = [];
         this.render();
     }
 
@@ -127,16 +128,17 @@ class ColorLegend {
             legendItem.appendChild(colorBox);
             legendItem.appendChild(labelElement);
             this.container.appendChild(legendItem);
+            this.legendItems.push(legendItem);
         }
         this.container.addEventListener('click', (event) => {
             const selection = event.srcElement.style.backgroundColor;
             if (selection) {
                 if (this.selectedItems.has(selection)) {
                     this.selectedItems.delete(selection);
-                    event.srcElement.innerHTML = "";
+                    // event.srcElement.innerHTML = "";
                 } else {
                     this.selectedItems.add(selection);
-                    event.srcElement.innerHTML = "●";
+                    // event.srcElement.innerHTML = "●";
                 }
                 const selectedIndices = [];
                 this.selectedItems.forEach((color) => {
@@ -150,6 +152,19 @@ class ColorLegend {
                     }
                 });
                 this.datamap.addSelection(selectedIndices, "legend");
+                if (this.selectedItems.size > 0) {
+                    this.legendItems.forEach((item) => {
+                        if (this.selectedItems.has(item.children[0].style.backgroundColor)) {
+                            item.style.opacity = 1;
+                        } else {
+                            item.style.opacity = 0.33;
+                        }
+                    });
+                } else {
+                    this.legendItems.forEach((item) => {
+                        item.style.opacity = 1;
+                    });
+                }
             }
         });
     }
@@ -209,6 +224,7 @@ class ColormapSelectorTool {
 
         this.colorMapDropdown.appendChild(this.colorMapOptions);
         this.colorMapContainer.appendChild(this.colorMapDropdown);
+        this.colorMapContainer.style.width = `${maxWidth + 20}px`;
 
         // Attach event listeners
         this.colorMapDropdown.addEventListener('click', (e) => { this.colorMapOptions.style.display = this.colorMapOptions.style.display === 'none' ? 'block' : 'none' });
@@ -217,6 +233,7 @@ class ColormapSelectorTool {
         // Initial setup
         this.updateSelectedColorMap();
         this.populateColorMapOptions();
+        this.populateLegends();
 
         // Clean up measurement div
         document.body.removeChild(this.measureDiv);
@@ -230,7 +247,7 @@ class ColormapSelectorTool {
 
         // Measure each option
         for (const colorMap of this.colorMaps) {
-            this.measureDiv.innerHTML = `${this.createColorSwatch(colorMap.colors)} <span class="color-map-text">${colorMap.field} - ${colorMap.description}</span>`;
+            this.measureDiv.innerHTML = `${this.createColorSwatch(colorMap.colors)} <span class="color-map-text">${colorMap.description}</span>`;
             const width = this.measureDiv.offsetWidth + 40; // Add padding for arrow and borders
             maxWidth = Math.max(maxWidth, width);
         }
@@ -269,16 +286,12 @@ class ColormapSelectorTool {
             this.legendContainer.style.display = 'none';
         } else {
             this.datamap.recolorPoints(this.colorData, colorMap.field);
-            if ((colorMap.kind === "categorical") && (colorMap.colors.length < 20) && Object.hasOwn(colorMap, "colorMapping")) {
-                this.legendContainer.innerHTML = '';
-                //console.log(colorMap.colorMapping);
-                new ColorLegend(this.legendContainer, this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });
+            if (((colorMap.kind === "categorical") && (colorMap.colors.length < 20) && Object.hasOwn(colorMap, "colorMapping")) || (colorMap.kind === "continuous")) {
                 this.legendContainer.style.display = 'block';
-            } else if (colorMap.kind === "continuous") {
-                this.legendContainer.innerHTML = '';
-                //console.log(colorMap.colors, colorMap.description, colorMap.valueRange);
-                new Colorbar(this.legendContainer, { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1] });
-                this.legendContainer.style.display = 'block';
+                for (const key in this.legends) {
+                    this.legends[key].style.display = 'none';
+                }
+                this.legends[colorMap.field].style.display = 'block';
             } else {
                 this.legendContainer.style.display = 'none';
             }
@@ -297,6 +310,23 @@ class ColormapSelectorTool {
             colorMapOption.addEventListener('click', (event) => { this.handleColorMapSelection(colorMap) });
             colorMapOption.innerHTML = `${this.createColorSwatch(colorMap.colors, colorMap.kind === "categorical")} <span class="color-map-text">${colorMap.description}</span>`;
             this.colorMapOptions.appendChild(colorMapOption);
+        }
+    }
+
+    populateLegends() {
+        this.legends = {};
+        for (const colorMap of this.colorMaps) {
+            if (colorMap.field === 'none') {
+                continue;
+            }
+            this.legends[colorMap.field] = document.createElement("div");
+            this.legends[colorMap.field].style.display = 'none';
+            if ((colorMap.kind === "categorical") && (colorMap.colors.length < 20) && Object.hasOwn(colorMap, "colorMapping")) {
+                new ColorLegend(this.legends[colorMap.field], this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });
+            } else if (colorMap.kind === "continuous") {
+                new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1] });
+            }
+            this.legendContainer.appendChild(this.legends[colorMap.field]);
         }
     }
 }

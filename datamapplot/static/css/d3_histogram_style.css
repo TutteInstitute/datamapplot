@@ -1,8 +1,9 @@
 /* Histogram's container */
 #d3histogram-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
+    position: relative;
+    /* position: absolute; */
+    /* bottom: 0; */
+    /* left: 0; */
     margin: 16px;
     padding: 12px;
     border-radius: 16px;

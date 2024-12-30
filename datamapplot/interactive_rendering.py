@@ -44,6 +44,35 @@ from matplotlib.colors import rgb2hex
 
 from warnings import warn
 
+_DEFAULT_DICRETE_COLORMAPS = [
+    "tab10",
+    "Dark2",
+    "Accent",
+    "Set3",
+    "Paired",
+    "tab20",
+    "tab20b",
+    "tab20c",
+    "Set1",
+    "Set2",
+    "Pastel1",
+    "Pastel2",
+]
+
+_DEFAULT_CONTINUOUS_COLORMAPS = [
+    "viridis",
+    "plasma",
+    "cividis",
+    "YlGnBu",
+    "cet_fire",
+    "PuRd",
+    "BuPu",
+    "cet_bgy",
+    "cet_CET_L7",
+    "cet_CET_L17",
+    "cet_gouldian",
+]
+
 cfg = ConfigManager()
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
@@ -376,6 +405,36 @@ def _get_js_dependency_urls(
 
     return js_dependency_urls
 
+def default_colormap_options(values_dict):
+
+    colormap_metadata_list = []
+    discrete_cmap_counter = 0
+    continuous_cmap_counter = 0
+    existing_fields = set([])
+
+    for name, values in values_dict.items():
+        colormap_metadata = {}
+        candidate_field = name.split("")[0]
+        n = 0
+        while candidate_field in existing_fields:
+            n += 1
+            candidate_field = f"{name.split('')[0]}_{n}"
+        colormap_metadata["field"] = candidate_field
+        colormap_metadata["description"] = name
+
+        if values.dtype.kind in ["U", "S", "O"]:
+            colormap_metadata["kind"] = "categorical"
+            colormap_metadata["cmap"] = _DEFAULT_DICRETE_COLORMAPS[discrete_cmap_counter]
+            discrete_cmap_counter += 1
+        else:
+            colormap_metadata["kind"] = "continuous"
+            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[continuous_cmap_counter]
+            continuous_cmap_counter += 1
+
+        colormap_metadata_list.append(colormap_metadata)
+
+    return colormap_metadata_list
+
 
 def cmap_name_to_color_list(cmap_name):
     cmap = get_cmap(cmap_name)
@@ -386,32 +445,57 @@ def cmap_name_to_color_list(cmap_name):
     return result
 
 
-def array_to_colors(values, cmap_name, metadata):
+def array_to_colors(values, cmap_name, metadata, color_list=None):
     values = np.asarray(values)
-    cmap = get_cmap(cmap_name)
+    if cmap_name is None:
+        cmap = None
+        assert color_list is not None
+        color_list = [to_rgba(color) for color in color_list]
+    else:
+        cmap = get_cmap(cmap_name)
 
     if values.dtype.kind in ["U", "S", "O"]:  # If data is string or object type
         # Get unique values and create a mapping to numbers
         unique_values = np.unique(values)
-        n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
+        if cmap:
+            n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
+        else:
+            n_colors = len(color_list)
         if n_colors <= 20 or metadata["kind"] == "categorical":
-            value_to_color = {
-                val: cmap(i % n_colors) for i, val in enumerate(unique_values)
-            }
+            if cmap is None and color_list:
+                value_to_color = {
+                    val: color_list[i % n_colors] for i, val in enumerate(unique_values)
+                }
+            else:
+                value_to_color = {
+                    val: cmap(i % n_colors) for i, val in enumerate(unique_values)
+                }
             colors_array = np.asarray([value_to_color[val] for val in values])
-            metadata["colorMapping"] = {key:rgb2hex(color) for key, color in value_to_color.items()}
+            metadata["colorMapping"] = {
+                key: rgb2hex(color) for key, color in value_to_color.items()
+            }
             metadata["kind"] = "categorical"
         else:
-            value_to_num = {val: i for i, val in enumerate(unique_values)}
-            # Convert strings to numbers between 0 and 1
-            normalized_values = np.array([value_to_num[val] for val in values])
-            if len(unique_values) > 1:
-                normalized_values = normalized_values / (len(unique_values) - 1)
+            if cmap:
+                value_to_num = {val: i for i, val in enumerate(unique_values)}
+                # Convert strings to numbers between 0 and 1
+                normalized_values = np.array([value_to_num[val] for val in values])
+                if len(unique_values) > 1:
+                    normalized_values = normalized_values / (len(unique_values) - 1)
+                else:
+                    normalized_values = np.zeros_like(normalized_values, dtype=float)
+                colors_array = cmap(normalized_values)
             else:
-                normalized_values = np.zeros_like(normalized_values, dtype=float)
-            colors_array = cmap(normalized_values)
+                value_to_num = {
+                    val: i % len(color_list) for i, val in enumerate(unique_values)
+                }
+                colors_array = np.array(
+                    [color_list[value_to_num[val]] for val in values]
+                )
             metadata["colorMapping"] = {}
     else:
+        if cmap is None:
+            raise ValueError("cmap must be provided for continuous data")
         # Normalize values to range [0, 1]
         vmin, vmax = values.min(), values.max()
         if vmin != vmax:
@@ -420,7 +504,6 @@ def array_to_colors(values, cmap_name, metadata):
             normalized_values = np.zeros_like(values, dtype=float)
         colors_array = cmap(normalized_values)
         metadata["valueRange"] = [vmin, vmax]
-
 
     return (colors_array * 255).astype(
         np.uint8
@@ -439,9 +522,16 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
     ]
     color_data = []
 
-    for i, (rawdata, metadata) in enumerate(zip(colormap_rawdata, colormap_metadata)):
-        cmap_name = metadata["cmap"]
-        cmap_colors = cmap_name_to_color_list(cmap_name)
+    for rawdata, metadata in zip(colormap_rawdata, colormap_metadata):
+        if "cmap" in metadata:
+            cmap_name = metadata["cmap"]
+            cmap_colors = cmap_name_to_color_list(cmap_name)
+        elif "palette" in metadata:
+            cmap_colors = metadata["palette"]
+            cmap_name = None
+        elif "color_mapping" in metadata:
+            cmap_colors = list(metadata["color_mapping"].values())
+            cmap_name = None
         colormap = {
             "field": metadata["field"],
             "description": metadata["description"],
@@ -449,7 +539,15 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "kind": metadata.get("kind", "continuous"),
         }
         colormaps.append(colormap)
-        colors_array = array_to_colors(rawdata, cmap_name, colormap)
+        if "color_mapping" in metadata:
+            colormap["colorMapping"] = metadata["color_mapping"]
+            colormap["kind"] = "categorical"
+            colors_array = (
+                np.array([to_rgba(metadata["color_mapping"][val]) for val in rawdata])
+                * 255
+            ).astype(np.uint8)
+        else:
+            colors_array = array_to_colors(rawdata, cmap_name, colormap, cmap_colors)
         color_data.append(
             pd.DataFrame(
                 colors_array,
@@ -596,6 +694,7 @@ def render_html(
     histogram_settings={},
     on_click=None,
     selection_handler=None,
+    colormaps=None,
     colormap_rawdata=None,
     colormap_metadata=None,
     show_loading_progress=True,
@@ -848,6 +947,14 @@ def render_html(
         module, or custom selection handlers can be created by subclassing the `SelectionHandlerBase`
         class.
 
+    colormaps: dict or None (optional, default=None)
+        A dictionary containing information about the colormaps to use for the data map. The
+        dictionary should bey keyed by a descriptive name for the field, and the value should
+        be an array of values to use for colouring the field. Datamapplot will try to infer
+        data-types and suitable colormaps for the fields. If you need more control you
+        should instead use ``colormap_rawdata`` and ``colormap_metadata`` which allow you to 
+        specify more detailed information about the colormaps to use.
+
     colormap_rawdata: list of numpy.ndarray or None (optional, default=None)
         A list of numpy arrays containing the raw data to be used for the colormap. Each array
         should be the same length as the number of points in the data map. If None, the colormap
@@ -1072,6 +1179,23 @@ def render_html(
         color_metadata, color_data = build_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
         )
+        enable_colormap_selector = True
+    elif colormaps is not None:
+        colormap_metadata = default_colormap_options(colormaps)
+        colormap_rawdata = list(colormaps.values())
+        cielab_colors = cspace_convert(
+            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
+        )
+        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
+        cluster_colors = [
+            rgb2hex(c)
+            for c in np.clip(
+                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+            )
+        ]
+        color_metadata, color_data = build_colormap_data(
+            colormap_rawdata, colormap_metadata, cluster_colors
+        )        
         enable_colormap_selector = True
     else:
         color_metadata = None
