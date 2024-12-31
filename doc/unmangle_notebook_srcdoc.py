@@ -2,6 +2,7 @@ import os
 import glob
 import html
 import shutil
+import re
 
 _ORIGINAL_NON_INLINE_WORKER = """
     const parsingWorkerBlob = new Blob([`
@@ -113,6 +114,7 @@ _NOTEBOOK_NON_INLINE_WORKER = """
 """
 
 def unmangle_notebook_srcdoc(html_str, auto_example=False):
+    html_str = re.sub(r"headers: \{Authorization: 'Token [a-zA-Z0-9]+'\}", "headers: {Authorization: 'Token API_TOKEN'}", html_str)
     new_html_str = html_str.replace(
         html.escape(_NOTEBOOK_NON_INLINE_WORKER), 
         html.escape(_ORIGINAL_NON_INLINE_WORKER),
