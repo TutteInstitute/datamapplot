@@ -102,17 +102,17 @@ html_static_path = [
 ]
 html_extra_path = [
     'cord-1_label_data.zip',
-    'cord-1_meta_data.zip',
-    'cord-1_point_data.zip',
+    'cord-1_meta_data_0.zip',
+    'cord-1_point_data_0.zip',
     'cord-2_label_data.zip',
-    'cord-2_meta_data.zip',
-    'cord-2_point_data.zip',
+    'cord-2_meta_data_0.zip',
+    'cord-2_point_data_0.zip',
     'cord-3_label_data.zip',
-    'cord-3_meta_data.zip',
-    'cord-3_point_data.zip',
+    'cord-3_meta_data_0.zip',
+    'cord-3_point_data_0.zip',
     'cord-4_label_data.zip',
-    'cord-4_meta_data.zip',
-    'cord-4_point_data.zip',
+    'cord-4_meta_data_0.zip',
+    'cord-4_point_data_0.zip',
     'cord-large-1_label_data.zip',
     'cord-large-1_meta_data_0.zip',
     'cord-large-1_meta_data_1.zip',
@@ -154,8 +154,8 @@ html_extra_path = [
     'cord-large-6_point_data_0.zip',
     'cord-large-6_point_data_1.zip',
     'datamapplot_label_data.zip',
-    'datamapplot_meta_data.zip',
-    'datamapplot_point_data.zip',
+    'datamapplot_meta_data_0.zip',
+    'datamapplot_point_data_0.zip',
 ]
 
 # Example configuration for intersphinx: refer to the Python standard library.
