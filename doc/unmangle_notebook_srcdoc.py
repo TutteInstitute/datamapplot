@@ -125,6 +125,7 @@ def process_html_files():
         print(f"Moving {zipfile} to {os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/'}")
         shutil.copy(zipfile, os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/')
     print(list(glob.glob(os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/*')))
+    print("zip files transferred:", list(glob.glob(os.environ['READTHEDOCS_OUTPUT'] + 'html/*.zip')))
     for filename in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + 'html/**/*.html', recursive=True):
         with open(filename, 'r') as f:
             html_str = f.read()
