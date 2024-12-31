@@ -114,7 +114,7 @@ _NOTEBOOK_NON_INLINE_WORKER = """
 """
 
 def unmangle_notebook_srcdoc(html_str, auto_example=False):
-    html_str = re.sub(r"headers: \{Authorization: 'Token [a-zA-Z0-9]+'\}", "headers: {Authorization: 'Token API_TOKEN'}", html_str)
+    html_str = re.sub(r"headers: \{Authorization: &#x27;Token [a-zA-Z0-9]+&#x27;\}", "headers: {Authorization: &#x27;Token API_TOKEN&#x27;}", html_str)
     new_html_str = html_str.replace(
         html.escape(_NOTEBOOK_NON_INLINE_WORKER), 
         html.escape(_ORIGINAL_NON_INLINE_WORKER),
