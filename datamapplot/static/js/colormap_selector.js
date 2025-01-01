@@ -8,9 +8,105 @@ class Colorbar {
             max: options.max || 100,
             numTicks: options.numTicks || 5,
             colormap: options.colormap || ['blue', 'red'],
-            label: options.label || ''
+            label: options.label || '',
+            dateFormat: options.dateFormat || 'short'
         };
+
+        this.isDateScale = this.options.min instanceof Date ||
+            typeof this.options.min === 'string' && !isNaN(Date.parse(this.options.min));
+
+        if (this.isDateScale) {
+            this.options.min = this.ensureDate(this.options.min);
+            this.options.max = this.ensureDate(this.options.max);
+            this.analyzeDateTimeRange();
+        } else {
+            // Analyze numeric data range
+            this.analyzeNumericRange();
+        }
+
         this.render();
+    }
+
+    analyzeDateTimeRange() {
+        const { min, max } = this.options;
+        const rangeMs = max.getTime() - min.getTime();
+        const rangeHours = rangeMs / (1000 * 60 * 60);
+        const rangeDays = rangeHours / 24;
+        const rangeMonths = rangeDays / 30.44; // Average month length
+        const rangeYears = rangeMonths / 12;
+
+        // Determine the appropriate format based on the range
+        if (rangeYears >= 2) {
+            this.dateTimeFormat = { year: 'numeric', month: 'short' };
+        } else if (rangeMonths >= 2) {
+            this.dateTimeFormat = { month: 'short', day: 'numeric' };
+        } else if (rangeDays >= 2) {
+            this.dateTimeFormat = { month: 'short', day: 'numeric', hour: '2-digit' };
+        } else if (rangeHours >= 2) {
+            this.dateTimeFormat = { hour: '2-digit', minute: '2-digit' };
+        } else {
+            this.dateTimeFormat = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+        }
+    }
+
+    analyzeNumericRange() {
+        const { min, max } = this.options;
+        this.isIntegerData = Number.isInteger(min) && Number.isInteger(max);
+
+        // Determine the scale of the data
+        const maxAbs = Math.max(Math.abs(min), Math.abs(max));
+        const minAbs = Math.min(Math.abs(min), Math.abs(max));
+
+        // Check if we need scientific notation
+        this.useScientific = maxAbs >= 1e5 || (minAbs > 0 && minAbs <= 1e-4);
+
+        // Determine decimal places for floating point numbers
+        if (!this.isIntegerData && !this.useScientific) {
+            const range = max - min;
+            if (range < 1) {
+                this.decimals = 3;
+            } else if (range < 10) {
+                this.decimals = 2;
+            } else {
+                this.decimals = 1;
+            }
+        }
+    }
+
+    ensureDate(value) {
+        if (value instanceof Date) return value;
+        return new Date(value);
+    }
+
+    formatNumber(value) {
+        if (this.isIntegerData) {
+            return Math.round(value).toString();
+        }
+
+        if (this.useScientific) {
+            return value.toExponential(2);
+        }
+
+        if (Number.isInteger(value)) {
+            return value.toString();
+        }
+
+        return value.toFixed(this.decimals);
+    }
+
+    formatValue(value) {
+        if (this.isDateScale) {
+            const date = value instanceof Date ? value : new Date(value);
+            if (this.options.dateFormat) {
+                // Use specified format if provided
+                return date.toLocaleDateString(undefined, this.options.dateFormat);
+            } else {
+                // Use auto-detected format
+                return date.toLocaleString(undefined, this.dateTimeFormat);
+            }
+        }
+
+        return this.formatNumber(value);
     }
 
     createColorScale() {
@@ -24,11 +120,22 @@ class Colorbar {
     generateTicks() {
         const { min, max, numTicks } = this.options;
         const ticks = [];
+
         for (let i = numTicks - 1; i >= 0; i--) {
-            const value = min + (i / (numTicks - 1)) * (max - min);
+            let value;
+            if (this.isDateScale) {
+                const minTime = min.getTime();
+                const maxTime = max.getTime();
+                const timeRange = maxTime - minTime;
+                value = new Date(minTime + (i / (numTicks - 1)) * timeRange);
+            } else {
+                value = min + (i / (numTicks - 1)) * (max - min);
+            }
+
             const position = 100 - (i / (numTicks - 1) * 100);
             ticks.push({
-                value: value.toFixed(1),
+                value: value,
+                formattedValue: this.formatValue(value),
                 position
             });
         }
@@ -61,7 +168,7 @@ class Colorbar {
 
             const tickLabel = document.createElement('div');
             tickLabel.className = 'tick-label';
-            tickLabel.textContent = tick.value;
+            tickLabel.textContent = tick.formattedValue;
 
             tickElement.appendChild(tickLine);
             tickElement.appendChild(tickLabel);
@@ -85,14 +192,14 @@ class Colorbar {
 }
 
 function convertRGBtoObj(colorString) {
-  const rgbKeys = ['r', 'g', 'b', 'a'];
-  let rgbObj = {};
-  let color = colorString.replace(/^rgba?\(|\s+|\)$/g,'').split(',');
+    const rgbKeys = ['r', 'g', 'b', 'a'];
+    let rgbObj = {};
+    let color = colorString.replace(/^rgba?\(|\s+|\)$/g, '').split(',');
 
-  for (let i in rgbKeys)
-    rgbObj[rgbKeys[i]] = parseInt(color[i]) || 1;
+    for (let i in rgbKeys)
+        rgbObj[rgbKeys[i]] = parseInt(color[i]) || 1;
 
-  return rgbObj;
+    return rgbObj;
 }
 
 class ColorLegend {
@@ -143,10 +250,11 @@ class ColorLegend {
                 const selectedIndices = [];
                 this.selectedItems.forEach((color) => {
                     const selectedColor = convertRGBtoObj(color);
-                    for (let i = 0; i < this.colorData[`${this.colorField}_r`].length; i++) {;
-                        if (this.colorData[`${this.colorField}_r`][i] === selectedColor.r &&
-                            this.colorData[`${this.colorField}_g`][i] === selectedColor.g && 
-                            this.colorData[`${this.colorField}_b`][i] === selectedColor.b) {
+                    for (let i = 0; i < this.colorData[`${this.colorField}_r`].length; i++) {
+                        ;
+                        if (Math.abs(this.colorData[`${this.colorField}_r`][i] - selectedColor.r) <= 1 &&
+                            Math.abs(this.colorData[`${this.colorField}_g`][i] - selectedColor.g) <= 1 &&
+                            Math.abs(this.colorData[`${this.colorField}_b`][i] - selectedColor.b) <= 1) {
                             selectedIndices.push(i);
                         }
                     }
@@ -179,6 +287,12 @@ class ColormapSelectorTool {
         this.datamap = datamap;
         this.nColors = nColors;
         this.legendContainer = legendContainer;
+
+        for (const colorMap of this.colorMaps) {
+            if (Object.hasOwn(colorMap, "nColors")) {
+                this.nColors = Math.max(this.nColors, colorMap.nColors);
+            }
+        }
 
         // Handle color map item selection
         this.selectedColorMap = colorMaps[0];
@@ -286,7 +400,7 @@ class ColormapSelectorTool {
             this.legendContainer.style.display = 'none';
         } else {
             this.datamap.recolorPoints(this.colorData, colorMap.field);
-            if (((colorMap.kind === "categorical") && (colorMap.colors.length < 20) && Object.hasOwn(colorMap, "colorMapping")) || (colorMap.kind === "continuous")) {
+            if (((colorMap.kind === "categorical") && (colorMap.colors.length <= 20) && Object.hasOwn(colorMap, "colorMapping")) || (colorMap.kind === "continuous") || (colorMap.kind === "datetime")) {
                 this.legendContainer.style.display = 'block';
                 for (const key in this.legends) {
                     this.legends[key].style.display = 'none';
@@ -321,10 +435,12 @@ class ColormapSelectorTool {
             }
             this.legends[colorMap.field] = document.createElement("div");
             this.legends[colorMap.field].style.display = 'none';
-            if ((colorMap.kind === "categorical") && (colorMap.colors.length < 20) && Object.hasOwn(colorMap, "colorMapping")) {
+            if ((colorMap.kind === "categorical") && (colorMap.colors.length <= 20) && Object.hasOwn(colorMap, "colorMapping")) {
                 new ColorLegend(this.legends[colorMap.field], this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });
             } else if (colorMap.kind === "continuous") {
                 new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1] });
+            } else if (colorMap.kind === "datetime") {
+                new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: new Date(colorMap.valueRange[0]), max: new Date(colorMap.valueRange[1]), dateFormat: colorMap.dateFormat });
             }
             this.legendContainer.appendChild(this.legends[colorMap.field]);
         }

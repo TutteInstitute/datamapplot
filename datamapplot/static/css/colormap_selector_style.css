@@ -1,5 +1,6 @@
 .color-map-dropdown {
     position: relative;
+    background-color: inherit;
     z-index: 2;
   }
   .color-map-selected {
@@ -38,7 +39,7 @@
   }
   .color-swatch {
     display: inline-block;
-    width: 62px;
+    width: fit-content;
     height: 20px;
     margin-right: 10px;
     border-radius: 4px;
@@ -57,6 +58,7 @@
   .colorbar-container {
     display: flex;
     align-items: center;
+    width: fit-content;
     gap: 4px;
     padding: 10px;
     font-family: Arial, sans-serif;

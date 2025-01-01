@@ -457,9 +457,9 @@ def _get_js_dependency_urls(
 def default_colormap_options(values_dict):
 
     colormap_metadata_list = []
-    discrete_cmap_counter = 0
     continuous_cmap_counter = 0
     existing_fields = set([])
+    used_colormaps = set([])
 
     for name, values in values_dict.items():
         colormap_metadata = {}
@@ -473,8 +473,26 @@ def default_colormap_options(values_dict):
 
         if values.dtype.kind in ["U", "S", "O"]:
             colormap_metadata["kind"] = "categorical"
-            colormap_metadata["cmap"] = _DEFAULT_DICRETE_COLORMAPS[discrete_cmap_counter]
-            discrete_cmap_counter += 1
+            n_categories = len(values.unique())
+            n = 0
+            cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+            while cmap in used_colormaps or n_categories > len(get_cmap(cmap).colors):
+                n += 1
+                if n >= len(_DEFAULT_DICRETE_COLORMAPS):
+                    n = 0
+                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+                    while cmap in used_colormaps:
+                        n += 1
+                        cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+                    break
+                else:
+                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+            colormap_metadata["cmap"] = cmap
+            used_colormaps.add(cmap)
+        elif pd.api.types.is_datetime64_any_dtype(values):
+            colormap_metadata["kind"] = "datetime"
+            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[continuous_cmap_counter]
+            continuous_cmap_counter += 1        
         else:
             colormap_metadata["kind"] = "continuous"
             colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[continuous_cmap_counter]
@@ -496,68 +514,126 @@ def cmap_name_to_color_list(cmap_name):
 
 def array_to_colors(values, cmap_name, metadata, color_list=None):
     values = np.asarray(values)
+    
+    # Handle colormap setup
     if cmap_name is None:
         cmap = None
         assert color_list is not None
         color_list = [to_rgba(color) for color in color_list]
     else:
         cmap = get_cmap(cmap_name)
-
-    if values.dtype.kind in ["U", "S", "O"]:  # If data is string or object type
-        # Get unique values and create a mapping to numbers
-        unique_values = np.unique(values)
+    
+    # Function to get finite/non-null mask
+    def get_valid_mask(arr):
+        if pd.api.types.is_datetime64_any_dtype(arr):
+            return ~pd.isna(arr)
+        elif arr.dtype.kind in ['f', 'i']:
+            return np.isfinite(arr)
+        else:
+            return ~pd.isna(arr)
+    
+    # Handle datetime values
+    if pd.api.types.is_datetime64_any_dtype(values):
+        if cmap is None:
+            raise ValueError("cmap must be provided for datetime data")
+        
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid datetime values found")
+            
+        valid_values = values[valid_mask]
+        vmin, vmax = valid_values.min(), valid_values.max()
+        
+        # Convert to float for normalization
+        normalized_values = np.zeros_like(values, dtype=float)
+        normalized_values[valid_mask] = (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
+        
+        colors_array = np.zeros((len(values), 4))
+        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+        
+        # Store datetime range as ISO format strings
+        metadata["valueRange"] = [pd.Timestamp(vmin).isoformat(), pd.Timestamp(vmax).isoformat()]
+        metadata["kind"] = "datetime"
+        
+    elif values.dtype.kind in ["U", "S", "O"]:  # String or object type
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid string values found")
+            
+        # Get unique valid values
+        unique_values = np.unique(values[valid_mask])
+        
         if cmap:
             n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
         else:
             n_colors = len(color_list)
-        if n_colors <= 20 or metadata["kind"] == "categorical":
+            
+        if n_colors <= 20 or metadata.get("kind") == "categorical":
+            # Handle categorical data
             if cmap is None and color_list:
                 value_to_color = {
                     val: color_list[i % n_colors] for i, val in enumerate(unique_values)
                 }
             else:
                 value_to_color = {
-                    val: cmap(i % n_colors) for i, val in enumerate(unique_values)
+                    val: cmap(i / (len(unique_values) - 1) if len(unique_values) > 1 else 0.5)
+                    for i, val in enumerate(unique_values)
                 }
-            colors_array = np.asarray([value_to_color[val] for val in values])
+                
+            colors_array = np.zeros((len(values), 4))
+            colors_array[valid_mask] = [value_to_color[val] for val in values[valid_mask]]
+            colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+            
             metadata["colorMapping"] = {
-                key: rgb2hex(color) for key, color in value_to_color.items()
+                str(key): rgb2hex(color) for key, color in value_to_color.items()
             }
             metadata["kind"] = "categorical"
+            
         else:
+            # Handle non-categorical string data
             if cmap:
                 value_to_num = {val: i for i, val in enumerate(unique_values)}
-                # Convert strings to numbers between 0 and 1
-                normalized_values = np.array([value_to_num[val] for val in values])
+                normalized_values = np.zeros(len(values))
+                normalized_values[valid_mask] = [value_to_num[val] for val in values[valid_mask]]
                 if len(unique_values) > 1:
                     normalized_values = normalized_values / (len(unique_values) - 1)
-                else:
-                    normalized_values = np.zeros_like(normalized_values, dtype=float)
-                colors_array = cmap(normalized_values)
+                
+                colors_array = np.zeros((len(values), 4))
+                colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+                colors_array[~valid_mask] = [0, 0, 0, 0]
             else:
                 value_to_num = {
                     val: i % len(color_list) for i, val in enumerate(unique_values)
                 }
-                colors_array = np.array(
-                    [color_list[value_to_num[val]] for val in values]
-                )
+                colors_array = np.zeros((len(values), 4))
+                colors_array[valid_mask] = [color_list[value_to_num[val]] for val in values[valid_mask]]
+                colors_array[~valid_mask] = [0, 0, 0, 0]
+                
             metadata["colorMapping"] = {}
-    else:
+            
+    else:  # Numeric data
         if cmap is None:
             raise ValueError("cmap must be provided for continuous data")
-        # Normalize values to range [0, 1]
-        vmin, vmax = values.min(), values.max()
-        if vmin != vmax:
-            normalized_values = (values - vmin) / (vmax - vmin)
-        else:
-            normalized_values = np.zeros_like(values, dtype=float)
-        colors_array = cmap(normalized_values)
-        metadata["valueRange"] = [vmin, vmax]
+            
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid numeric values found")
+            
+        valid_values = values[valid_mask]
+        vmin, vmax = valid_values.min(), valid_values.max()
+        
+        normalized_values = np.zeros_like(values, dtype=float)
+        normalized_values[valid_mask] = (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
+        
+        colors_array = np.zeros((len(values), 4))
+        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+        
+        metadata["valueRange"] = [float(vmin), float(vmax)]
+        metadata["kind"] = "continuous"
 
-    return (colors_array * 255).astype(
-        np.uint8
-    )  # .ravel() # we can flatten later for more efficiency; testing for now
-
+    return (colors_array * 255).astype(np.uint8)
 
 def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
     base_colors_sample = base_colors
@@ -586,6 +662,7 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "description": metadata["description"],
             "colors": cmap_colors,
             "kind": metadata.get("kind", "continuous"),
+            "nColors": metadata.get("n_colors", 5),
         }
         colormaps.append(colormap)
         if "color_mapping" in metadata:
@@ -1215,10 +1292,14 @@ def render_html(
             )
 
     if colormap_rawdata is not None and colormap_metadata is not None:
-        cielab_colors = cspace_convert(
-            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
+        jch_colors = cspace_convert(
+            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "JCh"
         )
-        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
+        cielab_colors = cspace_convert(
+            jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
+        )
+        n_swatches = np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
+        quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(cielab_colors)
         cluster_colors = [
             rgb2hex(c)
             for c in np.clip(
