@@ -11,6 +11,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 import os
 import sys
+import glob
 
 sys.path.insert(0, os.path.abspath(".."))
 sys.path.insert(0, os.path.abspath("."))
@@ -100,51 +101,7 @@ html_static_path = [
     '../examples/plot_wikipedia.png',
     '../examples/Wikipedia_example.gif',
 ]
-html_extra_path = [
-    'cord-1_label_data.zip',
-    'cord-1_meta_data.zip',
-    'cord-1_point_data.zip',
-    'cord-2_label_data.zip',
-    'cord-2_meta_data.zip',
-    'cord-2_point_data.zip',
-    'cord-3_label_data.zip',
-    'cord-3_meta_data.zip',
-    'cord-3_point_data.zip',
-    'cord-4_label_data.zip',
-    'cord-4_meta_data.zip',
-    'cord-4_point_data.zip',
-    'cord-large-1_label_data.zip',
-    'cord-large-1_meta_data.zip',
-    'cord-large-1_point_data.zip',
-    'cord-large-1_histogram_bin_data.zip',
-    'cord-large-1_histogram_index_data.zip',
-    'cord-large-2_label_data.zip',
-    'cord-large-2_meta_data.zip',
-    'cord-large-2_point_data.zip',
-    'cord-large-2_histogram_bin_data.zip',
-    'cord-large-2_histogram_index_data.zip',
-    'cord-large-3_label_data.zip',
-    'cord-large-3_meta_data.zip',
-    'cord-large-3_point_data.zip',
-    'cord-large-3_histogram_bin_data.zip',
-    'cord-large-3_histogram_index_data.zip',
-    'cord-large-4_label_data.zip',
-    'cord-large-4_meta_data.zip',
-    'cord-large-4_point_data.zip',
-    'cord-large-4_histogram_bin_data.zip',
-    'cord-large-4_histogram_index_data.zip',
-    'cord-large-5_label_data.zip',
-    'cord-large-5_meta_data.zip',
-    'cord-large-5_point_data.zip',
-    'cord-large-5_histogram_bin_data.zip',
-    'cord-large-5_histogram_index_data.zip',
-    'cord-large-6_label_data.zip',
-    'cord-large-6_meta_data.zip',
-    'cord-large-6_point_data.zip',
-    'datamapplot_label_data.zip',
-    'datamapplot_meta_data.zip',
-    'datamapplot_point_data.zip',
-]
+html_extra_path = glob.glob("*.zip")
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {

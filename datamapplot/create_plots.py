@@ -616,6 +616,7 @@ def create_interactive_plot(
         inline_data=inline_data,
         color_label_text=color_label_text,
         darkmode=darkmode,
+        noise_color=noise_color,
         **render_html_kwds,
     )
 

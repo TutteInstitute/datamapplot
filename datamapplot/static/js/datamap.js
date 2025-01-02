@@ -116,6 +116,7 @@ class DataMap {
         sizes[i] = pointData.size[i];
       }
     }
+    this.originalColors = colors;
     this.selected = new Float32Array(numPoints).fill(1.0);
     this.pointSize = pointSize;
     this.pointOutlineColor = pointOutlineColor;
@@ -360,9 +361,11 @@ class DataMap {
     });
 
     const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
     this.deckgl.setProps({
-      layers: [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)]
+      layers: this.layers
     });
+    this.pointLayer = updatedPointLayer;
 
     // Update histogram, if any
     if (this.histogramItem && itemId !== this.histogramItemId) {
@@ -402,5 +405,61 @@ class DataMap {
       this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, this.searchItemId);
     }
     this.highlightPoints(this.searchItemId);
+  }
+
+  recolorPoints(colorData, fieldName) {
+    if (!this.hasOwnProperty(`${fieldName}Colors`)) {
+      const numPoints = colorData[`${fieldName}_r`].length;
+      const colors = new Uint8Array(numPoints * 4);
+      for (let i = 0; i < numPoints; i++) {
+        colors[i * 4] = colorData[`${fieldName}_r`][i];
+        colors[i * 4 + 1] = colorData[`${fieldName}_g`][i];
+        colors[i * 4 + 2] = colorData[`${fieldName}_b`][i];
+        colors[i * 4 + 3] = colorData[`${fieldName}_a`][i];
+      }
+      this[`${fieldName}Colors`] = colors;
+    }
+
+    const updatedPointLayer = this.pointLayer.clone({
+      data: {
+        ...this.pointLayer.props.data,
+        attributes: {
+          ...this.pointLayer.props.data.attributes,
+          getFillColor: { value: this[`${fieldName}Colors`], size: 4 }
+        }
+      }
+    });
+    
+    // Increment update trigger
+    this.updateTriggerCounter++;
+
+    const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
+    this.deckgl.setProps({
+      layers: this.layers
+    });
+    this.pointLayer = updatedPointLayer;
+  }
+
+  resetPointColors() {
+    const updatedPointLayer = this.pointLayer.clone({
+      data: {
+        ...this.pointLayer.props.data,
+        attributes: {
+          ...this.pointLayer.props.data.attributes,
+          getFillColor: { value: this.originalColors, size: 4 }
+        }
+      }
+    });
+    
+    // Increment update trigger
+    this.updateTriggerCounter++;
+
+    const idx = this.layers.indexOf(this.pointLayer);
+    this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
+    this.deckgl.setProps({
+      layers: this.layers
+    });
+    this.pointLayer = updatedPointLayer;
   }
 }
