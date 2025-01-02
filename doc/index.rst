@@ -53,6 +53,7 @@ and followed by guides on basic usage, through to the more complicated options a
    interactive_sizing_options
    interactive_colour_options
    selection_and_filtering
+   interactive_colormaps
    offline_mode
 
 .. toctree::
