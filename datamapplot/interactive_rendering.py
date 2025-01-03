@@ -805,6 +805,8 @@ def render_html(
     cluster_boundary_line_width=1,
     initial_zoom_fraction=0.999,
     background_color=None,
+    background_image=None,
+    background_image_bounds=None,
     darkmode=False,
     offline_data_prefix=None,
     offline_data_chunk_size=500_000,
@@ -978,6 +980,15 @@ def render_html(
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
         colour will be chosen automatically based on whether ``darkmode`` is set.
+
+    background_image: str or None (optional, default=None)
+        A background image to use for the data map. If ``None`` no background image will be used.
+        The image should be a URL to the image.
+
+    background_image_bounds: list or None (optional, default=None)
+        The bounds of the background image. If ``None`` the image will be scaled to fit the
+        data map. If a list of four values is provided then the image will be scaled to fit
+        within those bounds.
 
     darkmode: bool (optional, default=False)
         Whether to use darkmode.
@@ -1159,6 +1170,15 @@ def render_html(
 
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"
+
+    if background_image is not None:
+        if background_image_bounds is None:
+            background_image_bounds = [
+                point_dataframe["x"].min(), 
+                point_dataframe["y"].min(), 
+                point_dataframe["x"].max(), 
+                point_dataframe["y"].max()
+            ]
 
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
@@ -1574,6 +1594,8 @@ def render_html(
         get_tooltip=get_tooltip,
         search_field=search_field,
         show_loading_progress=show_loading_progress,
+        background_image=background_image,
+        background_image_bounds=background_image_bounds,
         custom_js=custom_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
