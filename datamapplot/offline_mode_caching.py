@@ -42,6 +42,12 @@ BASE_FONTS = [
     "Bebas Neue",
 ]
 
+_DATA_DIRECTORY = platformdirs.user_data_dir("datamapplot")
+DEFAULT_CACHE_FILES = {
+    "javascript": f"{_DATA_DIRECTORY}/datamapplot_js_encoded.json",
+    "fonts": f"{_DATA_DIRECTORY}/datamapplot_fonts_encoded.json",
+}
+
 
 def fetch_js_content(url):
     response = requests.get(url)
@@ -85,21 +91,22 @@ def build_js_encoded_dictionary(urls):
 
     return js_loader_dict
 
+
 def _parse_font_face(css_block):
     result = {}
-    
+
     # Extract font-style
-    style_match = re.search(r'font-style: (\w+)', css_block)
+    style_match = re.search(r"font-style: (\w+)", css_block)
     result["style"] = style_match.group(1) if style_match else "normal"
-    
+
     # Extract font-weight
-    weight_match = re.search(r'font-weight: (\w+)', css_block)
+    weight_match = re.search(r"font-weight: (\w+)", css_block)
     result["weight"] = weight_match.group(1) if weight_match else "400"
-    
+
     # Extract unicode-range
-    unicode_match = re.search(r'unicode-range: ([^;]+)', css_block)
+    unicode_match = re.search(r"unicode-range: ([^;]+)", css_block)
     result["unicode_range"] = unicode_match.group(1) if unicode_match else ""
-    
+
     # Extract URL and format
     url_match = re.findall(r'url\(([^)]+)\)\s+format\([\'"](\w+)[\'"]\)', css_block)[0]
     url, format_type = url_match
@@ -113,21 +120,27 @@ def _parse_font_face(css_block):
     else:
         warn(f"Failed to fetch font from {url}")
         return None
-    
+
     return result
+
 
 def download_and_encode_font(fontname):
     api_fontname = fontname.replace(" ", "+")
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,extrabold,bold,demibold,semibold,medium,regular,light,thin,italic",
         timeout=10,
-    )    
+    )
     if api_response.ok:
-        encoded_fonts = [font for css_block in re.findall(r'@font-face\s*{[^}]+}', api_response.text) if (font := _parse_font_face(css_block))]
+        encoded_fonts = [
+            font
+            for css_block in re.findall(r"@font-face\s*{[^}]+}", api_response.text)
+            if (font := _parse_font_face(css_block))
+        ]
         return encoded_fonts
     else:
         warn(f"Failed to fetch font from Google Fonts API for {fontname}")
         return []
+
 
 def cache_js_files(urls=DEFAULT_URLS, file_path=None):
     js_loader_dict = build_js_encoded_dictionary(urls)
@@ -147,16 +160,20 @@ def load_js_files(file_path=None):
         data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
         return json.load(open(f"{data_directory}/datamapplot_js_encoded.json", "r"))
 
+
 def cache_fonts(fonts=BASE_FONTS, file_path=None):
     font_dict = {}
     for font in fonts:
         font_dict[font] = download_and_encode_font(font)
-    
+
     if file_path:
         json.dump(font_dict, open(file_path, "w"))
     else:
         data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
-        json.dump(font_dict, open(f"{data_directory}/datamapplot_fonts_encoded.json", "w"))
+        json.dump(
+            font_dict, open(f"{data_directory}/datamapplot_fonts_encoded.json", "w")
+        )
+
 
 def load_fonts(file_path=None):
     if file_path:
@@ -164,15 +181,24 @@ def load_fonts(file_path=None):
     else:
         data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
         return json.load(open(f"{data_directory}/datamapplot_fonts_encoded.json", "r"))
-    
+
 
 import argparse
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Cache JS and font files for offline mode")
-    parser.add_argument('--js_urls', nargs='+', help='CDN URLs to fetch and cache js from')
-    parser.add_argument('--font_names', nargs='+', help='Names of google fotn fonts to cache')
-    parser.add_argument('--refresh', action='store_true', help='Force refresh cached files')
+    parser = argparse.ArgumentParser(
+        description="Cache JS and font files for offline mode"
+    )
+    parser.add_argument(
+        "--js_urls", nargs="+", help="CDN URLs to fetch and cache js from"
+    )
+    parser.add_argument(
+        "--font_names", nargs="+", help="Names of google font fonts to cache"
+    )
+    parser.add_argument(
+        "--refresh", action="store_true", help="Force refresh cached files"
+    )
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
 
