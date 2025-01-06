@@ -16,26 +16,28 @@ def test_plot_simple_arxiv(
     examples_dir, 
     mock_plt_show,
     mock_image_requests, 
+    mock_savefig,
     change_np_load_path
 ):
     mock_image_requests([
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
     ])
-    return run_static_examples_script('plot_simple_arxiv.py', examples_dir, change_np_load_path)
+    return run_static_examples_script('plot_simple_arxiv.py', examples_dir, change_np_load_path, mock_savefig)
 
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default')
 def test_plot_arxiv_ml(
     examples_dir, 
     mock_plt_show,
     mock_image_requests, 
+    mock_savefig,
     change_np_load_path
 ):
     mock_image_requests([
         "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
     ])
-    return run_static_examples_script('plot_arxiv_ml.py', examples_dir, change_np_load_path)
+    return run_static_examples_script('plot_arxiv_ml.py', examples_dir, change_np_load_path, mock_savefig)
 
-def run_static_examples_script(script_filename, script_dir, change_np_load_path):
+def run_static_examples_script(script_filename, script_dir, change_np_load_path, mock_savefig):
     """
     Run an example script located in the examples directory with static output.
 
@@ -47,18 +49,18 @@ def run_static_examples_script(script_filename, script_dir, change_np_load_path)
     Returns:
         None
     """
-    with change_np_load_path(script_dir):
-        script_dir = Path(script_dir)
-        script_name = Path(script_filename).stem
+    script_dir = Path(script_dir)
+    script_name = Path(script_filename).stem
+    script_path = script_dir / script_filename
 
-        script_path = script_dir / script_filename
+    # Load and execute the script dynamically so we can use mocking
+    spec = importlib.util.spec_from_file_location(
+        script_name, str(script_path)
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[script_name] = module
 
-        # Load and execute the script dynamically so we can use mocking
-        spec = importlib.util.spec_from_file_location(
-            script_name, str(script_path)
-        )
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[script_name] = module
+    with change_np_load_path(script_dir), mock_savefig():
         spec.loader.exec_module(module)
     return plt.gcf()
 

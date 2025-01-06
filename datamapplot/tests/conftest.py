@@ -14,6 +14,26 @@ def mock_plt_show(monkeypatch):
     monkeypatch.setattr(plt, 'show', lambda: None)
 
 @pytest.fixture
+def mock_savefig():
+    """
+    Fixture that provides the context manager for mocking savefig.
+    """
+    @contextlib.contextmanager
+    def _mock_savefig_context():
+        original_savefig = plt.Figure.savefig
+
+        def mock_save(self, *args, **kwargs):
+            return self
+
+        plt.Figure.savefig = mock_save
+        try:
+            yield
+        finally:
+            plt.Figure.savefig = original_savefig
+
+    return _mock_savefig_context
+
+@pytest.fixture
 def mock_image_requests(monkeypatch, request):
     """
     Fixture to mock specific requests with local files from tests/images
