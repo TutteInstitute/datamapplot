@@ -78,7 +78,7 @@ stages:
 
         - script: |
             mkdir -p $(Build.ArtifactStagingDirectory)/test-results
-            pytest datamapplot/tests --mpl --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html --mpl-generate-summary=html
+            pytest datamapplot/tests --mpl --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html --mpl-generate-summary=html --mpl-results-path=$(Build.ArtifactStagingDirectory)/test-results
           displayName: 'Run tests'
 
         - task: PublishBuildArtifacts@1
