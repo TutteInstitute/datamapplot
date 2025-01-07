@@ -77,23 +77,28 @@ stages:
           displayName: 'Install package'
 
         - script: |
+            mkdir -p $(Build.ArtifactStagingDirectory)/test-results
             pytest datamapplot/tests --mpl --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html --mpl-generate-summary=html
           displayName: 'Run tests'
 
-        # There are currently no tests so we don't actually need to publish results
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathToPublish: $(Build.ArtifactStagingDirectory)/test-results
+            artifactName: 'mpl-test-results'
+          condition: always()
 
-        # - bash: |
-        #     coveralls
-        #   displayName: 'Publish to coveralls'
-        #   condition: and(succeeded(), eq(variables.triggeredByPullRequest, false)) # Don't run this for PRs because they can't access pipeline secrets
-        #   env:
-        #     COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
+        - bash: |
+            coveralls
+          displayName: 'Publish to coveralls'
+          condition: and(succeeded(), eq(variables.triggeredByPullRequest, false)) # Don't run this for PRs because they can't access pipeline secrets
+          env:
+            COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
 
-        # - task: PublishTestResults@2
-        #   inputs:
-        #     testResultsFiles: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-        #     testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version)'
-        #   condition: succeededOrFailed()
+        - task: PublishTestResults@2
+          inputs:
+            testResultsFiles: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+            testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version)'
+          condition: succeededOrFailed()
 
   - stage: BuildPublishArtifact
     dependsOn: RunAllTests
