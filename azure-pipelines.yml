@@ -17,6 +17,16 @@ pr:
     - doc/*
     - README.rst
 
+# Trigger a run on main at 00:00 (midnight) UTC on Sundays
+# Run even if there are no code changes
+schedules:
+  - cron: "0 0 * * 0"
+    displayName: "Sunday Test Runs"
+    always: true
+    branches:
+      include:
+        - main
+
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
 
@@ -36,9 +46,9 @@ stages:
             # windows_py39:
             #   imageName: 'windows-latest'
             #   python.version: '3.9'
-            mac_py310:
-              imageName: 'macOS-latest'
-              python.version: '3.10'
+            # mac_py310:
+            #   imageName: 'macOS-latest'
+            #   python.version: '3.10'
             linux_py310:
               imageName: 'ubuntu-latest'
               python.version: '3.10'
@@ -64,41 +74,50 @@ stages:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
+        - task: Cache@2
+          inputs:
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt"'
+            restoreKeys: |
+              pip |
+            path: $(PIP_CACHE_DIR)
+          displayName: 'Cache pip dependencies'
+
         - script: |
             python -m pip install --upgrade pip
-          displayName: 'Install dependencies'
+          displayName: 'Upgrade pip'
+
+        - script: |
+            pip install -r test-requirements.txt
+          displayName: 'Install pip dependencies'
 
         - script: |
             pip install -e .
-            pip install dask[dataframe]
-            pip install pytest pytest-azurepipelines
-            pip install pytest-cov pytest-mpl
-            pip install coveralls
-          displayName: 'Install package'
+          displayName: 'Install local package'
 
         - script: |
-            mkdir -p $(Build.ArtifactStagingDirectory)/test-results
-            pytest datamapplot/tests --mpl --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html --mpl-generate-summary=html --mpl-results-path=$(Build.ArtifactStagingDirectory)/test-results
+            export CI=true
+            mkdir -p $(Build.ArtifactStagingDirectory)/junit
+            mkdir -p $(Build.ArtifactStagingDirectory)/mpl
+            mkdir -p $(Build.ArtifactStagingDirectory)/coverage
+            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+                --cov=datamapplot/ --cov-report=html \
+                --mpl-generate-summary=html \
+                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
           displayName: 'Run tests'
+
+        # - bash: |
+        #     coveralls
+        #   displayName: 'Publish to coveralls'
+        #   condition: and(succeeded(), eq(variables.triggeredByPullRequest, false)) # Don't run this for PRs because they can't access pipeline secrets
+        #   env:
+        #     COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
 
         - task: PublishBuildArtifacts@1
           inputs:
-            pathToPublish: $(Build.ArtifactStagingDirectory)/test-results
+            pathToPublish: $(Build.ArtifactStagingDirectory)/mpl
             artifactName: 'mpl-test-results'
+          displayName: 'Publish MPL Test Artifacts'
           condition: always()
-
-        - bash: |
-            coveralls
-          displayName: 'Publish to coveralls'
-          condition: and(succeeded(), eq(variables.triggeredByPullRequest, false)) # Don't run this for PRs because they can't access pipeline secrets
-          env:
-            COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
-
-        - task: PublishTestResults@2
-          inputs:
-            testResultsFiles: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-            testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version)'
-          condition: succeededOrFailed()
 
   - stage: BuildPublishArtifact
     dependsOn: RunAllTests
