@@ -9,7 +9,12 @@ import requests
 import sys
 import pytest
 
-custom_style = {"figure.dpi": 100}
+custom_style = {
+    "figure.constrained_layout.use": True,
+    "figure.dpi": 100,
+    "figure.constrained_layout.h_pad": 0.05,
+    "figure.constrained_layout.w_pad": 0.05,
+}
 
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style)
 def test_plot_cord19(
