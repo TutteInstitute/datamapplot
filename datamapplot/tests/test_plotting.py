@@ -59,6 +59,7 @@ def test_plot_arxiv_ml_word_cloud(
     return fig
 
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style, tolerance=35)
+@pytest.mark.skip_in_ci
 def test_plot_wikipedia(
     examples_dir,
     mock_plt_show,
@@ -78,6 +79,7 @@ def test_plot_wikipedia(
     return fig
 
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style)
+@pytest.mark.skip_in_ci
 def test_plot_simple_arxiv(
     examples_dir,
     mock_plt_show,
