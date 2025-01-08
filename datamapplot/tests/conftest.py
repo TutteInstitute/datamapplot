@@ -2,9 +2,12 @@ import io
 import pytest
 from pathlib import Path
 import requests
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import contextlib
+
+matplotlib.use("Agg")
 
 @pytest.fixture
 def mock_plt_show(monkeypatch):
