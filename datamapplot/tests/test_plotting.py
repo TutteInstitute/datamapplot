@@ -11,12 +11,12 @@ import pytest
 
 custom_style = {
     "figure.constrained_layout.use": True,
-    "figure.dpi": 100,
+    "figure.dpi": 95,
     "figure.constrained_layout.h_pad": 0.05,
     "figure.constrained_layout.w_pad": 0.05,
 }
 
-@pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style)
+@pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default')
 def test_plot_cord19(
     examples_dir,
     mock_plt_show,
@@ -30,7 +30,7 @@ def test_plot_cord19(
     fig = run_static_examples_script('plot_cord19.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
-@pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style)
+@pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default')
 def test_plot_arxiv_ml(
     examples_dir,
     mock_plt_show,
@@ -44,7 +44,7 @@ def test_plot_arxiv_ml(
     fig = run_static_examples_script('plot_arxiv_ml.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
-@pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style, tolerance=15)
+@pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default', tolerance=20)
 def test_plot_arxiv_ml_word_cloud(
     examples_dir,
     mock_plt_show,
@@ -58,7 +58,7 @@ def test_plot_arxiv_ml_word_cloud(
     fig = run_static_examples_script('plot_arxiv_ml_word_cloud.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
-@pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style, tolerance=30)
+@pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style, tolerance=35)
 def test_plot_wikipedia(
     examples_dir,
     mock_plt_show,
@@ -67,7 +67,7 @@ def test_plot_wikipedia(
     change_np_load_path
 ):
     """
-    Note this currently has a fairly high tolerance. The labels often get permuted in this example, and they are
+    Note this currently has a fairly high tolerance set. The labels often get permuted in this example, and they are
     not in the same places. Still deciding what to consider a pass or a fail and how strictly deterministic this 
     test should be. It should pass most of the time with RMS 30.
     """

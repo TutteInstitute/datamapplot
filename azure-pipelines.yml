@@ -36,9 +36,9 @@ stages:
             # windows_py39:
             #   imageName: 'windows-latest'
             #   python.version: '3.9'
-            # mac_py310:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.10'
+            mac_py310:
+              imageName: 'macOS-latest'
+              python.version: '3.10'
             linux_py310:
               imageName: 'ubuntu-latest'
               python.version: '3.10'
