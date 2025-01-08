@@ -1,0 +1,6 @@
+coveralls
+dask[dataframe]
+pytest
+pytest-azurepipelines
+pytest-cov
+pytest-mpl
