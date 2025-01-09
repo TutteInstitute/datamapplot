@@ -90,45 +90,6 @@ _TOOL_TIP_CSS = """
             max-width: 25%;
 """
 
-# _NOTEBOOK_NON_INLINE_WORKER = """
-#     const parsingWorkerBlob = new Blob([`
-#       async function DecompressBytes(bytes) {
-#           const blob = new Blob([bytes]);
-#           const decompressedStream = blob.stream().pipeThrough(
-#             new DecompressionStream("gzip")
-#           );
-#           const arr = await new Response(decompressedStream).arrayBuffer()
-#           return new Uint8Array(arr);
-#       }
-#       async function decodeBase64(base64) {
-#           return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-#       }
-#       async function decompressFile(filename) {
-#           const response = await fetch(filename, {
-#             headers: {Authorization: 'Token API_TOKEN'}
-#           });
-#           if (!response.ok) {
-#             throw new Error(\`HTTP error! status: \${response.status}. Failed to fetch: \${filename}\`);
-#           }
-#           const data = await response.json()
-#             .then(data => data.content)
-#             .then(base64data => decodeBase64(base64data))
-#             .then(buffer => DecompressBytes(buffer));
-#           return data;
-#       }
-#       self.onmessage = async function(event) {
-#         const { encodedData, JSONParse } = event.data;
-#         const binaryData = await decompressFile(encodedData);
-#         if (JSONParse) {
-#           const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-#           self.postMessage({ data: parsedData });
-#         } else {
-#           // Send the parsed table back to the main thread
-#           self.postMessage({ data: binaryData });
-#         }
-#       }
-#     `], { type: 'application/javascript' });
-# """
 _NOTEBOOK_NON_INLINE_WORKER = """
     const parsingWorkerBlob = new Blob([`
       self.onmessage = async function(event) {
@@ -805,6 +766,8 @@ def render_html(
     cluster_boundary_line_width=1,
     initial_zoom_fraction=0.999,
     background_color=None,
+    background_image=None,
+    background_image_bounds=None,
     darkmode=False,
     offline_data_prefix=None,
     offline_data_chunk_size=500_000,
@@ -978,6 +941,15 @@ def render_html(
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
         colour will be chosen automatically based on whether ``darkmode`` is set.
+
+    background_image: str or None (optional, default=None)
+        A background image to use for the data map. If ``None`` no background image will be used.
+        The image should be a URL to the image.
+
+    background_image_bounds: list or None (optional, default=None)
+        The bounds of the background image. If ``None`` the image will be scaled to fit the
+        data map. If a list of four values is provided then the image will be scaled to fit
+        within those bounds.
 
     darkmode: bool (optional, default=False)
         Whether to use darkmode.
@@ -1159,6 +1131,15 @@ def render_html(
 
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"
+
+    if background_image is not None:
+        if background_image_bounds is None:
+            background_image_bounds = [
+                point_dataframe["x"].min(), 
+                point_dataframe["y"].min(), 
+                point_dataframe["x"].max(), 
+                point_dataframe["y"].max()
+            ]
 
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
@@ -1574,6 +1555,8 @@ def render_html(
         get_tooltip=get_tooltip,
         search_field=search_field,
         show_loading_progress=show_loading_progress,
+        background_image=background_image,
+        background_image_bounds=background_image_bounds,
         custom_js=custom_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
