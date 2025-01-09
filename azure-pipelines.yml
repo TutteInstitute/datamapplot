@@ -100,9 +100,7 @@ stages:
 
         - script: |
             export CI=true
-            mkdir -p $(Build.ArtifactStagingDirectory)/junit
             mkdir -p $(Build.ArtifactStagingDirectory)/mpl
-            mkdir -p $(Build.ArtifactStagingDirectory)/coverage
             pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
