@@ -17,6 +17,16 @@ pr:
     - doc/*
     - README.rst
 
+# Trigger a run on main at 00:00 (midnight) UTC on Sundays
+# Run even if there are no code changes
+schedules:
+  - cron: "0 0 * * 0"
+    displayName: "Sunday Test Runs"
+    always: true
+    branches:
+      include:
+        - main
+
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
 
@@ -36,21 +46,21 @@ stages:
             # windows_py39:
             #   imageName: 'windows-latest'
             #   python.version: '3.9'
-            # mac_py310:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.10'
+            mac_py310:
+              imageName: 'macOS-latest'
+              python.version: '3.10'
             linux_py310:
               imageName: 'ubuntu-latest'
               python.version: '3.10'
             # windows_py310:
             #   imageName: 'windows-latest'
             #   python.version: '3.10'
-            # mac_py311:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.11'
-            # linux_py311:
-            #   imageName: 'ubuntu-latest'
-            #   python.version: '3.11'
+            mac_py311:
+              imageName: 'macOS-latest'
+              python.version: '3.11'
+            linux_py311:
+              imageName: 'ubuntu-latest'
+              python.version: '3.11'
             # windows_py311:
             #   imageName: 'windows-latest'
             #   python.version: '3.11'
@@ -65,22 +75,37 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+          displayName: 'Set PIP_CACHE_DIR'
+
+        - task: Cache@2
+          inputs:
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt"'
+            restoreKeys: |
+              pip |
+            path: $(PIP_CACHE_DIR)
+          displayName: 'Cache pip dependencies'
+
+        - script: |
             python -m pip install --upgrade pip
-          displayName: 'Install dependencies'
+          displayName: 'Upgrade pip'
+
+        - script: |
+            pip install -r test-requirements.txt
+          displayName: 'Install pip dependencies'
 
         - script: |
             pip install -e .
-            pip install dask[dataframe]
-            pip install pytest pytest-azurepipelines
-            pip install pytest-cov
-            pip install coveralls
-          displayName: 'Install package'
+          displayName: 'Install local package'
 
         - script: |
-            pytest datamapplot/tests --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html
+            export CI=true
+            mkdir -p $(Build.ArtifactStagingDirectory)/mpl
+            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+                --cov=datamapplot/ --cov-report=html \
+                --mpl-generate-summary=html \
+                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
           displayName: 'Run tests'
-
-        # There are currently no tests so we don't actually need to publish results
 
         # - bash: |
         #     coveralls
@@ -89,18 +114,19 @@ stages:
         #   env:
         #     COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
 
-        # - task: PublishTestResults@2
-        #   inputs:
-        #     testResultsFiles: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-        #     testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version)'
-        #   condition: succeededOrFailed()
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathToPublish: $(Build.ArtifactStagingDirectory)/mpl
+            artifactName: 'mpl-test-results'
+          displayName: 'Publish MPL Test Artifacts'
+          condition: always()
 
   - stage: BuildPublishArtifact
     dependsOn: RunAllTests
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/release-'), eq(variables.triggeredByPullRequest, false))
     jobs:
       - job: BuildArtifacts
-        displayName: Build source dists and wheels    
+        displayName: Build source dists and wheels
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -117,7 +143,7 @@ stages:
         - script: |
             pip install -e .
           displayName: 'Install package locally'
-        
+
         - script: |
             python setup.py sdist bdist_wheel
           displayName: 'Build package'
@@ -138,11 +164,11 @@ stages:
           name: PYPIRC_CONFIG
           displayName: 'Download pypirc'
           inputs:
-            secureFile: 'pypirc'  
+            secureFile: 'pypirc'
 
         - script: |
             pip install twine
-            twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/* 
+            twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/*
           displayName: 'Upload to PyPI'
           condition: and(succeeded(), eq(variables['Build.SourceBranchName'], variables['packageVersionFormatted']))
 
