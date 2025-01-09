@@ -46,6 +46,7 @@ def create_plot(
     highlight_labels=None,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_theta_range=np.pi / 16,
     palette_min_lightness=10,
     use_medoids=False,
     cmap=None,
@@ -142,6 +143,10 @@ def create_plot(
         A setting that determines how dependent on the radius the hue channel is. Larger
         values will result in more hue variation where there are more outlying points.
 
+    palette_theta_range: float (optional, default=np.pi/16)
+        A setting that determines how restrictive the radius mask used will be. Larger
+        values will result in a less restrictive mask.
+
     use_medoids: bool (optional, default=False)
         Whether to use medoids instead of centroids to determine the "location" of the cluster,
         both for the label indicator line, and for palette colouring. Note that medoids are
@@ -222,6 +227,7 @@ def create_plot(
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
                 min_lightness=palette_min_lightness,
+                theta_range=palette_theta_range,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -339,6 +345,7 @@ def create_interactive_plot(
     darkmode=False,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_theta_range=np.pi / 16,
     cmap=None,
     marker_size_array=None,
     marker_color_array=None,
@@ -421,6 +428,10 @@ def create_interactive_plot(
         A setting that determines how dependent on the radius the hue channel is. Larger
         values will result in more hue variation where there are more outlying points.
 
+    palette_theta_range: float (optional, default=np.pi/16)
+        A setting that determines how restrictive the radius mask used will be. Larger
+        values will result in a less restrictive mask.
+
     cmap: matplotlib cmap or None (optional, default=None)
         A linear matplotlib cmap colour map to use as the base for a generated colour mapping.
         This *should* be a matplotlib cmap that is smooth and linear, and cyclic
@@ -496,6 +507,7 @@ def create_interactive_plot(
                 label_dataframe[["x", "y"]].values,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
+                theta_range=palette_theta_range
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -503,6 +515,7 @@ def create_interactive_plot(
                 data_map_coords,
                 label_dataframe[["x", "y"]].values,
                 radius_weight_power=palette_hue_radius_dependence,
+                theta_range=palette_theta_range
             )
         if not darkmode:
             text_palette = np.asarray(
