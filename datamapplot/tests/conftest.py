@@ -9,17 +9,6 @@ import contextlib
 
 matplotlib.use("Agg")
 
-
-def pytest_collection_modifyitems(config, items):
-    """
-    Automatically skip tests marked with 'skip_in_ci' if the environment variable CI is true
-    """
-    if os.getenv("CI"):  # Check if running in CI
-        skip_in_ci = pytest.mark.skip(reason="Skipped in CI")
-        for item in items:
-            if "skip_in_ci" in item.keywords:
-                item.add_marker(skip_in_ci)
-
 @pytest.fixture
 def mock_plt_show(monkeypatch):
     """
