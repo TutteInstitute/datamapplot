@@ -785,6 +785,13 @@
     }
     {% endif -%}
 
+    {%- if background_image -%}
+    datamap.addBackgroundImage("{{background_image}}", {{background_image_bounds}});
+    {%- endif %}
+
+    {%- if enable_colormap_selector %}
+    {% endif -%}
+
     loadPointDataLayer();
     loadLabelDataLayer();
     loadMetaData();
