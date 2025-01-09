@@ -625,6 +625,8 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "kind": metadata.get("kind", "continuous"),
             "nColors": metadata.get("n_colors", 5),
         }
+        if "show_legend" in metadata:
+            colormap["showLegend"] = metadata["show_legend"]
         colormaps.append(colormap)
         if "color_mapping" in metadata:
             colormap["colorMapping"] = metadata["color_mapping"]
@@ -1504,7 +1506,7 @@ def render_html(
         search=enable_search,
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,
-        colormap_metadata=color_metadata,
+        colormap_metadata=json.dumps(color_metadata),
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
