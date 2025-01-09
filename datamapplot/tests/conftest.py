@@ -48,7 +48,7 @@ def mock_image_requests(monkeypatch, request):
         ])
 
     Note: This currently mocks image retrieval to remove a dependency on the internet. However, since the codebase itself
-    fetchs fonts remoely, tests still require online access.
+    fetchs fonts remotely, tests still require online access.
     """
     def _mock_requests(urls=None):
         urls_to_mock = set(urls or [])
