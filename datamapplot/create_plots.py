@@ -631,7 +631,7 @@ def create_interactive_plot(
         darkmode=darkmode,
         noise_color=noise_color,
         label_layers=label_layers,
-        cluster_colormap=color_map,
+        cluster_colormap=color_map | {noise_label:noise_color},
         **render_html_kwds,
     )
 
