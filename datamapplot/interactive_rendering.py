@@ -73,6 +73,72 @@ _DEFAULT_CONTINUOUS_COLORMAPS = [
     "cet_gouldian",
 ]
 
+_CLUSTER_LAYER_DESCRIPTORS = {
+    9: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Mid",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom"
+    ],
+    8: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    7: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Mid",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    6: [
+        "Top"
+        "Upper",
+        "Upper-mid",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    5: [
+        "Top",
+        "Upper",
+        "Mid",
+        "Lower",
+        "Bottom",
+    ],
+    4: [
+        "Top"
+        "Upper-mid",
+        "Lower-mid",
+        "Bottom",
+    ],
+    3: [
+        "Upper",
+        "Mid",
+        "Lower",
+    ],
+    2: [
+        "Upper",
+        "Lower",
+    ],
+    1: [
+        "Primary"
+    ]
+}
+
 cfg = ConfigManager()
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
@@ -596,6 +662,47 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
 
     return (colors_array * 255).astype(np.uint8)
 
+
+def color_sample_from_colors(color_list, n_swatches=5):
+    color_array = np.asarray([to_rgba(color) for color in color_list])
+    jch_colors = cspace_convert(
+        color_array, "sRGB1", "JCh"
+    )
+    cielab_colors = cspace_convert(
+        jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
+    )
+    quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(cielab_colors)
+    result = [
+        rgb2hex(c)
+        for c in np.clip(
+            cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+        )
+    ]
+    return result
+
+def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
+    result = []
+    for i, layer in enumerate(label_layers[::-1]):
+        color_list = pd.Series(layer).map(label_color_map).to_list()
+        color_sample = color_sample_from_colors(color_list, n_swatches)
+        unique_labels = np.unique(layer)
+        colormap_subset = {label:color for label, color in label_color_map if label in unique_labels}
+        descriptors = _CLUSTER_LAYER_DESCRIPTORS.get(
+            len(label_layers),
+            [f"Layer-{n}" for n in range(len(label_layers))]
+        )
+        colormap_metadata = {
+            "field": f"layer_{i}",
+            "description": f"{descriptors[i]} Clusters",
+            "colors": color_sample,
+            "kind": "categorical",
+            "colorMapping": colormap_subset,
+        }
+        result.append(colormap_metadata)
+
+    return result
+
+
 def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
     base_colors_sample = base_colors
     colormaps = [
@@ -788,6 +895,9 @@ def render_html(
     colormaps=None,
     colormap_rawdata=None,
     colormap_metadata=None,
+    cluster_layer_colormaps=False,
+    label_layers=None,
+    cluster_colormap=None,
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1292,6 +1402,13 @@ def render_html(
         color_metadata, color_data = build_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
         )
+        if cluster_layer_colormaps:
+            if label_layers is None or cluster_colormap is None:
+                raise ValueError(
+                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
+                )
+            layer_color_metadata = per_layer_cluster_colormaps(label_layers, cluster_colormap, n_swatches)
+            color_metadata[1:1] = layer_color_metadata
         enable_colormap_selector = True
     elif colormaps is not None:
         colormap_metadata = default_colormap_options(colormaps)
@@ -1308,7 +1425,14 @@ def render_html(
         ]
         color_metadata, color_data = build_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
-        )        
+        )
+        if cluster_layer_colormaps:
+            if label_layers is None or cluster_colormap is None:
+                raise ValueError(
+                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
+                )
+            layer_color_metadata = per_layer_cluster_colormaps(label_layers, cluster_colormap, 5)
+            color_metadata[1:1] = layer_color_metadata
         enable_colormap_selector = True
     else:
         color_metadata = None

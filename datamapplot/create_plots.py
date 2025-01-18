@@ -630,6 +630,8 @@ def create_interactive_plot(
         color_label_text=color_label_text,
         darkmode=darkmode,
         noise_color=noise_color,
+        label_layers=label_layers,
+        cluster_colormap=color_map,
         **render_html_kwds,
     )
 
