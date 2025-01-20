@@ -749,7 +749,9 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
     color_data = []
 
     for rawdata, metadata in zip(colormap_rawdata, colormap_metadata):
-        if "cmap" in metadata:
+        if "colors" in metadata:
+            cmap_colors = metadata["colors"]
+        elif "cmap" in metadata:
             cmap_name = metadata["cmap"]
             cmap_colors = cmap_name_to_color_list(cmap_name)
         elif "palette" in metadata:
