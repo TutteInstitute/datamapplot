@@ -1,8 +1,13 @@
 import base64
-import requests
+from collections.abc import Sequence
+from dataclasses import dataclass
 import json
+import numpy as np
+from pathlib import Path
 import platformdirs
 import re
+import requests
+from typing import Protocol, Self
 from urllib.parse import urlparse
 
 from warnings import warn
@@ -183,12 +188,121 @@ def load_fonts(file_path=None):
         return json.load(open(f"{data_directory}/datamapplot_fonts_encoded.json", "r"))
 
 
+class Store(Protocol):
+    def read(self, cache: "Cache") -> None: ...
+    def write(self, cache: "Cache") -> None: ...
+
+
+class Confirm(Protocol):
+    def confirm(self, header: str, entries: Sequence[str]) -> set[str]: ...
+
+        
+@dataclass
+class Cache:
+    js: dict[str, dict[str, str]]
+    fonts: dict[str, list[dict[str, str]]]
+    confirm: Confirm
+    store: Store
+
+    @classmethod
+    def from_path(cls, path: Path) -> Self:
+        raise NotImplementedError()
+
+    def update(self, src: "Cache") -> Self:
+        raise NotImplementedError()
+
+    
+@dataclass
+class StoreDirectory:
+    path: Path
+
+    def read(self, cache: Cache) -> None:
+        raise NotImplementedError()
+
+    def write(self, cache: Cache) -> None:
+        raise NotImplementedError()
+
+
+@dataclass
+class StoreZipFile:
+    path: Path
+
+    def read(self, cache: Cache) -> None:
+        raise NotImplementedError()
+
+    def write(self, cache: Cache) -> None:
+        raise NotImplementedError()
+
+
+class ConfirmInteractiveStdio:
+
+    def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
+        entries_ = list(entries)
+        w = 1 + int(np.log10(len(entries)))
+        confirmed = set()
+        try:
+            is_finished = False
+            while not is_finished:
+                print(header)
+                for i, entry in enumerate(entries_, start=1):
+                    print(f"{'*' if entry in confirmed else ' '} {i:{w}d}. {entry}")
+                line = input("Number n, interval s-e, ? help, . finish> ").strip()
+                for match in re.finditer(r"(?P<from>\d+)(-(?P<to>\d+))?|(?P<cmd>[.?])", line):
+                    if (cmd := match.group("cmd")) is not None:
+                        if cmd == "?":
+                            self.print_help()
+                        elif cmd == ".":
+                            is_finished = True
+                            break
+                    else:
+                        from_ = int(match.group("from"))
+                        to_ = int(match.group("to") or from_)
+                        for i in range(from_, to_ + 1):
+                            e = entries_[i - 1]
+                            if e in confirmed:
+                                confirmed.remove(e)
+                            else:
+                                confirmed.add(e)
+        except EOFError:
+            pass
+        return confirmed
+
+    def print_help(self) -> None:
+        print(
+            """\
+
+- Type the number of an item to select it: 2
+- You can select an interval of items:     2-4
+  selects items 2, 3 and 4.
+- Type an item you had selected to deselect it.
+- Type . to complete the selection process.
+- Type Enter to make the command happen, forcing the selection menu to refresh.
+- You can type multiple commands ahead of Enter: 1 3 2-4 7 .
+  selects items 1, 2, 4 (3 was selected, then deselected by the interval) and 7,
+  then finishes.
+
+            """
+        )
+
+
+class ConfirmYes:
+
+    def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
+        return set(entries)
+
+
 import argparse
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Cache JS and font files for offline mode"
+        description="Cache JS and font files for offline mode",
+        epilog="""
+            For the --import and --export options, by default, the cache is stored as
+            a Zip file (with the Zip-standard DEFLATE compression). However, if the
+            path given through --import or --export is an existing directory, the cache
+            files are stored as is into this directory, without any compression.
+        """
     )
     parser.add_argument(
         "--js_urls", nargs="+", help="CDN URLs to fetch and cache js from"
@@ -201,15 +315,50 @@ def main():
     )
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
+    parser.add_argument(
+        "--import",
+        default=None,
+        help="""
+            Imports fonts and resources from the named directory or archive into the
+            user's cache directory. This omits updating cache fonts and Javascript files
+            from the Internet. If any font or Javascript entry from the given cache
+            dump already exists, confirmation to replace it is requested first.
+        """
+    )
+    parser.add_argument(
+        "--export",
+        help="""
+            Exports the user's cache to the given directory or archive after
+            updating it. If the cache archive or directory already exists, and a font
+            or Javascript entry from the export would clobber it, confirmation is
+            requested first (unless option --yes is also used).
+        """
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        default=False,
+        help="""
+            Forgo confirmation of cache entry replacement; just go ahead and do it.
+        """
+    )
 
     args = parser.parse_args()
 
-    if args.js_urls:
-        all_urls = list(set(DEFAULT_URLS + args.js_urls))
-        cache_js_files(urls=args.all_urls, file_path=args.js_cache_file)
+    path_import_ = getattr(args, "import")
+    if path_import_ is None:
+        if args.js_urls:
+            all_urls = list(set(DEFAULT_URLS + args.js_urls))
+            cache_js_files(urls=args.all_urls, file_path=args.js_cache_file)
+        else:
+            cache_js_files(file_path=args.js_cache_file)
+        if args.font_names:
+            cache_fonts(fonts=args.font_names, file_path=args.font_cache_file)
+        else:
+            cache_fonts(file_path=args.font_cache_file)
     else:
-        cache_js_files(file_path=args.js_cache_file)
-    if args.font_names:
-        cache_fonts(fonts=args.font_names, file_path=args.font_cache_file)
-    else:
-        cache_fonts(file_path=args.font_cache_file)
+        raise NotImplementedError("Import cache")
+
+    if args.export is not None:
+        raise NotImplementedError("Export cache")
