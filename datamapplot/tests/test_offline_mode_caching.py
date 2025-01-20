@@ -3,9 +3,11 @@ import pytest
 from unittest.mock import patch
 
 from ..offline_mode_caching import (
+    Cache,
     ConfirmInteractiveStdio,
     ConfirmYes,
-    DEFAULT_CACHE_FILES
+    DEFAULT_CACHE_FILES,
+    make_store
 )
 
 
@@ -32,7 +34,7 @@ def test_confirm_interactive(input, expected, abcdefgh):
 
 def test_confirm_yes(abcdefgh):
     assert set(abcdefgh) == ConfirmYes().confirm("", abcdefgh)
-    
+
 
 @pytest.fixture
 def preserving_cache():
@@ -143,6 +145,35 @@ def fonts_new():
 def existing_cache(preserving_cache, js_old, fonts_old):
     for key, content in [("javascript", js_old), ("fonts", fonts_old)]:
         Path(DEFAULT_CACHE_FILES[key]).write_text(json.dumps(content), encoding="utf-8")
+
+
+@pytest.fixture
+def dir_cache(tmp_path):
+    dir = tmp_path / "cache"
+    dir.mkdir(parents=True, exist_ok=True)
+    return dir
+
+
+@pytest.fixture
+def zip_cache(tmp_path):
+    return tmp_path / "cache.zip"
+
+
+@pytest.mark.parametrize(
+    "type_store,validate_store",
+    [("dir", Path.is_dir), ("zip", Path.is_file)]
+)
+def test_store(type_store, validate_store, dir_cache, zip_cache, js_old, fonts_old):
+    path_cache = {"dir": dir_cache, "zip": zip_cache}[type_store]
+    cache = Cache(
+        js=js_old,
+        fonts=fonts_old,
+        confirm=ConfirmYes(),
+        store=make_store(path_cache)
+    )
+    cache.save()
+    assert validate_store(path_cache)
+    assert cache == Cache.from_path(path_cache, ConfirmYes())
 
 
 @pytest.mark.skip

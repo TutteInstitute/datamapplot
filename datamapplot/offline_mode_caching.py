@@ -1,14 +1,17 @@
 import base64
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
+import io
 import json
 import numpy as np
 from pathlib import Path
 import platformdirs
 import re
 import requests
-from typing import Protocol, Self
+from typing import Any, Protocol, Self
 from urllib.parse import urlparse
+from zipfile import ZipFile, ZIP_DEFLATED
 
 from warnings import warn
 
@@ -189,14 +192,20 @@ def load_fonts(file_path=None):
 
 
 class Store(Protocol):
-    def read(self, cache: "Cache") -> None: ...
-    def write(self, cache: "Cache") -> None: ...
+    class Reading(Protocol):
+        def open(self, name) -> io.TextIOBase: ...
+
+    class Writing(Protocol):
+        def open(self, name) -> io.TextIOBase: ...
+
+    def reading(self) -> AbstractContextManager["Store.Reading"]: ...
+    def writing(self) -> AbstractContextManager["Store.Writing"]: ...
 
 
 class Confirm(Protocol):
     def confirm(self, header: str, entries: Sequence[str]) -> set[str]: ...
 
-        
+
 @dataclass
 class Cache:
     js: dict[str, dict[str, str]]
@@ -205,36 +214,108 @@ class Cache:
     store: Store
 
     @classmethod
-    def from_path(cls, path: Path) -> Self:
-        raise NotImplementedError()
+    def from_path(cls, path: Path, confirm: Confirm) -> Self:
+        store = make_store(path)
+        data = {}
+        with store.reading() as reading:
+            for name in ["datamapplot_js_encoded.json", "datamapplot_fonts_encoded.json"]:
+                try:
+                    with reading.open(name) as file:
+                        data[name] = json.load(file)
+                except KeyError:
+                    data[name] = {}
+        return cls(
+            js=data["datamapplot_js_encoded.json"],
+            fonts=data["datamapplot_fonts_encoded.json"],
+            confirm=confirm,
+            store=store
+        )
 
     def update(self, src: "Cache") -> Self:
         raise NotImplementedError()
 
-    
+    def save(self) -> None:
+        with self.store.writing() as writing:
+            for name, obj in [
+                ("datamapplot_js_encoded.json", self.js),
+                ("datamapplot_fonts_encoded.json", self.fonts),
+            ]:
+                with writing.open(name) as file:
+                    json.dump(obj, file)
+
+
 @dataclass
 class StoreDirectory:
     path: Path
 
-    def read(self, cache: Cache) -> None:
-        raise NotImplementedError()
+    @dataclass
+    class Reading:
+        dir: Path
 
-    def write(self, cache: Cache) -> None:
-        raise NotImplementedError()
+        def open(self, name: str) -> io.TextIOBase:
+            try:
+                return (self.dir / name).open(mode="r", encoding="utf-8")
+            except OSError:
+                raise KeyError(f"The directory has no file named {name}")
+
+    @contextmanager
+    def reading(self) -> Iterator[Store.Reading]:
+        yield self.Reading(self.path)
+
+    @dataclass
+    class Writing:
+        dir: Path
+
+        def open(self, name: str) -> io.TextIOBase:
+            return (self.dir / name).open(mode="w", encoding="utf-8")
+
+    @contextmanager
+    def writing(self) -> Iterator[Store.Writing]:
+        yield self.Writing(self.path)
 
 
 @dataclass
 class StoreZipFile:
     path: Path
 
-    def read(self, cache: Cache) -> None:
-        raise NotImplementedError()
+    @dataclass
+    class Reading:
+        file: ZipFile
 
-    def write(self, cache: Cache) -> None:
-        raise NotImplementedError()
+        def open(self, name: str) -> io.TextIOBase:
+            return io.TextIOWrapper(self.file.open(name, "r"), encoding="utf-8")
+
+    @contextmanager
+    def reading(self) -> Iterator[Store.Reading]:
+        with ZipFile(self.path, mode="r") as z:
+            yield self.Reading(z)
+
+    @dataclass
+    class Writing:
+        file: ZipFile
+
+        def open(self, name: str) -> io.TextIOBase:
+            return io.TextIOWrapper(self.file.open(name, "w"), encoding="utf-8")
+
+    @contextmanager
+    def writing(self) -> Iterator[Store.Writing]:
+        with ZipFile(self.path, mode="w", compression=ZIP_DEFLATED) as z:
+            yield self.Writing(z)
 
 
-class ConfirmInteractiveStdio:
+def make_store(path: Path) -> Store:
+    if path.is_dir():
+        return StoreDirectory(path)
+    return StoreZipFile(path)
+
+
+class EquivalenceClass:
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, type(self))
+
+
+class ConfirmInteractiveStdio(EquivalenceClass):
 
     def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
         entries_ = list(entries)
@@ -285,7 +366,7 @@ class ConfirmInteractiveStdio:
         )
 
 
-class ConfirmYes:
+class ConfirmYes(EquivalenceClass):
 
     def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
         return set(entries)
