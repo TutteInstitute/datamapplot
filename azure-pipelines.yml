@@ -98,16 +98,16 @@ stages:
             pip install -e .
           displayName: 'Install local package'
 
-        # Debugging import datashader
-        - script: |
-            echo "Installed packages:"
-            pip list
-            echo "\nDask information:"
-            python -c "import dask; print('Dask version:', dask.__version__)"
-            python -c "import dask.dataframe; print('Dask DataFrame path:', dask.dataframe.__file__)"
-            echo "\nDatashader information:"
-            python -c "import datashader; print('Datashader version:', datashader.__version__)"
-          displayName: 'Debug dependency versions'
+        # # Debugging import datashader
+        # - script: |
+        #     echo "Installed packages:"
+        #     pip list
+        #     echo "Dask information:"
+        #     python -c "import dask; print('Dask version:', dask.__version__)"
+        #     python -c "import dask.dataframe; print('Dask DataFrame path:', dask.dataframe.__file__)"
+        #     echo "Datashader information:"
+        #     python -c "import datashader; print('Datashader version:', datashader.__version__)"
+        #   displayName: 'Debug dependency versions'
 
         - script: |
             export CI=true
