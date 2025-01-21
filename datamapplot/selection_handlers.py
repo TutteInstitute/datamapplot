@@ -259,8 +259,9 @@ class WordCloud(SelectionHandlerBase):
         The color scale to use for the word cloud. Default is "YlGnBu". The color scale can be any d3 color scale
         name, with an optional "_r" suffix to reverse the color scale.
 
-    location : tuple, optional
-        The location of the word cloud container on the page. Default is ("bottom", "right").
+    location : str, optional
+        The location of the word cloud container on the page. Default is "bottom-right".
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
 
     **kwargs
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
@@ -277,7 +278,7 @@ class WordCloud(SelectionHandlerBase):
         stop_words=None,
         n_rotations=0,
         color_scale="YlGnBu",
-        location=("bottom", "right"),
+        location="bottom-right",
         cdn_url="unpkg.com",
         **kwargs,
     ):
@@ -308,12 +309,17 @@ class WordCloud(SelectionHandlerBase):
         return f"""
 const _STOPWORDS = new Set({self.stop_words});
 const _ROTATIONS = [0, -90, 90, -45, 45, -30, 30, -60, 60, -15, 15, -75, 75, -7.5, 7.5, -22.5, 22.5, -52.5, 52.5, -37.5, 37.5, -67.5, 67.5];
+const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+const wordCloudItem = document.createElement("div");
+wordCloudItem.id = "word-cloud";
+wordCloudItem.className = "container-box more-opaque";
+stackContainer.appendChild(wordCloudItem);
+
 const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .attr("width", {self.width})
     .attr("height", {self.height})
     .append("g")
     .attr("transform", "translate(" + {self.width} / 2 + "," + {self.height} / 2 + ")");
-const wordCloudItem = document.getElementById("word-cloud");
 
 function wordCounter(textItems) {{
     const words = textItems.join(' ').toLowerCase().split(/\s+/);
@@ -397,15 +403,14 @@ function lassoSelectionCallback(selectedPoints) {{
 
     @property
     def html(self):
-        return """<div id="word-cloud" class="container-box more-opaque"></div>"""
+        # return """<div id="word-cloud" class="container-box more-opaque"></div>"""
+        return ""
 
     @property
     def css(self):
         return f"""
 #word-cloud {{
-    position: absolute;
-    {self.location[1]}: 0;
-    {self.location[0]}: 0;
+    position: relative;
     display: none;
     width: {self.width}px;
     height: {self.height}px;
@@ -445,8 +450,9 @@ class CohereSummary(SelectionHandlerBase):
     width : int, optional
         The width of the summary container. Default is 500.
 
-    location : tuple, optional
-        The location of the summary container on the page. Default is ("top", "right").
+    location : str, optional
+        The location of the summary container on the page. Default is "top-right".
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
 
     **kwargs
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
@@ -460,7 +466,7 @@ class CohereSummary(SelectionHandlerBase):
         n_keywords=128,
         n_samples=64,
         width=500,
-        location=("top", "right"),
+        location="top-right",
         cdn_url="unpkg.com",
         **kwargs,
     ):
@@ -482,7 +488,28 @@ class CohereSummary(SelectionHandlerBase):
         return f"""
 // Stop word list
 const _STOPWORDS = new Set({self.stop_words});
-const summaryContainer = document.getElementById('summary-container');
+const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+const summaryLayout = document.createElement("div");
+summaryLayout.id = "layout-container";
+const apiContainer = document.createElement("div");
+apiContainer.id = "api-key-container";
+apiContainer.className = "container-box more-opaque";
+const keyLabel = document.createElement("label");
+keyLabel.for = "apiKey";
+keyLabel.textContent = "Cohere API Key: ";
+const keyInput = document.createElement("input");
+keyInput.autocomplete = "off";
+keyInput.type = "password";
+keyInput.id - "api-key";
+keyInput.placeholder = "Enter your API key here";
+apiContainer.appendChild(keyLabel);
+apiContainer.appendChild(keyInput);
+summaryLayout.appendChild(apiContainer);
+const summaryContainer = document.createElement("div");
+summaryContainer.id = "summary-container";
+summaryContainer.className = "container-box more-opaque";
+summaryLayout.appendChild(summaryContainer);
+stackContainer.appendChild(summaryLayout);
 
 // Cohere API call
 async function cohereChat(message, apiKey) {{
@@ -572,23 +599,13 @@ function lassoSelectionCallback(selectedPoints) {{
 
     @property
     def html(self):
-        return """
-      <div id="layout_container">
-        <div id="api-key-container" class="container-box more-opaque">
-            <label for="apiKey">Cohere API Key: </label>
-            <input autocomplete="off" type="password" id="api-key" placeholder="Enter your API key here" />
-        </div> 
-        <div id="summary-container" class="container-box more-opaque"></div>
-      </div>
-"""
+        return ""
 
     @property
     def css(self):
         return f"""
 #layout_container {{
-    position: absolute;
-    {self.location[1]}: 0;
-    {self.location[0]}: 0;
+    position: relative;
     display: flex;
     flex-direction: column;
     width: {self.width + 32}px;
@@ -624,14 +641,19 @@ class TagSelection(SelectionHandlerBase):
     ----------
     tag_colors : list, optional
         A list of colors to use for the tags. Default is a set of default colors extending the tab10 palette.
+
+    location : str, optional
+        The location of the tag container on the page. Default is "top-right".  
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".        
     """
 
-    def __init__(self, tag_colors=None, **kwargs):
+    def __init__(self, tag_colors=None, location="top-right", **kwargs):
         super().__init__(**kwargs)
         if tag_colors is None:
             self.tag_colors = _DEFAULT_TAG_COLORS
         else:
             self.tag_colors = tag_colors
+        self.location = location
 
     @property
     def javascript(self):
@@ -641,10 +663,33 @@ class TagSelection(SelectionHandlerBase):
     ];
 
     const tags = new Map();
-    const tagButton = document.getElementById("new-tag-button");
-    const tagList = document.getElementById("tag-list");
-    const tagInput = document.getElementById("tag-input");
-    const saveTagsButton = document.getElementById("save-tags");
+    const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+    const tagContainer = document.createElement("div");
+    tagContainer.id = "tag-container";
+    tagContainer.className = "container-box more-opaque";
+    const tagDisplay = document.createElement("div");
+    tagDisplay.id = "tag-display";
+    const tagList = document.createElement("ul");
+    tagList.id = "tag-list";
+    tagDisplay.appendChild(tagList);
+    tagContainer.appendChild(tagDisplay);
+    const tagButton = document.createElement("button");
+    tagButton.id = "new-tag-button";
+    tagButton.className = "button tag-button";
+    tagButton.textContent = "Create New Tag";
+    tagButton.disabled = true;
+    const tagInput = document.createElement("input");
+    tagInput.id = "tag-input";
+    tagInput.type = "text";
+    tagInput.placeholder = "Enter tag name";
+    const saveTagsButton = document.createElement("button");
+    saveTagsButton.id = "save-tags";
+    saveTagsButton.className = "button tag-button enabled";
+    saveTagsButton.textContent = "Save tags";
+    tagContainer.appendChild(tagButton);
+    tagContainer.appendChild(tagInput);
+    tagContainer.appendChild(saveTagsButton);
+    stackContainer.appendChild(tagContainer);
     const selectedTags = new Set();
     saveTagsButton.onclick = saveTags;
     let numTags = 0;
@@ -758,29 +803,14 @@ class TagSelection(SelectionHandlerBase):
 
     @property
     def html(self):
-        return f"""
-    <div id="tag-container" class="container-box more-opaque">
-        <div id="tag-display">
-            <h3>Existing Tags</h3>
-            <ul id="tag-list">
-            </ul>
-        </div>
-        <span>
-            <button id="new-tag-button" class="button tag-button">Create New Tag</button>
-            <input type="text" id="tag-input" placeholder="Enter tag name">
-        </span>
-        <button id="save-tags" class="button tag-button enabled">Save tags</button>
-    </div>
-"""
+        return ""
 
     @property
     def css(self):
         return f"""
 #tag-container {{
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 25%;
+    position: relative;
+    width: fit-content;
     height: fit-content;
     z-index: 10;
 }}
