@@ -9,6 +9,7 @@ from pathlib import Path
 import platformdirs
 import re
 import requests
+import sys
 from typing import Any, Protocol, Self
 from urllib.parse import urlparse
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -198,6 +199,8 @@ class Store(Protocol):
     class Writing(Protocol):
         def open(self, name) -> io.TextIOBase: ...
 
+    @property
+    def path(self) -> Path: ...
     def reading(self) -> AbstractContextManager["Store.Reading"]: ...
     def writing(self) -> AbstractContextManager["Store.Writing"]: ...
 
@@ -231,8 +234,35 @@ class Cache:
             store=store
         )
 
-    def update(self, src: "Cache") -> Self:
-        raise NotImplementedError()
+    def update(self, src_cache: "Cache") -> Self:
+        for attr, resource in [("js", "Javascript files"), ("fonts", "fonts")]:
+            src = getattr(src_cache, attr)
+            dest = getattr(self, attr)
+            entries_to_pull = []
+            entries_to_confirm = []
+            for key in src.keys():
+                if key in dest:
+                    entries_to_confirm.append(key)
+                else:
+                    entries_to_pull.append(key)
+
+            if entries_to_confirm:
+                msg_resource = (
+                    f"These {resource}s"
+                    if len(entries_to_confirm) > 1
+                    else f"This {resource}"
+                )
+                entries_to_pull += list(
+                    self.confirm.confirm(
+                        (
+                            f"\n{msg_resource} would be replaced in cache at "
+                            f"{self.store.path}. Select to confirm:"
+                        ),
+                        sorted(entries_to_confirm)
+                    )
+                )
+            dest.update({k: src[k] for k in entries_to_pull})
+        return self
 
     def save(self) -> None:
         with self.store.writing() as writing:
@@ -287,6 +317,10 @@ class StoreZipFile:
 
     @contextmanager
     def reading(self) -> Iterator[Store.Reading]:
+        if not self.path.is_file():
+            # Create an empty Zip file so reading does not fail.
+            with ZipFile(self.path, mode="w"):
+                pass
         with ZipFile(self.path, mode="r") as z:
             yield self.Reading(z)
 
@@ -326,7 +360,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                 print(header)
                 for i, entry in enumerate(entries, start=1):
                     print(f"{'*' if entry in confirmed else ' '} {i:{w}d}. {entry}")
-                line = input("Number n, interval s-e, ? help, . finish> ").strip()
+                line = input("n number, s-e interval, a all, ? help, . finish> ").strip()
                 for match in re.finditer(
                     r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])",
                     line
@@ -388,6 +422,12 @@ class ConfirmYes(EquivalenceClass):
         return set(entries)
 
 
+_MAP_CONFIRM = {
+    True: ConfirmYes,
+    False: ConfirmInteractiveStdio
+}
+
+
 import argparse
 
 
@@ -408,7 +448,20 @@ def main():
         "--font_names", nargs="+", help="Names of google font fonts to cache"
     )
     parser.add_argument(
-        "--refresh", action="store_true", help="Force refresh cached files"
+        "--refresh",
+        action="store_true",
+        default=True,
+        help=(
+            "Force refresh cached files from Internet repositories. "
+            "This is the default."
+        )
+    )
+    parser.add_argument(
+        "--no-refresh",
+        dest="refresh",
+        action="store_false",
+        help="Omit refreshing cached files from Internet repositories."
+
     )
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
@@ -443,19 +496,43 @@ def main():
 
     args = parser.parse_args()
 
-    path_import_ = getattr(args, "import")
-    if path_import_ is None:
-        if args.js_urls:
-            all_urls = list(set(DEFAULT_URLS + args.js_urls))
-            cache_js_files(urls=args.all_urls, file_path=args.js_cache_file)
-        else:
-            cache_js_files(file_path=args.js_cache_file)
-        if args.font_names:
-            cache_fonts(fonts=args.font_names, file_path=args.font_cache_file)
-        else:
-            cache_fonts(file_path=args.font_cache_file)
-    else:
-        raise NotImplementedError("Import cache")
+    dir_cache_home = Path(_DATA_DIRECTORY)
+    dir_cache_home.mkdir(parents=True, exist_ok=True)
+    path_import = getattr(args, "import")
+    if path_import is None:
+        if args.refresh:
+            if args.js_urls:
+                all_urls = list(set(DEFAULT_URLS + args.js_urls))
+                cache_js_files(urls=args.all_urls, file_path=args.js_cache_file)
+            else:
+                cache_js_files(file_path=args.js_cache_file)
+            if args.font_names:
+                cache_fonts(fonts=args.font_names, file_path=args.font_cache_file)
+            else:
+                cache_fonts(file_path=args.font_cache_file)
 
-    if args.export is not None:
-        raise NotImplementedError("Export cache")
+        if args.export is not None:
+            path_export = Path(args.export)
+            if not path_export.is_dir() and (
+                path_export.suffix[-4:] not in {".zip", ".ZIP"}
+            ):
+                print(
+                    (
+                        "WARNING: exporting the cache to a Zip archive, but "
+                        f"the path to export to, {path_export}, does not carry "
+                        "the usual .zip or .ZIP extension. If you rather meant to "
+                        "export the cache to a directory, create it before running "
+                        "this program."
+                    ),
+                    file=sys.stderr
+                )
+            cache_home = Cache.from_path(dir_cache_home, ConfirmYes())
+            cache_dest = Cache.from_path(path_export, _MAP_CONFIRM[args.yes]())
+            cache_dest.update(cache_home)
+            cache_dest.save()
+    else:
+        cache_home = Cache.from_path(dir_cache_home, _MAP_CONFIRM[args.yes]())
+
+        cache_src = Cache.from_path(Path(path_import), ConfirmYes())
+        cache_home.update(cache_src)
+        cache_home.save()
