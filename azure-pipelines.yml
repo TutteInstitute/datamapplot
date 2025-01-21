@@ -80,7 +80,7 @@ stages:
 
         - task: Cache@2
           inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt"'
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
             restoreKeys: |
               pip |
             path: $(PIP_CACHE_DIR)
@@ -97,6 +97,17 @@ stages:
         - script: |
             pip install -e .
           displayName: 'Install local package'
+
+        # # Debugging import datashader
+        # - script: |
+        #     echo "Installed packages:"
+        #     pip list
+        #     echo "Dask information:"
+        #     python -c "import dask; print('Dask version:', dask.__version__)"
+        #     python -c "import dask.dataframe; print('Dask DataFrame path:', dask.dataframe.__file__)"
+        #     echo "Datashader information:"
+        #     python -c "import datashader; print('Datashader version:', datashader.__version__)"
+        #   displayName: 'Debug dependency versions'
 
         - script: |
             export CI=true
