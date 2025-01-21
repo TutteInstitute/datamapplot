@@ -25,6 +25,7 @@ def abcdefgh():
         (["2", "1-4"], {"a", "c", "d"}),
         (["2 1-4", "7 1 5"], {"c", "d", "e", "g"}),
         (["2 3.4", "5"], {"b", "c"}),
+        (["a"], set("abcdefgh"))
     ]
 )
 def test_confirm_interactive(input, expected, abcdefgh):

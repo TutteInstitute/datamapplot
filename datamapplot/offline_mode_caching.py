@@ -318,32 +318,48 @@ class EquivalenceClass:
 class ConfirmInteractiveStdio(EquivalenceClass):
 
     def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
-        entries_ = list(entries)
         w = 1 + int(np.log10(len(entries)))
         confirmed = set()
         try:
             is_finished = False
             while not is_finished:
                 print(header)
-                for i, entry in enumerate(entries_, start=1):
+                for i, entry in enumerate(entries, start=1):
                     print(f"{'*' if entry in confirmed else ' '} {i:{w}d}. {entry}")
                 line = input("Number n, interval s-e, ? help, . finish> ").strip()
-                for match in re.finditer(r"(?P<from>\d+)(-(?P<to>\d+))?|(?P<cmd>[.?])", line):
+                for match in re.finditer(
+                    r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])",
+                    line
+                ):
                     if (cmd := match.group("cmd")) is not None:
                         if cmd == "?":
                             self.print_help()
                         elif cmd == ".":
                             is_finished = True
                             break
+                    elif (indices := match.group("indices")) is not None:
+                        if indices == "a":
+                            start = 0
+                            end = len(entries)
+                        else:
+                            s, *e_maybe = indices.split("-")
+                            start = int(s)
+                            end = (int(e_maybe[0]) if e_maybe else start) + 1
+                        for i in range(start, end):
+                            try:
+                                e = entries[i - 1]
+                                if e in confirmed:
+                                    confirmed.remove(e)
+                                else:
+                                    confirmed.add(e)
+                            except IndexError:
+                                pass  # Ignore indices to entries that don't exist.
                     else:
-                        from_ = int(match.group("from"))
-                        to_ = int(match.group("to") or from_)
-                        for i in range(from_, to_ + 1):
-                            e = entries_[i - 1]
-                            if e in confirmed:
-                                confirmed.remove(e)
-                            else:
-                                confirmed.add(e)
+                        # This condition can be ignored, but when debugging we should
+                        # break on it so it gets fixed.
+                        assert False, (
+                             "Either one of the conditions above should be true."
+                         )
         except EOFError:
             pass
         return confirmed
