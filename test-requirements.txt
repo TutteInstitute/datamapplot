@@ -1,5 +1,5 @@
 coveralls
-dask[dataframe]
+dask[dataframe]<2025.0.0
 pytest
 pytest-azurepipelines
 pytest-cov
