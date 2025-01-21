@@ -1,5 +1,5 @@
 
-LAYER_ORDER = ['dataPointLayer', 'boundaryLayer', 'LabelLayer'];
+LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'boundaryLayer', 'LabelLayer'];
 
 function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
@@ -305,6 +305,22 @@ class DataMap {
     this.histogramItem = histogramItem;
     this.histogramItemId = histogramItem.state.chart.chartContainerId;
   }
+
+  addBackgroundImage(image, bounds) {
+    this.imageLayer = new deck.BitmapLayer({
+      id: 'imageLayer',
+      bounds: bounds,
+      image: image,
+      parameters: {
+        depthTest: false
+      }
+    });
+
+    this.layers.push(this.imageLayer);
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
 
   highlightPoints(itemId) {
     const selectedIndices = this.dataSelectionManager.getSelectedIndices();

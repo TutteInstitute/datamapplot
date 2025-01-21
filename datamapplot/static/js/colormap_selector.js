@@ -400,7 +400,7 @@ class ColormapSelectorTool {
             this.legendContainer.style.display = 'none';
         } else {
             this.datamap.recolorPoints(this.colorData, colorMap.field);
-            if (((colorMap.kind === "categorical") && (colorMap.colors.length <= 20) && Object.hasOwn(colorMap, "colorMapping")) || (colorMap.kind === "continuous") || (colorMap.kind === "datetime")) {
+            if (((colorMap.kind === "categorical") && ((colorMap.colors.length <= 20) || colorMap.showLegend) && Object.hasOwn(colorMap, "colorMapping")) || (colorMap.kind === "continuous") || (colorMap.kind === "datetime")) {
                 this.legendContainer.style.display = 'block';
                 for (const key in this.legends) {
                     this.legends[key].style.display = 'none';
@@ -435,7 +435,7 @@ class ColormapSelectorTool {
             }
             this.legends[colorMap.field] = document.createElement("div");
             this.legends[colorMap.field].style.display = 'none';
-            if ((colorMap.kind === "categorical") && (colorMap.colors.length <= 20) && Object.hasOwn(colorMap, "colorMapping")) {
+            if ((colorMap.kind === "categorical") && ((colorMap.colors.length <= 20) || colorMap.showLegend) && Object.hasOwn(colorMap, "colorMapping")) {
                 new ColorLegend(this.legends[colorMap.field], this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });
             } else if (colorMap.kind === "continuous") {
                 new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1] });
