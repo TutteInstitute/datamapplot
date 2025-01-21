@@ -235,7 +235,7 @@ class Cache:
         )
 
     def update(self, src_cache: "Cache") -> Self:
-        for attr, resource in [("js", "Javascript files"), ("fonts", "fonts")]:
+        for attr, resource in [("js", "Javascript file"), ("fonts", "font")]:
             src = getattr(src_cache, attr)
             dest = getattr(self, attr)
             entries_to_pull = []
@@ -402,17 +402,23 @@ class ConfirmInteractiveStdio(EquivalenceClass):
         print(
             """\
 
-- Type the number of an item to select it: 2
-- You can select an interval of items:     2-4
-  selects items 2, 3 and 4.
-- Type an item you had selected to deselect it.
-- Type . to complete the selection process.
-- Type Enter to make the command happen, forcing the selection menu to refresh.
-- You can type multiple commands ahead of Enter: 1 3 2-4 7 .
-  selects items 1, 2, 4 (3 was selected, then deselected by the interval) and 7,
-  then finishes.
+Type the number of an item to select it: 2
 
-            """
+You can select an interval of items: 2-4
+selects items 2, 3 and 4.
+
+You can toggle all items: a
+
+Selecting again an item then deselects it, whether using single number,
+interval or a.
+
+Type . to complete the selection process and go ahead with the replacements.
+
+Type Enter to make the command happen, forcing the selection menu to refresh.
+
+You can type multiple commands ahead of Enter: 1 3 2-4 7 .
+selects items 1, 2, 4 and 7 (3 was selected, then deselected by the interval),
+then proceeds."""
         )
 
 
