@@ -360,7 +360,9 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                 print(header)
                 for i, entry in enumerate(entries, start=1):
                     print(f"{'*' if entry in confirmed else ' '} {i:{w}d}. {entry}")
-                line = input("n number, s-e interval, a all, ? help, . finish> ").strip()
+                line = input(
+                    "NUMBER single item, FIRST-LAST interval, a all, ? help, . finish> "
+                ).strip()
                 for match in re.finditer(
                     r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])",
                     line
