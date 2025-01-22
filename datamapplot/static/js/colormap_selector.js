@@ -154,20 +154,20 @@ class Colorbar {
 
         // Create tick container
         const tickContainer = document.createElement('div');
-        tickContainer.className = 'tick-container';
+        tickContainer.className = 'colorbar-tick-container';
 
         // Add ticks
         const ticks = this.generateTicks();
         ticks.forEach(tick => {
             const tickElement = document.createElement('div');
-            tickElement.className = 'tick';
+            tickElement.className = 'colorbar-tick';
             tickElement.style.top = `${tick.position}%`;
 
             const tickLine = document.createElement('div');
-            tickLine.className = 'tick-line';
+            tickLine.className = 'colorbar-tick-line';
 
             const tickLabel = document.createElement('div');
-            tickLabel.className = 'tick-label';
+            tickLabel.className = 'colorbar-tick-label';
             tickLabel.textContent = tick.formattedValue;
 
             tickElement.appendChild(tickLine);
