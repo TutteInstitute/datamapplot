@@ -1,6 +1,7 @@
 from copy import copy
 from pathlib import Path
 import pytest
+import shutil
 import subprocess as sp
 from unittest.mock import patch
 
@@ -180,10 +181,7 @@ def test_store(cache_in_mem, validate_store):
 
 @pytest.fixture
 def no_cache(preserving_cache):
-    for path in DEFAULT_CACHE_FILES.values():
-        Path(path).unlink(missing_ok=True)
-    if (dir := Path(DEFAULT_CACHE_FILES["javascript"]).parent).is_dir():
-        dir.rmdir()
+    shutil.rmtree(Path(DEFAULT_CACHE_FILES["javascript"]).parent, ignore_errors=True)
 
 
 @pytest.fixture
