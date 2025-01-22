@@ -35,6 +35,8 @@ def test_tweak_config_sanity(no_change_to_config_file):
 def config(no_change_to_config_file):
     config = ConfigManager()
     orig = copy(config._config)
+    if "font_family" in config._config:
+        del config._config["font_family"]
     yield config
     config._config = orig
 
