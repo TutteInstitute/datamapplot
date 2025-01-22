@@ -397,7 +397,17 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                              "Either one of the conditions above should be true."
                          )
         except EOFError:
-            pass
+            print(
+                (
+                    "Standard input has been exhausted. "
+                    "Please type '.' at the prompt (without the quotes) "
+                    "for the update process to carry on. "
+                    "Cancelling this operation, lest entries to update were "
+                    "misselected."
+                ),
+                file=sys.stderr
+            )
+            sys.exit(11)
         return confirmed
 
     def print_help(self) -> None:

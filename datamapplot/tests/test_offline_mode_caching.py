@@ -198,12 +198,15 @@ def path_archive(js_new, fonts_new, zip_cache):
     return zip_cache
 
 
-def dmp_offline_cache(*args: str, input="") -> None:
-    sp.run(
+def dmp_offline_cache(*args: str, input="", is_returncode_checked=True) -> int:
+    cp = sp.run(
         ["dmp_offline_cache", "--no-refresh", *args],
         input=input,
         encoding="utf-8"
-    ).check_returncode()
+    )
+    if is_returncode_checked:
+        cp.check_returncode()
+    return cp.returncode
 
 
 def test_import_no_clobber(no_cache, path_archive, js_new, fonts_new):
@@ -305,7 +308,7 @@ def test_import_no_confirm(
 
 def test_export_no_clobber(existing_cache, zip_cache, js_old, fonts_old):
     assert not zip_cache.exists()
-    dmp_offline_cache("--export", str(zip_cache))
+    dmp_offline_cache("--export", str(zip_cache), "--no-refresh")
 
     cache_exported = Cache.from_path(zip_cache, ConfirmYes())
     assert js_old == cache_exported.js
@@ -330,7 +333,7 @@ def test_export_clobber_partial(
     fonts_exported_full
 ):
     assert path_archive.is_file()
-    dmp_offline_cache("--export", str(path_archive), input=".\na.\n")
+    dmp_offline_cache("--export", str(path_archive), "--no-refresh", input=".\na.\n")
 
     cache_exported = Cache.from_path(path_archive, ConfirmYes())
     js_expected = {}
@@ -349,8 +352,17 @@ def test_export_no_confirm(
     fonts_exported_full
 ):
     assert path_archive.is_file()
-    dmp_offline_cache("--export", str(path_archive), "--yes")
+    dmp_offline_cache("--export", str(path_archive), "--no-refresh", "--yes")
 
     cache_exported = Cache.from_path(path_archive, ConfirmYes())
     assert js_exported_full == cache_exported.js
     assert fonts_exported_full == cache_exported.fonts
+
+
+def test_bail_stdin_closed(existing_cache, path_archive):
+    assert 11 == dmp_offline_cache(
+        "--import",
+        str(path_archive),
+        input="",
+        is_returncode_checked=False
+    )
