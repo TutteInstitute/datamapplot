@@ -10,7 +10,7 @@ import platformdirs
 import re
 import requests
 import sys
-from typing import Any, Protocol, Self
+from typing import Any, Protocol
 from urllib.parse import urlparse
 from zipfile import ZipFile, ZIP_DEFLATED
 
@@ -217,7 +217,7 @@ class Cache:
     store: Store
 
     @classmethod
-    def from_path(cls, path: Path, confirm: Confirm) -> Self:
+    def from_path(cls, path: Path, confirm: Confirm) -> "Cache":
         store = make_store(path)
         data = {}
         with store.reading() as reading:
@@ -234,7 +234,7 @@ class Cache:
             store=store
         )
 
-    def update(self, src_cache: "Cache") -> Self:
+    def update(self, src_cache: "Cache") -> "Cache":
         for attr, resource in [("js", "Javascript file"), ("fonts", "font")]:
             src = getattr(src_cache, attr)
             dest = getattr(self, attr)
