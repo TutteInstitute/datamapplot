@@ -21,6 +21,7 @@ from rjsmin import jsmin
 from scipy.spatial import Delaunay
 from colorspacious import cspace_convert
 from sklearn.cluster import KMeans
+from collections.abc import Iterable
 
 from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
 
@@ -33,6 +34,7 @@ from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
+from datamapplot.selection_handlers import SelectionHandlerBase
 
 try:
     import matplotlib
@@ -473,7 +475,15 @@ def _get_js_dependency_urls(
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if selection_handler is not None:
-        js_dependency_urls.extend(selection_handler.dependencies)
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                js_dependency_urls.extend(handler.dependencies)
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            js_dependency_urls.extend(selection_handler.dependencies)
+        else:
+            raise ValueError(
+                "The selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances."
+            )
 
     js_dependency_urls = list(set(js_dependency_urls))
 
@@ -1430,7 +1440,7 @@ def render_html(
         )
         n_swatches = np.max(
             [colormap.get("n_colors", 5) for colormap in colormap_metadata]
-        )
+        ) if len(colormap_metadata) > 0 else 5
         quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
             cielab_colors
         )
@@ -1652,20 +1662,41 @@ def render_html(
         api_tooltip_fontname = None
 
     if selection_handler is not None:
-        if custom_html is None:
-            custom_html = selection_handler.html
-        else:
-            custom_html += selection_handler.html
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                if custom_html is None:
+                    custom_html = handler.html
+                else:
+                    custom_html += handler.html
 
-        if custom_js is None:
-            custom_js = selection_handler.javascript
-        else:
-            custom_js += selection_handler.javascript
+                if custom_js is None:
+                    custom_js = handler.javascript
+                else:
+                    custom_js += handler.javascript
 
-        if custom_css is None:
-            custom_css = selection_handler.css
+                if custom_css is None:
+                    custom_css = handler.css
+                else:
+                    custom_css += handler.css
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            if custom_html is None:
+                custom_html = selection_handler.html
+            else:
+                custom_html += selection_handler.html
+
+            if custom_js is None:
+                custom_js = selection_handler.javascript
+            else:
+                custom_js += selection_handler.javascript
+
+            if custom_css is None:
+                custom_css = selection_handler.css
+            else:
+                custom_css += selection_handler.css
         else:
-            custom_css += selection_handler.css
+            raise ValueError(
+                "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
+            )
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",

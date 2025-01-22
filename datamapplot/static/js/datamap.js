@@ -321,6 +321,29 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
+  async addSelectionHandler(callback, selectionKind = "lasso-selection", timeoutMs = 60000) {
+    const startTime = Date.now();
+
+    if (selectionKind === "lasso-selection") {
+      // Wait for the lasso selector to be available
+      while (!this.lassoSelector) {
+        if (Date.now() - startTime > timeoutMs) {
+          throw new Error('Timeout: lassoSelector did not become available within the specified timeout period');
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      this.lassoSelector.registerSelectionHandler(callback);
+    } else {
+      if (!this.selectionCallbacks) {
+        this.selectionCallbacks = {};
+      }
+      if (this.selectionCallbacks[selectionKind]) {
+        this.selectionCallbacks[selectionKind].push(callback);
+      }
+      this.selectionCallbacks[selectionKind] = [callback];
+    }
+  }
 
   highlightPoints(itemId) {
     const selectedIndices = this.dataSelectionManager.getSelectedIndices();
@@ -396,11 +419,25 @@ class DataMap {
   addSelection(selectedIndices, selectionKind) {
     this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, selectionKind);
     this.highlightPoints(selectionKind);
+
+    if (this.selectionCallbacks && this.selectionCallbacks[selectionKind]) {
+      const currentSelectedIndices = Array.from(this.dataSelectionManager.getSelectedIndices());
+      for (let callback of this.selectionCallbacks[selectionKind]) {
+        callback(currentSelectedIndices);
+      }
+    }
   }
 
   removeSelection(selectionKind) {
     this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);
     this.highlightPoints(selectionKind);
+
+    if (this.selectionCallbacks && this.selectionCallbacks[selectionKind]) {
+      const currentSelectedIndices = Array.from(this.dataSelectionManager.getSelectedIndices());
+      for (let callback of this.selectionCallbacks[selectionKind]) {
+        callback(currentSelectedIndices);
+      }
+    }
   }
 
   getSelectedIndices() {
@@ -419,6 +456,12 @@ class DataMap {
       this.dataSelectionManager.removeSelectedIndicesOfItem(this.searchItemId);
     } else {
       this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices, this.searchItemId);
+    }
+    if (this.selectionCallbacks && this.selectionCallbacks[this.searchItemId]) {
+      const currentSelectedIndices = Array.from(this.dataSelectionManager.getSelectedIndices());
+      for (let callback of this.selectionCallbacks[this.searchItemId]) {
+        callback(currentSelectedIndices);
+      }
     }
     this.highlightPoints(this.searchItemId);
   }

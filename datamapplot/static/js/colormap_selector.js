@@ -259,16 +259,17 @@ class ColorLegend {
                         }
                     }
                 });
-                this.datamap.addSelection(selectedIndices, "legend");
                 if (this.selectedItems.size > 0) {
+                    this.datamap.addSelection(selectedIndices, "legend");
                     this.legendItems.forEach((item) => {
                         if (this.selectedItems.has(item.children[0].style.backgroundColor)) {
                             item.style.opacity = 1;
                         } else {
-                            item.style.opacity = 0.33;
+                            item.style.opacity = 0.25;
                         }
                     });
                 } else {
+                    this.datamap.removeSelection("legend");
                     this.legendItems.forEach((item) => {
                         item.style.opacity = 1;
                     });

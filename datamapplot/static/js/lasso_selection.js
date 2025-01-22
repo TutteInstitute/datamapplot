@@ -5,19 +5,13 @@
 class LassoSelectionTool {
     /**
      * Creates an instance of LassoSelectionTool.
-     * @param {HTMLElement} container - The container element for the deck.gl application.
-     * @param {Object} deckgl - The deck.gl instance.
-     * @param {Object} dataSelectionManager - The data selection manager object.
-     * @param {string} selectionItemId - The ID for the selection item.
-     * @param {Function} selectPoints - Callback to select points in deckgl and histogram
-     * @param {Function} handleSelectedPoints - Callback function to handle selected points.
+     * @param {Object} datamap - The deck.gl instance.
      */
     constructor(
         datamap,
-        handleSelectedPoints
     ) {
         this.datamap = datamap;
-        this.handleSelectedPoints = handleSelectedPoints;
+        this.selectionCallbacks = [];
         this.itemId = datamap.lassoSelectionItemId;
 
         this.selectionMode = false;
@@ -115,6 +109,18 @@ class LassoSelectionTool {
     }
 
     /**
+     * Registers a callback function to handle selected points.
+     * @param {Function} callback - The callback function to register.
+     * @returns {Function} The function to unregister the callback.
+     */
+    registerSelectionHandler(callback) {
+        this.selectionCallbacks.push(callback);
+        return () => {
+            this.selectionCallbacks = this.selectionCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    /**
      * Handles the selection of points.
      * @param {Array<number>} selectedPoints - Array of indices of selected points.
      */
@@ -124,7 +130,9 @@ class LassoSelectionTool {
         } else {
             this.datamap.addSelection(selectedPoints, this.itemId);
         }
-        this.handleSelectedPoints(selectedPoints);
+        for (const callback of this.selectionCallbacks) {
+            callback(selectedPoints);
+        }
     }
 
     /**

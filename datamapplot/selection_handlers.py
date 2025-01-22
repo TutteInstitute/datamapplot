@@ -79,7 +79,7 @@ class DisplaySample(SelectionHandlerBase):
     """
 
     @cfg.complete(unconfigurable={"self", "n_samples"})
-    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", **kwargs):
+    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", other_triggers=None, **kwargs):
         super().__init__(
             dependencies=[
                 f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
@@ -88,10 +88,11 @@ class DisplaySample(SelectionHandlerBase):
         )
         self.n_samples = n_samples
         self.font_family = font_family
+        self.other_triggers = other_triggers
 
     @property
     def javascript(self):
-        return f"""
+        result = f"""
 const resampleButton = document.getElementsByClassName("resample-button")[0]
 const clearSelectionButton = document.getElementsByClassName("clear-selection-button")[0]
 resampleButton.onclick = resampleSelection
@@ -107,7 +108,7 @@ const shuffle = ([...arr]) => {{
 }};
 const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
 
-function lassoSelectionCallback(selectedPoints) {{
+function samplerCallback(selectedPoints) {{
     const n_samples = {self.n_samples};
     if (selectedPoints.length == 0) {{
         const selectionContainer = document.getElementById('selection-container');
@@ -162,8 +163,14 @@ function clearSelection() {{
 
     datamap.removeSelection(datamap.lassoSelectionItemId);
 }}
-        """
 
+await datamap.addSelectionHandler(samplerCallback);
+        """
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(samplerCallback, "{trigger}");\n"""
+        return result
+    
     @property
     def css(self):
         if self.font_family:
@@ -280,6 +287,7 @@ class WordCloud(SelectionHandlerBase):
         color_scale="YlGnBu",
         location="bottom-right",
         cdn_url="unpkg.com",
+        other_triggers=None,
         **kwargs,
     ):
         super().__init__(
@@ -303,17 +311,18 @@ class WordCloud(SelectionHandlerBase):
         else:
             self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:]
             self.color_scale_reversed = False
+        self.other_triggers = other_triggers
 
     @property
     def javascript(self):
-        return f"""
+        result = f"""
 const _STOPWORDS = new Set({self.stop_words});
 const _ROTATIONS = [0, -90, 90, -45, 45, -30, 30, -60, 60, -15, 15, -75, 75, -7.5, 7.5, -22.5, 22.5, -52.5, 52.5, -37.5, 37.5, -67.5, 67.5];
-const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+let wordCloudStackContainer = document.getElementsByClassName("stack {self.location}")[0];
 const wordCloudItem = document.createElement("div");
 wordCloudItem.id = "word-cloud";
-wordCloudItem.className = "container-box more-opaque";
-stackContainer.appendChild(wordCloudItem);
+wordCloudItem.className = "container-box more-opaque stack-box";
+wordCloudStackContainer.appendChild(wordCloudItem);
 
 const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .attr("width", {self.width})
@@ -384,7 +393,7 @@ function generateWordCloud(words) {{
   }}
 }}
 
-function lassoSelectionCallback(selectedPoints) {{
+function wordCloudCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
         $(wordCloudItem).animate({{height:'show'}}, 250);
     }} else {{
@@ -399,8 +408,14 @@ function lassoSelectionCallback(selectedPoints) {{
     const wordCounts = wordCounter(selectedText);
     generateWordCloud(wordCounts);
 }}
-"""
 
+await datamap.addSelectionHandler(wordCloudCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(wordCloudCallback, "{trigger}");\n"""
+        return result
+ 
     @property
     def html(self):
         # return """<div id="word-cloud" class="container-box more-opaque"></div>"""
@@ -468,6 +483,7 @@ class CohereSummary(SelectionHandlerBase):
         width=500,
         location="top-right",
         cdn_url="unpkg.com",
+        other_triggers=None,
         **kwargs,
     ):
         super().__init__(
@@ -482,18 +498,19 @@ class CohereSummary(SelectionHandlerBase):
         self.n_samples = n_samples
         self.width = width
         self.location = location
+        self.other_triggers = other_triggers
 
     @property
     def javascript(self):
-        return f"""
+        result = f"""
 // Stop word list
 const _STOPWORDS = new Set({self.stop_words});
-const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+const cohereStackContainer = document.getElementsByClassName("stack {self.location}")[0];
 const summaryLayout = document.createElement("div");
 summaryLayout.id = "layout-container";
 const apiContainer = document.createElement("div");
 apiContainer.id = "api-key-container";
-apiContainer.className = "container-box more-opaque";
+apiContainer.className = "container-box more-opaque stack-box";
 const keyLabel = document.createElement("label");
 keyLabel.for = "apiKey";
 keyLabel.textContent = "Cohere API Key: ";
@@ -509,7 +526,7 @@ const summaryContainer = document.createElement("div");
 summaryContainer.id = "summary-container";
 summaryContainer.className = "container-box more-opaque";
 summaryLayout.appendChild(summaryContainer);
-stackContainer.appendChild(summaryLayout);
+cohereStackContainer.appendChild(summaryLayout);
 
 // Cohere API call
 async function cohereChat(message, apiKey) {{
@@ -581,7 +598,7 @@ The summary should be a few sentences long at most, and ideally just a single se
     }}
 }}
 
-function lassoSelectionCallback(selectedPoints) {{
+function cohereSummaryCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
         $(summaryContainer).animate({{width:'show'}}, {self.width});
     }} else {{
@@ -595,8 +612,14 @@ function lassoSelectionCallback(selectedPoints) {{
     }}
     generateSummary(selectedText);
 }}
-        """
 
+await datamap.addSelectionHandler(cohereSummaryCallback);
+        """
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(cohereSummaryCallback, "{trigger}");\n"""
+        return result
+    
     @property
     def html(self):
         return ""
@@ -644,35 +667,35 @@ class TagSelection(SelectionHandlerBase):
 
     location : str, optional
         The location of the tag container on the page. Default is "top-right".  
-        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".        
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
+
+    max_height : str, optional
+        The maximum height of the tag container as a CSS descriptor string. Default is "95%".      
     """
 
-    def __init__(self, tag_colors=None, location="top-right", **kwargs):
+    def __init__(self, tag_colors=None, location="top-right", width=300, max_height="80vh", other_triggers=None, **kwargs):
         super().__init__(**kwargs)
         if tag_colors is None:
             self.tag_colors = _DEFAULT_TAG_COLORS
         else:
             self.tag_colors = tag_colors
         self.location = location
+        self.width = width
+        self.max_height = max_height
+        self.other_triggers = other_triggers
 
     @property
     def javascript(self):
-        return f"""
+        result = f"""
     const tagColors = [
     {",".join(['"'+x+'"' for x in self.tag_colors])}
     ];
 
     const tags = new Map();
-    const stackContainer = document.getElementsByClassName("stack {self.location}")[0];
+    const tagStackContainer = document.getElementsByClassName("stack {self.location}")[0];
     const tagContainer = document.createElement("div");
     tagContainer.id = "tag-container";
-    tagContainer.className = "container-box more-opaque";
-    const tagDisplay = document.createElement("div");
-    tagDisplay.id = "tag-display";
-    const tagList = document.createElement("ul");
-    tagList.id = "tag-list";
-    tagDisplay.appendChild(tagList);
-    tagContainer.appendChild(tagDisplay);
+    tagContainer.className = "container-box more-opaque stack-box";
     const tagButton = document.createElement("button");
     tagButton.id = "new-tag-button";
     tagButton.className = "button tag-button";
@@ -682,14 +705,26 @@ class TagSelection(SelectionHandlerBase):
     tagInput.id = "tag-input";
     tagInput.type = "text";
     tagInput.placeholder = "Enter tag name";
+    tagInput.addEventListener("keypress", (event) => {{
+        if (event.key === "Enter") {{
+            createNewTag(datamap.getSelectedIndices());
+        }}
+    }});
+    tagInput.disabled = true;
+    tagContainer.appendChild(tagButton);
+    tagContainer.appendChild(tagInput);
+    const tagDisplay = document.createElement("div");
+    tagDisplay.id = "tag-display";
+    const tagList = document.createElement("ul");
+    tagList.id = "tag-list";
+    tagDisplay.appendChild(tagList);
+    tagContainer.appendChild(tagDisplay);
     const saveTagsButton = document.createElement("button");
     saveTagsButton.id = "save-tags";
     saveTagsButton.className = "button tag-button enabled";
     saveTagsButton.textContent = "Save tags";
-    tagContainer.appendChild(tagButton);
-    tagContainer.appendChild(tagInput);
     tagContainer.appendChild(saveTagsButton);
-    stackContainer.appendChild(tagContainer);
+    tagStackContainer.appendChild(tagContainer);
     const selectedTags = new Set();
     saveTagsButton.onclick = saveTags;
     let numTags = 0;
@@ -720,12 +755,22 @@ class TagSelection(SelectionHandlerBase):
     function toggleTagSelection(tagName) {{
         if (selectedTags.has(tagName)) {{
             selectedTags.delete(tagName);
-            const tagSwatch = document.getElementById(`tag-selector-${{tagName}}`);
-            tagSwatch.innerHTML = "";
         }} else {{
             selectedTags.add(tagName);
-            const tagSwatch = document.getElementById(`tag-selector-${{tagName}}`);
-            tagSwatch.innerHTML = "✓";
+        }}
+        if (selectedTags.size > 0) {{
+            tagList.childNodes.forEach(tag => {{
+                const tagName = tag.id.split("-")[1];
+                if (selectedTags.has(tagName)) {{
+                    tag.style.opacity = 1;
+                }} else {{
+                    tag.style.opacity = 0.25;
+                }}
+            }});
+        }} else {{
+            tagList.childNodes.forEach(tag => {{
+                tag.style.opacity = 1;
+            }});
         }}
         const selectedIndices = [];
         selectedTags.forEach(tag => {{
@@ -759,6 +804,7 @@ class TagSelection(SelectionHandlerBase):
 
     function addTag(tagName) {{
         const tagItem = document.createElement('li');
+        tagItem.id = `tag-${{tagName}}`;
         tagItem.innerHTML = `
 <div class="row">
   <div class="tag-info">
@@ -776,11 +822,12 @@ class TagSelection(SelectionHandlerBase):
         document.getElementById(`tag-selector-${{tagName}}`).addEventListener("click", () => toggleTagSelection(tagName));
     }}
 
-    function lassoSelectionCallback(selectedPoints) {{
+    function taggerCallback(selectedPoints) {{
         if (selectedPoints.length !== 0) {{
             tagButton.classList.add("enabled");
             tagButton.onclick = () => createNewTag(selectedPoints);
             tagButton.disabled = false;
+            tagInput.disabled = false;
             tags.forEach((points, tagName, map) => {{
                     const addToTagButton = document.getElementById(`add-to-${{tagName}}`);
                     addToTagButton.onclick = () => addSelectionToTag(tagName, selectedPoints);
@@ -791,6 +838,7 @@ class TagSelection(SelectionHandlerBase):
         }} else {{
             tagButton.classList.remove("enabled");
             tagButton.disabled = true;
+            tagInput.disabled = true;
             tags.forEach((points, tagName, map) => {{
                     const addToTagButton = document.getElementById(`add-to-${{tagName}}`);
                     addToTagButton.classList.remove("enabled");
@@ -799,7 +847,13 @@ class TagSelection(SelectionHandlerBase):
             }});  
         }}
     }}
+
+    await datamap.addSelectionHandler(taggerCallback);
         """
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(taggerCallback, "{trigger}");\n"""
+        return result
 
     @property
     def html(self):
@@ -810,14 +864,14 @@ class TagSelection(SelectionHandlerBase):
         return f"""
 #tag-container {{
     position: relative;
-    width: fit-content;
+    width: {self.width}px;
     height: fit-content;
     z-index: 10;
 }}
 #tag-display {{
     overflow-y: auto;
-    max-height: 95%;
     margin: 8px;
+    max-height: {self.max_height};
 }}
 .tag-button {{
     border: none;
