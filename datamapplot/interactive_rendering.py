@@ -888,6 +888,31 @@ def label_text_and_polygon_dataframes(
     return pd.DataFrame(data)
 
 
+def url_to_base64_img(url):
+    try:
+        # Download the image
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        
+        # Determine the image type from the Content-Type header
+        content_type = response.headers.get('Content-Type', '')
+        if not content_type.startswith('image/'):
+            raise ValueError(f'URL does not point to an image (Content-Type: {content_type})')
+            
+        # Convert the image data to base64
+        image_data = base64.b64encode(response.content).decode('utf-8')
+        
+        # Create the complete data URL
+        return f'data:{content_type};base64,{image_data}'
+        
+    except requests.RequestException as e:
+        print(f"Error downloading image: {e}")
+        return None
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return None
+
+
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
 def render_html(
     point_dataframe,
@@ -1642,6 +1667,9 @@ def render_html(
             )
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
+
+        if logo is not None:
+            logo = url_to_base64_img(logo)
 
     else:
         offline_mode_data = None
