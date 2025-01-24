@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import textwrap
+from tqdm import tqdm
 import colorcet
 
 from matplotlib import pyplot as plt
@@ -196,7 +197,7 @@ def create_plot(
             label_locations = np.asarray(
                 [
                     medoid(data_map_coords[cluster_label_vector == i])
-                    for i in unique_non_noise_labels
+                    for i in tqdm(unique_non_noise_labels, desc="Calculating medoids")
                 ]
             )
         else:
