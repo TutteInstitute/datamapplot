@@ -154,20 +154,20 @@ class Colorbar {
 
         // Create tick container
         const tickContainer = document.createElement('div');
-        tickContainer.className = 'tick-container';
+        tickContainer.className = 'colorbar-tick-container';
 
         // Add ticks
         const ticks = this.generateTicks();
         ticks.forEach(tick => {
             const tickElement = document.createElement('div');
-            tickElement.className = 'tick';
+            tickElement.className = 'colorbar-tick';
             tickElement.style.top = `${tick.position}%`;
 
             const tickLine = document.createElement('div');
-            tickLine.className = 'tick-line';
+            tickLine.className = 'colorbar-tick-line';
 
             const tickLabel = document.createElement('div');
-            tickLabel.className = 'tick-label';
+            tickLabel.className = 'colorbar-tick-label';
             tickLabel.textContent = tick.formattedValue;
 
             tickElement.appendChild(tickLine);
@@ -259,16 +259,17 @@ class ColorLegend {
                         }
                     }
                 });
-                this.datamap.addSelection(selectedIndices, "legend");
                 if (this.selectedItems.size > 0) {
+                    this.datamap.addSelection(selectedIndices, "legend");
                     this.legendItems.forEach((item) => {
                         if (this.selectedItems.has(item.children[0].style.backgroundColor)) {
                             item.style.opacity = 1;
                         } else {
-                            item.style.opacity = 0.33;
+                            item.style.opacity = 0.25;
                         }
                     });
                 } else {
+                    this.datamap.removeSelection("legend");
                     this.legendItems.forEach((item) => {
                         item.style.opacity = 1;
                     });
