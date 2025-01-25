@@ -5,19 +5,13 @@
 class LassoSelectionTool {
     /**
      * Creates an instance of LassoSelectionTool.
-     * @param {HTMLElement} container - The container element for the deck.gl application.
-     * @param {Object} deckgl - The deck.gl instance.
-     * @param {Object} dataSelectionManager - The data selection manager object.
-     * @param {string} selectionItemId - The ID for the selection item.
-     * @param {Function} selectPoints - Callback to select points in deckgl and histogram
-     * @param {Function} handleSelectedPoints - Callback function to handle selected points.
+     * @param {Object} datamap - The deck.gl instance.
      */
     constructor(
         datamap,
-        handleSelectedPoints
     ) {
         this.datamap = datamap;
-        this.handleSelectedPoints = handleSelectedPoints;
+        this.selectionCallbacks = [];
         this.itemId = datamap.lassoSelectionItemId;
 
         this.selectionMode = false;
@@ -115,6 +109,18 @@ class LassoSelectionTool {
     }
 
     /**
+     * Registers a callback function to handle selected points.
+     * @param {Function} callback - The callback function to register.
+     * @returns {Function} The function to unregister the callback.
+     */
+    registerSelectionHandler(callback) {
+        this.selectionCallbacks.push(callback);
+        return () => {
+            this.selectionCallbacks = this.selectionCallbacks.filter(cb => cb !== callback);
+        };
+    }
+
+    /**
      * Handles the selection of points.
      * @param {Array<number>} selectedPoints - Array of indices of selected points.
      */
@@ -124,7 +130,9 @@ class LassoSelectionTool {
         } else {
             this.datamap.addSelection(selectedPoints, this.itemId);
         }
-        this.handleSelectedPoints(selectedPoints);
+        for (const callback of this.selectionCallbacks) {
+            callback(selectedPoints);
+        }
     }
 
     /**
@@ -199,6 +207,17 @@ class LassoSelectionTool {
     setSelectionMode(enabled) {
         this.selectionMode = enabled;
 
+        // Toggle pointer-events on all stack containers and their contents
+        const stacks = this.datamap.container.querySelectorAll('.stack');
+        stacks.forEach(stack => {
+            stack.style.pointerEvents = enabled ? 'none' : 'auto';
+            // Also toggle pointer-events on all children (boxes)
+            const boxes = stack.querySelectorAll('.box');
+            boxes.forEach(box => {
+                box.style.pointerEvents = enabled ? 'none' : 'auto';
+            });
+        });
+
         this.datamap.deckgl.setProps({
             controller: {
                 dragPan: !this.selectionMode,
@@ -233,34 +252,46 @@ class LassoSelectionTool {
                 this.setSelectionMode(true);
             }
         });
-
+    
         document.addEventListener('keyup', (e) => {
             if (e.key === 'Shift' && this.selectionMode) {
                 this.setSelectionMode(false);
             }
         });
-
-        this.datamap.container.addEventListener('mousedown', (e) => {
+    
+        // Track if we're currently drawing
+        this.isDrawing = false;
+    
+        // Attach listeners to the canvas instead of the container
+        window.addEventListener('mousedown', (e) => {
             if (this.selectionMode) {
+                this.isDrawing = true;
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon = [{ x, y }];
+                // Capture mouse events globally when drawing starts
+                this.canvas.style.pointerEvents = 'all';
             }
         });
-
-        this.datamap.container.addEventListener('mousemove', (e) => {
-            if (this.selectionMode && this.lassoPolygon.length > 0) {
+    
+        // Use window for mousemove to ensure we catch all movement
+        window.addEventListener('mousemove', (e) => {
+            if (this.selectionMode && this.isDrawing) {
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon.push({ x, y });
                 this.drawLasso(this.lassoPolygon);
             }
         });
-
-        this.datamap.container.addEventListener('mouseup', (e) => {
-            if (this.selectionMode && this.lassoPolygon.length > 0) {
+    
+        // Use window for mouseup to ensure we catch the end of drawing
+        window.addEventListener('mouseup', (e) => {
+            if (this.selectionMode && this.isDrawing) {
+                this.isDrawing = false;
                 const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
                 this.lassoPolygon.push({ x, y });
                 this.onLassoComplete(this.lassoPolygon);
                 this.lassoPolygon = [];
+                // Reset pointer events when drawing ends
+                this.canvas.style.pointerEvents = 'none';
             }
         });
     }

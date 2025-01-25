@@ -70,12 +70,12 @@
     height: 200px;
     position: relative;
   }
-  .tick-container {
+  .colorbar-tick-container {
     position: relative;
     width: 40px;
     height: 200px;
   }
-  .tick {
+  .colorbar-tick {
     position: absolute;
     display: flex;
     align-items: center;
@@ -83,12 +83,12 @@
     /* Adjust vertical positioning to center on the actual value */
     transform: translateY(-50%);
   }
-  .tick-line {
+  .colorbar-tick-line {
     width: 8px;
     height: 1px;
     background: #333;
   }
-  .tick-label {
+  .colorbar-tick-label {
     font-size: 12px;
   }
   .legend-item {
