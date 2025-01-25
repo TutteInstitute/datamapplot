@@ -1,4 +1,11 @@
 import { defineConfig } from '@playwright/test';
+import path from 'path';
+
+const htmlDir = path.resolve(__dirname, '../tests/html');
+const projDir = path.resolve(__dirname, '../..');
+
+console.log(`Resolved htmlDir: ${htmlDir}`);
+console.log(`Resolved htmlDir: ${htmlDir}`);
 
 export default defineConfig({
   use: {
@@ -13,8 +20,10 @@ export default defineConfig({
     }
   },
   webServer: {
-    command: 'python -m http.server 8000',
+    command: `python -m http.server 8000 -d ${htmlDir}`,
     url: 'http://localhost:8000',
     reuseExistingServer: true,
+    timeout: 1000
   },
+  reporter: [['junit', { outputFile: `${projDir}/test-results/e2e-junit-results.xml` }]],
 });
