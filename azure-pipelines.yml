@@ -29,41 +29,42 @@ schedules:
 
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+  matrix:
+    mac_py310:
+      imageName: 'macOS-latest'
+      python.version: '3.10'
+    linux_py310:
+      imageName: 'ubuntu-latest'
+      python.version: '3.10'
+    # windows_py310:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.10'
+    mac_py311:
+      imageName: 'macOS-latest'
+      python.version: '3.11'
+    linux_py311:
+      imageName: 'ubuntu-latest'
+      python.version: '3.11'
+    # windows_py311:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.11'
+    mac_py312:
+      imageName: 'macOS-latest'
+      python.version: '3.12'
+    linux_py312:
+      imageName: 'ubuntu-latest'
+      python.version: '3.12'
+    # windows_py312:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.12'
 
 stages:
-  - stage: RunAllTests
-    displayName: Run test suite
+  - stage: BackendTests
+    displayName: Run python test suite
     jobs:
-      - job: run_platform_tests
+      - job: run_backend_tests
         strategy:
-          matrix:
-            # mac_py39:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.9'
-            # linux_py39:
-            #   imageName: 'ubuntu-latest'
-            #   python.version: '3.9'
-            # windows_py39:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.9'
-            mac_py310:
-              imageName: 'macOS-latest'
-              python.version: '3.10'
-            linux_py310:
-              imageName: 'ubuntu-latest'
-              python.version: '3.10'
-            # windows_py310:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.10'
-            mac_py311:
-              imageName: 'macOS-latest'
-              python.version: '3.11'
-            linux_py311:
-              imageName: 'ubuntu-latest'
-              python.version: '3.11'
-            # windows_py311:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.11'
+          matrix: ${{ variables.matrix }}
 
         pool:
           vmImage: $(imageName)
@@ -116,7 +117,7 @@ stages:
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
-          displayName: 'Run tests'
+          displayName: 'Run python tests'
 
         # - bash: |
         #     coveralls
@@ -132,8 +133,59 @@ stages:
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
 
+      - job: run_frontend_tests
+        dependsOn: run_backend_tests
+        condition: always()
+        strategy:
+          matrix: ${{ variables.matrix }}
+
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+        - task: NodeTool@0
+          inputs:
+            versionSpec: '22'
+          displayName: 'Use Node.js for frontend tests'
+
+        - script: |
+            npm ci
+          displayName: 'Install npm dependencies'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install
+          displayName: 'Install Playwright browsers'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright test
+          displayName: 'Run Playwright tests'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - task: PublishTestResults@2
+          displayName: 'Publish frontest test results'
+          inputs:
+            searchFolder: 'test-results'
+            testResultsFormat: 'JUnit'
+            testResultsFiles: 'e2e-junit-results.xml'
+            mergeTestResults: true
+            failTaskOnFailedTests: true
+            testRunTitle: 'Playwright Test Results'
+          condition: succeededOrFailed()
+
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathToPublish: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/playwright-report'
+            artifactName: 'playwright-report'
+            publishLocation: 'pipeline'
+          displayName: 'Publish Playwright Test Report'
+          condition: succeededOrFailed()
+
   - stage: BuildPublishArtifact
-    dependsOn: RunAllTests
+    dependsOn:
+      - BackendTests
+      - FrontendTests
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/release-'), eq(variables.triggeredByPullRequest, false))
     jobs:
       - job: BuildArtifacts
