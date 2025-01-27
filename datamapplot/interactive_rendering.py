@@ -738,8 +738,10 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
-        if len(unique_labels) <= 35:
+        if len(unique_labels) <= 25:
             colormap_metadata["show_legend"] = True
+        else:
+            colormap_metadata["show_legend"] = False
         colordata.append(layer)
         metadata.append(colormap_metadata)
 
