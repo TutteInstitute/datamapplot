@@ -27,9 +27,11 @@ schedules:
       include:
         - main
 
-variables:
-  triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
-  matrix:
+parameters:
+- name: matrix
+  displayName: Pool Image and Python Version Matrix
+  type: object
+  default:
     mac_py310:
       imageName: 'macOS-latest'
       python.version: '3.10'
@@ -58,13 +60,16 @@ variables:
     #   imageName: 'windows-latest'
     #   python.version: '3.12'
 
+variables:
+  triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+
 stages:
   - stage: BackendTests
     displayName: Run python test suite
     jobs:
       - job: run_backend_tests
         strategy:
-          matrix: ${{ variables.matrix }}
+          matrix: ${{ parameters.matrix }}
 
         pool:
           vmImage: $(imageName)
@@ -137,7 +142,7 @@ stages:
         dependsOn: run_backend_tests
         condition: always()
         strategy:
-          matrix: ${{ variables.matrix }}
+          matrix: ${{ parameters.matrix }}
 
         pool:
           vmImage: $(imageName)
