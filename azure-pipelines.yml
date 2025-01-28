@@ -81,14 +81,14 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            if [ "$(Agent.OS)" == "Windows_NT" ]; then
-              PIP_CACHE_DIR=$(py -m pip cache dir)
-            else
+            if "%AGENT_OS%" == "Windows_NT" (
+              for /f "delims=" %%i in ('py -m pip cache dir') do set PIP_CACHE_DIR=%%i
+              echo ##vso[task.setvariable variable=PIP_CACHE_DIR]%PIP_CACHE_DIR%
+            ) else (
               PIP_CACHE_DIR=$(pip cache dir)
-            fi
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
+              echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
+            )
           displayName: 'Set PIP_CACHE_DIR'
-
 
         - task: Cache@2
           inputs:
