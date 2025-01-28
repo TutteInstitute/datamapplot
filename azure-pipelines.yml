@@ -38,9 +38,9 @@ parameters:
     # linux_py310:
     #   imageName: 'ubuntu-latest'
     #   python.version: '3.10'
-    # windows_py310:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.10'
+    windows_py310:
+      imageName: 'windows-latest'
+      python.version: '3.10'
     # mac_py311:
     #   imageName: 'macOS-latest'
     #   python.version: '3.11'
@@ -122,6 +122,7 @@ stages:
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
+                -k interactive
           displayName: 'Run python tests'
 
         # - bash: |
