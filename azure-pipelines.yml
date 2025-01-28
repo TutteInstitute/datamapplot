@@ -89,9 +89,6 @@ stages:
             echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
           displayName: 'Set PIP_CACHE_DIR'
 
-        - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-          displayName: 'Set PIP_CACHE_DIR'
 
         - task: Cache@2
           inputs:
