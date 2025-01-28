@@ -67,7 +67,7 @@ stages:
   - stage: RunAllTests
     displayName: Run python test suite
     jobs:
-      - job: run_backend_tests
+      - job: run_tests
         strategy:
           matrix: ${{ parameters.matrix }}
 
@@ -138,16 +138,6 @@ stages:
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
 
-      - job: run_frontend_tests
-        dependsOn: run_backend_tests
-        condition: always()
-        strategy:
-          matrix: ${{ parameters.matrix }}
-
-        pool:
-          vmImage: $(imageName)
-
-        steps:
         - task: NodeTool@0
           inputs:
             versionSpec: '22'
@@ -183,7 +173,6 @@ stages:
           inputs:
             pathToPublish: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/playwright-report'
             artifactName: 'playwright-report'
-            publishLocation: 'pipeline'
           displayName: 'Publish Playwright Test Report'
           condition: succeededOrFailed()
 
