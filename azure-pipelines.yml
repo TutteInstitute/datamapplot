@@ -64,7 +64,7 @@ variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
 
 stages:
-  - stage: BackendTests
+  - stage: RunAllTests
     displayName: Run python test suite
     jobs:
       - job: run_backend_tests
@@ -189,8 +189,7 @@ stages:
 
   - stage: BuildPublishArtifact
     dependsOn:
-      - BackendTests
-      - FrontendTests
+      - RunAllTests
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/release-'), eq(variables.triggeredByPullRequest, false))
     jobs:
       - job: BuildArtifacts
