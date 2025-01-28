@@ -138,6 +138,10 @@ stages:
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
 
+        - script: |
+            python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
+          displayName: 'Start HTTP server'
+
         - task: NodeTool@0
           inputs:
             versionSpec: '22'

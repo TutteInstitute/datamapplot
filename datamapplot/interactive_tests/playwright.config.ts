@@ -23,7 +23,8 @@ export default defineConfig({
     command: `python -m http.server 8000 -d ${htmlDir}`,
     url: 'http://localhost:8000',
     reuseExistingServer: true,
-    timeout: 1000
+    timeout: 120000
   },
+  workers: process.env.CI ? 1 : undefined, # remove parallel tests in CI
   reporter: [['junit', { outputFile: `${projDir}/test-results/e2e-junit-results.xml` }]],
 });
