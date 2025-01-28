@@ -148,7 +148,7 @@ stages:
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
 
-         - script: |
+        - script: |
             echo "Listing contents of html dir:"
             ls -la $(Build.SourcesDirectory)/datamapplot/tests/html
           displayName: 'List contents of html dir'
