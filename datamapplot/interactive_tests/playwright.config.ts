@@ -5,7 +5,7 @@ const htmlDir = path.resolve(__dirname, '../tests/html');
 const projDir = path.resolve(__dirname, '../..');
 
 console.log(`Resolved htmlDir: ${htmlDir}`);
-console.log(`Resolved htmlDir: ${htmlDir}`);
+console.log(`Resolved htmlDir: ${projDir}`);
 
 export default defineConfig({
   use: {

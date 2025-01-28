@@ -81,6 +81,15 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
+            if [ "$(Agent.OS)" == "Windows_NT" ]; then
+              PIP_CACHE_DIR=$(py -m pip cache dir)
+            else
+              PIP_CACHE_DIR=$(pip cache dir)
+            fi
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
+          displayName: 'Set PIP_CACHE_DIR'
+
+        - script: |
             echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
           displayName: 'Set PIP_CACHE_DIR'
 
@@ -138,6 +147,11 @@ stages:
             artifactName: 'mpl-test-results'
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
+
+         - script: |
+            echo "Listing contents of html dir:"
+            ls -la $(Build.SourcesDirectory)/datamapplot/tests/html
+          displayName: 'List contents of html dir'
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
