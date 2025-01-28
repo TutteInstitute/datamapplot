@@ -93,7 +93,7 @@ stages:
           displayName: 'Cache pip dependencies'
 
         - script: |
-            python -m pip install --upgrade pip
+            python -m pip install --upgrade pip setuptools wheel
           displayName: 'Upgrade pip'
 
         - script: |
@@ -121,7 +121,7 @@ stages:
             pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
-                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
+                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl \
                 -k interactive
           displayName: 'Run python tests'
 
