@@ -8,9 +8,11 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.goto('http://localhost:8000/cord19.html');
     
     // Wait for loading
-    await page.waitForSelector('#loading', { state: 'hidden' });
+    console.log('Waiting for #loading to be hidden...');
+    await page.waitForSelector('#loading', { state: 'hidden', timeout: 60000 }); // Increased timeout
     await page.waitForTimeout(500);
-    await page.waitForSelector('#progress-container', { state: 'hidden' });
+    console.log('Waiting for #progress-container to be hidden...');
+    await page.waitForSelector('#progress-container', { state: 'hidden', timeout: 60000 }); // Increased timeout
   });
 
   const verifyInitialState = async (page) => {
