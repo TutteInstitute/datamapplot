@@ -284,6 +284,7 @@ class WordCloud(SelectionHandlerBase):
         font_family=None,
         stop_words=None,
         n_rotations=0,
+        use_idf=False,
         color_scale="YlGnBu",
         location="bottom-right",
         cdn_url="unpkg.com",
@@ -304,6 +305,7 @@ class WordCloud(SelectionHandlerBase):
         self.font_family = font_family
         self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
         self.n_rotations = min(22, n_rotations)
+        self.use_idf = str(use_idf).lower()
         self.location = location
         if color_scale.endswith("_r"):
             self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:-2]
@@ -330,17 +332,70 @@ const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .append("g")
     .attr("transform", "translate(" + {self.width} / 2 + "," + {self.height} / 2 + ")");
 
-function wordCounter(textItems) {{
-    const words = textItems.join(' ').toLowerCase().split(/\\s+/);
-    const wordCounts = new Map();
-    words.forEach(word => {{
-        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+var wordCounter = null;
+if ({self.use_idf}) {{
+    while (!datamap.metaData) {{
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }}
+    const globalIDF = new Map();
+    const globalDocFreq = new Map();
+    const globalTotalDocs = datamap.metaData.hover_text.length;
+
+    // Compute global IDF scores
+    datamap.metaData.hover_text.forEach(text => {{
+        const uniqueWords = new Set(
+            text.toLowerCase()
+                .split(/\\s+/)
+                .filter(word => !_STOPWORDS.has(word))
+        );
+        uniqueWords.forEach(word => {{
+            globalDocFreq.set(word, (globalDocFreq.get(word) || 0) + 1);
+        }});
     }});
-    _STOPWORDS.forEach(stopword => wordCounts.delete(stopword));
-    const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
-                        .sort((a, b) => b.size - a.size).slice(0, {self.n_words});
-    const maxSize = Math.max(...(result.map(x => x.size)));
-    return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+    globalDocFreq.forEach((freq, word) => {{
+        globalIDF.set(word, Math.log(globalTotalDocs / (0.5 + freq)));
+    }});
+
+    wordCounter = function (textItems) {{
+        const tfIdfScores = new Map();
+        const words = textItems.join(' ')
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(word => !_STOPWORDS.has(word));
+        
+        // Calculate term frequencies
+        words.forEach(word => {{
+            tfIdfScores.set(word, (tfIdfScores.get(word) || 0) + 1);
+        }});
+        
+        // Convert raw counts to TF-IDF scores
+        const result = Array.from(tfIdfScores, ([word, tf]) => ({{
+            text: word,
+            size: Math.sqrt(tf) * (globalIDF.get(word) || 0)
+        }}))
+        .sort((a, b) => b.size - a.size)
+        .slice(0, {self.n_words}); 
+        
+        // Normalize scores to [0,1] range
+        const maxSize = Math.max(...result.map(x => x.size));
+        return result.map(({{text, size}}) => ({{
+            text,
+            size: size / maxSize
+        }}));
+    }}
+}} else {{
+    wordCounter = function (textItems) {{
+        const words = textItems.join(' ').toLowerCase().split(/\\s+/);
+        const wordCounts = new Map();
+        words.forEach(word => {{
+            wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+        }});
+        _STOPWORDS.forEach(stopword => wordCounts.delete(stopword));
+        const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
+                            .sort((a, b) => b.size - a.size).slice(0, {self.n_words});
+        const maxSize = Math.max(...(result.map(x => x.size)));
+        return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+    }}
 }}
 
 function generateWordCloud(words) {{
