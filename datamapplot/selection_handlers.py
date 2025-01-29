@@ -284,6 +284,7 @@ class WordCloud(SelectionHandlerBase):
         font_family=None,
         stop_words=None,
         n_rotations=0,
+        use_idf=False,
         color_scale="YlGnBu",
         location="bottom-right",
         cdn_url="unpkg.com",
@@ -304,6 +305,7 @@ class WordCloud(SelectionHandlerBase):
         self.font_family = font_family
         self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
         self.n_rotations = min(22, n_rotations)
+        self.use_idf = str(use_idf).lower()
         self.location = location
         if color_scale.endswith("_r"):
             self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:-2]
@@ -330,17 +332,70 @@ const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .append("g")
     .attr("transform", "translate(" + {self.width} / 2 + "," + {self.height} / 2 + ")");
 
-function wordCounter(textItems) {{
-    const words = textItems.join(' ').toLowerCase().split(/\\s+/);
-    const wordCounts = new Map();
-    words.forEach(word => {{
-        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+var wordCounter = null;
+if ({self.use_idf}) {{
+    while (!datamap.metaData) {{
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }}
+    const globalIDF = new Map();
+    const globalDocFreq = new Map();
+    const globalTotalDocs = datamap.metaData.hover_text.length;
+
+    // Compute global IDF scores
+    datamap.metaData.hover_text.forEach(text => {{
+        const uniqueWords = new Set(
+            text.toLowerCase()
+                .split(/\\s+/)
+                .filter(word => !_STOPWORDS.has(word))
+        );
+        uniqueWords.forEach(word => {{
+            globalDocFreq.set(word, (globalDocFreq.get(word) || 0) + 1);
+        }});
     }});
-    _STOPWORDS.forEach(stopword => wordCounts.delete(stopword));
-    const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
-                        .sort((a, b) => b.size - a.size).slice(0, {self.n_words});
-    const maxSize = Math.max(...(result.map(x => x.size)));
-    return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+    globalDocFreq.forEach((freq, word) => {{
+        globalIDF.set(word, Math.log(globalTotalDocs / (0.5 + freq)));
+    }});
+
+    wordCounter = function (textItems) {{
+        const tfIdfScores = new Map();
+        const words = textItems.join(' ')
+            .toLowerCase()
+            .split(/\\s+/)
+            .filter(word => !_STOPWORDS.has(word));
+        
+        // Calculate term frequencies
+        words.forEach(word => {{
+            tfIdfScores.set(word, (tfIdfScores.get(word) || 0) + 1);
+        }});
+        
+        // Convert raw counts to TF-IDF scores
+        const result = Array.from(tfIdfScores, ([word, tf]) => ({{
+            text: word,
+            size: Math.sqrt(tf) * (globalIDF.get(word) || 0)
+        }}))
+        .sort((a, b) => b.size - a.size)
+        .slice(0, {self.n_words}); 
+        
+        // Normalize scores to [0,1] range
+        const maxSize = Math.max(...result.map(x => x.size));
+        return result.map(({{text, size}}) => ({{
+            text,
+            size: size / maxSize
+        }}));
+    }}
+}} else {{
+    wordCounter = function (textItems) {{
+        const words = textItems.join(' ').toLowerCase().split(/\\s+/);
+        const wordCounts = new Map();
+        words.forEach(word => {{
+            wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+        }});
+        _STOPWORDS.forEach(stopword => wordCounts.delete(stopword));
+        const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
+                            .sort((a, b) => b.size - a.size).slice(0, {self.n_words});
+        const maxSize = Math.max(...(result.map(x => x.size)));
+        return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+    }}
 }}
 
 function generateWordCloud(words) {{
@@ -363,7 +418,7 @@ function generateWordCloud(words) {{
   layout.start();
 
   function draw(words) {{
-    const t = d3.transition().duration(500);
+    const t = d3.transition().duration(300);
     
     // Update existing words
     const text = wordCloudSvg.selectAll("text")
@@ -393,6 +448,16 @@ function generateWordCloud(words) {{
   }}
 }}
 
+const shuffle = ([...arr]) => {{
+  let m = arr.length;
+  while (m) {{
+    const i = Math.floor(Math.random() * m--);
+    [arr[m], arr[i]] = [arr[i], arr[m]];
+  }}
+  return arr;
+}};
+const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
+
 function wordCloudCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
         $(wordCloudItem).animate({{height:'show'}}, 250);
@@ -401,7 +466,7 @@ function wordCloudCallback(selectedPoints) {{
     }}
     let selectedText;
     if (datamap.metaData) {{
-        selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+        selectedText = sampleSize(selectedPoints, 10000).map(i => datamap.metaData.hover_text[i]);
     }} else {{
         selectedText = ["Meta data still loading ..."];
     }}
@@ -409,11 +474,19 @@ function wordCloudCallback(selectedPoints) {{
     generateWordCloud(wordCounts);
 }}
 
-await datamap.addSelectionHandler(wordCloudCallback);
+function debounce(func, timeout = 100){{
+    let timer;
+    return (...args) => {{
+        clearTimeout(timer);
+        timer = setTimeout(() => {{ func.apply(this, args); }}, timeout);
+    }};
+}}
+
+await datamap.addSelectionHandler(debounce(wordCloudCallback));
 """
         if self.other_triggers:
             for trigger in self.other_triggers:
-                result += f"""await datamap.addSelectionHandler(wordCloudCallback, "{trigger}");\n"""
+                result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback), "{trigger}");\n"""
         return result
  
     @property
