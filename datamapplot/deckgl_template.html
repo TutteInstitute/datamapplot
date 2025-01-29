@@ -63,10 +63,12 @@
         color: {{title_font_color}};
       }
       .container-box {
-        margin: 4px;
+        margin: 8px 16px 8px 16px;
         padding: 12px;
         border-radius: 16px;
         line-height: 0.95;
+        width: fit-content;
+        height: fit-content;
         z-index: 2;
         background: {{title_background}};
         box-shadow: 2px 3px 10px {{shadow_color}};
@@ -98,93 +100,18 @@
       input:focus {
         border: 2px solid #555;
       }
-      #loading {
-        width: 100%;
-        height: 100%;
-        top: 0px;
-        left: 0px;
-        position: absolute;
-        display: block;
-        z-index: 99
-      }
-      #loading-image {
-        position: absolute;
-        top: 45%;
-        left: 47.5%;
-        z-index: 100
-      }
-      #title-container {
-        /* position: absolute; */
-        top: 0;
-        left: 0;
-      }
-      .content-wrapper {
-        /* position: relative; */
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 1;
-        padding: 8px;
-        /* Use grid to create the basic layout */
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        grid-template-rows: 1fr 1fr;
-        min-height: calc(100vh - 16px); /* Account for padding */
-        pointer-events: none; /* pass pointer events through */
-      }
-      .stack {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 4px;
-        pointer-events: auto; /* allow pointer events */
-        max-height: 50vh;
-        overflow-y: visible;
-      }
-      .top-left {
-        grid-column: 1;
-        grid-row: 1;
-        justify-self: start;
-        align-self: start;
-      }
-      .bottom-left {
-        grid-column: 1;
-        grid-row: 2;
-        justify-self: start;
-        align-self: end;
-        display: flex;
-        flex-direction: column-reverse;
-        transform: scaleY(-1);
-      }
-
-      .top-right {
-        grid-column: 2;
-        grid-row: 1;
-        justify-self: end;
-        align-self: start;
-      }
-      .bottom-right {
-        grid-column: 2;
-        grid-row: 2;
-        justify-self: end;
-        align-self: end;
-        display: flex;
-        flex-direction: column-reverse;
-        transform: scaleY(-1);
-      }
-      .stack.bottom-left .stack-box {
-        transform: scaleY(-1);
-      }
-      .stack.bottom-right .stack-box {
-        transform: scaleY(-1);
-      }
       {%- if logo %}
       img {
         display: block;
         margin-left: auto;
         margin-right: auto;
+      }
+      #logo-container {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        margin: 8px 16px 8px 16px;
+        z-index: 0;
       }
       {%- endif %}
 
@@ -240,11 +167,6 @@
           {% endif %}
         </div>
         <div class="stack bottom-right">
-          {% if logo %}
-          <div id="logo-container" class="container-box stack-box">
-            <img src="{{logo}}" style="width:{{logo_width}}px" />
-          </div>
-          {% endif %}
         </div>
         <div class="stack bottom-left">
           {%- if enable_colormap_selector %}
@@ -255,45 +177,50 @@
           {%- endif -%}
         </div>
       </div>
-      {%- if show_loading_progress %}
-      <div id="progress-container" class="datamapplot-progress-container container-box">
-        <div id="point-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
-          </span>
-        </div>
-        <div id="label-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
-          </span>
-        </div>
-        <div id="meta-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
-          </span>
-        </div>
-        {%- if enable_histogram %}
-        <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
-          </span>
-        </div>
-        <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
-          </span>
-        </div>
-        {%- endif -%}
-        {%- if enable_colormap_selector %}
-        <div id="color-data-progress" class="datamapplot-progress-bar">
-          <span class="datamapplot-progress-bar-fill" style="width: 0%;">
-            <span class="datamapplot-progress-bar-text">Colormap Data: 0%</span>
-          </span>
-        </div>
-        {%- endif %}
+      {% if logo %}
+      <div id="logo-container" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
+        <img src="{{logo}}" style="width:{{logo_width}}px" />
+      </div>
+      {% endif %}
+    </div>
+    {%- if show_loading_progress %}
+    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px;">
+      <div id="point-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+        </span>
+      </div>
+      <div id="label-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+        </span>
+      </div>
+      <div id="meta-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+        </span>
+      </div>
+      {%- if enable_histogram %}
+      <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
+        </span>
+      </div>
+      <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+        </span>
+      </div>
+      {%- endif -%}
+      {%- if enable_colormap_selector %}
+      <div id="color-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Colormap Data: 0%</span>
+        </span>
       </div>
       {%- endif %}
     </div>
+    {%- endif %}
     {% if custom_html %} {{custom_html}} {%- endif -%}
   </body>
   {%- for _, js_src in js_dependency_srcs.items() %}

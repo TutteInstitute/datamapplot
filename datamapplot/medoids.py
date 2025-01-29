@@ -22,7 +22,7 @@ def euclidean(x, y):
     r"""Squared euclidean distance.
 
     .. math::
-        D(x, y) = \sum_i (x_i - y_i)^2
+        D(x, y) = \\sum_i (x_i - y_i)^2
     """
     result = 0.0
     dim = x.shape[0]

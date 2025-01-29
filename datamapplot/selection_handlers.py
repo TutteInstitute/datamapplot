@@ -331,7 +331,7 @@ const wordCloudSvg = d3.select("#word-cloud").append("svg")
     .attr("transform", "translate(" + {self.width} / 2 + "," + {self.height} / 2 + ")");
 
 function wordCounter(textItems) {{
-    const words = textItems.join(' ').toLowerCase().split(/\s+/);
+    const words = textItems.join(' ').toLowerCase().split(/\\s+/);
     const wordCounts = new Map();
     words.forEach(word => {{
         wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
@@ -553,7 +553,7 @@ async function cohereChat(message, apiKey) {{
 
 // Word counts for keywords
 function wordCounter(textItems) {{
-    const words = textItems.join(' ').toLowerCase().split(/\s+/);
+    const words = textItems.join(' ').toLowerCase().split(/\\s+/);
     const wordCounts = new Map();
     words.forEach(word => {{
         wordCounts.set(word, (wordCounts.get(word) || 0) + 1);

@@ -435,6 +435,7 @@ class ColormapSelectorTool {
                 continue;
             }
             this.legends[colorMap.field] = document.createElement("div");
+            this.legends[colorMap.field].className = "color-legend-container";
             this.legends[colorMap.field].style.display = 'none';
             if ((colorMap.kind === "categorical") && ((colorMap.colors.length <= 20) || colorMap.showLegend) && Object.hasOwn(colorMap, "colorMapping")) {
                 new ColorLegend(this.legends[colorMap.field], this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });

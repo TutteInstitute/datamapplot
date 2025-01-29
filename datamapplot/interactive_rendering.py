@@ -149,7 +149,7 @@ _TOOL_TIP_CSS = """
             font-family: {{title_font_family}};
             font-weight: {{title_font_weight}};
             color: {{title_font_color}} !important;
-            background-color: {{title_background}} !important;
+            background-color: {{title_background[:-2] + "ee"}} !important;
             border-radius: 12px;
             box-shadow: 2px 3px 10px {{shadow_color}};
             max-width: 25%;
@@ -176,7 +176,7 @@ _NOTEBOOK_NON_INLINE_WORKER = """
               headers: {Authorization: 'Token API_TOKEN'}
             });
             if (!response.ok) {
-              throw new Error(\`HTTP error! status: \${response.status}. Failed to fetch: \${filename}\`);
+              throw new Error(\\`HTTP error! status: \\${response.status}. Failed to fetch: \\${filename}\\`);
             }
             const decompressedData = await response.json()
               .then(data => data.content)
@@ -425,7 +425,7 @@ def _get_css_dependency_sources(
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "css"
-    css_dependencies = []
+    css_dependencies = ["containers_and_stacks.css"]
     css_dependencies_src = {}
 
     if enable_histogram:
@@ -738,8 +738,10 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
-        if len(unique_labels) <= 35:
+        if len(unique_labels) <= 25:
             colormap_metadata["show_legend"] = True
+        else:
+            colormap_metadata["show_legend"] = False
         colordata.append(layer)
         metadata.append(colormap_metadata)
 
