@@ -360,7 +360,7 @@ if ({self.use_idf}) {{
         const tfIdfScores = new Map();
         const words = textItems.join(' ')
             .toLowerCase()
-            .split(/\s+/)
+            .split(/\\s+/)
             .filter(word => !_STOPWORDS.has(word));
         
         // Calculate term frequencies
