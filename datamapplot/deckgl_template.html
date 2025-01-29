@@ -673,13 +673,6 @@
     }
 
     function loadHistogramData() {
-      function debounce(func, timeout = 100){
-          let timer;
-          return (...args) => {
-              clearTimeout(timer);
-              timer = setTimeout(() => { func.apply(this, args); }, timeout);
-          };
-      }
       const chartSelectionCallback = chartSelectedIndices => {
         // Update data manager
         if (chartSelectedIndices === null) {
@@ -721,7 +714,7 @@
           {%- if histogram_log_scale %}
           logScale: {{ histogram_log_scale|lower }},
           {%- endif %}
-          chartSelectionCallback: debounce(chartSelectionCallback)
+          chartSelectionCallback: chartSelectionCallback,
         });
 
         datamap.connectHistogram(histogramItem);

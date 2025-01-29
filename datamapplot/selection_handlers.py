@@ -363,7 +363,7 @@ function generateWordCloud(words) {{
   layout.start();
 
   function draw(words) {{
-    const t = d3.transition().duration(500);
+    const t = d3.transition().duration(300);
     
     // Update existing words
     const text = wordCloudSvg.selectAll("text")
@@ -393,6 +393,16 @@ function generateWordCloud(words) {{
   }}
 }}
 
+const shuffle = ([...arr]) => {{
+  let m = arr.length;
+  while (m) {{
+    const i = Math.floor(Math.random() * m--);
+    [arr[m], arr[i]] = [arr[i], arr[m]];
+  }}
+  return arr;
+}};
+const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
+
 function wordCloudCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
         $(wordCloudItem).animate({{height:'show'}}, 250);
@@ -401,7 +411,7 @@ function wordCloudCallback(selectedPoints) {{
     }}
     let selectedText;
     if (datamap.metaData) {{
-        selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+        selectedText = sampleSize(selectedPoints, 10000).map(i => datamap.metaData.hover_text[i]);
     }} else {{
         selectedText = ["Meta data still loading ..."];
     }}
@@ -409,11 +419,19 @@ function wordCloudCallback(selectedPoints) {{
     generateWordCloud(wordCounts);
 }}
 
-await datamap.addSelectionHandler(wordCloudCallback);
+function debounce(func, timeout = 100){{
+    let timer;
+    return (...args) => {{
+        clearTimeout(timer);
+        timer = setTimeout(() => {{ func.apply(this, args); }}, timeout);
+    }};
+}}
+
+await datamap.addSelectionHandler(debounce(wordCloudCallback));
 """
         if self.other_triggers:
             for trigger in self.other_triggers:
-                result += f"""await datamap.addSelectionHandler(wordCloudCallback, "{trigger}");\n"""
+                result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback), "{trigger}");\n"""
         return result
  
     @property
