@@ -509,7 +509,7 @@ def default_colormap_options(values_dict):
 
         if values.dtype.kind in ["U", "S", "O"]:
             colormap_metadata["kind"] = "categorical"
-            n_categories = len(values.unique())
+            n_categories = len(np.unique(values))
             n = 0
             cmap = _DEFAULT_DICRETE_COLORMAPS[n]
             while cmap in used_colormaps or n_categories > len(get_cmap(cmap).colors):
