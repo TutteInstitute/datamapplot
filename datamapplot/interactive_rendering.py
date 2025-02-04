@@ -734,7 +734,7 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         colormap_metadata = {
             "field": f"layer_{i}",
             "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample,
+            "colors": color_sample + [color for color in colormap_subset.values() if color not in color_sample],
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
