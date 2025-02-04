@@ -1251,6 +1251,12 @@ def render_html(
         field, the description should be a longer description of the field, and the cmap should be
         the name of the colormap to use, and must be available in matplotlib colormap registry.
 
+    cluster_layer_colormaps: bool (optional, default=False)
+        Whether to use per-layer cluster colormaps. If True, a separate colormap in the colormaps
+        dropdown will be created for each layer of the label data. This is useful when the label
+        data is split into multiple layers, and you would like users to be able to select
+        individual clustering resolutions to colour by.
+
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
         can be used to provide custom styling of other features of the output HTML as required.
