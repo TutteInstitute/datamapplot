@@ -70,10 +70,12 @@
         width: fit-content;
         height: fit-content;
         z-index: 2;
+        backdrop-filter: blur(6px);
         background: {{title_background}};
         box-shadow: 2px 3px 10px {{shadow_color}};
       }
       .more-opaque {
+        backdrop-filter: blur(12px);
         background-color: {{title_background[:-2] + "ee"}};
       }
       #deck-container {
