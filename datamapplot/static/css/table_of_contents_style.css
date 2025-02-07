@@ -1,0 +1,149 @@
+#table-of-contents {
+    display: block;
+    max-height: 48vh;
+    max-width: 30vw;
+    overflow: auto;
+}
+
+/* Add some padding to prevent scroll bar from overlapping content */
+#table-of-contents > .nested {
+    display: block;
+    padding-right: 10px;
+}
+
+.toc-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.toc-header {
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 8px;
+}
+
+.nested {
+    display: none;
+    margin-left: 20px;
+    list-style-type: none;
+    padding-inline-start: 10px;
+}
+
+.nested.active {
+    display: block;
+}
+
+/* Optional: Style the scrollbar for webkit browsers */
+#table-of-contents::-webkit-scrollbar {
+    width: 8px;
+}
+
+#table-of-contents::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#table-of-contents::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+#table-of-contents::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.caret {
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background-color 0.3s ease;
+}
+
+.caret::before {
+    content: "\25B6";
+    color: black;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.caret-down::before {
+    transform: rotate(90deg);
+}
+
+.caret.unlabeled {
+    color: #666;
+    font-style: italic;
+}
+
+.caret.unlabeled::before {
+    color: #666;
+}
+
+.bullet {
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background-color 0.3s ease;
+}
+
+.bullet::before {
+    content: "\25CF";
+    color: black;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.bullet.unlabeled {
+    color: #666;
+    font-style: italic;
+}
+
+.bullet.unlabeled::before {
+    color: #666;
+}
+
+
+li {
+    list-style-type: none;
+    margin: 5px 0;
+}
+
+/* table of contents buttons */
+.toc-btn {
+    border: none; /* Remove borders */
+    color: white; /* White text */
+    padding: 2px 4px;
+    border-radius: 5px;
+    cursor: pointer; /* Mouse pointer on hover */
+}
+
+/* Darker background on mouse-over */
+.toc-btn:hover {
+    background-color: RoyalBlue;
+}
+
+/* table of contents labels */
+.toc-label {
+    border: none; /* Remove borders */
+    padding: 2px 4px;
+    border-radius: 5px;
+    cursor: pointer; /* Mouse pointer on hover */
+}
+
+/* Darker background on mouse-over */
+.toc-label:hover {
+    text-decoration: underline;
+}
+
+.expand-all-btn {
+    padding: 4px 8px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f8f8f8;
+}
+
+.expand-all-btn:hover {
+    text-decoration: underline;
+}
