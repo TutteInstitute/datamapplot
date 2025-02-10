@@ -35,27 +35,27 @@ parameters:
     mac_py310:
       imageName: 'macOS-latest'
       python.version: '3.10'
-    # linux_py310:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.10'
-    windows_py310:
-      imageName: 'windows-latest'
+    linux_py310:
+      imageName: 'ubuntu-latest'
       python.version: '3.10'
-    # mac_py311:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.11'
-    # linux_py311:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.11'
+    # windows_py310:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.10'
+    mac_py311:
+      imageName: 'macOS-latest'
+      python.version: '3.11'
+    linux_py311:
+      imageName: 'ubuntu-latest'
+      python.version: '3.11'
     # windows_py311:
     #   imageName: 'windows-latest'
     #   python.version: '3.11'
-    # mac_py312:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.12'
-    # linux_py312:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.12'
+    mac_py312:
+      imageName: 'macOS-latest'
+      python.version: '3.12'
+    linux_py312:
+      imageName: 'ubuntu-latest'
+      python.version: '3.12'
     # windows_py312:
     #   imageName: 'windows-latest'
     #   python.version: '3.12'
@@ -208,7 +208,7 @@ stages:
         - task: PublishBuildArtifacts@1
           inputs:
             pathToPublish: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/playwright-report'
-            artifactName: 'playwright-report'
+            artifactName: 'playwright-report-$(Build.BuildId)-$(Agent.OS)-py$(python.version)'
           displayName: 'Publish Playwright Test Report'
           condition: succeededOrFailed()
 

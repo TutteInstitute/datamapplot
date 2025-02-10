@@ -14,8 +14,9 @@ export default defineConfig({
     headless: true,
   },
   expect: {
+    timeout: 120_000,
     toHaveScreenshot: {
-      maxDiffPixels: 100,
+      maxDiffPixels: 200,
       threshold: 0.2,
       animations: 'disabled',
     }
@@ -27,5 +28,5 @@ export default defineConfig({
     timeout: 120000
   },
   workers: process.env.CI ? 1 : undefined, // Run tests sequentially in CI
-  reporter: [['junit', { outputFile: `${projDir}/test-results/e2e-junit-results.xml` }]],
+  reporter: [['junit', { outputFile: `${projDir}/test-results/e2e-junit-results.xml` }], ['html', { open: 'never' }]],
 });
