@@ -1,7 +1,7 @@
 .color-map-dropdown {
     position: relative;
     background-color: inherit;
-    z-index: 2;
+    z-index: 1000;
   }
   .color-map-selected {
     display: flex;
@@ -12,9 +12,11 @@
     cursor: pointer;
     width: 100%;
     box-sizing: border-box;
+    position: relative;
+    z-index: 1000;
   }
   .color-map-options {
-    position: absolute;
+    position: fixed;
     bottom: 100%;
     left: 0;
     right: 0;
@@ -27,12 +29,15 @@
     overflow-y: auto;
     display: none;
     box-sizing: border-box;
+    z-index: 1001;
   }
   .color-map-option {
+    position: relative;
     display: flex;
     align-items: center;
     padding: 10px;
     cursor: pointer;
+    z-index: 10;
   }
   .color-map-option:hover {
     background-color: #77777733;
@@ -61,10 +66,18 @@
     width: fit-content;
     gap: 4px;
     padding: 10px;
-    font-family: Arial, sans-serif;
+    /* font-family: Arial, sans-serif; */
     height: 200px;
+    margin: 4px 16px 4px 16px;
   }
-
+  .color-legend-container {
+    display: flex;
+    align-items: left;
+    width: fit-content;
+    height: fit-content;
+    gap: 4px;
+    padding: 10px;
+  }
   .colorbar {
     width: 10px;
     height: 200px;

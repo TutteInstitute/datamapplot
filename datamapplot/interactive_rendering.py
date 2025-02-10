@@ -149,7 +149,7 @@ _TOOL_TIP_CSS = """
             font-family: {{title_font_family}};
             font-weight: {{title_font_weight}};
             color: {{title_font_color}} !important;
-            background-color: {{title_background}} !important;
+            background-color: {{title_background[:-2] + "ee"}} !important;
             border-radius: 12px;
             box-shadow: 2px 3px 10px {{shadow_color}};
             max-width: 25%;
@@ -176,7 +176,7 @@ _NOTEBOOK_NON_INLINE_WORKER = """
               headers: {Authorization: 'Token API_TOKEN'}
             });
             if (!response.ok) {
-              throw new Error(\`HTTP error! status: \${response.status}. Failed to fetch: \${filename}\`);
+              throw new Error(\\`HTTP error! status: \\${response.status}. Failed to fetch: \\${filename}\\`);
             }
             const decompressedData = await response.json()
               .then(data => data.content)
@@ -425,7 +425,7 @@ def _get_css_dependency_sources(
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "css"
-    css_dependencies = []
+    css_dependencies = ["containers_and_stacks.css"]
     css_dependencies_src = {}
 
     if enable_histogram:
@@ -509,7 +509,7 @@ def default_colormap_options(values_dict):
 
         if values.dtype.kind in ["U", "S", "O"]:
             colormap_metadata["kind"] = "categorical"
-            n_categories = len(values.unique())
+            n_categories = len(np.unique(values))
             n = 0
             cmap = _DEFAULT_DICRETE_COLORMAPS[n]
             while cmap in used_colormaps or n_categories > len(get_cmap(cmap).colors):
@@ -734,12 +734,14 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         colormap_metadata = {
             "field": f"layer_{i}",
             "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample,
+            "colors": color_sample + [color for color in colormap_subset.values() if color not in color_sample],
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
-        if len(unique_labels) <= 35:
+        if len(unique_labels) <= 25:
             colormap_metadata["show_legend"] = True
+        else:
+            colormap_metadata["show_legend"] = False
         colordata.append(layer)
         metadata.append(colormap_metadata)
 
@@ -1248,6 +1250,12 @@ def render_html(
         the colormap will not be enabled. The field should a short (one word) name for the metadata
         field, the description should be a longer description of the field, and the cmap should be
         the name of the colormap to use, and must be available in matplotlib colormap registry.
+
+    cluster_layer_colormaps: bool (optional, default=False)
+        Whether to use per-layer cluster colormaps. If True, a separate colormap in the colormaps
+        dropdown will be created for each layer of the label data. This is useful when the label
+        data is split into multiple layers, and you would like users to be able to select
+        individual clustering resolutions to colour by.
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
