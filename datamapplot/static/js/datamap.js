@@ -486,6 +486,12 @@ class DataMap {
           ...this.pointLayer.props.data.attributes,
           getFillColor: { value: this[`${fieldName}Colors`], size: 4 }
         }
+      },
+      transitions: {
+        getFillColor: {
+          duration: 1500,
+          easing: d3.easeCubicInOut
+        }
       }
     });
     
@@ -507,6 +513,12 @@ class DataMap {
         attributes: {
           ...this.pointLayer.props.data.attributes,
           getFillColor: { value: this.originalColors, size: 4 }
+        }
+      },
+      transitions: {
+        getFillColor: {
+          duration: 1500,
+          easing: d3.easeCubicInOut
         }
       }
     });
