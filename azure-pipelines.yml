@@ -128,7 +128,7 @@ stages:
         - task: PublishBuildArtifacts@1
           inputs:
             pathToPublish: $(Build.ArtifactStagingDirectory)/mpl
-            artifactName: 'mpl-test-results'
+            artifactName: 'mpl-test-results-$(Build.BuildId)-$(Agent.OS)'
           displayName: 'Publish MPL Test Artifacts'
           condition: always()
 
