@@ -734,20 +734,24 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         color_list = pd.Series(layer).map(label_color_map).to_list()
         color_array = np.asarray(
             [
-                to_rgba(color)
-                if type(color) == str
-                else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                (
+                    to_rgba(color)
+                    if type(color) == str
+                    else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                )
                 for color in color_list
             ]
         )
         color_sample = color_sample_from_colors(color_array, n_swatches)
         unique_labels = np.unique(layer)
         colormap_subset = {
-            label:
+            label: (
                 rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
                 if type(color) != str
                 else color
-            for label, color in label_color_map.items() if label in unique_labels
+            )
+            for label, color in label_color_map.items()
+            if label in unique_labels
         }
         descriptors = _CLUSTER_LAYER_DESCRIPTORS.get(
             len(label_layers), [f"Layer-{n}" for n in range(len(label_layers))]
@@ -755,7 +759,10 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         colormap_metadata = {
             "field": f"layer_{i}",
             "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample + [color for color in colormap_subset.values() if color not in color_sample],
+            "colors": color_sample
+            + [
+                color for color in colormap_subset.values() if color not in color_sample
+            ],
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
@@ -909,14 +916,6 @@ def label_text_and_polygon_dataframes(
     label_map[noise_label] = -1
     cluster_idx_vector = np.asarray(pd.Series(cluster_label_vector).map(label_map))
 
-    if parents is not None:
-        # parents is mutable, add on the currend cluster idx_vector.
-        #
-        if len(parents[0]):
-            parents[0] = np.vstack((parents[0], cluster_idx_vector))
-        else:
-            parents[0] = np.vstack((cluster_idx_vector,))
-
     label_locations = []
     cluster_sizes = []
     polygons = []
@@ -954,11 +953,11 @@ def label_text_and_polygon_dataframes(
             if len(parents[0]):
                 # Get the provenance (cluster membership at different heirarchical layers).
                 # This should be consistent.(??)
-                p = (
+                p = list(
                     np.median(parents[0][:, cluster_mask], axis=1)
                     .astype(int)
                     .astype(str)
-                )
+                ) + [str(i)]
                 label_ids.append("_".join(p))
                 parent_ids.append("_".join(p[:-1]))
             else:
@@ -966,31 +965,53 @@ def label_text_and_polygon_dataframes(
                 parent_ids.append(None)
 
     if parents is not None:
-        # do the same for unlabeled points.
-        cluster_mask = cluster_idx_vector == -1
-        cluster_points = data_map_coords[cluster_mask]
+        # do the same for unlabeled points, noting that not all unlabeled
+        # points at this level have the same parent.
+        unlabeled_mask = cluster_idx_vector == -1
 
-        if np.any(cluster_mask):
-            label_locations.append(cluster_points.mean(axis=0))
-            cluster_sizes.append(None)
-            polygons.append(None)
-            unique_non_noise_labels.append(noise_label)
-            if include_related_points:
-                related_points.append(np.where(cluster_mask))
-                points_bounds.append(compute_percentile_bounds(cluster_points))
-            if len(parents[0]):
-                # Get the provenance.
-                # This should be consistent.(??)
-                p = list(
-                    np.median(parents[0][:, cluster_mask], axis=1)
-                    .astype(int)
-                    .astype(str)
-                )
-                label_ids.append("_".join(p))
-                parent_ids.append("_".join(p[:-1]))
-            else:
-                label_ids.append(str(i))
-                parent_ids.append(None)
+        # At the top level, we don't need to wory about unlabeled points having
+        # different parents.
+        if len(parents[0]):
+            parent_masks = [
+                (parents[0][-1] == parent) for parent in np.unique(parents[0][-1])
+            ]
+        else:
+            parent_masks = [unlabeled_mask]
+
+        # Iterate over possible parents
+        for parent_mask in parent_masks:
+            cluster_mask = unlabeled_mask & parent_mask
+
+            if np.any(cluster_mask):
+                cluster_points = data_map_coords[cluster_mask]
+                label_locations.append(cluster_points.mean(axis=0))
+                cluster_sizes.append(None)
+                polygons.append(None)
+                unique_non_noise_labels.append(noise_label)
+                if include_related_points:
+                    related_points.append(np.where(cluster_mask))
+                    points_bounds.append(compute_percentile_bounds(cluster_points))
+                if len(parents[0]):
+                    # Get the provenance.
+                    # This should be consistent.(??)
+                    p = list(
+                        np.median(parents[0][:, cluster_mask], axis=1)
+                        .astype(int)
+                        .astype(str)
+                    ) + ["-1"]
+                    label_ids.append("_".join(p))
+                    parent_ids.append("_".join(p[:-1]))
+                else:
+                    label_ids.append(str(i))
+                    parent_ids.append(None)
+
+    if parents is not None:
+        # parents is mutable, add on the currend cluster idx_vector.
+        #
+        if len(parents[0]):
+            parents[0] = np.vstack((parents[0], cluster_idx_vector))
+        else:
+            parents[0] = np.vstack((cluster_idx_vector,))
 
     label_locations = np.asarray(label_locations)
 
@@ -1016,18 +1037,20 @@ def url_to_base64_img(url):
         # Download the image
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        
+
         # Determine the image type from the Content-Type header
-        content_type = response.headers.get('Content-Type', '')
-        if not content_type.startswith('image/'):
-            raise ValueError(f'URL does not point to an image (Content-Type: {content_type})')
-            
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            raise ValueError(
+                f"URL does not point to an image (Content-Type: {content_type})"
+            )
+
         # Convert the image data to base64
-        image_data = base64.b64encode(response.content).decode('utf-8')
-        
+        image_data = base64.b64encode(response.content).decode("utf-8")
+
         # Create the complete data URL
-        return f'data:{content_type};base64,{image_data}'
-        
+        return f"data:{content_type};base64,{image_data}"
+
     except requests.RequestException as e:
         print(f"Error downloading image: {e}")
         return None
@@ -1645,9 +1668,11 @@ def render_html(
         cielab_colors = cspace_convert(
             jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
         )
-        n_swatches = np.max(
-            [colormap.get("n_colors", 5) for colormap in colormap_metadata]
-        ) if len(colormap_metadata) > 0 else 5
+        n_swatches = (
+            np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
+            if len(colormap_metadata) > 0
+            else 5
+        )
         quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
             cielab_colors
         )
@@ -1792,7 +1817,6 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
-    toc_highlight_color = "#4169E1" if not darkmode else "#fff3cd"
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1919,8 +1943,7 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
-        table_of_contents=enable_table_of_contents,
-        toc_highlight_color=toc_highlight_color,
+        enable_table_of_contents=enable_table_of_contents,
         table_of_contents_on_click=table_of_contents_on_click,
         table_of_contents_button_icon=table_of_contents_button_icon,
         **histogram_ctx,

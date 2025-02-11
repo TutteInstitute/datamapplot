@@ -61,7 +61,6 @@
 
 .caret::before {
     content: "\25B6";
-    color: black;
     display: inline-block;
     margin-right: 6px;
 }
@@ -71,12 +70,11 @@
 }
 
 .caret.unlabeled {
-    color: #666;
-    font-style: italic;
+    color: #888;
 }
 
 .caret.unlabeled::before {
-    color: #666;
+    color: #888;
 }
 
 .bullet {
@@ -89,20 +87,17 @@
 
 .bullet::before {
     content: "\25CF";
-    color: black;
     display: inline-block;
     margin-right: 6px;
 }
 
 .bullet.unlabeled {
-    color: #666;
-    font-style: italic;
+    color: #888;
 }
 
 .bullet.unlabeled::before {
-    color: #666;
+    color: #888;
 }
-
 
 li {
     list-style-type: none;
@@ -126,8 +121,6 @@ li {
 /* table of contents labels */
 .toc-label {
     border: none; /* Remove borders */
-    padding: 2px 4px;
-    border-radius: 5px;
     cursor: pointer; /* Mouse pointer on hover */
 }
 
@@ -146,4 +139,9 @@ li {
 
 .expand-all-btn:hover {
     text-decoration: underline;
+}
+
+/* Highlight styling */
+.highlighted {
+    -webkit-text-stroke: 2px #4169E1;
 }

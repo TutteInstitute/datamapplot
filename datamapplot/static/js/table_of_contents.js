@@ -105,14 +105,11 @@ class TableOfContents {
             latitude: dataCenter[1],
             longitude: dataCenter[0],
             zoom: zoomLevel,
+            transitionDuration: 1000,
         };
         this.datamap.deckgl.setProps({
-            viewState: viewState,
+            initialViewState: {...viewState},
         });
-        // highlightElements(getVisibleTextData(viewState)) - For some reason this won't work, but would be ideal.
-        const labelElements = this.elements.filter((label) => {return label.id.startsWith(labelId)});
-    
-        this.highlightElements(labelElements);
     }
 
     highlightElements(elements) {
@@ -168,15 +165,15 @@ class TableOfContents {
                 const nestedList = getNextSibling(caret, '.nested');
                 if (isExpanded) {
                     // Collapse all
-                    caret.classList.toggle('caret-down');
+                    caret.classList.remove('caret-down');
                     if (nestedList) {
-                        nestedList.classList.toggle('active');
+                        nestedList.classList.remove('active');
                     }
                 } else {
                     // Expand all
-                    caret.classList.toggle('caret-down');
+                    caret.classList.add('caret-down');
                     if (nestedList) {
-                        nestedList.classList.toggle('active');
+                        nestedList.classList.add('active');
                     }
                 }
             });

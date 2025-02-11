@@ -120,13 +120,6 @@
         width: fit-content;
       }
       {%- endif %}
-      {%- if table_of_contents %}
-        /* Highlight styling for table of contents */
-        .highlighted {
-            background-color: {{toc_highlight_color}};
-            border-radius: 2px;
-        }
-      {%- endif %}
        {%- if custom_css %}
       {{custom_css}}
       {%- endif %}
@@ -166,7 +159,7 @@
             <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
           </div>
           {% endif %}
-          {% if table_of_contents %}
+          {% if enable_table_of_contents %}
           <div id="table-of-contents" class="container-box">
           </div>
           {% endif %}
@@ -580,7 +573,7 @@
           // Only build labels where we have a position.
           datamap.addLabels(
             {%- if enable_table_of_contents -%}
-            labelData.filter((d) => {return !d.id.endsWith('-1')})
+            labelData.filter((d) => {return !(d.id.endsWith('-1'))})
             {%- else -%}
             labelData
             {%- endif -%}, {
@@ -597,7 +590,7 @@
             pickable: true,
           });
 
-          {% if table_of_contents %}
+          {% if enable_table_of_contents %}
             const tocContainer = document.querySelector('#table-of-contents');
             
             {% if table_of_contents_on_click %}
@@ -629,8 +622,18 @@
             );
             {% endif -%}
             
-            
-            const onViewStateChange = ({viewState, interactionState}) => {
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout=setTimeout(later, wait);
+                };
+            }
+            const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
                 const userIsInteracting = Object.values(interactionState).every(Boolean);
                 if (!userIsInteracting) {
                     const visible = getVisibleTextData(viewState)
@@ -638,10 +641,10 @@
                         toc.highlightElements(visible)
                     };
                 };
-            };
+            }, 250);
             
             datamap.deckgl.setProps({
-                onViewStateChange: onViewStateChange,
+                onViewStateChange: debouncedViewStateChange,
             });
 
           {% endif %}
@@ -791,7 +794,7 @@
     }
     {% endif -%}
 
-    {% if table_of_contents %}
+    {% if enable_table_of_contents %}
     function isBoundsVisible({bounds, viewState}) {
         const {width, height, longitude, latitude, zoom} = viewState;
     
