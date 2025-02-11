@@ -202,7 +202,7 @@ stages:
             testResultsFiles: 'e2e-junit-results.xml'
             mergeTestResults: true
             failTaskOnFailedTests: true
-            testRunTitle: 'Playwright Test Results'
+            testRunTitle: 'Playwright Test Results-$(Agent.OS)-py$(python.version)'
           condition: succeededOrFailed()
 
         - task: PublishBuildArtifacts@1
