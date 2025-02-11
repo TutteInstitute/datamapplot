@@ -21,7 +21,7 @@ test.describe('Cord19 Canvas Tests', () => {
 
   const verifyInitialState = async (page) => {
     const canvas = page.locator('#deck-container canvas');
-    await expect(canvas).toHaveScreenshot('initial-state.png');
+    await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
   };
 
   test('zoom functionality', async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.mouse.wheel(0, -100);
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('after-zoom.png');
+    await expect(canvas).toHaveScreenshot('cord19-after-zoom.png');
   });
 
   test('search functionality', async ({ page }) => {
@@ -44,7 +44,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.locator('#text-search').fill('covid');
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('after-search-covid.png');
+    await expect(canvas).toHaveScreenshot('cord19-after-search-covid.png');
   });
 
   test('pan functionality', async ({ page }) => {
@@ -62,6 +62,6 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.mouse.up();
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('after-pan.png');
+    await expect(canvas).toHaveScreenshot('cord19-after-pan.png');
   });
 });
