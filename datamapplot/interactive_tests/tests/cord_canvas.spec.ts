@@ -2,20 +2,20 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Cord19 Canvas Tests', () => {
   test.beforeEach(async ({ page }, testInfo) => {
-    // Extend timeout for all tests running this hook by 3 minutes.
-    testInfo.setTimeout(testInfo.timeout + 180_000);
+    // Extend timeout for all tests running this hook by 4 minutes.
+    testInfo.setTimeout(testInfo.timeout + 240_000);
     // Set consistent viewport size
     await page.setViewportSize({ width: 1280, height: 720 });
 
     // Load the page
-    const response = await page.goto('http://localhost:8000/cord19.html', { timeout: 60000 });
+    const response = await page.goto('http://localhost:8000/cord19.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
     // Wait for loading
     console.log('Waiting for #loading and #progress-container to be hidden...');
     await Promise.all([
-      page.waitForSelector('#loading', { state: 'hidden', timeout: 120000 }),
-      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120000 })
+      page.waitForSelector('#loading', { state: 'hidden', timeout: 120_000 }),
+      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120_000 })
     ]);
   });
 

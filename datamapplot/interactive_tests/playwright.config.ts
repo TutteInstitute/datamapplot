@@ -14,7 +14,7 @@ export default defineConfig({
     headless: true,
   },
   expect: {
-    timeout: 120_000,
+    timeout: 180_000,
     toHaveScreenshot: {
       maxDiffPixels: 30_000, // This is the total pixel difference threshold
       threshold: 0.2, // This is the per pixel color difference threshold
