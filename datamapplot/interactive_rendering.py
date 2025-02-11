@@ -982,7 +982,7 @@ def label_text_and_polygon_dataframes(
         for parent_mask in parent_masks:
             cluster_mask = unlabeled_mask & parent_mask
 
-            if np.any(cluster_mask):
+            if np.sum(cluster_mask) > 2:
                 cluster_points = data_map_coords[cluster_mask]
                 label_locations.append(cluster_points.mean(axis=0))
                 cluster_sizes.append(None)
