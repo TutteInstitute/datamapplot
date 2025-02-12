@@ -40,9 +40,13 @@ class TableOfContents {
             </div>
         `;
     
+        this.spanCache = new Map();
+        this.parentChainCache = new Map();
         this.setupCaretHandlers();
         this.setupLabelHandlers(datamap);
         this.setupExpandAllHandler();
+        this.initializeSpanCache();
+        this.initializeParentChainCache();
         this.highlightElements(this.elements);
     }
     
@@ -116,33 +120,57 @@ class TableOfContents {
         });
     }
 
-    highlightElements(elements) {
-        this.container.querySelectorAll('.highlighted').forEach(element => {
-            element.classList.remove('highlighted');
+    initializeSpanCache() {
+        this.spanCache.clear();
+        this.container.querySelectorAll('[data-element-id]').forEach(span => {
+            this.spanCache.set(span.dataset.elementId, span);
         });
+    }
+
+    initializeParentChainCache() {
+        this.parentChainCache.clear();
+        this.elements.forEach(element => {
+            const chain = [];
+            let current = element;
+            while (current.parent) {
+                chain.push(current.parent);
+                current = this.elements.find(e => e.id === current.parent);
+                if (!current) break;
+            }
+            this.parentChainCache.set(element.id, chain);
+        });
+    }
+    
+        highlightElements(elements) {
+        // Clear all existing highlights first
+        const highlightedElements = Array.from(this.container.querySelectorAll('.highlighted'));
+        highlightedElements.forEach(el => el.classList.remove('highlighted'));
         
         elements.forEach(element => {
             this.highlightElementAndParents(element);
         });
     }
-
+    
     highlightElementAndParents(element) {
-        const elementSpan = this.container.querySelector(`[data-element-id="${element.id}"]`);
-        if (elementSpan) {
-            elementSpan.classList.add('highlighted');
-            
-            let currentElement = element;
-            while (currentElement.parent) {
-                const parentElement = this.elements.find(e => e.id === currentElement.parent);
-                if (parentElement) {
-                    const parentSpan = this.container.querySelector(`[data-element-id="${parentElement.id}"]`);
-                    if (parentSpan) {
-                        parentSpan.classList.add('highlighted');
-                    }
-                    currentElement = parentElement;
-                } else {
-                    break;
-                }
+        const elementSpan = this.spanCache.get(element.id);
+        if (!elementSpan) return;
+        
+        // If this element is already highlighted, we can skip it and its entire parent chain
+        if (elementSpan.classList.contains('highlighted')) return;
+        
+        elementSpan.classList.add('highlighted');
+        
+        // Use cached parent chain, but abort as soon as we hit a highlighted element
+        const parentChain = this.parentChainCache.get(element.id);
+        if (parentChain) {
+            for (const parentId of parentChain) {
+                const parentSpan = this.spanCache.get(parentId);
+                if (!parentSpan) continue;
+                
+                // If we hit a highlighted parent, we can stop - its parents are already done
+                if (parentSpan.classList.contains('highlighted')) break;
+                
+                parentSpan.classList.add('highlighted');
             }
         }
     }
