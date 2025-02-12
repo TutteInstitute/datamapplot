@@ -953,7 +953,7 @@ def label_text_and_polygon_dataframes(
             if len(parents[0]):
                 # Get the provenance (cluster membership at different heirarchical layers).
                 # This should be consistent.(??)
-                p = list(
+                p = ["base"] + list(
                     np.median(parents[0][:, cluster_mask], axis=1)
                     .astype(int)
                     .astype(str)
@@ -961,8 +961,8 @@ def label_text_and_polygon_dataframes(
                 label_ids.append("_".join(p))
                 parent_ids.append("_".join(p[:-1]))
             else:
-                label_ids.append(str(i))
-                parent_ids.append(None)
+                label_ids.append(f"base_{i}")
+                parent_ids.append("base")
 
     if parents is not None:
         # do the same for unlabeled points, noting that not all unlabeled
@@ -994,7 +994,7 @@ def label_text_and_polygon_dataframes(
                 if len(parents[0]):
                     # Get the provenance.
                     # This should be consistent.(??)
-                    p = list(
+                    p = ["base"] + list(
                         np.median(parents[0][:, cluster_mask], axis=1)
                         .astype(int)
                         .astype(str)
@@ -1002,8 +1002,8 @@ def label_text_and_polygon_dataframes(
                     label_ids.append("_".join(p))
                     parent_ids.append("_".join(p[:-1]))
                 else:
-                    label_ids.append(str(i))
-                    parent_ids.append(None)
+                    label_ids.append("base_-1")
+                    parent_ids.append("base")
 
     if parents is not None:
         # parents is mutable, add on the currend cluster idx_vector.

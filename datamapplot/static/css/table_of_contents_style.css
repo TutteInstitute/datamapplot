@@ -1,10 +1,22 @@
 #table-of-contents {
     display: block;
-    max-height: 48vh;
-    max-width: 30vw;
-    overflow: auto;
+    height: fit-content;
+    width: fit-content;
 }
 
+#toc-body {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    max-height: 42vh;
+    max-width: 30vw;
+}
+
+/* Add some padding to prevent scroll bar from overlapping content */
+#toc-body > .nested {
+    display: block;
+    padding-right: 10px;
+}
 /* Add some padding to prevent scroll bar from overlapping content */
 #table-of-contents > .nested {
     display: block;
@@ -20,6 +32,10 @@
     padding: 8px;
     border-bottom: 1px solid #ddd;
     margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: row;
 }
 
 .nested {
@@ -38,16 +54,14 @@
     width: 8px;
 }
 
-#table-of-contents::-webkit-scrollbar-track {
+#toc-body::-webkit-scrollbar-track {
     background: #f1f1f1;
 }
-
-#table-of-contents::-webkit-scrollbar-thumb {
+#toc-body::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
 }
-
-#table-of-contents::-webkit-scrollbar-thumb:hover {
+#toc-body::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
@@ -56,7 +70,8 @@
     user-select: none;
     padding: 2px 4px;
     border-radius: 3px;
-    transition: background-color 0.3s ease;
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
 }
 
 .caret::before {
@@ -69,12 +84,13 @@
     transform: rotate(90deg);
 }
 
-.caret.unlabeled {
+/* .caret.unlabeled {
     color: #888;
-}
+} */
 
 .caret.unlabeled::before {
-    color: #888;
+    content: "\25b7";
+    /* color: #888; */
 }
 
 .bullet {
@@ -82,7 +98,8 @@
     user-select: none;
     padding: 2px 4px;
     border-radius: 3px;
-    transition: background-color 0.3s ease;
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
 }
 
 .bullet::before {
@@ -91,12 +108,13 @@
     margin-right: 6px;
 }
 
-.bullet.unlabeled {
+/* .bullet.unlabeled {
     color: #888;
-}
+} */
 
 .bullet.unlabeled::before {
-    color: #888;
+    content: "\25CB";
+    /* color: #888; */
 }
 
 li {
@@ -132,9 +150,10 @@ li {
 .expand-all-btn {
     padding: 4px 8px;
     cursor: pointer;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background: #f8f8f8;
+    border: none;
+    border-radius: 8px;
+    background: #3ba5e7;
+    color: white;
 }
 
 .expand-all-btn:hover {
@@ -143,5 +162,6 @@ li {
 
 /* Highlight styling */
 .highlighted {
-    -webkit-text-stroke: 2px #4169E1;
+    opacity: 1.0;
+    transition: opacity 0.3s ease;
 }

@@ -32,8 +32,12 @@ class TableOfContents {
         this.parentChildMap = this.buildParentChildMap();
         
         this.container.innerHTML = `
-            <button class="expand-all-btn" data-expanded="false">Expand All</button>
+            <div class="toc-header">
+                <h3>Topic Tree</h3><button class="expand-all-btn" data-expanded="false">Expand All</button>
+            </div>
+            <div id="toc-body">
             ${this.buildTreeHtml(buttons, icon)}
+            </div>
         `;
     
         this.setupCaretHandlers();
@@ -49,24 +53,24 @@ class TableOfContents {
         // First, handle elements with actual parents
         this.elements.forEach(element => {
             const parentId = element.parent;
-            if (parentId) {
-                if (!parentChildMap.has(parentId)) {
-                    parentChildMap.set(parentId, []);
-                }
-                parentChildMap.get(parentId).push(element);
-            } else {
-                // Handle root level elements
-                if (!parentChildMap.has(null)) {
-                    parentChildMap.set(null, []);
-                }
-                parentChildMap.get(null).push(element);
+            // if (parentId === 'base') {
+            if (!parentChildMap.has(parentId)) {
+                parentChildMap.set(parentId, []);
             }
+            parentChildMap.get(parentId).push(element);
+            // } else {
+            //     // Handle root level elements
+            //     if (!parentChildMap.has('base')) {
+            //         parentChildMap.set('base', []);
+            //     }
+            //     parentChildMap.get('base').push(element);
+            // }
         });
     
         return parentChildMap;
     }
 
-    buildTreeHtml(buttons, icon, parentId = null) {
+    buildTreeHtml(buttons, icon, parentId = 'base') {
         const children = this.parentChildMap.get(parentId) || [];
         
         if (children.length === 0) return '';
