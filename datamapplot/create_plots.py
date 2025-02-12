@@ -17,6 +17,7 @@ from datamapplot.plot_rendering import render_plot
 from datamapplot.medoids import medoid
 from datamapplot.interactive_rendering import (
     render_html,
+    compute_percentile_bounds,
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
@@ -475,6 +476,14 @@ def create_interactive_plot(
     -------
 
     """
+    # Compute bounds and rescale the data map to a standard size
+    raw_data_bounds = compute_percentile_bounds(data_map_coords)
+    raw_data_width = raw_data_bounds[1] - raw_data_bounds[0]
+    raw_data_height = raw_data_bounds[3] - raw_data_bounds[2]
+    raw_data_scale = np.max([raw_data_width, raw_data_height])
+
+    data_map_coords = (30.0 / raw_data_scale) * (data_map_coords - np.mean(data_map_coords, axis=0))
+
     if len(label_layers) == 0:
         label_dataframe = pd.DataFrame(
             {

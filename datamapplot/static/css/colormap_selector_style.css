@@ -1,7 +1,10 @@
-.color-map-dropdown {
+#colormap-selector-container {
     position: relative;
+    z-index: 100;
+}
+.color-map-dropdown {
     background-color: inherit;
-    z-index: 1000;
+    z-index: 100;
   }
   .color-map-selected {
     display: flex;
@@ -13,23 +16,23 @@
     width: 100%;
     box-sizing: border-box;
     position: relative;
-    z-index: 1000;
+    z-index: 100;
   }
   .color-map-options {
     position: fixed;
     bottom: 100%;
     left: 0;
     right: 0;
-    z-index: 1;
-    background-color: inherit;
     border: 1px solid #ccc;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     max-height: 500px;
     overflow-y: auto;
     display: none;
+    background-color: #ffffff77;
+    backdrop-filter: blur(6px);
     box-sizing: border-box;
-    z-index: 1001;
+    z-index: 101;
   }
   .color-map-option {
     position: relative;
@@ -37,10 +40,13 @@
     align-items: center;
     padding: 10px;
     cursor: pointer;
-    z-index: 10;
+    z-index: 102;
+    background-color: #ffffffee;
+    backdrop-filter: blur(6px);
   }
   .color-map-option:hover {
-    background-color: #77777733;
+    background-color: #ccccccee;
+    backdrop-filter: blur(6px);
   }
   .color-swatch {
     display: inline-block;
