@@ -93,12 +93,13 @@
         border-radius: 8px;
         color: {{title_font_color}};
         background: {{input_background}};
-        border: 1px solid {{input_border}};
+        border: 2px inset #77777744;
         transition: 0.5s;
         outline: none;
+        box-sizing: border-box;
       }
       input:focus {
-        border: 2px solid #555;
+        border: 2px inset #555;
       }
       {%- if logo %}
       img {
