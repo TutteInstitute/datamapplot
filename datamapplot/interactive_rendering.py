@@ -151,6 +151,7 @@ _TOOL_TIP_CSS = """
             color: {{title_font_color}} !important;
             background-color: {{title_background[:-2] + "ee"}} !important;
             border-radius: 12px;
+            backdrop-filter: blur(6px);
             box-shadow: 2px 3px 10px {{shadow_color}};
             max-width: 25%;
 """
@@ -807,7 +808,6 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
 
     return colormaps, pd.concat(color_data, axis=1)
 
-
 def compute_percentile_bounds(points, percentage=99.9):
     n_points = points.shape[0]
     n_to_select = np.int32(n_points * (percentage / 100))
@@ -832,7 +832,6 @@ def compute_percentile_bounds(points, percentage=99.9):
         float(ymin - y_padding),
         float(ymax + y_padding),
     ]
-
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -1300,12 +1299,22 @@ def render_html(
         An interactive figure with hover, pan, and zoom. This will display natively
         in a notebook, and can be saved to an HTML file via the `save` method.
     """
+    # Compute bounds for initial view
+    bounds = compute_percentile_bounds(
+        point_dataframe[["x", "y"]].values,
+        percentage=(initial_zoom_fraction * 100),
+    )
+
     # Compute point scaling
     n_points = point_dataframe.shape[0]
     if point_size_scale is not None:
         magic_number = point_size_scale / 100.0
     else:
-        magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+        width = bounds[1] - bounds[0]
+        height = bounds[3] - bounds[2]
+        size_scale = np.sqrt(width * height)
+        scaling = size_scale / 25.0
+        magic_number = scaling * np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
 
     if "size" not in point_dataframe.columns:
         point_size = magic_number
@@ -1314,12 +1323,6 @@ def render_html(
             point_dataframe["size"] / point_dataframe["size"].mean()
         )
         point_size = -1
-
-    # Compute bounds for initial view
-    bounds = compute_percentile_bounds(
-        point_dataframe[["x", "y"]].values,
-        percentage=(initial_zoom_fraction * 100),
-    )
 
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"

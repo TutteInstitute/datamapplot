@@ -1,6 +1,5 @@
 .content-wrapper {
     /* position: relative; */
-    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -39,6 +38,7 @@
     display: flex;
     flex-direction: column-reverse;
     transform: scaleY(-1);
+    z-index: 2;
   }
 
   .top-right {
