@@ -358,6 +358,7 @@ def create_interactive_plot(
     polygon_alpha=0.1,
     cvd_safer=False,
     jupyterhub_api_token=None,
+    enable_table_of_contents=False,
     **render_html_kwds,
 ):
     """
@@ -463,9 +464,12 @@ def create_interactive_plot(
         This will override any provided cmap and use a CVD safer palette instead.
 
     jupyterhub_api_token: str or None (optional, default=None)
-        The JupyterHub API token to use when rendering the plot inline in a notebook via jupyterhub. 
+        The JupyterHub API token to use when rendering the plot inline in a notebook via jupyterhub.
         This should not be necessary for most users, but can be useful in some environments where
         the default token is not available.
+
+    enable_table_of_contents: bool (optional, default=False)
+        Whether to build and display a table of contents with the label heirarchy.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -493,6 +497,31 @@ def create_interactive_plot(
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
         )
+    elif enable_table_of_contents:
+        # This method of allowing label_text_and_polygon_dataframes to edit parents is unsavory,
+        # but means that the function has the same return statement each time and we can still use
+        # list comprehension.
+        #
+        parents = [[]]
+        label_lists = [
+            label_text_and_polygon_dataframes(
+                labels,
+                data_map_coords,
+                noise_label=noise_label,
+                use_medoids=use_medoids,
+                cluster_polygons=cluster_boundary_polygons,
+                alpha=polygon_alpha,
+                include_related_points=True,
+                parents=parents,
+            )
+            for labels in label_layers[::-1]
+        ]
+
+        # Mark the lowest layer labels so they can be displayed differently in the table of contents.
+        #
+        label_lists[-1]["lowest_layer"] = True
+
+        label_dataframe = pd.concat(label_lists)
     else:
         label_dataframe = pd.concat(
             [
@@ -508,6 +537,11 @@ def create_interactive_plot(
             ]
         )
 
+    # Split out the noise labels (placeholders for table of contents) so we can make color palettes.
+    #
+    noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]
+    label_dataframe = label_dataframe[label_dataframe["label"] != noise_label]
+
     if cvd_safer:
         cmap = colorcet.cm.CET_C2s
     if label_color_map is None:
@@ -517,7 +551,7 @@ def create_interactive_plot(
                 label_dataframe[["x", "y"]].values,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
-                theta_range=palette_theta_range
+                theta_range=palette_theta_range,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -525,7 +559,7 @@ def create_interactive_plot(
                 data_map_coords,
                 label_dataframe[["x", "y"]].values,
                 radius_weight_power=palette_hue_radius_dependence,
-                theta_range=palette_theta_range
+                theta_range=palette_theta_range,
             )
         if not darkmode:
             text_palette = np.asarray(
@@ -583,6 +617,9 @@ def create_interactive_plot(
     label_dataframe["label"] = label_dataframe.label.map(
         lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
     )
+
+    # Recombine noise label placeholders.
+    label_dataframe = pd.concat([label_dataframe, noise_label_dataframe])
 
     point_dataframe = pd.DataFrame(
         {
@@ -642,7 +679,10 @@ def create_interactive_plot(
         noise_color=noise_color,
         label_layers=label_layers,
         cluster_colormap=color_map | {noise_label:noise_color},
+        enable_table_of_contents=enable_table_of_contents,
         **render_html_kwds,
     )
 
-    return InteractiveFigure(html_str, width=width, height=height, api_token=jupyterhub_api_token)
+    return InteractiveFigure(
+        html_str, width=width, height=height, api_token=jupyterhub_api_token
+    )

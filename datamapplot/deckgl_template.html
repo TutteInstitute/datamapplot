@@ -125,7 +125,7 @@
         width: fit-content;
       }
       {%- endif %}
-      {%- if custom_css %}
+       {%- if custom_css %}
       {{custom_css}}
       {%- endif %}
     </style>
@@ -162,6 +162,10 @@
           {% if search %}
           <div id="search-container" class="container-box">
             <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
+          </div>
+          {% endif %}
+          {% if enable_table_of_contents %}
+          <div id="table-of-contents" class="container-box">
           </div>
           {% endif %}
         </div>
@@ -570,7 +574,14 @@
           {% else -%}
           const labelData = data[0].chunkData;
           {% endif -%}
-          datamap.addLabels(labelData, {
+          datamap.labelData = labelData;
+          // Only build labels where we have a position.
+          datamap.addLabels(
+            {%- if enable_table_of_contents -%}
+            labelData.filter((d) => {return !(d.id.endsWith('-1'))})
+            {%- else -%}
+            labelData
+            {%- endif -%}, {
             labelTextColor: {{label_text_color}},
             textMinPixelSize: {{text_min_pixel_size}},
             textMaxPixelSize: {{text_max_pixel_size}},
@@ -581,10 +592,71 @@
             fontWeight: {{font_weight}},
             lineSpacing: {{line_spacing}},
             textCollisionSizeScale: {{text_collision_size_scale}},
+            pickable: true,
           });
 
+          {% if enable_table_of_contents %}
+            const tocContainer = document.querySelector('#table-of-contents');
+            
+            {% if table_of_contents_on_click %}
+            const toc = new TableOfContents(
+                tocContainer,
+                datamap,
+                true,
+                "{{table_of_contents_button_icon}}"                
+            );
+              
+            // Set up the table of contents button behaviour.
+            toc.container.querySelectorAll('.toc-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    var label = datamap.labelData.find(l => {
+                      return l.id === this.dataset.labelId
+                    })
+                    {{table_of_contents_on_click}}
+                    // console.log(
+                    //     label.points[0].map(x=>datamap.metaData.hover_text[x])
+                    // );
+                });
+            });
+            {% else %}
+            const toc = new TableOfContents(
+                tocContainer,
+                datamap,
+                false,
+                null                
+            );
+            {% endif -%}
+            
+            function debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout=setTimeout(later, wait);
+                };
+            }
+            const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
+                const userIsInteracting = Object.values(interactionState).every(Boolean);
+                if (!userIsInteracting) {
+                    const visible = getVisibleTextData(viewState)
+                    if (visible) {
+                        toc.highlightElements(visible)
+                    };
+                };
+            }, 50);
+            
+            datamap.deckgl.setProps({
+                onViewStateChange: debouncedViewStateChange,
+            });
+
+          {% endif %}
           {% if cluster_boundary_polygons %}
-          datamap.addBoundaries(labelData, {
+          datamap.addBoundaries(labelData.filter((d) => {
+                return d.polygon
+            }), {
             clusterBoundaryLineWidth: {{cluster_boundary_line_width}},
           });
           {% endif %}
@@ -727,6 +799,46 @@
     }
     {% endif -%}
 
+    {% if enable_table_of_contents %}
+    function isBoundsVisible({bounds, viewState}) {
+        const {width, height, longitude, latitude, zoom} = viewState;
+    
+        const Viewport = new deck.WebMercatorViewport({
+            width,
+            height,
+            longitude,
+            latitude,
+            zoom,
+        })
+    
+        const viewBounds = [
+            [0,0],
+            [width, height],
+        ];
+    
+        const minBounds = Viewport.project([bounds[0], bounds[2]]);
+        const maxBounds = Viewport.project([bounds[1], bounds[3]]);
+    
+        return (
+            ((minBounds[0] >= 0 && minBounds[0] <= width) || (maxBounds[0] >= 0 && maxBounds[0] <= width)) &&
+            ((minBounds[1] >= 0 && minBounds[1] <= height) || (maxBounds[1] >= 0 && maxBounds[1] <= height))
+        );
+    };
+          
+    function getVisibleTextData(viewState) {
+        if (datamap.labelData) {
+            const visibleData = datamap.labelData.filter((d) => {
+                return isBoundsVisible({
+                    bounds: d.bounds,
+                    viewState: viewState,
+                });
+            });
+            return visibleData;
+        };
+    };
+    
+    {% endif %}
+      
     {%- if background_image -%}
     datamap.addBackgroundImage("{{background_image}}", {{background_image_bounds}});
     {%- endif %}

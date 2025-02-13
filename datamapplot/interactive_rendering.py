@@ -355,7 +355,12 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
 
 
 def _get_js_dependency_sources(
-    minify, enable_search, enable_histogram, enable_lasso_selection, colormap_selector
+    minify,
+    enable_search,
+    enable_histogram,
+    enable_lasso_selection,
+    colormap_selector,
+    enable_table_of_contents,
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -373,6 +378,9 @@ def _get_js_dependency_sources(
 
     enable_lasso_selection: bool
         Whether to include JS dependencies for the lasso selection functionality.
+
+    enable_table_of_contents: bool
+        Whether to include JS dependencies for the table of contents functionality.
 
     Returns
     -------
@@ -394,6 +402,9 @@ def _get_js_dependency_sources(
     if colormap_selector:
         js_dependencies.append("colormap_selector.js")
 
+    if enable_table_of_contents:
+        js_dependencies.append("table_of_contents.js")
+
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
@@ -403,7 +414,11 @@ def _get_js_dependency_sources(
 
 
 def _get_css_dependency_sources(
-    minify, enable_histogram, show_loading_progress, enable_colormap_selector
+    minify,
+    enable_histogram,
+    show_loading_progress,
+    enable_colormap_selector,
+    enable_table_of_contents,
 ):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
@@ -418,6 +433,9 @@ def _get_css_dependency_sources(
 
     show_loading_progress: bool
         Whether to have progress bars for data loading.
+
+    enable_table_of_contents: bool
+        Whether to include CSS dependencies for the table of contents functionality.
 
     Returns
     -------
@@ -437,6 +455,9 @@ def _get_css_dependency_sources(
 
     if enable_colormap_selector:
         css_dependencies.append("colormap_selector_style.css")
+
+    if enable_table_of_contents:
+        css_dependencies.append("table_of_contents_style.css")
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -714,20 +735,24 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         color_list = pd.Series(layer).map(label_color_map).to_list()
         color_array = np.asarray(
             [
-                to_rgba(color)
-                if type(color) == str
-                else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                (
+                    to_rgba(color)
+                    if type(color) == str
+                    else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                )
                 for color in color_list
             ]
         )
         color_sample = color_sample_from_colors(color_array, n_swatches)
         unique_labels = np.unique(layer)
         colormap_subset = {
-            label:
+            label: (
                 rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
                 if type(color) != str
                 else color
-            for label, color in label_color_map.items() if label in unique_labels
+            )
+            for label, color in label_color_map.items()
+            if label in unique_labels
         }
         descriptors = _CLUSTER_LAYER_DESCRIPTORS.get(
             len(label_layers), [f"Layer-{n}" for n in range(len(label_layers))]
@@ -735,7 +760,10 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         colormap_metadata = {
             "field": f"layer_{i}",
             "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample + [color for color in colormap_subset.values() if color not in color_sample],
+            "colors": color_sample
+            + [
+                color for color in colormap_subset.values() if color not in color_sample
+            ],
             "kind": "categorical",
             "color_mapping": colormap_subset,
         }
@@ -839,8 +867,46 @@ def label_text_and_polygon_dataframes(
     noise_label="Unlabelled",
     use_medoids=False,
     cluster_polygons=False,
+    include_related_points=False,
     alpha=0.05,
+    parents=None,
 ):
+    """
+    Build the necessary label data, including cluster polygon bounds.
+
+    Parameters
+    ----------
+    labels: np.array
+        Label text for each point
+
+    data_map_coords: np.array
+        Data map xy coordinates for each point
+
+    noise_label: str="Unlabelled"
+        The label to represent noise as used in labels.
+
+    use_medoids: bool (optional, default=False)
+        Whether to use cluster medoids to position labels.
+        Otherwise, the mean position of the cluster points is used.
+
+    cluster_polygons: bool (optional, default=False)
+        Whether to build polygon cluster boundaries.
+
+    include_related_points: bool (optional, default=False)
+        Whether to include indexes of related points to each label.
+        Normally used when displaying a table of contents.
+
+    alpha: float (optional, default=0.05)
+        Display transparency for cluster polygons.
+
+    parents: list or None (optional, default=None)
+        A record of the cluster heirarcy. This will be edited to include this layer's values.
+
+    Returns
+    -------
+    dataframe
+        A dataframe containing relevant information for each label.
+    """
     cluster_label_vector = np.asarray(labels)
     unique_non_noise_labels = [
         label for label in np.unique(cluster_label_vector) if label != noise_label
@@ -852,10 +918,15 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
+    related_points = []
+    points_bounds = []
+    label_ids = []
+    parent_ids = []
 
-    for i, _ in enumerate(unique_non_noise_labels):
+    for i, l in enumerate(unique_non_noise_labels):
         cluster_mask = cluster_idx_vector == i
         cluster_points = data_map_coords[cluster_mask]
+
         if use_medoids:
             label_locations.append(medoid(cluster_points))
         else:
@@ -874,6 +945,72 @@ def label_text_and_polygon_dataframes(
                     )
                 ]
             )
+        if include_related_points:
+            related_points.append(np.where(cluster_mask))
+            points_bounds.append(compute_percentile_bounds(cluster_points))
+        if parents is not None:
+            if len(parents[0]):
+                # Get the provenance (cluster membership at different heirarchical layers).
+                # This should be consistent.(??)
+                p = ["base"] + list(
+                    np.median(parents[0][:, cluster_mask], axis=1)
+                    .astype(int)
+                    .astype(str)
+                ) + [str(i)]
+                label_ids.append("_".join(p))
+                parent_ids.append("_".join(p[:-1]))
+            else:
+                label_ids.append(f"base_{i}")
+                parent_ids.append("base")
+
+    if parents is not None:
+        # do the same for unlabeled points, noting that not all unlabeled
+        # points at this level have the same parent.
+        unlabeled_mask = cluster_idx_vector == -1
+
+        # At the top level, we don't need to wory about unlabeled points having
+        # different parents.
+        if len(parents[0]):
+            parent_masks = [
+                (parents[0][-1] == parent) for parent in np.unique(parents[0][-1])
+            ]
+        else:
+            parent_masks = [unlabeled_mask]
+
+        # Iterate over possible parents
+        for parent_mask in parent_masks:
+            cluster_mask = unlabeled_mask & parent_mask
+
+            if np.sum(cluster_mask) > 2:
+                cluster_points = data_map_coords[cluster_mask]
+                label_locations.append(cluster_points.mean(axis=0))
+                cluster_sizes.append(None)
+                polygons.append(None)
+                unique_non_noise_labels.append(noise_label)
+                if include_related_points:
+                    related_points.append(np.where(cluster_mask))
+                    points_bounds.append(compute_percentile_bounds(cluster_points))
+                if len(parents[0]):
+                    # Get the provenance.
+                    # This should be consistent.(??)
+                    p = ["base"] + list(
+                        np.median(parents[0][:, cluster_mask], axis=1)
+                        .astype(int)
+                        .astype(str)
+                    ) + ["-1"]
+                    label_ids.append("_".join(p))
+                    parent_ids.append("_".join(p[:-1]))
+                else:
+                    label_ids.append("base_-1")
+                    parent_ids.append("base")
+
+    if parents is not None:
+        # parents is mutable, add on the currend cluster idx_vector.
+        #
+        if len(parents[0]):
+            parents[0] = np.vstack((parents[0], cluster_idx_vector))
+        else:
+            parents[0] = np.vstack((cluster_idx_vector,))
 
     label_locations = np.asarray(label_locations)
 
@@ -885,7 +1022,12 @@ def label_text_and_polygon_dataframes(
     }
     if cluster_polygons:
         data["polygon"] = polygons
-
+    if include_related_points:
+        data["points"] = related_points
+    if parents is not None:
+        data["id"] = label_ids
+        data["parent"] = parent_ids
+        data["bounds"] = points_bounds
     return pd.DataFrame(data)
 
 
@@ -894,18 +1036,20 @@ def url_to_base64_img(url):
         # Download the image
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        
+
         # Determine the image type from the Content-Type header
-        content_type = response.headers.get('Content-Type', '')
-        if not content_type.startswith('image/'):
-            raise ValueError(f'URL does not point to an image (Content-Type: {content_type})')
-            
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            raise ValueError(
+                f"URL does not point to an image (Content-Type: {content_type})"
+            )
+
         # Convert the image data to base64
-        image_data = base64.b64encode(response.content).decode('utf-8')
-        
+        image_data = base64.b64encode(response.content).decode("utf-8")
+
         # Create the complete data URL
-        return f'data:{content_type};base64,{image_data}'
-        
+        return f"data:{content_type};base64,{image_data}"
+
     except requests.RequestException as e:
         print(f"Error downloading image: {e}")
         return None
@@ -971,6 +1115,9 @@ def render_html(
     cluster_layer_colormaps=False,
     label_layers=None,
     cluster_colormap=None,
+    enable_table_of_contents=False,
+    table_of_contents_on_click=None,
+    table_of_contents_button_icon="📂",
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1256,6 +1403,22 @@ def render_html(
         data is split into multiple layers, and you would like users to be able to select
         individual clustering resolutions to colour by.
 
+    enable_table_of_contents: bool (optional, default=False)
+        Whether to enable a table of contents that highlights label heirarchy and aids navigation in
+        the datamap.
+
+    table_of_contents_on_click: str or None (optional, default=None)
+        An optional javascript action to be taken if a button in the table of contents is selected.
+        Each button will be related to a label, and can access the points related to that label.
+        This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
+        point an array is built with those values for each point that the label describes.
+        For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
+        points related to the label.
+
+    table_of_contents_button_icon: str (optional, default="📂")
+        The text to appear on the optional table of contents buttons to be associated with each label.
+        These buttons do not appear unless table_of_contents_on_click is defined.
+
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
         can be used to provide custom styling of other features of the output HTML as required.
@@ -1371,6 +1534,7 @@ def render_html(
     #     point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
     #     point_data_cols.append("selected")
 
+    # Point data, hover text, and on click formatting
     point_data = point_dataframe[point_data_cols]
 
     if "hover_text" in point_dataframe.columns:
@@ -1387,7 +1551,7 @@ def render_html(
             )
             if hover_text_html_template is not None:
                 get_tooltip = (
-                    '({index, picked}) => picked ? {"html": `'
+                    '({index, picked, layer}) => picked ? {"html": `'
                     + hover_text_html_template.format_map(replacements)
                     + "`} : null"
                 )
@@ -1396,9 +1560,20 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
+                    "({index, picked, layer}, event) => { if (picked) {"
                     + on_click.format_map(replacements)
                     + " } }"
+                )
+
+            if table_of_contents_on_click is not None:
+                toc_replacements = FormattingDict(
+                    **{
+                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                        for name in hover_data.columns
+                    }
+                )
+                table_of_contents_on_click = table_of_contents_on_click.format_map(
+                    toc_replacements
                 )
         else:
             hover_data = point_dataframe[["hover_text"]].copy()
@@ -1413,10 +1588,21 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
+                    "({index, picked, layer}, event) => { if (picked) {"
                     + on_click.format_map(replacements)
                     + " } }"
                 )
+            if table_of_contents_on_click is not None:
+                toc_replacements = FormattingDict(
+                    **{
+                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                        for name in hover_data.columns
+                    }
+                )
+                table_of_contents_on_click = table_of_contents_on_click.format_map(
+                    toc_replacements
+                )
+
     elif extra_point_data is not None:
         hover_data = extra_point_data.copy()
         replacements = FormattingDict(
@@ -1427,7 +1613,7 @@ def render_html(
         )
         if hover_text_html_template is not None:
             get_tooltip = (
-                '({index, picked}) => picked ? {"html": `'
+                '({index, picked, layer}) => picked ? {"html": `'
                 + hover_text_html_template.format_map(replacements)
                 + "`} : null"
             )
@@ -1436,14 +1622,25 @@ def render_html(
 
         if on_click is not None:
             on_click = (
-                "({index, picked}, event) => { if (picked) {"
+                "({index, picked, layer}, event) => { if (picked) {"
                 + on_click.format_map(replacements)
                 + " } }"
+            )
+        if table_of_contents_on_click is not None:
+            toc_replacements = FormattingDict(
+                **{
+                    str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                    for name in hover_data.columns
+                }
+            )
+            table_of_contents_on_click = table_of_contents_on_click.format_map(
+                toc_replacements
             )
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
 
+    # Histogram
     if enable_histogram:
         if isinstance(histogram_data.dtype, pd.CategoricalDtype):
             bin_data, index_data = generate_bins_from_categorical_data(
@@ -1474,9 +1671,11 @@ def render_html(
         cielab_colors = cspace_convert(
             jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
         )
-        n_swatches = np.max(
-            [colormap.get("n_colors", 5) for colormap in colormap_metadata]
-        ) if len(colormap_metadata) > 0 else 5
+        n_swatches = (
+            np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
+            if len(colormap_metadata) > 0
+            else 5
+        )
         quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
             cielab_colors
         )
@@ -1648,12 +1847,14 @@ def render_html(
             enable_histogram,
             enable_lasso_selection,
             enable_colormap_selector,
+            enable_table_of_contents,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
             minify_deps,
             enable_histogram,
             show_loading_progress,
             enable_colormap_selector,
+            enable_table_of_contents,
         ),
     }
 
@@ -1745,6 +1946,9 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
+        enable_table_of_contents=enable_table_of_contents,
+        table_of_contents_on_click=table_of_contents_on_click,
+        table_of_contents_button_icon=table_of_contents_button_icon,
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,
         colormap_metadata=json.dumps(color_metadata),
