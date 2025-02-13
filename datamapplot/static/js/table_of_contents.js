@@ -30,21 +30,41 @@ class TableOfContents {
         this.elements = datamap.labelData;
         this.rootLayerNo = Math.max(...datamap.labelData.map(e => e.layer_no));
         this.parentChildMap = this.buildParentChildMap();
-        
-        this.container.innerHTML = `
-            <div class="toc-header">
-                <h3>Topic Tree</h3><button class="expand-all-btn" data-expanded="false">Expand All</button>
-            </div>
-            <div id="toc-body">
-            ${this.buildTreeHtml(buttons, icon)}
-            </div>
-        `;
+
+        this.showHideButton = document.createElement('button');
+        this.showHideButton.classList.add('toc-close-btn');
+        this.showHideButton.innerHTML = '&#10095;';
+        this.container.appendChild(this.showHideButton);
+
+        this.tocContainer = document.createElement('div');
+        this.header = document.createElement('div');
+        this.header.classList.add('toc-header');
+        this.heading = document.createElement('h3');
+        this.heading.textContent = 'Topic Tree';
+        this.expandAllBtn = document.createElement('button');
+        this.expandAllBtn.classList.add('expand-all-btn');
+        this.expandAllBtn.dataset.expanded = 'false';
+        this.expandAllBtn.textContent = 'Expand All';
+
+        this.header.appendChild(this.heading);
+        this.header.appendChild(this.expandAllBtn);
+        this.tocContainer.appendChild(this.header);
+
+        this.tocBody = document.createElement('div');
+        this.tocBody.id = 'toc-body';
+        this.tocBody.innerHTML = this.buildTreeHtml(buttons, icon);
+        this.tocBody.style.textWrap = 'nowrap';
+        this.tocBody.style.overflowX = 'auto';
+        this.tocContainer.appendChild(this.tocBody);
+
+        this.container.appendChild(this.tocContainer);
     
         this.spanCache = new Map();
         this.parentChainCache = new Map();
         this.setupCaretHandlers();
         this.setupLabelHandlers(datamap);
         this.setupExpandAllHandler();
+        this.setupShowHideHandler();
         this.initializeSpanCache();
         this.initializeParentChainCache();
         this.highlightElements(this.elements);
@@ -188,8 +208,7 @@ class TableOfContents {
     }
 
     setupExpandAllHandler() {
-        const expandAllBtn = this.container.querySelector('.expand-all-btn');
-        expandAllBtn.addEventListener('click', function() {
+        this.expandAllBtn.addEventListener('click', function() {
             const isExpanded = this.dataset.expanded === 'true';
             const carets = document.querySelectorAll('.caret');
             
@@ -213,6 +232,40 @@ class TableOfContents {
             // Toggle button state
             this.dataset.expanded = (!isExpanded).toString();
             this.textContent = isExpanded ? 'Expand All' : 'Collapse All';
+        });
+    }
+
+    setupShowHideHandler() {
+        const tocBody = this.tocBody;
+        const header = this.header;
+        const heading = this.heading;
+        const expandAllBtn = this.expandAllBtn;
+        const tocContainer = this.tocContainer;
+        this.showHideButton.addEventListener('click', function() {
+            const hidden = tocContainer.hidden;
+            console.log("clicked", tocBody);
+            if (hidden) {
+                $(tocContainer).animate({height: 'show', width: 'show', opacity: 'show'}, 250);
+                tocContainer.hidden = false;
+                tocBody.style.overflowX = 'auto';
+                this.classList.remove('closed');
+            } else {
+                tocBody.style.overflowX = 'hidden';
+                const carets = document.querySelectorAll('.caret');
+                carets.forEach(caret => {
+                    const nestedList = getNextSibling(caret, '.nested');
+                    // Collapse all
+                    caret.classList.remove('caret-down');
+                    if (nestedList) {
+                        nestedList.classList.remove('active');
+                    }
+                });
+                expandAllBtn.textContent = 'Expand All';
+                expandAllBtn.dataset.expanded = 'false';
+                $(tocContainer).animate({height: 'hide', width: 'hide', opacity: 'hide'}, 250);
+                tocContainer.hidden = true;
+                this.classList.add('closed');
+            }
         });
     }
 }

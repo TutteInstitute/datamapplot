@@ -29,13 +29,16 @@
 }
 
 .toc-header {
-    padding: 8px;
+    padding: 0px 4px 4px 2em;
     border-bottom: 1px solid #ddd;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+    margin-top: -2em;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-direction: row;
+    text-wrap: nowrap;
+    overflow: hidden;
 }
 
 .nested {
@@ -164,4 +167,28 @@ li {
 .highlighted {
     opacity: 1.0;
     transition: opacity 0.3s ease;
+}
+
+.toc-close-btn {
+    font-size: 1.5em;
+    font-weight: bold;
+    border: none;
+    padding: 0px 02px;
+    cursor: pointer;
+    transform: rotate(270deg);
+    transition: transform 0.25s ease-in-out;
+    margin: -2px;
+    background: none;
+}
+
+.toc-close-btn.closed {
+    font-size: 1.5em;
+    font-weight: bold;
+    border: none;
+    padding: 0px 0px;
+    cursor: pointer;
+    transition: transform 0.25s ease-in-out;
+    transform: rotate(90deg);
+    margin: -2px;
+    background: none;
 }
