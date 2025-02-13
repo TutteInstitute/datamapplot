@@ -238,6 +238,14 @@
   </script>
   {%- endfor %}
   <script type="module">
+    function debounce(func, timeout = 250){
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+    }
+
     async function simpleArrowParser(arrow_bytes) {
       const table = await Arrow.tableFromIPC(arrow_bytes);
       const result = {};
@@ -613,9 +621,6 @@
                       return l.id === this.dataset.labelId
                     })
                     {{table_of_contents_on_click}}
-                    // console.log(
-                    //     label.points[0].map(x=>datamap.metaData.hover_text[x])
-                    // );
                 });
             });
             {% else %}
@@ -626,18 +631,6 @@
                 null                
             );
             {% endif -%}
-            
-            function debounce(func, wait) {
-                let timeout;
-                return function executedFunction(...args) {
-                    const later = () => {
-                        clearTimeout(timeout);
-                        func(...args);
-                    };
-                    clearTimeout(timeout);
-                    timeout=setTimeout(later, wait);
-                };
-            }
             const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
                 const userIsInteracting = Object.values(interactionState).every(Boolean);
                 if (!userIsInteracting) {
@@ -646,7 +639,7 @@
                         toc.highlightElements(visible)
                     };
                 };
-            }, 50);
+            }, 150);
             
             datamap.deckgl.setProps({
                 onViewStateChange: debouncedViewStateChange,
@@ -687,14 +680,6 @@
           });
 
           {% if search %}
-          function debounce(func, timeout = 250){
-              let timer;
-              return (...args) => {
-                  clearTimeout(timer);
-                  timer = setTimeout(() => { func.apply(this, args); }, timeout);
-              };
-          }
-
           /* Search */
           searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
           {% endif -%}
