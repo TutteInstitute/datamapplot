@@ -161,7 +161,7 @@ class TableOfContents {
         });
     }
     
-        highlightElements(elements) {
+    highlightElements(elements) {
         // Clear all existing highlights first
         const highlightedElements = Array.from(this.container.querySelectorAll('.highlighted'));
         highlightedElements.forEach(el => el.classList.remove('highlighted'));
