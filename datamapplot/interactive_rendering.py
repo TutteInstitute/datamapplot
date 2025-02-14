@@ -468,7 +468,7 @@ def _get_css_dependency_sources(
 
 
 def _get_js_dependency_urls(
-    enable_histogram, selection_handler=None, cdn_url="unpkg.com"
+    enable_histogram, enable_table_of_contents, selection_handler=None, cdn_url="unpkg.com"
 ):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
@@ -495,6 +495,9 @@ def _get_js_dependency_urls(
     # Conditionally add dependencies based on functionality
     if enable_histogram:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
+
+    if enable_table_of_contents:
+        js_dependency_urls.append(f"https://{cdn_url}/jquery@latest/dist/jquery.min.js")
 
     if selection_handler is not None:
         if isinstance(selection_handler, Iterable):
@@ -1839,7 +1842,7 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
-            enable_histogram, selection_handler, cdn_url=cdn_url
+            enable_histogram, enable_table_of_contents, selection_handler, cdn_url=cdn_url
         ),
         "js_dependency_srcs": _get_js_dependency_sources(
             minify_deps,
