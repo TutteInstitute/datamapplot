@@ -140,6 +140,14 @@ _CLUSTER_LAYER_DESCRIPTORS = {
 
 cfg = ConfigManager()
 
+_TOC_DEFAULT_KWDS = {
+    "title": "Topic Tree",
+    "font_size": "12pt",
+    "max_width": "30vw",
+    "max_height": "42vh",
+    "color_bullets": False,
+}
+
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
 )
@@ -1121,6 +1129,7 @@ def render_html(
     enable_table_of_contents=False,
     table_of_contents_on_click=None,
     table_of_contents_button_icon="📂",
+    table_of_contents_kwds={},
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1421,6 +1430,20 @@ def render_html(
     table_of_contents_button_icon: str (optional, default="📂")
         The text to appear on the optional table of contents buttons to be associated with each label.
         These buttons do not appear unless table_of_contents_on_click is defined.
+
+    table_of_contents_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False})
+        A dictionary containing custom settings for the table of contents. The dictionary can include
+        the following keys:
+          * "title": str
+                The title of the table of contents.
+          * "font_size": str
+                The font size of the table of contents.
+          * "max_width": str
+                The max width of the table of contents.
+          * "max_height": str
+                The max height of the table of contents.
+          * "color_bullets": bool
+                Whether to use cluster colors for the bullets
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
@@ -1823,6 +1846,7 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
+    table_of_contents_kwds = {**_TOC_DEFAULT_KWDS, **table_of_contents_kwds}
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1952,6 +1976,7 @@ def render_html(
         enable_table_of_contents=enable_table_of_contents,
         table_of_contents_on_click=table_of_contents_on_click,
         table_of_contents_button_icon=table_of_contents_button_icon,
+        **{f"table_of_contents_{key}": json.dumps(value) for key, value in table_of_contents_kwds.items()},
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,
         colormap_metadata=json.dumps(color_metadata),

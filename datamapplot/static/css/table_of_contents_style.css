@@ -8,8 +8,8 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    max-height: 42vh;
-    max-width: 30vw;
+    /* max-height: 42vh;
+    max-width: 30vw; */
 }
 
 /* Add some padding to prevent scroll bar from overlapping content */

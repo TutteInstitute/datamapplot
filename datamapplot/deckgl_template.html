@@ -611,7 +611,14 @@
                 tocContainer,
                 datamap,
                 true,
-                "{{table_of_contents_button_icon}}"                
+                "{{table_of_contents_button_icon}}",
+                {
+                  title:{{table_of_contents_title}},
+                  maxWidth:{{table_of_contents_max_width}},
+                  maxHeight:{{table_of_contents_max_height}},
+                  fontSize:{{table_of_contents_font_size}},
+                  colorBullets:{{table_of_contents_color_bullets}},
+                }             
             );
               
             // Set up the table of contents button behaviour.
@@ -628,7 +635,14 @@
                 tocContainer,
                 datamap,
                 false,
-                null                
+                null,
+                {
+                  title:{{table_of_contents_title}},
+                  maxWidth:{{table_of_contents_max_width}},
+                  maxHeight:{{table_of_contents_max_height}},
+                  fontSize:{{table_of_contents_font_size}},
+                  colorBullets:{{table_of_contents_color_bullets}},
+                }           
             );
             {% endif -%}
             const debouncedViewStateChange = debounce(({viewState, interactionState}) => {

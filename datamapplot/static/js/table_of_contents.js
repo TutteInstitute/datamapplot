@@ -24,12 +24,26 @@ class TableOfContents {
         datamap,
         buttons,
         icon,
+        options = {
+            title: "Topic Tree",
+            maxWidth: "30vw",
+            maxHeight: "42vh",
+            fontSize: "12pt",
+            colorBullets: false,
+        }
     ) {
         this.container = tocContainer;
         this.datamap = datamap;
+        this.colorBullets = options.colorBullets;
+        this.maxWidth = options.maxWidth;
+        this.maxHeight = options.maxHeight;
+        this.title = options.title;
+        this.fontSize = options.fontSize;
         this.elements = datamap.labelData;
         this.rootLayerNo = Math.max(...datamap.labelData.map(e => e.layer_no));
         this.parentChildMap = this.buildParentChildMap();
+
+        this.container.style.fontSize = this.fontSize;
 
         this.showHideButton = document.createElement('button');
         this.showHideButton.classList.add('toc-close-btn');
@@ -40,7 +54,7 @@ class TableOfContents {
         this.header = document.createElement('div');
         this.header.classList.add('toc-header');
         this.heading = document.createElement('h3');
-        this.heading.textContent = 'Topic Tree';
+        this.heading.textContent = this.title;
         this.expandAllBtn = document.createElement('button');
         this.expandAllBtn.classList.add('expand-all-btn');
         this.expandAllBtn.dataset.expanded = 'false';
@@ -52,6 +66,8 @@ class TableOfContents {
 
         this.tocBody = document.createElement('div');
         this.tocBody.id = 'toc-body';
+        this.tocBody.style.maxWidth = this.maxWidth;
+        this.tocBody.style.maxHeight = this.maxHeight;
         this.tocBody.innerHTML = this.buildTreeHtml(buttons, icon);
         this.tocBody.style.textWrap = 'nowrap';
         this.tocBody.style.overflowX = 'auto';
@@ -77,18 +93,10 @@ class TableOfContents {
         // First, handle elements with actual parents
         this.elements.forEach(element => {
             const parentId = element.parent;
-            // if (parentId === 'base') {
             if (!parentChildMap.has(parentId)) {
                 parentChildMap.set(parentId, []);
             }
             parentChildMap.get(parentId).push(element);
-            // } else {
-            //     // Handle root level elements
-            //     if (!parentChildMap.has('base')) {
-            //         parentChildMap.set('base', []);
-            //     }
-            //     parentChildMap.get('base').push(element);
-            // }
         });
     
         return parentChildMap;
@@ -98,8 +106,23 @@ class TableOfContents {
         const children = this.parentChildMap.get(parentId) || [];
         
         if (children.length === 0) return '';
-    //.map(x=>datamap.pointData[x]
-        return `
+        if (this.colorBullets) {
+            return `
+                <ul class="nested">
+                    ${children.map(label => `
+                        <li>
+                            <span class="${label.lowest_layer ? 'bullet' : 'caret'} ${label.id.endsWith('-1') ? 'unlabeled' : ''}" data-element-id="${label.id}" style="color: rgb(${label.r}, ${label.g}, ${label.b});">
+                            </span>${buttons ? formatTocButtonHtml(icon, label.id) : ''}
+                            <span class="toc-label" data-bounds="${JSON.stringify(label.bounds)}" data-label-id="${label.id}">
+                                ${label.label || label.id}
+                            </span>
+                            ${this.buildTreeHtml(buttons, icon, label.id)}
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+        } else {
+            return `
             <ul class="nested">
                 ${children.map(label => `
                     <li>
@@ -112,7 +135,8 @@ class TableOfContents {
                     </li>
                 `).join('')}
             </ul>
-        `;
+        `;           
+        }
     }
 
     setupLabelHandlers(datamap) {
@@ -243,7 +267,6 @@ class TableOfContents {
         const tocContainer = this.tocContainer;
         this.showHideButton.addEventListener('click', function() {
             const hidden = tocContainer.hidden;
-            console.log("clicked", tocBody);
             if (hidden) {
                 $(tocContainer).animate({height: 'show', width: 'show', opacity: 'show'}, 250);
                 tocContainer.hidden = false;
