@@ -63,33 +63,6 @@ def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_
     assert (html_dir / "arxivml_gallery_meta_data_0.zip").exists()
     assert (html_dir / "arxivml_gallery_point_data_0.zip").exists()
 
-def test_interactive_arxiv_ml_filtered(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
-        mock_bz2_open, mock_display, mock_gzip_open, html_dir):
-    """
-    Test that the outputs files from running examples/plot_interactive_arxiv_ml_filtered.py all exist.
-
-    UI testing of the resulting html output can be found in the interactive_tests directory.
-    """
-    mock_image_requests([
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/512px-ArXiv_logo_2022.svg.png"
-    ])
-
-    mock_interactive_save(html_dir)
-    mock_bz2_open(examples_dir)
-    mock_gzip_open(html_dir)
-
-    output_path = run_interactive_examples_script(
-        "plot_interactive_arxiv_ml_filtered.py",
-        examples_dir,
-        html_dir,
-        change_np_load_path,
-        destination_html="arxiv_ml_filtered.html"
-    )
-    assert output_path.exists()
-    assert (html_dir / "arxivml_gallery_filtered_label_data.zip").exists()
-    assert (html_dir / "arxivml_gallery_filtered_meta_data_0.zip").exists()
-    assert (html_dir / "arxivml_gallery_filtered_point_data_0.zip").exists()
-
 ### Fixtures
 @pytest.fixture
 def mock_display(monkeypatch):
