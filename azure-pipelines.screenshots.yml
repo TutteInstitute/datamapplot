@@ -20,9 +20,9 @@ parameters:
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
-    windows_py311:
-      imageName: 'windows-latest'
-      python.version: '3.11'
+    # windows_py311:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.11'
     # mac_py312:
     #   imageName: 'macOS-latest'
     #   python.version: '3.12'
