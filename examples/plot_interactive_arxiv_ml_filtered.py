@@ -12,13 +12,13 @@ import numpy as np
 import datamapplot
 
 
-arxivml_data_map = np.load("arxiv_ml_data_map.npy")
+arxivml_data_map = np.load("arxiv_ml_data_map_filtered.npy")
 arxivml_label_layers = []
 for layer_num in range(5):
     arxivml_label_layers.append(
-        np.load(f"arxiv_ml_layer{layer_num}_cluster_labels.npy", allow_pickle=True)
+        np.load(f"arxiv_ml_layer{layer_num}_cluster_labels_filtered.npy", allow_pickle=True)
     )
-arxivml_hover_data = np.load("arxiv_ml_hover_data.npy", allow_pickle=True)
+arxivml_hover_data = np.load("arxiv_ml_hover_data_filtered.npy", allow_pickle=True)
 
 plot = datamapplot.create_interactive_plot(
     arxivml_data_map,
@@ -36,7 +36,7 @@ plot = datamapplot.create_interactive_plot(
     enable_search=True,
     darkmode=True,
     inline_data=False,
-    offline_data_prefix="arxivml_gallery",
+    offline_data_prefix="arxivml_gallery_filtered",
 )
-plot.save("arxiv_ml.html")
+plot.save("arxiv_ml_filtered.html")
 plot

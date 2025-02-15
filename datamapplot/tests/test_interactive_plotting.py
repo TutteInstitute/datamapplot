@@ -12,7 +12,7 @@ def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_pa
     """
     Test that the outputs files from running examples/plot_interactive_cord19.py all exist.
 
-    UI testing of the resulting html output can be found in the ui_tests.
+    UI testing of the resulting html output can be found in the interactive_tests directory.
     """
     mock_image_requests([
         "https://allenai.org/newsletters/archive/2023-03-newsletter_files/927c3ca8-6c75-862c-ee5d-81703ef10a8d.png"
@@ -36,6 +36,59 @@ def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_pa
     assert (html_dir / "cord_gallery_point_data_1.zip").exists()
     assert (html_dir / "cord_gallery_label_data.zip").exists()
 
+def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
+        mock_bz2_open, mock_display, mock_gzip_open, html_dir):
+    """
+    Test that the outputs files from running examples/plot_interactive_arxiv_ml.py all exist.
+
+    UI testing of the resulting html output can be found in the interactive_tests directory.
+    """
+    mock_image_requests([
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/512px-ArXiv_logo_2022.svg.png"
+    ])
+
+    mock_interactive_save(html_dir)
+    mock_bz2_open(examples_dir)
+    mock_gzip_open(html_dir)
+
+    output_path = run_interactive_examples_script(
+        "plot_interactive_arxiv_ml.py",
+        examples_dir,
+        html_dir,
+        change_np_load_path,
+        destination_html="arxiv_ml.html"
+    )
+    assert output_path.exists()
+    assert (html_dir / "arxivml_gallery_label_data.zip").exists()
+    assert (html_dir / "arxivml_gallery_meta_data_0.zip").exists()
+    assert (html_dir / "arxivml_gallery_point_data_0.zip").exists()
+
+def test_interactive_arxiv_ml_filtered(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
+        mock_bz2_open, mock_display, mock_gzip_open, html_dir):
+    """
+    Test that the outputs files from running examples/plot_interactive_arxiv_ml_filtered.py all exist.
+
+    UI testing of the resulting html output can be found in the interactive_tests directory.
+    """
+    mock_image_requests([
+        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/512px-ArXiv_logo_2022.svg.png"
+    ])
+
+    mock_interactive_save(html_dir)
+    mock_bz2_open(examples_dir)
+    mock_gzip_open(html_dir)
+
+    output_path = run_interactive_examples_script(
+        "plot_interactive_arxiv_ml_filtered.py",
+        examples_dir,
+        html_dir,
+        change_np_load_path,
+        destination_html="arxiv_ml_filtered.html"
+    )
+    assert output_path.exists()
+    assert (html_dir / "arxivml_gallery_filtered_label_data.zip").exists()
+    assert (html_dir / "arxivml_gallery_filtered_meta_data_0.zip").exists()
+    assert (html_dir / "arxivml_gallery_filtered_point_data_0.zip").exists()
 
 ### Fixtures
 @pytest.fixture
