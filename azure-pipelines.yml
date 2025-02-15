@@ -195,7 +195,11 @@ stages:
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |
-            npx playwright test
+            if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+              npx playwright test --grep-invert @slow
+            else
+              npx playwright test
+            fi
           displayName: 'Run Playwright tests'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:

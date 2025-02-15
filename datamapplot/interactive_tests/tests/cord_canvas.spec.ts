@@ -24,7 +24,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
   };
 
-  test('zoom functionality', async ({ page }) => {
+  test('zoom functionality', { tag: '@slow' }, async ({ page }) => {
     test.slow();
     await verifyInitialState(page);
     const canvas = page.locator('#deck-container canvas');
@@ -37,7 +37,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('cord19-after-zoom.png');
   });
 
-  test('search functionality', async ({ page }) => {
+  test('search functionality', { tag: '@slow' }, async ({ page }) => {
     await verifyInitialState(page);
     const canvas = page.locator('#deck-container canvas');
 
@@ -47,7 +47,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('cord19-after-search-covid.png');
   });
 
-  test('pan functionality', async ({ page }) => {
+  test('pan functionality', { tag: '@slow' }, async ({ page }) => {
     test.slow();
     await verifyInitialState(page);
     const canvas = page.locator('#deck-container canvas');
