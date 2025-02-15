@@ -125,6 +125,12 @@ stages:
                 -k interactive
           displayName: 'Run python tests'
 
+        - script: |
+            echo "Listing contents of $(Build.ArtifactStagingDirectory)/mpl:"
+            ls -la $(Build.ArtifactStagingDirectory)/mpl
+          displayName: 'List contents of $(Build.ArtifactStagingDirectory)/mpl'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
         # - bash: |
         #     coveralls
         #   displayName: 'Publish to coveralls'
@@ -143,6 +149,7 @@ stages:
             echo "Listing contents of html dir:"
             ls -la $(Build.SourcesDirectory)/datamapplot/tests/html
           displayName: 'List contents of html dir'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &

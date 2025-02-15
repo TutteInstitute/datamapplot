@@ -98,7 +98,7 @@ stages:
 
         - script: |
             npx playwright test --update-snapshots
-          displayName: 'Run Playwright tests'
+          displayName: 'Update Playwright snapshots'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:
             CI: 'true'
