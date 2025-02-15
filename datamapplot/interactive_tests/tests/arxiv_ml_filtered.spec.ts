@@ -21,7 +21,7 @@ test.describe('Arxiv ML Filtered Canvas Tests', () => {
 
   const verifyInitialState = async (page) => {
     const canvas = page.locator('#deck-container canvas');
-    await expect(canvas).toHaveScreenshot('arxiv-ml-initial-state.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-initial-state-filtered.png');
   };
 
   test('zoom functionality', async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe('Arxiv ML Filtered Canvas Tests', () => {
     await page.mouse.wheel(0, -100);
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom-filtered.png');
   });
 
   test('search functionality', async ({ page }) => {
@@ -44,7 +44,7 @@ test.describe('Arxiv ML Filtered Canvas Tests', () => {
     await page.locator('#text-search').fill('nlp');
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('arxiv-ml-after-search-nlp.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-after-search-nlp-filtered.png');
   });
 
   test('pan functionality', async ({ page }) => {
@@ -62,6 +62,6 @@ test.describe('Arxiv ML Filtered Canvas Tests', () => {
     await page.mouse.up();
 
     await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('arxiv-ml-after-pan.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-after-pan-filtered.png');
   });
 });
