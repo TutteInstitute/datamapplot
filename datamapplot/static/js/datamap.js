@@ -1,5 +1,5 @@
 
-LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'boundaryLayer', 'LabelLayer'];
+LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'boundaryLayer', 'labelLayer'];
 
 function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
@@ -65,6 +65,7 @@ class DataMap {
     this.searchItemId = searchItemId;
     this.lassoSelectionItemId = lassoSelectionItemId;
     this.pointData = null;
+    this.labelData = null;
     this.metaData = null;
     this.layers = [];
     const { viewportWidth, viewportHeight } = getInitialViewportSize();
@@ -183,7 +184,9 @@ class DataMap {
     fontWeight = 900,
     lineSpacing = 0.95,
     textCollisionSizeScale = 3.0,
+    pickable = true,
   }) {
+    
     const numLabels = labelData.length;
     this.labelTextColor = labelTextColor;
     this.textMinPixelSize = textMinPixelSize;
@@ -199,9 +202,10 @@ class DataMap {
     waitForFont(this.fontFamily);
 
     this.labelLayer = new deck.TextLayer({
-      id: 'LabelLayer',
+      id: 'labelLayer',
+      // Only add labels with valid x positions.
       data: labelData,
-      pickable: false,
+      pickable: pickable,
       getPosition: d => [d.x, d.y],
       getText: d => d.label,
       getColor: this.labelTextColor,
@@ -486,6 +490,12 @@ class DataMap {
           ...this.pointLayer.props.data.attributes,
           getFillColor: { value: this[`${fieldName}Colors`], size: 4 }
         }
+      },
+      transitions: {
+        getFillColor: {
+          duration: 1500,
+          easing: d3.easeCubicInOut
+        }
       }
     });
     
@@ -507,6 +517,12 @@ class DataMap {
         attributes: {
           ...this.pointLayer.props.data.attributes,
           getFillColor: { value: this.originalColors, size: 4 }
+        }
+      },
+      transitions: {
+        getFillColor: {
+          duration: 1500,
+          easing: d3.easeCubicInOut
         }
       }
     });

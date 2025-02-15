@@ -746,7 +746,7 @@ class TagSelection(SelectionHandlerBase):
         The maximum height of the tag container as a CSS descriptor string. Default is "95%".      
     """
 
-    def __init__(self, tag_colors=None, location="top-right", width=300, max_height="80vh", other_triggers=None, **kwargs):
+    def __init__(self, tag_colors=None, location="top-right", width=308, max_height="80vh", other_triggers=None, **kwargs):
         super().__init__(**kwargs)
         if tag_colors is None:
             self.tag_colors = _DEFAULT_TAG_COLORS
@@ -769,6 +769,7 @@ class TagSelection(SelectionHandlerBase):
     const tagContainer = document.createElement("div");
     tagContainer.id = "tag-container";
     tagContainer.className = "container-box more-opaque stack-box";
+    const newTagSpan = document.createElement("span");
     const tagButton = document.createElement("button");
     tagButton.id = "new-tag-button";
     tagButton.className = "button tag-button";
@@ -784,8 +785,9 @@ class TagSelection(SelectionHandlerBase):
         }}
     }});
     tagInput.disabled = true;
-    tagContainer.appendChild(tagButton);
-    tagContainer.appendChild(tagInput);
+    newTagSpan.appendChild(tagButton);
+    newTagSpan.appendChild(tagInput);
+    tagContainer.appendChild(newTagSpan);
     const tagDisplay = document.createElement("div");
     tagDisplay.id = "tag-display";
     const tagList = document.createElement("ul");
