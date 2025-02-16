@@ -121,8 +121,7 @@ stages:
             pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
-                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl \
-                -k interactive
+                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
           displayName: 'Run python tests'
 
         - script: |
