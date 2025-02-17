@@ -140,6 +140,16 @@ _CLUSTER_LAYER_DESCRIPTORS = {
 
 cfg = ConfigManager()
 
+_TOC_DEFAULT_KWDS = {
+    "title": "Topic Tree",
+    "font_size": "12pt",
+    "max_width": "30vw",
+    "max_height": "42vh",
+    "color_bullets": False,
+    "button_on_click": None,
+    "button_icon": "&#128194",
+}
+
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
 )
@@ -468,7 +478,10 @@ def _get_css_dependency_sources(
 
 
 def _get_js_dependency_urls(
-    enable_histogram, selection_handler=None, cdn_url="unpkg.com"
+    enable_histogram,
+    enable_table_of_contents,
+    selection_handler=None,
+    cdn_url="unpkg.com",
 ):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
@@ -495,6 +508,9 @@ def _get_js_dependency_urls(
     # Conditionally add dependencies based on functionality
     if enable_histogram:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
+
+    if enable_table_of_contents:
+        js_dependency_urls.append(f"https://{cdn_url}/jquery@latest/dist/jquery.min.js")
 
     if selection_handler is not None:
         if isinstance(selection_handler, Iterable):
@@ -836,6 +852,7 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
 
     return colormaps, pd.concat(color_data, axis=1)
 
+
 def compute_percentile_bounds(points, percentage=99.9):
     n_points = points.shape[0]
     n_to_select = np.int32(n_points * (percentage / 100))
@@ -860,6 +877,7 @@ def compute_percentile_bounds(points, percentage=99.9):
         float(ymin - y_padding),
         float(ymax + y_padding),
     ]
+
 
 def label_text_and_polygon_dataframes(
     labels,
@@ -952,11 +970,15 @@ def label_text_and_polygon_dataframes(
             if len(parents[0]):
                 # Get the provenance (cluster membership at different heirarchical layers).
                 # This should be consistent.(??)
-                p = ["base"] + list(
-                    np.median(parents[0][:, cluster_mask], axis=1)
-                    .astype(int)
-                    .astype(str)
-                ) + [str(i)]
+                p = (
+                    ["base"]
+                    + list(
+                        np.median(parents[0][:, cluster_mask], axis=1)
+                        .astype(int)
+                        .astype(str)
+                    )
+                    + [str(i)]
+                )
                 label_ids.append("_".join(p))
                 parent_ids.append("_".join(p[:-1]))
             else:
@@ -993,11 +1015,15 @@ def label_text_and_polygon_dataframes(
                 if len(parents[0]):
                     # Get the provenance.
                     # This should be consistent.(??)
-                    p = ["base"] + list(
-                        np.median(parents[0][:, cluster_mask], axis=1)
-                        .astype(int)
-                        .astype(str)
-                    ) + ["-1"]
+                    p = (
+                        ["base"]
+                        + list(
+                            np.median(parents[0][:, cluster_mask], axis=1)
+                            .astype(int)
+                            .astype(str)
+                        )
+                        + ["-1"]
+                    )
                     label_ids.append("_".join(p))
                     parent_ids.append("_".join(p[:-1]))
                 else:
@@ -1116,8 +1142,7 @@ def render_html(
     label_layers=None,
     cluster_colormap=None,
     enable_table_of_contents=False,
-    table_of_contents_on_click=None,
-    table_of_contents_button_icon="📂",
+    table_of_contents_kwds={},
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1407,17 +1432,30 @@ def render_html(
         Whether to enable a table of contents that highlights label heirarchy and aids navigation in
         the datamap.
 
-    table_of_contents_on_click: str or None (optional, default=None)
-        An optional javascript action to be taken if a button in the table of contents is selected.
-        Each button will be related to a label, and can access the points related to that label.
-        This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
-        point an array is built with those values for each point that the label describes.
-        For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
-        points related to the label.
-
-    table_of_contents_button_icon: str (optional, default="📂")
-        The text to appear on the optional table of contents buttons to be associated with each label.
-        These buttons do not appear unless table_of_contents_on_click is defined.
+    table_of_contents_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
+        A dictionary containing custom settings for the table of contents. The dictionary can include
+        the following keys:
+          * "title": str
+                The title of the table of contents.
+          * "font_size": str
+                The font size of the table of contents.
+          * "max_width": str
+                The max width of the table of contents.
+          * "max_height": str
+                The max height of the table of contents.
+          * "color_bullets": bool
+                Whether to use cluster colors for the bullets.
+          * "button_on_click": str or None
+                An optional javascript action to be taken if a button in the table of contents is selected.
+                If None, there will be no buttons, otherwise they will be added with the "button_icon" setting.
+                Each button will be related to a label, and can access the points related to that label.
+                This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
+                point an array is built with those values for each point that the label describes.
+                For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
+                points related to the label.
+          * "button_icon": str
+                The text to appear on the table of contents buttons.
+                These buttons do not appear unless "button_on_click" is defined.
 
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
@@ -1565,16 +1603,16 @@ def render_html(
                     + " } }"
                 )
 
-            if table_of_contents_on_click is not None:
+            if table_of_contents_kwds["button_on_click"] is not None:
                 toc_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_on_click = table_of_contents_on_click.format_map(
-                    toc_replacements
-                )
+                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                    "button_on_click"
+                ].format_map(toc_replacements)
         else:
             hover_data = point_dataframe[["hover_text"]].copy()
             get_tooltip = "({index}) => hoverData.hover_text[index]"
@@ -1592,16 +1630,16 @@ def render_html(
                     + on_click.format_map(replacements)
                     + " } }"
                 )
-            if table_of_contents_on_click is not None:
+            if table_of_contents_kwds["button_on_click"] is not None:
                 toc_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_on_click = table_of_contents_on_click.format_map(
-                    toc_replacements
-                )
+                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                    "button_on_click"
+                ].format_map(toc_replacements)
 
     elif extra_point_data is not None:
         hover_data = extra_point_data.copy()
@@ -1626,16 +1664,16 @@ def render_html(
                 + on_click.format_map(replacements)
                 + " } }"
             )
-        if table_of_contents_on_click is not None:
+        if table_of_contents_kwds["button_on_click"] is not None:
             toc_replacements = FormattingDict(
                 **{
                     str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                     for name in hover_data.columns
                 }
             )
-            table_of_contents_on_click = table_of_contents_on_click.format_map(
-                toc_replacements
-            )
+            table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                "button_on_click"
+            ].format_map(toc_replacements)
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
@@ -1820,6 +1858,7 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
+    table_of_contents_kwds = {**_TOC_DEFAULT_KWDS, **table_of_contents_kwds}
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1839,7 +1878,10 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
-            enable_histogram, selection_handler, cdn_url=cdn_url
+            enable_histogram,
+            enable_table_of_contents,
+            selection_handler,
+            cdn_url=cdn_url,
         ),
         "js_dependency_srcs": _get_js_dependency_sources(
             minify_deps,
@@ -1947,8 +1989,10 @@ def render_html(
         page_background_color=page_background_color,
         search=enable_search,
         enable_table_of_contents=enable_table_of_contents,
-        table_of_contents_on_click=table_of_contents_on_click,
-        table_of_contents_button_icon=table_of_contents_button_icon,
+        **{
+            f"table_of_contents_{key}": json.dumps(value)
+            for key, value in table_of_contents_kwds.items()
+        },
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,
         colormap_metadata=json.dumps(color_metadata),

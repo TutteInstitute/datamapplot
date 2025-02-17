@@ -238,6 +238,14 @@
   </script>
   {%- endfor %}
   <script type="module">
+    function debounce(func, timeout = 250) {
+        let timer;
+        return (...args) => {
+            clearTimeout(timer);
+            timer = setTimeout(() => { func.apply(this, args); }, timeout);
+        };
+    }
+
     async function simpleArrowParser(arrow_bytes) {
       const table = await Arrow.tableFromIPC(arrow_bytes);
       const result = {};
@@ -598,12 +606,19 @@
           {% if enable_table_of_contents %}
             const tocContainer = document.querySelector('#table-of-contents');
             
-            {% if table_of_contents_on_click %}
+            {% if table_of_contents_button_on_click %}
             const toc = new TableOfContents(
                 tocContainer,
                 datamap,
                 true,
-                "{{table_of_contents_button_icon}}"                
+                {{table_of_contents_button_icon}},
+                {
+                  title:{{table_of_contents_title}},
+                  maxWidth:{{table_of_contents_max_width}},
+                  maxHeight:{{table_of_contents_max_height}},
+                  fontSize:{{table_of_contents_font_size}},
+                  colorBullets:{{table_of_contents_color_bullets}},
+                }             
             );
               
             // Set up the table of contents button behaviour.
@@ -612,10 +627,7 @@
                     var label = datamap.labelData.find(l => {
                       return l.id === this.dataset.labelId
                     })
-                    {{table_of_contents_on_click}}
-                    // console.log(
-                    //     label.points[0].map(x=>datamap.metaData.hover_text[x])
-                    // );
+                    {{table_of_contents_button_on_click[1:-1]}}
                 });
             });
             {% else %}
@@ -623,21 +635,16 @@
                 tocContainer,
                 datamap,
                 false,
-                null                
+                null,
+                {
+                  title:{{table_of_contents_title}},
+                  maxWidth:{{table_of_contents_max_width}},
+                  maxHeight:{{table_of_contents_max_height}},
+                  fontSize:{{table_of_contents_font_size}},
+                  colorBullets:{{table_of_contents_color_bullets}},
+                }           
             );
             {% endif -%}
-            
-            function debounce(func, wait) {
-                let timeout;
-                return function executedFunction(...args) {
-                    const later = () => {
-                        clearTimeout(timeout);
-                        func(...args);
-                    };
-                    clearTimeout(timeout);
-                    timeout=setTimeout(later, wait);
-                };
-            }
             const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
                 const userIsInteracting = Object.values(interactionState).every(Boolean);
                 if (!userIsInteracting) {
@@ -646,7 +653,7 @@
                         toc.highlightElements(visible)
                     };
                 };
-            }, 50);
+            }, 150);
             
             datamap.deckgl.setProps({
                 onViewStateChange: debouncedViewStateChange,
@@ -687,14 +694,6 @@
           });
 
           {% if search %}
-          function debounce(func, timeout = 250){
-              let timer;
-              return (...args) => {
-                  clearTimeout(timer);
-                  timer = setTimeout(() => { func.apply(this, args); }, timeout);
-              };
-          }
-
           /* Search */
           searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
           {% endif -%}

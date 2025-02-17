@@ -474,19 +474,11 @@ function wordCloudCallback(selectedPoints) {{
     generateWordCloud(wordCounts);
 }}
 
-function debounce(func, timeout = 100){{
-    let timer;
-    return (...args) => {{
-        clearTimeout(timer);
-        timer = setTimeout(() => {{ func.apply(this, args); }}, timeout);
-    }};
-}}
-
-await datamap.addSelectionHandler(debounce(wordCloudCallback));
+await datamap.addSelectionHandler(debounce(wordCloudCallback, 100));
 """
         if self.other_triggers:
             for trigger in self.other_triggers:
-                result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback), "{trigger}");\n"""
+                result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback, 100), "{trigger}");\n"""
         return result
  
     @property
