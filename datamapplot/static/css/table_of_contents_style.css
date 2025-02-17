@@ -170,6 +170,7 @@ li {
     transition: transform 0.25s ease-in-out;
     margin: -2px;
     background: none;
+    color: inherit;
 }
 
 .toc-close-btn.closed {
@@ -182,4 +183,5 @@ li {
     transform: rotate(90deg);
     margin: -2px;
     background: none;
+    color: inherit;
 }
