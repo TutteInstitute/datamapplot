@@ -606,12 +606,12 @@
           {% if enable_table_of_contents %}
             const tocContainer = document.querySelector('#table-of-contents');
             
-            {% if table_of_contents_on_click %}
+            {% if table_of_contents_button_on_click %}
             const toc = new TableOfContents(
                 tocContainer,
                 datamap,
                 true,
-                "{{table_of_contents_button_icon}}",
+                {{table_of_contents_button_icon}},
                 {
                   title:{{table_of_contents_title}},
                   maxWidth:{{table_of_contents_max_width}},
@@ -627,7 +627,7 @@
                     var label = datamap.labelData.find(l => {
                       return l.id === this.dataset.labelId
                     })
-                    {{table_of_contents_on_click}}
+                    {{table_of_contents_button_on_click[1:-1]}}
                 });
             });
             {% else %}

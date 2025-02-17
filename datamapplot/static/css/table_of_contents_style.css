@@ -87,13 +87,8 @@
     transform: rotate(90deg);
 }
 
-/* .caret.unlabeled {
-    color: #888;
-} */
-
 .caret.unlabeled::before {
     content: "\25b7";
-    /* color: #888; */
 }
 
 .bullet {
@@ -111,13 +106,8 @@
     margin-right: 6px;
 }
 
-/* .bullet.unlabeled {
-    color: #888;
-} */
-
 .bullet.unlabeled::before {
     content: "\25CB";
-    /* color: #888; */
 }
 
 li {
@@ -132,6 +122,7 @@ li {
     padding: 2px 4px;
     border-radius: 5px;
     cursor: pointer; /* Mouse pointer on hover */
+    margin-right:5px;
 }
 
 /* Darker background on mouse-over */
