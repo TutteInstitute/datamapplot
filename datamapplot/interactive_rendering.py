@@ -510,7 +510,7 @@ def _get_js_dependency_urls(
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if enable_table_of_contents:
-        js_dependency_urls.append(f"https://{cdn_url}/jquery@latest/dist/jquery.min.js")
+        js_dependency_urls.append(f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js")
 
     if selection_handler is not None:
         if isinstance(selection_handler, Iterable):
@@ -1603,7 +1603,10 @@ def render_html(
                     + " } }"
                 )
 
-            if table_of_contents_kwds["button_on_click"] is not None:
+            if (
+                "button_on_click" in table_of_contents_kwds
+                and table_of_contents_kwds["button_on_click"] is not None
+            ):
                 toc_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"

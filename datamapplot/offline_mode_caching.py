@@ -521,7 +521,7 @@ def main():
         if args.refresh:
             if args.js_urls:
                 all_urls = list(set(DEFAULT_URLS + args.js_urls))
-                cache_js_files(urls=args.all_urls, file_path=args.js_cache_file)
+                cache_js_files(urls=all_urls, file_path=args.js_cache_file)
             else:
                 cache_js_files(file_path=args.js_cache_file)
             if args.font_names:
