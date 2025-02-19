@@ -358,6 +358,40 @@
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
     {% else %}
+
+    {% if splash_warning %}
+    var loadData = False;
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = 0;
+    overlay.style.left = 0;
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.zIndex = 1000;
+    const splashWarning = document.createElement('div');
+    splashWarning.style.position = 'absolute';
+    splashWarning.style.top = '50%';
+    splashWarning.style.left = '50%';
+    splashWarning.style.transform = 'translate(-50%, -50%)';
+    splashWarning.className = 'container-box';
+    splashWarning.innerHTML = `
+      {{splash_warning}}
+      <button 
+        onclick="() => { document.body.removeChild(this.parentElement.parentElement); loadData = True; }"
+        style="position: absolute; bottom: 0; right: 0; padding: 10px; margin: 16px; background-color: #4caf50; color: white; border: none; cursor: pointer;"
+      >
+        Proceed
+      </button>
+    `;
+    overlay.appendChild(splashWarning);
+    document.body.appendChild(overlay);
+
+    while (!loadData) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    {% endif %}
+
     const currentURL = self.location.pathname;
     const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
     const originURL = self.location.origin + directoryPath;
@@ -606,7 +640,7 @@
           {% if enable_table_of_contents %}
             const tocContainer = document.querySelector('#table-of-contents');
             
-            {% if table_of_contents_button_on_click %}
+            {% if table_of_contents_button_on_click != 'null' %}
             const toc = new TableOfContents(
                 tocContainer,
                 datamap,
