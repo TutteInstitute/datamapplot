@@ -918,7 +918,7 @@ def label_text_and_polygon_dataframes(
         Display transparency for cluster polygons.
 
     parents: list or None (optional, default=None)
-        A record of the cluster heirarcy. This will be edited to include this layer's values.
+        A record of the cluster heirarchy. This will be edited to include this layer's values.
 
     Returns
     -------
@@ -936,7 +936,7 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
-    related_points = []
+    # related_points = []
     points_bounds = []
     label_ids = []
     parent_ids = []
@@ -964,7 +964,7 @@ def label_text_and_polygon_dataframes(
                 ]
             )
         if include_related_points:
-            related_points.append(np.where(cluster_mask))
+            # related_points.append(np.where(cluster_mask))
             points_bounds.append(compute_percentile_bounds(cluster_points))
         if parents is not None:
             if len(parents[0]):
@@ -1010,7 +1010,7 @@ def label_text_and_polygon_dataframes(
                 polygons.append(None)
                 unique_non_noise_labels.append(noise_label)
                 if include_related_points:
-                    related_points.append(np.where(cluster_mask))
+                    # related_points.append(np.where(cluster_mask))
                     points_bounds.append(compute_percentile_bounds(cluster_points))
                 if len(parents[0]):
                     # Get the provenance.
@@ -1048,8 +1048,11 @@ def label_text_and_polygon_dataframes(
     }
     if cluster_polygons:
         data["polygon"] = polygons
-    if include_related_points:
-        data["points"] = related_points
+    # Points are far too heavyweight for large datasets
+    # We can use a different more efficient data-structure later
+    # if we require this information for selection etc.
+    # if include_related_points:
+    #     data["points"] = related_points
     if parents is not None:
         data["id"] = label_ids
         data["parent"] = parent_ids

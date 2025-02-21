@@ -193,7 +193,7 @@
       {% endif %}
     </div>
     {%- if show_loading_progress %}
-    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px;">
+    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
       <div id="point-data-progress" class="datamapplot-progress-bar">
         <span class="datamapplot-progress-bar-fill" style="width: 0%;">
           <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
@@ -360,7 +360,7 @@
     {% else %}
 
     {% if splash_warning %}
-    var loadData = False;
+    var loadData = false;
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
     overlay.style.top = 0;
@@ -374,17 +374,33 @@
     splashWarning.style.top = '50%';
     splashWarning.style.left = '50%';
     splashWarning.style.transform = 'translate(-50%, -50%)';
+    splashWarning.style.textAlign = 'center';
+    splashWarning.style.padding = '20px';
+    splashWarning.style.maxWidth = '480px';
     splashWarning.className = 'container-box';
+    function dismissSplash() {
+      document.body.removeChild(overlay);
+      console.log(loadData);
+      loadData = true;
+    }
     splashWarning.innerHTML = `
-      {{splash_warning}}
-      <button 
-        onclick="() => { document.body.removeChild(this.parentElement.parentElement); loadData = True; }"
-        style="position: absolute; bottom: 0; right: 0; padding: 10px; margin: 16px; background-color: #4caf50; color: white; border: none; cursor: pointer;"
-      >
-        Proceed
-      </button>
+      {% if title %}<h2>{{title}}</h2>{% endif %}
+      <p>
+        {{splash_warning}}
+      </p>
     `;
     overlay.appendChild(splashWarning);
+    const dismissSplashButton = document.createElement('button');
+    dismissSplashButton.textContent = 'Proceed';
+    dismissSplashButton.addEventListener('click', dismissSplash);
+    dismissSplashButton.style.marginTop = '10px';
+    dismissSplashButton.style.padding = '8px 12px';
+    dismissSplashButton.style.backgroundColor = 'green';
+    dismissSplashButton.style.color = 'white';
+    dismissSplashButton.style.border = 'none';
+    dismissSplashButton.style.cursor = 'pointer';
+    dismissSplashButton.style.borderRadius = '8px';
+    splashWarning.appendChild(dismissSplashButton);
     document.body.appendChild(overlay);
 
     while (!loadData) {
