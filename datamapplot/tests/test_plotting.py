@@ -125,7 +125,7 @@ def run_static_examples_script(script_filename, script_dir, change_np_load_path,
     script_name = Path(script_filename).stem
     script_path = script_dir / script_filename
 
-    # Load and execute the script dynamically so we can use mocking
+    # Setup to load and execute the script dynamically so we can use mocking
     spec = importlib.util.spec_from_file_location(
         script_name, str(script_path)
     )

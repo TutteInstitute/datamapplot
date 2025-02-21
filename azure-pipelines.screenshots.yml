@@ -1,0 +1,189 @@
+trigger: none # Manual only
+
+parameters:
+- name: matrix
+  displayName: Pool Image and Python Version Matrix
+  type: object
+  default:
+    # mac_py310:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.10'
+    # linux_py310:
+    #   imageName: 'ubuntu-latest'
+    #   python.version: '3.10'
+    # windows_py310:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.10'
+    mac_py311:
+      imageName: 'macOS-latest'
+      python.version: '3.11'
+    linux_py311:
+      imageName: 'ubuntu-latest'
+      python.version: '3.11'
+    # windows_py311:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.11'
+    # mac_py312:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.12'
+    # linux_py312:
+    #   imageName: 'ubuntu-latest'
+    #   python.version: '3.12'
+    # windows_py312:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.12'
+
+variables:
+  triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+
+stages:
+  - stage: GenerateScreenshots
+    displayName: Generate Test Screenshots
+    jobs:
+      - job: UpdateScreenshots
+        strategy:
+          matrix: ${{ parameters.matrix }}
+
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: '$(python.version)'
+          displayName: 'Use Python $(python.version)'
+
+        - script: |
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+          displayName: 'Set PIP_CACHE_DIR'
+
+        - task: Cache@2
+          inputs:
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            restoreKeys: |
+              pip |
+            path: $(PIP_CACHE_DIR)
+          displayName: 'Cache pip dependencies'
+
+        - script: |
+            python -m pip install --upgrade pip setuptools wheel
+          displayName: 'Upgrade pip'
+
+        - script: |
+            pip install -r test-requirements.txt
+          displayName: 'Install pip dependencies'
+
+        - script: |
+            pip install -e .
+          displayName: 'Install local package'
+
+        - script: |
+            export CI=true
+            pytest datamapplot/tests -k interactive
+          displayName: 'Run python tests to generate html'
+
+        - script: |
+            python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
+          displayName: 'Start HTTP server (Unix)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - powershell: |
+            $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html" -PassThru -NoNewWindow
+            Start-Sleep -Seconds 5
+            $retry = 0
+            do {
+                try {
+                    $response = Invoke-WebRequest -Uri "http://localhost:8000" -Method Head
+                    Write-Host "Server started successfully"
+                    break
+                } catch {
+                    Write-Host "Waiting for server to start... Attempt $retry"
+                    Start-Sleep -Seconds 2
+                    $retry++
+                }
+            } while ($retry -lt 5)
+
+            if ($retry -eq 5) {
+                Write-Error "Server failed to start after multiple attempts"
+                exit 1
+            }
+          displayName: 'Start HTTP server (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - task: NodeTool@0
+          inputs:
+            versionSpec: '22'
+          displayName: 'Use Node.js for frontend tests'
+
+        - script: |
+            npm ci
+          displayName: 'Install npm dependencies'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install --with-deps
+          displayName: 'Install Playwright browsers'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright test --update-snapshots
+          displayName: 'Update Playwright snapshots'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          env:
+            CI: 'true'
+
+        - powershell: |
+            $targetFolder = '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+            if (-Not (Test-Path -Path $targetFolder)) {
+                New-Item -ItemType Directory -Path $targetFolder
+            }
+          displayName: 'Ensure filtered-screenshots directory exists (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - script: |
+            targetFolder='$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+            mkdir -p $targetFolder
+          displayName: 'Ensure filtered-screenshots directory exists (Darwin/Linux)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests'
+            Contents: '**/*-win32.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+          displayName: 'Copy filtered screenshots (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests'
+            Contents: '**/*-darwin.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+          displayName: 'Copy filtered screenshots (Darwin)'
+          condition: eq(variables['Agent.OS'], 'Darwin')
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests'
+            Contents: '**/*-linux.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+          displayName: 'Copy filtered screenshots (Linux)'
+          condition: eq(variables['Agent.OS'], 'Linux')
+
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
+            artifact: 'updated-screenshots-$(Agent.OS)'
+          displayName: 'Publish updated screenshots'
+          condition: always()
+
+        - task: PublishTestResults@2
+          displayName: 'Publish frontest test results'
+          inputs:
+            searchFolder: 'test-results'
+            testResultsFormat: 'JUnit'
+            testResultsFiles: 'e2e-junit-results.xml'
+            mergeTestResults: true
+            failTaskOnFailedTests: true
+            testRunTitle: 'Playwright Test Results'
+          condition: succeededOrFailed()

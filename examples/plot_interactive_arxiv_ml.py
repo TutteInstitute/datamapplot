@@ -38,4 +38,5 @@ plot = datamapplot.create_interactive_plot(
     inline_data=False,
     offline_data_prefix="arxivml_gallery",
 )
+plot.save("arxiv_ml.html")
 plot
