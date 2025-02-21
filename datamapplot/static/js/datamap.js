@@ -207,10 +207,13 @@ class DataMap {
 
     waitForFont(this.fontFamily);
 
+    const collisionFilter = new deck.CollisionFilterExtension();
+    const weightRange = maxFontWeight - minFontWeight;
+
     this.labelLayers = [];
-    // for (let i = 0; i <= this.numLabelLayers; i++) {
-    for (let i = 2; i <= 3; i++) {
-      const weightRange = maxFontWeight - minFontWeight;
+    for (let i = 0; i <= this.numLabelLayers; i++) {
+    // for (let i = 2; i <= 3; i++) {
+
       const weight = minFontWeight + (weightRange / this.numLabelLayers) * i;
       const layerData = labelData
         .filter(d => (d.layer >= i))
@@ -256,13 +259,14 @@ class DataMap {
           // CollideExtension options
           collisionEnabled: true,
           getCollisionPriority: d => d.size,// d.layer + (d.size / maxSize),
+          collisionGroup: `LabelGroup${i}`,
           collisionTestProps: {
             sizeScale: this.textCollisionSizeScale,
-            //sizeMaxPixels: this.textMaxPixelSize * 2,
-            //sizeMinPixels: this.textMinPixelSize * 2,
+            sizeMaxPixels: this.textMaxPixelSize * 2,
+            sizeMinPixels: this.textMinPixelSize * 2,
             getBackgroundPadding: [25, 25, 25, 25],
           },
-          extensions: [new deck.CollisionFilterExtension()],
+          extensions: [collisionFilter],
           //instanceCount: numLabels,
           parameters: {
             depthTest: false
