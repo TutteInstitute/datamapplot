@@ -1,0 +1,87 @@
+.content-wrapper {
+    /* position: relative; */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    padding: 8px;
+    /* Use grid to create the basic layout */
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    min-height: calc(100vh - 16px); /* Account for padding */
+    pointer-events: none; /* pass pointer events through */
+  }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    pointer-events: auto; /* allow pointer events */
+    max-height: 50vh;
+    overflow-y: visible;
+  }
+  .top-left {
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    align-self: start;
+    align-items: start;
+  }
+  .bottom-left {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    align-self: end;
+    align-items: start;
+    display: flex;
+    flex-direction: column-reverse;
+    transform: scaleY(-1);
+    z-index: 2;
+  }
+
+  .top-right {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+    justify-items: end;
+    align-self: start;
+    align-items: end;
+  }
+  .bottom-right {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    justify-items: end;
+    align-self: end;
+    align-items: end;
+    display: flex;
+    flex-direction: column-reverse;
+    transform: scaleY(-1);
+  }
+  .stack.bottom-left .stack-box {
+    transform: scaleY(-1);
+  }
+  .stack.bottom-right .stack-box {
+    transform: scaleY(-1);
+  }
+  #loading {
+    width: 100%;
+    height: 100%;
+    top: 0px;
+    left: 0px;
+    position: absolute;
+    display: block;
+    z-index: 99
+  }
+  #loading-image {
+    position: absolute;
+    top: 45%;
+    left: 47.5%;
+    z-index: 100
+  }
+  #title-container {
+    top: 0;
+    left: 0;
+  }

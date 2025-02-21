@@ -22,7 +22,7 @@ def euclidean(x, y):
     r"""Squared euclidean distance.
 
     .. math::
-        D(x, y) = \sum_i (x_i - y_i)^2
+        D(x, y) = \\sum_i (x_i - y_i)^2
     """
     result = 0.0
     dim = x.shape[0]
@@ -75,14 +75,20 @@ def pull_arms(data, arms, num_pulls_per_arm, estimates, pull_counts):
 
 
 @numba.njit()
-def medoid(data, arm_budget=20):
+def medoid(data, max_points=5000, max_iter=1000, arm_budget=20):
+    # subsample data if it is too large so that runtime is reasonable
+    if data.shape[0] > max_points:
+        idx = np.random.choice(data.shape[0], max_points, replace=False)
+        data = data[idx]
     pull_counts = np.zeros(data.shape[0], dtype=np.int32)
     pull_budget = arm_budget * data.shape[0]
     estimates = np.zeros(data.shape[0], dtype=np.float32)
     current_active_arms = np.arange(data.shape[0])
     n_rounds = int(np.ceil(np.log2(data.shape[0])))
 
-    while current_active_arms.shape[0] > 1:
+    # cut off search if there are too many iterations
+    num_iter = 0
+    while current_active_arms.shape[0] > 1 and num_iter < max_iter:
         num_pulls_per_arm = max(
             1,
             int(
@@ -100,4 +106,10 @@ def medoid(data, arm_budget=20):
         estimates = estimates[mask]
         pull_counts = pull_counts[mask]
 
-    return data[current_active_arms[0]]
+        num_iter += 1
+
+    if current_active_arms.shape[0] > 1:
+        # if there are multiple arms left, return the one with the smallest estimate
+        return data[current_active_arms[np.argmin(estimates[current_active_arms])]]
+    else:
+        return data[current_active_arms[0]]

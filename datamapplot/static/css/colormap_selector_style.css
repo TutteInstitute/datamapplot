@@ -1,0 +1,121 @@
+#colormap-selector-container {
+    position: relative;
+    z-index: 100;
+}
+.color-map-dropdown {
+    background-color: inherit;
+    z-index: 100;
+  }
+  .color-map-selected {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 100;
+  }
+  .color-map-options {
+    position: fixed;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    max-height: 500px;
+    overflow-y: auto;
+    display: none;
+    background-color: #ffffff77;
+    backdrop-filter: blur(6px);
+    box-sizing: border-box;
+    z-index: 101;
+  }
+  .color-map-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    cursor: pointer;
+    z-index: 102;
+    background-color: #ffffffee;
+    backdrop-filter: blur(6px);
+  }
+  .color-map-option:hover {
+    background-color: #ccccccee;
+    backdrop-filter: blur(6px);
+  }
+  .color-swatch {
+    display: inline-block;
+    width: fit-content;
+    height: 20px;
+    margin-right: 10px;
+    border-radius: 4px;
+  }
+  .color-swatch-box {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    text-align: center;
+    line-height: 10px;
+    cursor: pointer;
+  }
+  .color-map-text {
+    flex-grow: 1;
+  }
+  .colorbar-container {
+    display: flex;
+    align-items: center;
+    width: fit-content;
+    gap: 4px;
+    padding: 10px;
+    /* font-family: Arial, sans-serif; */
+    height: 200px;
+    margin: 4px 16px 4px 16px;
+  }
+  .color-legend-container {
+    display: flex;
+    align-items: left;
+    width: fit-content;
+    height: fit-content;
+    gap: 4px;
+    padding: 10px;
+  }
+  .colorbar {
+    width: 10px;
+    height: 200px;
+    position: relative;
+  }
+  .colorbar-tick-container {
+    position: relative;
+    width: 40px;
+    height: 200px;
+  }
+  .colorbar-tick {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* Adjust vertical positioning to center on the actual value */
+    transform: translateY(-50%);
+  }
+  .colorbar-tick-line {
+    width: 8px;
+    height: 1px;
+    background: #333;
+  }
+  .colorbar-tick-label {
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: left;
+    gap: 4px;
+    padding: 4px;
+  }
+  .legend-label {
+    font-size: 12px;
+  }

@@ -17,43 +17,59 @@ pr:
     - doc/*
     - README.rst
 
+# Trigger a run on main at 00:00 (midnight) UTC on Sundays
+# Run even if there are no code changes
+schedules:
+  - cron: "0 0 * * 0"
+    displayName: "Sunday Test Runs"
+    always: true
+    branches:
+      include:
+        - main
+
+parameters:
+- name: matrix
+  displayName: Pool Image and Python Version Matrix
+  type: object
+  default:
+    mac_py310:
+      imageName: 'macOS-latest'
+      python.version: '3.10'
+    linux_py310:
+      imageName: 'ubuntu-latest'
+      python.version: '3.10'
+    # windows_py310:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.10'
+    mac_py311:
+      imageName: 'macOS-latest'
+      python.version: '3.11'
+    linux_py311:
+      imageName: 'ubuntu-latest'
+      python.version: '3.11'
+    # windows_py311:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.11'
+    mac_py312:
+      imageName: 'macOS-latest'
+      python.version: '3.12'
+    linux_py312:
+      imageName: 'ubuntu-latest'
+      python.version: '3.12'
+    # windows_py312:
+    #   imageName: 'windows-latest'
+    #   python.version: '3.12'
+
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
 
 stages:
   - stage: RunAllTests
-    displayName: Run test suite
+    displayName: Run python test suite
     jobs:
-      - job: run_platform_tests
+      - job: run_tests
         strategy:
-          matrix:
-            # mac_py39:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.9'
-            # linux_py39:
-            #   imageName: 'ubuntu-latest'
-            #   python.version: '3.9'
-            # windows_py39:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.9'
-            # mac_py310:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.10'
-            linux_py310:
-              imageName: 'ubuntu-latest'
-              python.version: '3.10'
-            # windows_py310:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.10'
-            # mac_py311:
-            #   imageName: 'macOS-latest'
-            #   python.version: '3.11'
-            # linux_py311:
-            #   imageName: 'ubuntu-latest'
-            #   python.version: '3.11'
-            # windows_py311:
-            #   imageName: 'windows-latest'
-            #   python.version: '3.11'
+          matrix: ${{ parameters.matrix }}
 
         pool:
           vmImage: $(imageName)
@@ -65,22 +81,54 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            python -m pip install --upgrade pip
-          displayName: 'Install dependencies'
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+          displayName: 'Set PIP_CACHE_DIR'
+
+        - task: Cache@2
+          inputs:
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            restoreKeys: |
+              pip |
+            path: $(PIP_CACHE_DIR)
+          displayName: 'Cache pip dependencies'
+
+        - script: |
+            python -m pip install --upgrade pip setuptools wheel
+          displayName: 'Upgrade pip'
+
+        - script: |
+            pip install -r test-requirements.txt
+          displayName: 'Install pip dependencies'
 
         - script: |
             pip install -e .
-            pip install dask[dataframe]
-            pip install pytest pytest-azurepipelines
-            pip install pytest-cov
-            pip install coveralls
-          displayName: 'Install package'
+          displayName: 'Install local package'
+
+        # # Debugging import datashader
+        # - script: |
+        #     echo "Installed packages:"
+        #     pip list
+        #     echo "Dask information:"
+        #     python -c "import dask; print('Dask version:', dask.__version__)"
+        #     python -c "import dask.dataframe; print('Dask DataFrame path:', dask.dataframe.__file__)"
+        #     echo "Datashader information:"
+        #     python -c "import datashader; print('Datashader version:', datashader.__version__)"
+        #   displayName: 'Debug dependency versions'
 
         - script: |
-            pytest datamapplot/tests --show-capture=no -v --disable-warnings --junitxml=junit/test-results.xml --cov=datamapplot/ --cov-report=xml --cov-report=html
-          displayName: 'Run tests'
+            export CI=true
+            mkdir -p $(Build.ArtifactStagingDirectory)/mpl
+            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+                --cov=datamapplot/ --cov-report=html \
+                --mpl-generate-summary=html \
+                --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
+          displayName: 'Run python tests'
 
-        # There are currently no tests so we don't actually need to publish results
+        - script: |
+            echo "Listing contents of $(Build.ArtifactStagingDirectory)/mpl:"
+            ls -la $(Build.ArtifactStagingDirectory)/mpl
+          displayName: 'List contents of $(Build.ArtifactStagingDirectory)/mpl'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
 
         # - bash: |
         #     coveralls
@@ -89,18 +137,98 @@ stages:
         #   env:
         #     COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
 
-        # - task: PublishTestResults@2
-        #   inputs:
-        #     testResultsFiles: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-        #     testRunTitle: '$(Agent.OS) - $(Build.BuildNumber)[$(Agent.JobName)] - Python $(python.version)'
-        #   condition: succeededOrFailed()
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathToPublish: $(Build.ArtifactStagingDirectory)/mpl
+            artifactName: 'mpl-test-results-$(Build.BuildId)-$(Agent.OS)-py$(python.version)'
+          displayName: 'Publish MPL Test Artifacts'
+          condition: always()
+
+        - script: |
+            echo "Listing contents of html dir:"
+            ls -la $(Build.SourcesDirectory)/datamapplot/tests/html
+          displayName: 'List contents of html dir'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - script: |
+            python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
+          displayName: 'Start HTTP server (Unix)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - powershell: |
+            $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html" -PassThru -NoNewWindow
+            Start-Sleep -Seconds 5
+            $retry = 0
+            do {
+                try {
+                    $response = Invoke-WebRequest -Uri "http://localhost:8000" -Method Head
+                    Write-Host "Server started successfully"
+                    break
+                } catch {
+                    Write-Host "Waiting for server to start... Attempt $retry"
+                    Start-Sleep -Seconds 2
+                    $retry++
+                }
+            } while ($retry -lt 5)
+
+            if ($retry -eq 5) {
+                Write-Error "Server failed to start after multiple attempts"
+                exit 1
+            }
+          displayName: 'Start HTTP server (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - task: NodeTool@0
+          inputs:
+            versionSpec: '22'
+          displayName: 'Use Node.js for frontend tests'
+
+        - script: |
+            npm ci
+          displayName: 'Install npm dependencies'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install --with-deps
+          displayName: 'Install Playwright browsers'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+              npx playwright test --grep-invert @slow
+            else
+              npx playwright test
+            fi
+          displayName: 'Run Playwright tests'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          env:
+            CI: 'true'
+
+        - task: PublishTestResults@2
+          displayName: 'Publish frontest test results'
+          inputs:
+            searchFolder: 'test-results'
+            testResultsFormat: 'JUnit'
+            testResultsFiles: 'e2e-junit-results.xml'
+            mergeTestResults: true
+            failTaskOnFailedTests: true
+            testRunTitle: 'Playwright Test Results-$(Agent.OS)-py$(python.version)'
+          condition: succeededOrFailed()
+
+        - task: PublishBuildArtifacts@1
+          inputs:
+            pathToPublish: '$(Build.SourcesDirectory)/datamapplot/interactive_tests/playwright-report'
+            artifactName: 'playwright-report-$(Build.BuildId)-$(Agent.OS)-py$(python.version)'
+          displayName: 'Publish Playwright Test Report'
+          condition: succeededOrFailed()
 
   - stage: BuildPublishArtifact
-    dependsOn: RunAllTests
+    dependsOn:
+      - RunAllTests
     condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/tags/release-'), eq(variables.triggeredByPullRequest, false))
     jobs:
       - job: BuildArtifacts
-        displayName: Build source dists and wheels    
+        displayName: Build source dists and wheels
         pool:
           vmImage: 'ubuntu-latest'
         steps:
@@ -117,7 +245,7 @@ stages:
         - script: |
             pip install -e .
           displayName: 'Install package locally'
-        
+
         - script: |
             python setup.py sdist bdist_wheel
           displayName: 'Build package'
@@ -138,11 +266,11 @@ stages:
           name: PYPIRC_CONFIG
           displayName: 'Download pypirc'
           inputs:
-            secureFile: 'pypirc'  
+            secureFile: 'pypirc'
 
         - script: |
             pip install twine
-            twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/* 
+            twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/*
           displayName: 'Upload to PyPI'
           condition: and(succeeded(), eq(variables['Build.SourceBranchName'], variables['packageVersionFormatted']))
 

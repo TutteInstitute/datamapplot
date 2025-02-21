@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import textwrap
+from tqdm import tqdm
 import colorcet
 
 from matplotlib import pyplot as plt
@@ -16,6 +17,7 @@ from datamapplot.plot_rendering import render_plot
 from datamapplot.medoids import medoid
 from datamapplot.interactive_rendering import (
     render_html,
+    compute_percentile_bounds,
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
@@ -46,6 +48,7 @@ def create_plot(
     highlight_labels=None,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_theta_range=np.pi / 16,
     palette_min_lightness=10,
     use_medoids=False,
     cmap=None,
@@ -142,6 +145,10 @@ def create_plot(
         A setting that determines how dependent on the radius the hue channel is. Larger
         values will result in more hue variation where there are more outlying points.
 
+    palette_theta_range: float (optional, default=np.pi/16)
+        A setting that determines how restrictive the radius mask used will be. Larger
+        values will result in a less restrictive mask.
+
     use_medoids: bool (optional, default=False)
         Whether to use medoids instead of centroids to determine the "location" of the cluster,
         both for the label indicator line, and for palette colouring. Note that medoids are
@@ -191,7 +198,7 @@ def create_plot(
             label_locations = np.asarray(
                 [
                     medoid(data_map_coords[cluster_label_vector == i])
-                    for i in unique_non_noise_labels
+                    for i in tqdm(unique_non_noise_labels, desc="Calculating medoids")
                 ]
             )
         else:
@@ -222,6 +229,7 @@ def create_plot(
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
                 min_lightness=palette_min_lightness,
+                theta_range=palette_theta_range,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -339,6 +347,7 @@ def create_interactive_plot(
     darkmode=False,
     palette_hue_shift=0.0,
     palette_hue_radius_dependence=1.0,
+    palette_theta_range=np.pi / 16,
     cmap=None,
     marker_size_array=None,
     marker_color_array=None,
@@ -349,6 +358,7 @@ def create_interactive_plot(
     polygon_alpha=0.1,
     cvd_safer=False,
     jupyterhub_api_token=None,
+    enable_table_of_contents=False,
     **render_html_kwds,
 ):
     """
@@ -421,6 +431,10 @@ def create_interactive_plot(
         A setting that determines how dependent on the radius the hue channel is. Larger
         values will result in more hue variation where there are more outlying points.
 
+    palette_theta_range: float (optional, default=np.pi/16)
+        A setting that determines how restrictive the radius mask used will be. Larger
+        values will result in a less restrictive mask.
+
     cmap: matplotlib cmap or None (optional, default=None)
         A linear matplotlib cmap colour map to use as the base for a generated colour mapping.
         This *should* be a matplotlib cmap that is smooth and linear, and cyclic
@@ -450,9 +464,12 @@ def create_interactive_plot(
         This will override any provided cmap and use a CVD safer palette instead.
 
     jupyterhub_api_token: str or None (optional, default=None)
-        The JupyterHub API token to use when rendering the plot inline in a notebook via jupyterhub. 
+        The JupyterHub API token to use when rendering the plot inline in a notebook via jupyterhub.
         This should not be necessary for most users, but can be useful in some environments where
         the default token is not available.
+
+    enable_table_of_contents: bool (optional, default=False)
+        Whether to build and display a table of contents with the label heirarchy.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -463,6 +480,14 @@ def create_interactive_plot(
     -------
 
     """
+    # Compute bounds and rescale the data map to a standard size
+    raw_data_bounds = compute_percentile_bounds(data_map_coords)
+    raw_data_width = raw_data_bounds[1] - raw_data_bounds[0]
+    raw_data_height = raw_data_bounds[3] - raw_data_bounds[2]
+    raw_data_scale = np.max([raw_data_width, raw_data_height])
+
+    data_map_coords = (30.0 / raw_data_scale) * (data_map_coords - np.mean(data_map_coords, axis=0))
+
     if len(label_layers) == 0:
         label_dataframe = pd.DataFrame(
             {
@@ -472,6 +497,31 @@ def create_interactive_plot(
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
         )
+    elif enable_table_of_contents:
+        # This method of allowing label_text_and_polygon_dataframes to edit parents is unsavory,
+        # but means that the function has the same return statement each time and we can still use
+        # list comprehension.
+        #
+        parents = [[]]
+        label_lists = [
+            label_text_and_polygon_dataframes(
+                labels,
+                data_map_coords,
+                noise_label=noise_label,
+                use_medoids=use_medoids,
+                cluster_polygons=cluster_boundary_polygons,
+                alpha=polygon_alpha,
+                include_related_points=True,
+                parents=parents,
+            )
+            for labels in label_layers[::-1]
+        ]
+
+        # Mark the lowest layer labels so they can be displayed differently in the table of contents.
+        #
+        label_lists[-1]["lowest_layer"] = True
+
+        label_dataframe = pd.concat(label_lists)
     else:
         label_dataframe = pd.concat(
             [
@@ -488,6 +538,11 @@ def create_interactive_plot(
             ]
         )
 
+    # Split out the noise labels (placeholders for table of contents) so we can make color palettes.
+    #
+    noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]
+    label_dataframe = label_dataframe[label_dataframe["label"] != noise_label]
+
     if cvd_safer:
         cmap = colorcet.cm.CET_C2s
     if label_color_map is None:
@@ -497,6 +552,7 @@ def create_interactive_plot(
                 label_dataframe[["x", "y"]].values,
                 hue_shift=palette_hue_shift,
                 radius_weight_power=palette_hue_radius_dependence,
+                theta_range=palette_theta_range,
             )
         else:
             palette = palette_from_cmap_and_datamap(
@@ -504,6 +560,7 @@ def create_interactive_plot(
                 data_map_coords,
                 label_dataframe[["x", "y"]].values,
                 radius_weight_power=palette_hue_radius_dependence,
+                theta_range=palette_theta_range,
             )
         if not darkmode:
             text_palette = np.asarray(
@@ -562,6 +619,9 @@ def create_interactive_plot(
         lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
     )
 
+    # Recombine noise label placeholders.
+    label_dataframe = pd.concat([label_dataframe, noise_label_dataframe])
+
     point_dataframe = pd.DataFrame(
         {
             "x": data_map_coords.T[0],
@@ -617,7 +677,13 @@ def create_interactive_plot(
         inline_data=inline_data,
         color_label_text=color_label_text,
         darkmode=darkmode,
+        noise_color=noise_color,
+        label_layers=label_layers,
+        cluster_colormap=color_map | {noise_label:noise_color},
+        enable_table_of_contents=enable_table_of_contents,
         **render_html_kwds,
     )
 
-    return InteractiveFigure(html_str, width=width, height=height, api_token=jupyterhub_api_token)
+    return InteractiveFigure(
+        html_str, width=width, height=height, api_token=jupyterhub_api_token
+    )

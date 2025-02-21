@@ -19,6 +19,9 @@ from pathlib import Path
 from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
+from colorspacious import cspace_convert
+from sklearn.cluster import KMeans
+from collections.abc import Iterable
 
 from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
 
@@ -31,9 +34,121 @@ from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
+from datamapplot.selection_handlers import SelectionHandlerBase
 
+try:
+    import matplotlib
+
+    get_cmap = matplotlib.colormaps.get_cmap
+except ImportError:
+    from matplotlib.cm import get_cmap
+from matplotlib.colors import rgb2hex
+
+from warnings import warn
+
+_DEFAULT_DICRETE_COLORMAPS = [
+    "tab10",
+    "Dark2",
+    "Accent",
+    "Set3",
+    "Paired",
+    "tab20",
+    "tab20b",
+    "tab20c",
+    "Set1",
+    "Set2",
+    "Pastel1",
+    "Pastel2",
+]
+
+_DEFAULT_CONTINUOUS_COLORMAPS = [
+    "viridis",
+    "plasma",
+    "cividis",
+    "YlGnBu",
+    "cet_fire",
+    "PuRd",
+    "BuPu",
+    "cet_bgy",
+    "cet_CET_L7",
+    "cet_CET_L17",
+    "cet_gouldian",
+]
+
+_CLUSTER_LAYER_DESCRIPTORS = {
+    9: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Mid",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    8: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    7: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Mid",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    6: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    5: [
+        "Top",
+        "Upper",
+        "Mid",
+        "Lower",
+        "Bottom",
+    ],
+    4: [
+        "Top" "Upper-mid",
+        "Lower-mid",
+        "Bottom",
+    ],
+    3: [
+        "Upper",
+        "Mid",
+        "Lower",
+    ],
+    2: [
+        "Upper",
+        "Lower",
+    ],
+    1: ["Primary"],
+}
 
 cfg = ConfigManager()
+
+_TOC_DEFAULT_KWDS = {
+    "title": "Topic Tree",
+    "font_size": "12pt",
+    "max_width": "30vw",
+    "max_height": "42vh",
+    "color_bullets": False,
+    "button_on_click": None,
+    "button_icon": "&#128194",
+}
 
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
@@ -44,48 +159,60 @@ _TOOL_TIP_CSS = """
             font-family: {{title_font_family}};
             font-weight: {{title_font_weight}};
             color: {{title_font_color}} !important;
-            background-color: {{title_background}} !important;
+            background-color: {{title_background[:-2] + "ee"}} !important;
             border-radius: 12px;
+            backdrop-filter: blur(6px);
             box-shadow: 2px 3px 10px {{shadow_color}};
             max-width: 25%;
 """
 
 _NOTEBOOK_NON_INLINE_WORKER = """
     const parsingWorkerBlob = new Blob([`
-      async function DecompressBytes(bytes) {
-          const blob = new Blob([bytes]);
-          const decompressedStream = blob.stream().pipeThrough(
-            new DecompressionStream("gzip")
-          );
-          const arr = await new Response(decompressedStream).arrayBuffer()
-          return new Uint8Array(arr);
-      }
-      async function decodeBase64(base64) {
-          return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      }
-      async function decompressFile(filename) {
-          const response = await fetch(filename, {
-            headers: {Authorization: 'Token API_TOKEN'}
-          });
-          if (!response.ok) {
-            throw new Error(\`HTTP error! status: \${response.status}\`);
-          }
-          const data = await response.json()
-            .then(data => data.content)
-            .then(base64data => decodeBase64(base64data))
-            .then(buffer => DecompressBytes(buffer));
-          return data;
-      }
       self.onmessage = async function(event) {
         const { encodedData, JSONParse } = event.data;
-        const binaryData = await decompressFile(encodedData);
-        if (JSONParse) {
-          const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
-          self.postMessage({ data: parsedData });
-        } else {
-          // Send the parsed table back to the main thread
-          self.postMessage({ data: binaryData });
+        async function DecompressBytes(bytes) {
+            const blob = new Blob([bytes]);
+            const decompressedStream = blob.stream().pipeThrough(
+                new DecompressionStream("gzip")
+            );
+            const arr = await new Response(decompressedStream).arrayBuffer()
+            return new Uint8Array(arr);
         }
+        async function decodeBase64(base64) {
+            return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        }
+        async function decompressFile(filename) {
+          try {
+            const response = await fetch(filename, {
+              headers: {Authorization: 'Token API_TOKEN'}
+            });
+            if (!response.ok) {
+              throw new Error(\\`HTTP error! status: \\${response.status}. Failed to fetch: \\${filename}\\`);
+            }
+            const decompressedData = await response.json()
+              .then(data => data.content)
+              .then(base64data => decodeBase64(base64data))
+              .then(buffer => DecompressBytes(buffer));
+            return decompressedData;
+          } catch (error) {
+            console.error('Decompression failed:', error);
+            throw error;
+          }
+        }
+        let processedCount = 0;
+        const decodedData = encodedData.map(async (file, i) => {
+          const binaryData = await decompressFile(file);
+          processedCount += 1;
+          self.postMessage({ type: "progress", progress: Math.round(((processedCount) / encodedData.length) * 95) });
+
+          if (JSONParse) {
+            const parsedData = JSON.parse(new TextDecoder("utf-8").decode(binaryData));
+            return { chunkIndex: i, chunkData: parsedData };
+          } else {
+            return { chunkIndex: i, chunkData: binaryData };
+          }
+        });
+        self.postMessage({ type: "data", data: await Promise.all(decodedData) });
       }
     `], { type: 'application/javascript' });
 """
@@ -121,7 +248,10 @@ class InteractiveFigure:
             # If we are google colab non inline data won't work
             try:
                 import google.colab
-                warn("You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly.")
+
+                warn(
+                    "You are using `inline_data=False` from within google colab. Due to how colab handles files this will not function correctly."
+                )
             except:
                 pass
             # We need to redirect the fetch to use the jupyter API endpoint
@@ -186,26 +316,29 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
         encoded_fonts = all_encoded_fonts.get(fontname, None)
         if encoded_fonts is not None:
             font_descriptions = [
-                f"""
+                (
+                    f"""
     @font-face {{ 
         font-family: '{fontname}'; 
         font-style: {font_data["style"]};
         font-weight: {font_data["weight"]};
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
         unicode-range: {font_data["unicode_range"]};
-    }}""" if len(font_data["unicode_range"]) > 0 else f"""
+    }}"""
+                    if len(font_data["unicode_range"]) > 0
+                    else f"""
     @font-face {{ 
         font-family: '{fontname}'; 
         font-style: {font_data["style"]};
         font-weight: {font_data["weight"]};
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
-    }}"""    
+    }}"""
+                )
                 for font_data in encoded_fonts
             ]
             return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
         else:
             return ""
-
 
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
@@ -232,7 +365,12 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
 
 
 def _get_js_dependency_sources(
-    minify, enable_search, enable_histogram, enable_lasso_selection
+    minify,
+    enable_search,
+    enable_histogram,
+    enable_lasso_selection,
+    colormap_selector,
+    enable_table_of_contents,
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -251,6 +389,9 @@ def _get_js_dependency_sources(
     enable_lasso_selection: bool
         Whether to include JS dependencies for the lasso selection functionality.
 
+    enable_table_of_contents: bool
+        Whether to include JS dependencies for the table of contents functionality.
+
     Returns
     -------
     dict
@@ -268,6 +409,12 @@ def _get_js_dependency_sources(
         js_dependencies.append("lasso_selection.js")
         js_dependencies.append("quad_tree.js")
 
+    if colormap_selector:
+        js_dependencies.append("colormap_selector.js")
+
+    if enable_table_of_contents:
+        js_dependencies.append("table_of_contents.js")
+
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
@@ -276,7 +423,13 @@ def _get_js_dependency_sources(
     return js_dependencies_src
 
 
-def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress):
+def _get_css_dependency_sources(
+    minify,
+    enable_histogram,
+    show_loading_progress,
+    enable_colormap_selector,
+    enable_table_of_contents,
+):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
 
@@ -291,6 +444,9 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     show_loading_progress: bool
         Whether to have progress bars for data loading.
 
+    enable_table_of_contents: bool
+        Whether to include CSS dependencies for the table of contents functionality.
+
     Returns
     -------
     dict
@@ -298,7 +454,7 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
         source content.
     """
     static_dir = Path(__file__).resolve().parent / "static" / "css"
-    css_dependencies = []
+    css_dependencies = ["containers_and_stacks.css"]
     css_dependencies_src = {}
 
     if enable_histogram:
@@ -306,6 +462,12 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
 
     if show_loading_progress:
         css_dependencies.append("progress_bar_style.css")
+
+    if enable_colormap_selector:
+        css_dependencies.append("colormap_selector_style.css")
+
+    if enable_table_of_contents:
+        css_dependencies.append("table_of_contents_style.css")
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -315,7 +477,12 @@ def _get_css_dependency_sources(minify, enable_histogram, show_loading_progress)
     return css_dependencies_src
 
 
-def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="unpkg.com"):
+def _get_js_dependency_urls(
+    enable_histogram,
+    enable_table_of_contents,
+    selection_handler=None,
+    cdn_url="unpkg.com",
+):
     """
     Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
 
@@ -342,12 +509,348 @@ def _get_js_dependency_urls(enable_histogram, selection_handler=None, cdn_url="u
     if enable_histogram:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
+    if enable_table_of_contents:
+        js_dependency_urls.append(f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js")
+
     if selection_handler is not None:
-        js_dependency_urls.extend(selection_handler.dependencies)
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                js_dependency_urls.extend(handler.dependencies)
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            js_dependency_urls.extend(selection_handler.dependencies)
+        else:
+            raise ValueError(
+                "The selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances."
+            )
 
     js_dependency_urls = list(set(js_dependency_urls))
 
     return js_dependency_urls
+
+
+def default_colormap_options(values_dict):
+
+    colormap_metadata_list = []
+    continuous_cmap_counter = 0
+    existing_fields = set([])
+    used_colormaps = set([])
+
+    for name, values in values_dict.items():
+        colormap_metadata = {}
+        candidate_field = name.split()[0]
+        n = 0
+        while candidate_field in existing_fields:
+            n += 1
+            candidate_field = f"{name.split()[0]}_{n}"
+        colormap_metadata["field"] = candidate_field
+        colormap_metadata["description"] = name
+
+        if values.dtype.kind in ["U", "S", "O"]:
+            colormap_metadata["kind"] = "categorical"
+            n_categories = len(np.unique(values))
+            n = 0
+            cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+            while cmap in used_colormaps or n_categories > len(get_cmap(cmap).colors):
+                n += 1
+                if n >= len(_DEFAULT_DICRETE_COLORMAPS):
+                    n = 0
+                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+                    while cmap in used_colormaps:
+                        n += 1
+                        cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+                    break
+                else:
+                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
+            colormap_metadata["cmap"] = cmap
+            used_colormaps.add(cmap)
+        elif pd.api.types.is_datetime64_any_dtype(values):
+            colormap_metadata["kind"] = "datetime"
+            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[
+                continuous_cmap_counter
+            ]
+            continuous_cmap_counter += 1
+        else:
+            colormap_metadata["kind"] = "continuous"
+            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[
+                continuous_cmap_counter
+            ]
+            continuous_cmap_counter += 1
+
+        colormap_metadata_list.append(colormap_metadata)
+
+    return colormap_metadata_list
+
+
+def cmap_name_to_color_list(cmap_name):
+    cmap = get_cmap(cmap_name)
+    if hasattr(cmap, "colors"):
+        result = [rgb2hex(c) for c in cmap.colors]
+    else:
+        result = [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
+    return result
+
+
+def array_to_colors(values, cmap_name, metadata, color_list=None):
+    values = np.asarray(values)
+
+    # Handle colormap setup
+    if cmap_name is None:
+        cmap = None
+        assert color_list is not None
+        color_list = [to_rgba(color) for color in color_list]
+    else:
+        cmap = get_cmap(cmap_name)
+
+    # Function to get finite/non-null mask
+    def get_valid_mask(arr):
+        if pd.api.types.is_datetime64_any_dtype(arr):
+            return ~pd.isna(arr)
+        elif arr.dtype.kind in ["f", "i"]:
+            return np.isfinite(arr)
+        else:
+            return ~pd.isna(arr)
+
+    # Handle datetime values
+    if pd.api.types.is_datetime64_any_dtype(values):
+        if cmap is None:
+            raise ValueError("cmap must be provided for datetime data")
+
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid datetime values found")
+
+        valid_values = values[valid_mask]
+        vmin, vmax = valid_values.min(), valid_values.max()
+
+        # Convert to float for normalization
+        normalized_values = np.zeros_like(values, dtype=float)
+        normalized_values[valid_mask] = (
+            (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
+        )
+
+        colors_array = np.zeros((len(values), 4))
+        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+
+        # Store datetime range as ISO format strings
+        metadata["valueRange"] = [
+            pd.Timestamp(vmin).isoformat(),
+            pd.Timestamp(vmax).isoformat(),
+        ]
+        metadata["kind"] = "datetime"
+
+    elif values.dtype.kind in ["U", "S", "O"]:  # String or object type
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid string values found")
+
+        # Get unique valid values
+        unique_values = np.unique(values[valid_mask])
+
+        if cmap:
+            n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
+        else:
+            n_colors = len(color_list)
+
+        if n_colors <= 20 or metadata.get("kind") == "categorical":
+            # Handle categorical data
+            if cmap is None and color_list:
+                value_to_color = {
+                    val: color_list[i % n_colors] for i, val in enumerate(unique_values)
+                }
+            else:
+                value_to_color = {
+                    val: cmap(
+                        i / (len(unique_values) - 1) if len(unique_values) > 1 else 0.5
+                    )
+                    for i, val in enumerate(unique_values)
+                }
+
+            colors_array = np.zeros((len(values), 4))
+            colors_array[valid_mask] = [
+                value_to_color[val] for val in values[valid_mask]
+            ]
+            colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+
+            metadata["colorMapping"] = {
+                str(key): rgb2hex(color) for key, color in value_to_color.items()
+            }
+            metadata["kind"] = "categorical"
+
+        else:
+            # Handle non-categorical string data
+            if cmap:
+                value_to_num = {val: i for i, val in enumerate(unique_values)}
+                normalized_values = np.zeros(len(values))
+                normalized_values[valid_mask] = [
+                    value_to_num[val] for val in values[valid_mask]
+                ]
+                if len(unique_values) > 1:
+                    normalized_values = normalized_values / (len(unique_values) - 1)
+
+                colors_array = np.zeros((len(values), 4))
+                colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+                colors_array[~valid_mask] = [0, 0, 0, 0]
+            else:
+                value_to_num = {
+                    val: i % len(color_list) for i, val in enumerate(unique_values)
+                }
+                colors_array = np.zeros((len(values), 4))
+                colors_array[valid_mask] = [
+                    color_list[value_to_num[val]] for val in values[valid_mask]
+                ]
+                colors_array[~valid_mask] = [0, 0, 0, 0]
+
+            metadata["colorMapping"] = {}
+
+    else:  # Numeric data
+        if cmap is None:
+            raise ValueError("cmap must be provided for continuous data")
+
+        valid_mask = get_valid_mask(values)
+        if not np.any(valid_mask):
+            raise ValueError("No valid numeric values found")
+
+        valid_values = values[valid_mask]
+        vmin, vmax = valid_values.min(), valid_values.max()
+
+        normalized_values = np.zeros_like(values, dtype=float)
+        normalized_values[valid_mask] = (
+            (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
+        )
+
+        colors_array = np.zeros((len(values), 4))
+        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
+        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
+
+        metadata["valueRange"] = [float(vmin), float(vmax)]
+        metadata["kind"] = "continuous"
+
+    return (colors_array * 255).astype(np.uint8)
+
+
+def color_sample_from_colors(color_array, n_swatches=5):
+    jch_colors = cspace_convert(color_array[:, :3], "sRGB1", "JCh")
+    cielab_colors = cspace_convert(jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS")
+    quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
+        cielab_colors
+    )
+    result = [
+        rgb2hex(c)
+        for c in np.clip(
+            cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+        )
+    ]
+    return result
+
+
+def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
+    metadata = []
+    colordata = []
+    for i, layer in enumerate(label_layers[::-1]):
+        color_list = pd.Series(layer).map(label_color_map).to_list()
+        color_array = np.asarray(
+            [
+                (
+                    to_rgba(color)
+                    if type(color) == str
+                    else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                )
+                for color in color_list
+            ]
+        )
+        color_sample = color_sample_from_colors(color_array, n_swatches)
+        unique_labels = np.unique(layer)
+        colormap_subset = {
+            label: (
+                rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
+                if type(color) != str
+                else color
+            )
+            for label, color in label_color_map.items()
+            if label in unique_labels
+        }
+        descriptors = _CLUSTER_LAYER_DESCRIPTORS.get(
+            len(label_layers), [f"Layer-{n}" for n in range(len(label_layers))]
+        )
+        colormap_metadata = {
+            "field": f"layer_{i}",
+            "description": f"{descriptors[i]} Clusters",
+            "colors": color_sample
+            + [
+                color for color in colormap_subset.values() if color not in color_sample
+            ],
+            "kind": "categorical",
+            "color_mapping": colormap_subset,
+        }
+        if len(unique_labels) <= 25:
+            colormap_metadata["show_legend"] = True
+        else:
+            colormap_metadata["show_legend"] = False
+        colordata.append(layer)
+        metadata.append(colormap_metadata)
+
+    return metadata, colordata
+
+
+def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
+    base_colors_sample = base_colors
+    colormaps = [
+        {
+            "field": "none",
+            "description": "Clusters",
+            "colors": base_colors_sample,
+            "kind": "categorical",
+        }
+    ]
+    color_data = []
+
+    for rawdata, metadata in zip(colormap_rawdata, colormap_metadata):
+        if "colors" in metadata:
+            cmap_colors = metadata["colors"]
+        elif "cmap" in metadata:
+            cmap_name = metadata["cmap"]
+            cmap_colors = cmap_name_to_color_list(cmap_name)
+        elif "palette" in metadata:
+            cmap_colors = metadata["palette"]
+            cmap_name = None
+        elif "color_mapping" in metadata:
+            cmap_colors = list(metadata["color_mapping"].values())
+            cmap_name = None
+        else:
+            cmap_colors = []
+        colormap = {
+            "field": metadata["field"],
+            "description": metadata["description"],
+            "colors": cmap_colors,
+            "kind": metadata.get("kind", "continuous"),
+            "nColors": metadata.get("n_colors", 5),
+        }
+        if "show_legend" in metadata:
+            colormap["showLegend"] = metadata["show_legend"]
+        colormaps.append(colormap)
+        if "color_mapping" in metadata:
+            colormap["colorMapping"] = metadata["color_mapping"]
+            colormap["kind"] = "categorical"
+            colors_array = (
+                np.array([to_rgba(metadata["color_mapping"][val]) for val in rawdata])
+                * 255
+            ).astype(np.uint8)
+        else:
+            colors_array = array_to_colors(rawdata, cmap_name, colormap, cmap_colors)
+        color_data.append(
+            pd.DataFrame(
+                colors_array,
+                columns=[
+                    f"{metadata['field']}_r",
+                    f"{metadata['field']}_g",
+                    f"{metadata['field']}_b",
+                    f"{metadata['field']}_a",
+                ],
+            )
+        )
+
+    return colormaps, pd.concat(color_data, axis=1)
 
 
 def compute_percentile_bounds(points, percentage=99.9):
@@ -368,7 +871,12 @@ def compute_percentile_bounds(points, percentage=99.9):
     x_padding = 0.01 * (xmax - xmin)
     y_padding = 0.01 * (ymax - ymin)
 
-    return [float(xmin - x_padding), float(xmax + x_padding), float(ymin - y_padding), float(ymax + y_padding)]
+    return [
+        float(xmin - x_padding),
+        float(xmax + x_padding),
+        float(ymin - y_padding),
+        float(ymax + y_padding),
+    ]
 
 
 def label_text_and_polygon_dataframes(
@@ -377,9 +885,47 @@ def label_text_and_polygon_dataframes(
     noise_label="Unlabelled",
     use_medoids=False,
     cluster_polygons=False,
+    include_related_points=False,
     alpha=0.05,
     layer_num=0,
+    parents=None,
 ):
+    """
+    Build the necessary label data, including cluster polygon bounds.
+
+    Parameters
+    ----------
+    labels: np.array
+        Label text for each point
+
+    data_map_coords: np.array
+        Data map xy coordinates for each point
+
+    noise_label: str="Unlabelled"
+        The label to represent noise as used in labels.
+
+    use_medoids: bool (optional, default=False)
+        Whether to use cluster medoids to position labels.
+        Otherwise, the mean position of the cluster points is used.
+
+    cluster_polygons: bool (optional, default=False)
+        Whether to build polygon cluster boundaries.
+
+    include_related_points: bool (optional, default=False)
+        Whether to include indexes of related points to each label.
+        Normally used when displaying a table of contents.
+
+    alpha: float (optional, default=0.05)
+        Display transparency for cluster polygons.
+
+    parents: list or None (optional, default=None)
+        A record of the cluster heirarcy. This will be edited to include this layer's values.
+
+    Returns
+    -------
+    dataframe
+        A dataframe containing relevant information for each label.
+    """
     cluster_label_vector = np.asarray(labels)
     unique_non_noise_labels = [
         label for label in np.unique(cluster_label_vector) if label != noise_label
@@ -391,10 +937,15 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
+    related_points = []
+    points_bounds = []
+    label_ids = []
+    parent_ids = []
 
-    for i, _ in enumerate(unique_non_noise_labels):
+    for i, l in enumerate(unique_non_noise_labels):
         cluster_mask = cluster_idx_vector == i
         cluster_points = data_map_coords[cluster_mask]
+
         if use_medoids:
             label_locations.append(medoid(cluster_points))
         else:
@@ -413,6 +964,80 @@ def label_text_and_polygon_dataframes(
                     )
                 ]
             )
+        if include_related_points:
+            related_points.append(np.where(cluster_mask))
+            points_bounds.append(compute_percentile_bounds(cluster_points))
+        if parents is not None:
+            if len(parents[0]):
+                # Get the provenance (cluster membership at different heirarchical layers).
+                # This should be consistent.(??)
+                p = (
+                    ["base"]
+                    + list(
+                        np.median(parents[0][:, cluster_mask], axis=1)
+                        .astype(int)
+                        .astype(str)
+                    )
+                    + [str(i)]
+                )
+                label_ids.append("_".join(p))
+                parent_ids.append("_".join(p[:-1]))
+            else:
+                label_ids.append(f"base_{i}")
+                parent_ids.append("base")
+
+    if parents is not None:
+        # do the same for unlabeled points, noting that not all unlabeled
+        # points at this level have the same parent.
+        unlabeled_mask = cluster_idx_vector == -1
+
+        # At the top level, we don't need to wory about unlabeled points having
+        # different parents.
+        if len(parents[0]):
+            parent_masks = [
+                (parents[0][-1] == parent) for parent in np.unique(parents[0][-1])
+            ]
+        else:
+            parent_masks = [unlabeled_mask]
+
+        # Iterate over possible parents
+        for parent_mask in parent_masks:
+            cluster_mask = unlabeled_mask & parent_mask
+
+            if np.sum(cluster_mask) > 2:
+                cluster_points = data_map_coords[cluster_mask]
+                label_locations.append(cluster_points.mean(axis=0))
+                cluster_sizes.append(None)
+                polygons.append(None)
+                unique_non_noise_labels.append(noise_label)
+                if include_related_points:
+                    related_points.append(np.where(cluster_mask))
+                    points_bounds.append(compute_percentile_bounds(cluster_points))
+                if len(parents[0]):
+                    # Get the provenance.
+                    # This should be consistent.(??)
+                    p = (
+                        ["base"]
+                        + list(
+                            np.median(parents[0][:, cluster_mask], axis=1)
+                            .astype(int)
+                            .astype(str)
+                        )
+                        + ["-1"]
+                    )
+                    label_ids.append("_".join(p))
+                    parent_ids.append("_".join(p[:-1]))
+                else:
+                    label_ids.append("base_-1")
+                    parent_ids.append("base")
+
+    if parents is not None:
+        # parents is mutable, add on the currend cluster idx_vector.
+        #
+        if len(parents[0]):
+            parents[0] = np.vstack((parents[0], cluster_idx_vector))
+        else:
+            parents[0] = np.vstack((cluster_idx_vector,))
 
     label_locations = np.asarray(label_locations)
 
@@ -425,8 +1050,40 @@ def label_text_and_polygon_dataframes(
     }
     if cluster_polygons:
         data["polygon"] = polygons
-
+    if include_related_points:
+        data["points"] = related_points
+    if parents is not None:
+        data["id"] = label_ids
+        data["parent"] = parent_ids
+        data["bounds"] = points_bounds
     return pd.DataFrame(data)
+
+
+def url_to_base64_img(url):
+    try:
+        # Download the image
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+
+        # Determine the image type from the Content-Type header
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            raise ValueError(
+                f"URL does not point to an image (Content-Type: {content_type})"
+            )
+
+        # Convert the image data to base64
+        image_data = base64.b64encode(response.content).decode("utf-8")
+
+        # Create the complete data URL
+        return f"data:{content_type};base64,{image_data}"
+
+    except requests.RequestException as e:
+        print(f"Error downloading image: {e}")
+        return None
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return None
 
 
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
@@ -463,6 +1120,8 @@ def render_html(
     cluster_boundary_line_width=1,
     initial_zoom_fraction=0.999,
     background_color=None,
+    background_image=None,
+    background_image_bounds=None,
     darkmode=False,
     offline_data_prefix=None,
     offline_data_chunk_size=500_000,
@@ -478,6 +1137,14 @@ def render_html(
     histogram_settings={},
     on_click=None,
     selection_handler=None,
+    colormaps=None,
+    colormap_rawdata=None,
+    colormap_metadata=None,
+    cluster_layer_colormaps=False,
+    label_layers=None,
+    cluster_colormap=None,
+    enable_table_of_contents=False,
+    table_of_contents_kwds={},
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -487,6 +1154,7 @@ def render_html(
     offline_mode=False,
     offline_mode_js_data_file=None,
     offline_mode_font_data_file=None,
+    noise_color="#999999",
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -633,6 +1301,15 @@ def render_html(
         A background colour (as a hex-string) for the data map. If ``None`` a background
         colour will be chosen automatically based on whether ``darkmode`` is set.
 
+    background_image: str or None (optional, default=None)
+        A background image to use for the data map. If ``None`` no background image will be used.
+        The image should be a URL to the image.
+
+    background_image_bounds: list or None (optional, default=None)
+        The bounds of the background image. If ``None`` the image will be scaled to fit the
+        data map. If a list of four values is provided then the image will be scaled to fit
+        within those bounds.
+
     darkmode: bool (optional, default=False)
         Whether to use darkmode.
 
@@ -727,6 +1404,61 @@ def render_html(
         module, or custom selection handlers can be created by subclassing the `SelectionHandlerBase`
         class.
 
+    colormaps: dict or None (optional, default=None)
+        A dictionary containing information about the colormaps to use for the data map. The
+        dictionary should bey keyed by a descriptive name for the field, and the value should
+        be an array of values to use for colouring the field. Datamapplot will try to infer
+        data-types and suitable colormaps for the fields. If you need more control you
+        should instead use ``colormap_rawdata`` and ``colormap_metadata`` which allow you to
+        specify more detailed information about the colormaps to use.
+
+    colormap_rawdata: list of numpy.ndarray or None (optional, default=None)
+        A list of numpy arrays containing the raw data to be used for the colormap. Each array
+        should be the same length as the number of points in the data map. If None, the colormap
+        will not be enabled.
+
+    colormap_metadata: list of dict or None (optional, default=None)
+        A list of dictionaries containing metadata about the colormap. Each dictionary should
+        contain the following keys: "field" (str), "description" (str), and "cmap" (str). If None,
+        the colormap will not be enabled. The field should a short (one word) name for the metadata
+        field, the description should be a longer description of the field, and the cmap should be
+        the name of the colormap to use, and must be available in matplotlib colormap registry.
+
+    cluster_layer_colormaps: bool (optional, default=False)
+        Whether to use per-layer cluster colormaps. If True, a separate colormap in the colormaps
+        dropdown will be created for each layer of the label data. This is useful when the label
+        data is split into multiple layers, and you would like users to be able to select
+        individual clustering resolutions to colour by.
+
+    enable_table_of_contents: bool (optional, default=False)
+        Whether to enable a table of contents that highlights label heirarchy and aids navigation in
+        the datamap.
+
+    table_of_contents_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
+        A dictionary containing custom settings for the table of contents. The dictionary can include
+        the following keys:
+          * "title": str
+                The title of the table of contents.
+          * "font_size": str
+                The font size of the table of contents.
+          * "max_width": str
+                The max width of the table of contents.
+          * "max_height": str
+                The max height of the table of contents.
+          * "color_bullets": bool
+                Whether to use cluster colors for the bullets.
+          * "button_on_click": str or None
+                An optional javascript action to be taken if a button in the table of contents is selected.
+                If None, there will be no buttons, otherwise they will be added with the "button_icon" setting.
+                Each button will be related to a label, and can access the points related to that label.
+                This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
+                point an array is built with those values for each point that the label describes.
+                For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
+                points related to the label.
+          * "button_icon": str
+                The text to appear on the table of contents buttons.
+                These buttons do not appear unless "button_on_click" is defined.
+
     custom_css: str or None (optional, default=None)
         A string of custom CSS code to be added to the style header of the output HTML. This
         can be used to provide custom styling of other features of the output HTML as required.
@@ -744,18 +1476,48 @@ def render_html(
     minify_deps: bool (optional, default=True)
         Whether to minify the JavaScript and CSS dependency files before embedding in the HTML template.
 
+    cdn_url: str (optional, default="unpkg.com")
+        The URL of the CDN to use for fetching JavaScript dependencies.
+
+    offline_mode: bool (optional, default=False)
+        Whether to use offline mode for embedding data and fonts in the HTML template. If True,
+        the data and font files will be embedded in the HTML template as base64 encoded strings.
+
+    offline_mode_js_data_file: str or None (optional, default=None)
+        The name of the JavaScript data file to be embedded in the HTML template in offline mode.
+        If None a default location used by dmp_offline_cache will be used, and if the file
+        doesn't exist it will be created.
+
+    offline_mode_font_data_file: str or None (optional, default=None)
+        The name of the font data file to be embedded in the HTML template in offline mode.
+        If None a default location used by dmp_offline_cache will be used, and if the file
+        doesn't exist it will be created.
+
+    cluster_colormap: list of str or None (optional, default=None)
+        The colormap to use for cluster colors; if None we try to infer this from point data.
+
     Returns
     -------
     interactive_plot: InteractiveFigure
         An interactive figure with hover, pan, and zoom. This will display natively
         in a notebook, and can be saved to an HTML file via the `save` method.
     """
+    # Compute bounds for initial view
+    bounds = compute_percentile_bounds(
+        point_dataframe[["x", "y"]].values,
+        percentage=(initial_zoom_fraction * 100),
+    )
+
     # Compute point scaling
     n_points = point_dataframe.shape[0]
     if point_size_scale is not None:
         magic_number = point_size_scale / 100.0
     else:
-        magic_number = np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+        width = bounds[1] - bounds[0]
+        height = bounds[3] - bounds[2]
+        size_scale = np.sqrt(width * height)
+        scaling = size_scale / 25.0
+        magic_number = scaling * np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
 
     if "size" not in point_dataframe.columns:
         point_size = magic_number
@@ -765,14 +1527,17 @@ def render_html(
         )
         point_size = -1
 
-    # Compute bounds for initial view
-    bounds = compute_percentile_bounds(
-        point_dataframe[["x", "y"]].values,
-        percentage=(initial_zoom_fraction * 100),
-    )
-
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"
+
+    if background_image is not None:
+        if background_image_bounds is None:
+            background_image_bounds = [
+                point_dataframe["x"].min(),
+                point_dataframe["y"].min(),
+                point_dataframe["x"].max(),
+                point_dataframe["y"].max(),
+            ]
 
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
@@ -809,6 +1574,7 @@ def render_html(
     #     point_dataframe["selected"] = np.ones(len(point_dataframe), dtype=np.uint8)
     #     point_data_cols.append("selected")
 
+    # Point data, hover text, and on click formatting
     point_data = point_dataframe[point_data_cols]
 
     if "hover_text" in point_dataframe.columns:
@@ -825,7 +1591,7 @@ def render_html(
             )
             if hover_text_html_template is not None:
                 get_tooltip = (
-                    '({index, picked}) => picked ? {"html": `'
+                    '({index, picked, layer}) => picked ? {"html": `'
                     + hover_text_html_template.format_map(replacements)
                     + "`} : null"
                 )
@@ -834,10 +1600,24 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
+                    "({index, picked, layer}, event) => { if (picked) {"
                     + on_click.format_map(replacements)
                     + " } }"
                 )
+
+            if (
+                "button_on_click" in table_of_contents_kwds
+                and table_of_contents_kwds["button_on_click"] is not None
+            ):
+                toc_replacements = FormattingDict(
+                    **{
+                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                        for name in hover_data.columns
+                    }
+                )
+                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                    "button_on_click"
+                ].format_map(toc_replacements)
         else:
             hover_data = point_dataframe[["hover_text"]].copy()
             get_tooltip = "({index}) => hoverData.hover_text[index]"
@@ -851,10 +1631,21 @@ def render_html(
 
             if on_click is not None:
                 on_click = (
-                    "({index, picked}, event) => { if (picked) {"
+                    "({index, picked, layer}, event) => { if (picked) {"
                     + on_click.format_map(replacements)
                     + " } }"
                 )
+            if table_of_contents_kwds["button_on_click"] is not None:
+                toc_replacements = FormattingDict(
+                    **{
+                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                        for name in hover_data.columns
+                    }
+                )
+                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                    "button_on_click"
+                ].format_map(toc_replacements)
+
     elif extra_point_data is not None:
         hover_data = extra_point_data.copy()
         replacements = FormattingDict(
@@ -865,7 +1656,7 @@ def render_html(
         )
         if hover_text_html_template is not None:
             get_tooltip = (
-                '({index, picked}) => picked ? {"html": `'
+                '({index, picked, layer}) => picked ? {"html": `'
                 + hover_text_html_template.format_map(replacements)
                 + "`} : null"
             )
@@ -874,14 +1665,25 @@ def render_html(
 
         if on_click is not None:
             on_click = (
-                "({index, picked}, event) => { if (picked) {"
+                "({index, picked, layer}, event) => { if (picked) {"
                 + on_click.format_map(replacements)
                 + " } }"
             )
+        if table_of_contents_kwds["button_on_click"] is not None:
+            toc_replacements = FormattingDict(
+                **{
+                    str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
+                    for name in hover_data.columns
+                }
+            )
+            table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                "button_on_click"
+            ].format_map(toc_replacements)
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
 
+    # Histogram
     if enable_histogram:
         if isinstance(histogram_data.dtype, pd.CategoricalDtype):
             bin_data, index_data = generate_bins_from_categorical_data(
@@ -904,6 +1706,73 @@ def render_html(
             bin_data, index_data = generate_bins_from_numeric_data(
                 histogram_data, histogram_n_bins, histogram_range
             )
+
+    if colormap_rawdata is not None and colormap_metadata is not None:
+        jch_colors = cspace_convert(
+            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "JCh"
+        )
+        cielab_colors = cspace_convert(
+            jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
+        )
+        n_swatches = (
+            np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
+            if len(colormap_metadata) > 0
+            else 5
+        )
+        quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
+            cielab_colors
+        )
+        cluster_colors = [
+            rgb2hex(c)
+            for c in np.clip(
+                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+            )
+        ]
+        if cluster_layer_colormaps:
+            if label_layers is None or cluster_colormap is None:
+                raise ValueError(
+                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
+                )
+            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
+                label_layers, cluster_colormap, n_swatches
+            )
+            colormap_metadata[0:0] = layer_color_metadata
+            colormap_rawdata[0:0] = layer_color_data
+        color_metadata, color_data = build_colormap_data(
+            colormap_rawdata, colormap_metadata, cluster_colors
+        )
+        enable_colormap_selector = True
+    elif colormaps is not None:
+        colormap_metadata = default_colormap_options(colormaps)
+        colormap_rawdata = list(colormaps.values())
+        cielab_colors = cspace_convert(
+            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
+        )
+        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
+        cluster_colors = [
+            rgb2hex(c)
+            for c in np.clip(
+                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+            )
+        ]
+        if cluster_layer_colormaps:
+            if label_layers is None or cluster_colormap is None:
+                raise ValueError(
+                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
+                )
+            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
+                label_layers, cluster_colormap, 5
+            )
+            colormap_metadata[0:0] = layer_color_metadata
+            colormap_rawdata[0:0] = layer_color_data
+        color_metadata, color_data = build_colormap_data(
+            colormap_rawdata, colormap_metadata, cluster_colors
+        )
+        enable_colormap_selector = True
+    else:
+        color_metadata = None
+        color_data = None
+        enable_colormap_selector = False
 
     if inline_data:
         buffer = io.BytesIO()
@@ -933,6 +1802,17 @@ def render_html(
         else:
             base64_histogram_bin_data = None
             base64_histogram_index_data = None
+
+        if enable_colormap_selector:
+            buffer = io.BytesIO()
+            color_data.to_feather(buffer, compression="uncompressed")
+            buffer.seek(0)
+            arrow_bytes = buffer.read()
+            gzipped_bytes = gzip.compress(arrow_bytes)
+            base64_color_data = base64.b64encode(gzipped_bytes).decode()
+        else:
+            base64_color_data = None
+
         file_prefix = None
         n_chunks = 0
     else:
@@ -941,6 +1821,7 @@ def render_html(
         base64_label_data = ""
         base64_histogram_bin_data = ""
         base64_histogram_index_data = ""
+        base64_color_data = ""
         file_prefix = (
             offline_data_prefix if offline_data_prefix is not None else "datamapplot"
         )
@@ -949,9 +1830,20 @@ def render_html(
             chunk_start = i * offline_data_chunk_size
             chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
             with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
-                point_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
+                point_data[chunk_start:chunk_end].to_feather(
+                    f, compression="uncompressed"
+                )
             with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
-                f.write(json.dumps(hover_data[chunk_start:chunk_end].to_dict(orient="list")).encode())
+                f.write(
+                    json.dumps(
+                        hover_data[chunk_start:chunk_end].to_dict(orient="list")
+                    ).encode()
+                )
+            if enable_colormap_selector:
+                with gzip.open(f"{file_prefix}_color_data_{i}.zip", "wb") as f:
+                    color_data[chunk_start:chunk_end].to_feather(
+                        f, compression="uncompressed"
+                    )
         label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
         with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
             f.write(bytes(label_data_json, "utf-8"))
@@ -971,6 +1863,7 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
+    table_of_contents_kwds = {**_TOC_DEFAULT_KWDS, **table_of_contents_kwds}
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -990,16 +1883,25 @@ def render_html(
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
-            enable_histogram, selection_handler, cdn_url=cdn_url
+            enable_histogram,
+            enable_table_of_contents,
+            selection_handler,
+            cdn_url=cdn_url,
         ),
         "js_dependency_srcs": _get_js_dependency_sources(
             minify_deps,
             enable_search,
             enable_histogram,
             enable_lasso_selection,
+            enable_colormap_selector,
+            enable_table_of_contents,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
-            minify_deps, enable_histogram, show_loading_progress
+            minify_deps,
+            enable_histogram,
+            show_loading_progress,
+            enable_colormap_selector,
+            enable_table_of_contents,
         ),
     }
 
@@ -1008,22 +1910,29 @@ def render_html(
     if offline_mode:
         if offline_mode_js_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
+            offline_mode_js_data_file = (
+                Path(data_directory) / "datamapplot_js_encoded.json"
+            )
             if not offline_mode_js_data_file.is_file():
                 offline_mode_caching.cache_js_files()
             offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
         else:
-            offline_mode_data = json.load(open(offline_mode_js_data_file, 'r'))
+            offline_mode_data = json.load(open(offline_mode_js_data_file, "r"))
 
         if offline_mode_font_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_font_data_file = Path(data_directory) / "datamapplot_font_encoded.json"
+            offline_mode_font_data_file = (
+                Path(data_directory) / "datamapplot_fonts_encoded.json"
+            )
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
 
+        if logo is not None:
+            logo = url_to_base64_img(logo)
+
     else:
         offline_mode_data = None
-    
+
     api_fontname = font_family.replace(" ", "+")
     font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
     if font_data == "":
@@ -1040,20 +1949,41 @@ def render_html(
         api_tooltip_fontname = None
 
     if selection_handler is not None:
-        if custom_html is None:
-            custom_html = selection_handler.html
-        else:
-            custom_html += selection_handler.html
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                if custom_html is None:
+                    custom_html = handler.html
+                else:
+                    custom_html += handler.html
 
-        if custom_js is None:
-            custom_js = selection_handler.javascript
-        else:
-            custom_js += selection_handler.javascript
+                if custom_js is None:
+                    custom_js = handler.javascript
+                else:
+                    custom_js += handler.javascript
 
-        if custom_css is None:
-            custom_css = selection_handler.css
+                if custom_css is None:
+                    custom_css = handler.css
+                else:
+                    custom_css += handler.css
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            if custom_html is None:
+                custom_html = selection_handler.html
+            else:
+                custom_html += selection_handler.html
+
+            if custom_js is None:
+                custom_js = selection_handler.javascript
+            else:
+                custom_js += selection_handler.javascript
+
+            if custom_css is None:
+                custom_css = selection_handler.css
+            else:
+                custom_css += selection_handler.css
         else:
-            custom_css += selection_handler.css
+            raise ValueError(
+                "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
+            )
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
@@ -1063,7 +1993,14 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
+        enable_table_of_contents=enable_table_of_contents,
+        **{
+            f"table_of_contents_{key}": json.dumps(value)
+            for key, value in table_of_contents_kwds.items()
+        },
         **histogram_ctx,
+        enable_colormap_selector=enable_colormap_selector,
+        colormap_metadata=json.dumps(color_metadata),
         title_font_family=font_family,
         title_font_color=title_font_color,
         title_background=title_background,
@@ -1085,6 +2022,7 @@ def render_html(
         base64_label_data=base64_label_data,
         base64_histogram_bin_data=base64_histogram_bin_data,
         base64_histogram_index_data=base64_histogram_index_data,
+        base64_color_data=base64_color_data,
         file_prefix=file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
@@ -1113,6 +2051,8 @@ def render_html(
         get_tooltip=get_tooltip,
         search_field=search_field,
         show_loading_progress=show_loading_progress,
+        background_image=background_image,
+        background_image_bounds=background_image_bounds,
         custom_js=custom_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
