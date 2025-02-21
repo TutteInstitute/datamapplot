@@ -193,7 +193,7 @@
       {% endif %}
     </div>
     {%- if show_loading_progress %}
-    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px;">
+    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
       <div id="point-data-progress" class="datamapplot-progress-bar">
         <span class="datamapplot-progress-bar-fill" style="width: 0%;">
           <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
@@ -358,6 +358,57 @@
     `], { type: 'application/javascript' });
     const workerUrl = URL.createObjectURL(parsingWorkerBlob);
     {% else %}
+
+    {% if splash_warning %}
+    var loadData = false;
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.top = 0;
+    overlay.style.left = 0;
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.zIndex = 1000;
+    const splashWarning = document.createElement('div');
+    splashWarning.style.position = 'absolute';
+    splashWarning.style.top = '50%';
+    splashWarning.style.left = '50%';
+    splashWarning.style.transform = 'translate(-50%, -50%)';
+    splashWarning.style.textAlign = 'center';
+    splashWarning.style.padding = '20px';
+    splashWarning.style.maxWidth = '480px';
+    splashWarning.className = 'container-box';
+    function dismissSplash() {
+      document.body.removeChild(overlay);
+      console.log(loadData);
+      loadData = true;
+    }
+    splashWarning.innerHTML = `
+      {% if title %}<h2>{{title}}</h2>{% endif %}
+      <p>
+        {{splash_warning}}
+      </p>
+    `;
+    overlay.appendChild(splashWarning);
+    const dismissSplashButton = document.createElement('button');
+    dismissSplashButton.textContent = 'Proceed';
+    dismissSplashButton.addEventListener('click', dismissSplash);
+    dismissSplashButton.style.marginTop = '10px';
+    dismissSplashButton.style.padding = '8px 12px';
+    dismissSplashButton.style.backgroundColor = 'green';
+    dismissSplashButton.style.fontFamily = '{{title_font_family}}';
+    dismissSplashButton.style.color = 'white';
+    dismissSplashButton.style.border = 'none';
+    dismissSplashButton.style.cursor = 'pointer';
+    dismissSplashButton.style.borderRadius = '8px';
+    splashWarning.appendChild(dismissSplashButton);
+    document.body.appendChild(overlay);
+
+    while (!loadData) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    {% endif %}
+
     const currentURL = self.location.pathname;
     const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
     const originURL = self.location.origin + directoryPath;
@@ -606,7 +657,7 @@
           {% if enable_table_of_contents %}
             const tocContainer = document.querySelector('#table-of-contents');
             
-            {% if table_of_contents_button_on_click %}
+            {% if table_of_contents_button_on_click != 'null' %}
             const toc = new TableOfContents(
                 tocContainer,
                 datamap,
