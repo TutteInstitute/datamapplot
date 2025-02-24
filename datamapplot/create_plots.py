@@ -512,9 +512,10 @@ def create_interactive_plot(
                 cluster_polygons=cluster_boundary_polygons,
                 alpha=polygon_alpha,
                 include_related_points=True,
+                layer_num=layer_num,
                 parents=parents,
             )
-            for labels in label_layers[::-1]
+            for layer_num, labels in reversed(list(enumerate(label_layers)))
         ]
 
         # Mark the lowest layer labels so they can be displayed differently in the table of contents.
@@ -537,6 +538,11 @@ def create_interactive_plot(
                 for layer_num, labels in enumerate(label_layers)
             ]
         )
+
+    # Remove duplcicated labels from the label-dataframe (same location)
+    #
+    idx_to_keep = label_dataframe.groupby(['x', 'y'])['layer'].idxmax()
+    label_dataframe = label_dataframe.loc[idx_to_keep]
 
     # Split out the noise labels (placeholders for table of contents) so we can make color palettes.
     #

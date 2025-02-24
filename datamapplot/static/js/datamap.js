@@ -3,8 +3,8 @@ LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'boundaryLayer', 'labelLayer'];
 
 // There is an effective 100 layer limit of label layers or boundary layers...
 function getLayerIndex(object) {
-  if (object.id.startsWith('LabelLayer')) {
-    return LAYER_ORDER.indexOf('LabelLayer') + (parseInt(object.id.split('-')[1] / 100));
+  if (object.id.startsWith('labelLayer')) {
+    return LAYER_ORDER.indexOf('labelLayer') + (parseInt(object.id.split('-')[1] / 100));
   } else {
     return LAYER_ORDER.indexOf(object.id);
   }
@@ -216,16 +216,15 @@ class DataMap {
 
     this.labelLayers = [];
     for (let i = 0; i <= this.numLabelLayers; i++) {
-    // for (let i = 2; i <= 3; i++) {
 
       const weight = minFontWeight + (weightRange / this.numLabelLayers) * i;
       const layerData = labelData
         .filter(d => (d.layer >= i))
         .map(
           d => ({ 
-            x: d.x + Math.random() * 0.001, 
-            y: d.y + Math.random() * 0.001, 
-            label: `${d.layer}: ${d.label}`, 
+            x: d.x, 
+            y: d.y, 
+            label: `${d.layer}-${i}: ${d.label}`, 
             size: d.size, 
             r: d.r, 
             g: d.g, 
@@ -262,13 +261,13 @@ class DataMap {
           //elevation: 100,
           // CollideExtension options
           collisionEnabled: true,
-          getCollisionPriority: d => d.size,// d.layer + (d.size / maxSize),
+          getCollisionPriority: d => d.size + i,
           collisionGroup: `LabelGroup${i}`,
           collisionTestProps: {
-            sizeScale: this.textCollisionSizeScale,
-            sizeMaxPixels: this.textMaxPixelSize * 2,
-            sizeMinPixels: this.textMinPixelSize * 2,
-            getBackgroundPadding: [25, 25, 25, 25],
+            sizeScale: 2 * this.textCollisionSizeScale + (1 + 3 * (i / this.numLabelLayers)),
+            sizeMaxPixels: 2 * this.textMaxPixelSize + (1 + 3 * (i / this.numLabelLayers)),
+            sizeMinPixels: 2 * this.textMinPixelSize + (1 + 3 * (i / this.numLabelLayers)),
+            getBackgroundPadding: [15 + 2 * i, 15 + 2 * i, 15 + 2 * i, 15 + 2 * i],
           },
           extensions: [collisionFilter],
           //instanceCount: numLabels,
