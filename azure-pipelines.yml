@@ -17,11 +17,11 @@ pr:
     - doc/*
     - README.rst
 
-# Trigger a run on main at 00:00 (midnight) UTC on Sundays
+# Trigger a run on main at 00:00 (midnight) UTC every day
 # Run even if there are no code changes
 schedules:
-  - cron: "0 0 * * 0"
-    displayName: "Sunday Test Runs"
+  - cron: "0 0 * * *"
+    displayName: "Nightly Test Runs"
     always: true
     branches:
       include:
