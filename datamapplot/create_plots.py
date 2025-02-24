@@ -539,11 +539,6 @@ def create_interactive_plot(
             ]
         )
 
-    # Remove duplcicated labels from the label-dataframe (same location)
-    #
-    idx_to_keep = label_dataframe.groupby(['x', 'y'])['layer'].idxmax()
-    label_dataframe = label_dataframe.loc[idx_to_keep]
-
     # Split out the noise labels (placeholders for table of contents) so we can make color palettes.
     #
     noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]
@@ -627,6 +622,12 @@ def create_interactive_plot(
 
     # Recombine noise label placeholders.
     label_dataframe = pd.concat([label_dataframe, noise_label_dataframe])
+
+    # Remove duplcicated labels from the label-dataframe (same location)
+    #
+    label_dataframe = label_dataframe.reset_index(drop=True)
+    idx_to_keep = label_dataframe.groupby(['x', 'y'])['layer'].idxmax()
+    label_dataframe = label_dataframe.loc[idx_to_keep.values]
 
     point_dataframe = pd.DataFrame(
         {
