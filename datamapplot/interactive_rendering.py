@@ -1555,7 +1555,7 @@ def render_html(
     if color_label_text:
         label_text_color = "d => [d.r, d.g, d.b]"
     else:
-        label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
+        label_text_color = "d => [0, 0, 0, d.a]" if not darkmode else "d => [255, 255, 255, d.a]"
 
     # Compute text scaling
     size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
