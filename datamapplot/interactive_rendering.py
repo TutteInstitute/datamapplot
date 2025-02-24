@@ -919,7 +919,7 @@ def label_text_and_polygon_dataframes(
         Display transparency for cluster polygons.
 
     parents: list or None (optional, default=None)
-        A record of the cluster heirarcy. This will be edited to include this layer's values.
+        A record of the cluster heirarchy. This will be edited to include this layer's values.
 
     Returns
     -------
@@ -937,7 +937,7 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
-    related_points = []
+    # related_points = []
     points_bounds = []
     label_ids = []
     parent_ids = []
@@ -965,7 +965,7 @@ def label_text_and_polygon_dataframes(
                 ]
             )
         if include_related_points:
-            related_points.append(np.where(cluster_mask))
+            # related_points.append(np.where(cluster_mask))
             points_bounds.append(compute_percentile_bounds(cluster_points))
         if parents is not None:
             if len(parents[0]):
@@ -1011,7 +1011,7 @@ def label_text_and_polygon_dataframes(
                 polygons.append(None)
                 unique_non_noise_labels.append(noise_label)
                 if include_related_points:
-                    related_points.append(np.where(cluster_mask))
+                    # related_points.append(np.where(cluster_mask))
                     points_bounds.append(compute_percentile_bounds(cluster_points))
                 if len(parents[0]):
                     # Get the provenance.
@@ -1050,8 +1050,11 @@ def label_text_and_polygon_dataframes(
     }
     if cluster_polygons:
         data["polygon"] = polygons
-    if include_related_points:
-        data["points"] = related_points
+    # Points are far too heavyweight for large datasets
+    # We can use a different more efficient data-structure later
+    # if we require this information for selection etc.
+    # if include_related_points:
+    #     data["points"] = related_points
     if parents is not None:
         data["id"] = label_ids
         data["parent"] = parent_ids
@@ -1154,6 +1157,7 @@ def render_html(
     offline_mode=False,
     offline_mode_js_data_file=None,
     offline_mode_font_data_file=None,
+    splash_warning=None,
     noise_color="#999999",
 ):
     """Given data about points, and data about labels, render to an HTML file
@@ -1496,6 +1500,13 @@ def render_html(
     cluster_colormap: list of str or None (optional, default=None)
         The colormap to use for cluster colors; if None we try to infer this from point data.
 
+    splash_warning: str or None (optional, default=None)
+        A warning message to be displayed in a splash screen when the plot is first loaded. This
+        can be used to used to warn users about the volume of data, or the nature of the data,
+        or to provide other information that might be useful to the user. This will only be active
+        for ``inline_data=False`` and will be displayed before data is loaded, and data loading
+        will not proceed until the user has dismissed the warning.
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -1635,7 +1646,10 @@ def render_html(
                     + on_click.format_map(replacements)
                     + " } }"
                 )
-            if table_of_contents_kwds["button_on_click"] is not None:
+            if (
+                "button_on_click" in table_of_contents_kwds
+                and table_of_contents_kwds["button_on_click"] is not None
+            ):
                 toc_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
@@ -1669,7 +1683,10 @@ def render_html(
                 + on_click.format_map(replacements)
                 + " } }"
             )
-        if table_of_contents_kwds["button_on_click"] is not None:
+        if (
+            "button_on_click" in table_of_contents_kwds
+            and table_of_contents_kwds["button_on_click"] is not None
+        ):
             toc_replacements = FormattingDict(
                 **{
                     str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
@@ -2056,6 +2073,7 @@ def render_html(
         custom_js=custom_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
+        splash_warning=splash_warning,
         **dependencies_ctx,
     )
     return html_str

@@ -4,7 +4,7 @@
     left: 50%;
     transform: translate(-50%, 0);
     width: 512px;
-    z-index: 100;
+    z-index: 101;
   }
   .datamapplot-progress-bar {
     width: 100%;
