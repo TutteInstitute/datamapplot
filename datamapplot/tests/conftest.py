@@ -1,4 +1,5 @@
 import io
+import logging
 import pytest
 from pathlib import Path
 import requests
@@ -8,6 +9,21 @@ import numpy as np
 import contextlib
 
 matplotlib.use("Agg")
+
+# Create logger without handlers - let pytest handle the output
+logger = logging.getLogger("datamapplot.tests")
+logger.setLevel(logging.INFO)
+for handler in logger.handlers[:]:
+    logger.removeHandler(handler)
+
+def pytest_configure(config):
+    """Configure pytest options and logging"""
+    # Configure log capturing - this handles the output formatting
+    config.option.log_cli = True
+    config.option.log_cli_level = "INFO"
+    config.option.log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+    config.option.log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
 
 @pytest.fixture
 def mock_plt_show(monkeypatch):
@@ -99,12 +115,15 @@ def change_np_load_path(monkeypatch):
                 file_path = base_path / file_path
 
             data = original_load(str(file_path), *args, **kwargs)
-
+            logger.info(f"{file_path} data original shape: {data.shape}")
             # If max_points is specified and this is a dataset file, limit the number of points
             if max_points is not None and isinstance(data, np.ndarray) and len(data.shape) > 0:
                 file_str = str(file_path)
                 if data.shape[0] > max_points:
-                    return data[:max_points]
+                    new_data = data[:max_points]
+                    logger.info(f"{file_path} data new shape: {new_data.shape}")
+                    return new_data
+
 
             return data
 

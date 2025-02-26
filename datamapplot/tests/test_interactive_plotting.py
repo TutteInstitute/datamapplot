@@ -1,12 +1,16 @@
 from datamapplot.interactive_rendering import InteractiveFigure
+import datamapplot
 import sys
 import importlib.util
 from pathlib import Path
 import pytest
 import bz2
 import gzip
+from io import BytesIO
+
 
 ### Tests
+@pytest.mark.slow
 def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
         mock_bz2_open, mock_display, mock_gzip_open, html_dir):
     """
@@ -35,6 +39,37 @@ def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_pa
     assert (html_dir / "cord_gallery_point_data_0.zip").exists()
     assert (html_dir / "cord_gallery_point_data_1.zip").exists()
     assert (html_dir / "cord_gallery_label_data.zip").exists()
+
+@pytest.mark.fast
+def test_interactive_cord19_small(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
+        mock_bz2_open, mock_display, mock_gzip_open, html_dir):
+    """
+    Test that the outputs files from running examples/plot_interactive_cord19.py all exist.
+    Uses a reduced dataset to size max_points for faster test execution.
+
+    UI testing of the resulting html output can be found in the interactive_tests directory.
+    """
+    mock_image_requests([
+        "https://allenai.org/newsletters/archive/2023-03-newsletter_files/927c3ca8-6c75-862c-ee5d-81703ef10a8d.png"
+    ])
+    max_points = 250000 # Reduced by about half
+    destination_html=f"cord19_{max_points}.html"
+    mock_interactive_save(html_dir, destination_html, max_points=max_points)
+    mock_bz2_open(examples_dir, max_points=max_points)
+    mock_gzip_open(html_dir)
+
+    output_path = run_interactive_examples_script(
+        "plot_interactive_cord19.py",
+        examples_dir,
+        html_dir,
+        change_np_load_path,
+        destination_html=destination_html,
+        max_points=max_points
+    )
+    assert output_path.exists()
+    assert (html_dir / f"cord_gallery_{max_points}_meta_data_0.zip").exists()
+    assert (html_dir / f"cord_gallery_{max_points}_point_data_0.zip").exists()
+    assert (html_dir / f"cord_gallery_{max_points}_label_data.zip").exists()
 
 def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
         mock_bz2_open, mock_display, mock_gzip_open, html_dir):
@@ -78,22 +113,53 @@ def mock_display(monkeypatch):
 
 @pytest.fixture
 def mock_interactive_save(monkeypatch):
-    """Mock the save method of InteractiveFigure to append the html_output_dir directory"""
-    def _mock_save(html_output_dir):
+    """
+    Mock the save method of InteractiveFigure and modify create_interactive_plot
+    to handle destination_html and offline_data_prefix customization.
+
+    Args:
+        html_output_dir: Directory where HTML outputs should be saved
+        destination_html: Optional specific filename to use for saving
+        max_points: Optional number of max points to insert into offline_data_prefix
+    """
+    def _mock_save(html_output_dir, destination_html=None, max_points=None):
+
+        # Patch the InteractiveFigure.save method
         original_save = InteractiveFigure.save
 
-        def save(self, filename, *args, **kwargs):
-            output_path = html_output_dir / filename
+        def patched_save(self, filename, *args, **kwargs):
+            filename_to_use = destination_html if destination_html else filename
+            output_path = html_output_dir / filename_to_use
             return original_save(self, str(output_path), *args, **kwargs)
 
-        monkeypatch.setattr('datamapplot.interactive_rendering.InteractiveFigure.save', save)
+        monkeypatch.setattr('datamapplot.interactive_rendering.InteractiveFigure.save', patched_save)
+
+        # Patch datamapplot.create_interactive_plot to modify offline_data_prefix
+        if max_points is not None:
+            original_create_interactive_plot = datamapplot.create_interactive_plot
+
+            def patched_create_interactive_plot(*args, **kwargs):
+                if 'offline_data_prefix' in kwargs:
+                    original_prefix = kwargs['offline_data_prefix']
+                    kwargs['offline_data_prefix'] = f"{original_prefix}_{max_points}"
+
+                return original_create_interactive_plot(*args, **kwargs)
+
+            monkeypatch.setattr(datamapplot, 'create_interactive_plot', patched_create_interactive_plot)
 
     return _mock_save
 
+
 @pytest.fixture
 def mock_bz2_open(monkeypatch):
-    """Mock bz2.open to look for files in the script_dir directory"""
-    def _mock_bz2_open(script_dir):
+    """
+    Mock bz2.open to look for files in the script_dir directory and optionally limit dataset size
+
+    Usage:
+    def test_example(examples_dir, mock_bz2_open):
+        mock_bz2_open(examples_dir, max_points=10000)
+    """
+    def _mock_bz2_open(script_dir, max_points=None):
         original_bz2_open = bz2.open
 
         def bz2_open(filename, *args, **kwargs):
@@ -104,7 +170,54 @@ def mock_bz2_open(monkeypatch):
             else:
                 filepath = filename
 
-            return original_bz2_open(filepath, *args, **kwargs)
+            file_obj = original_bz2_open(filepath, *args, **kwargs)
+
+            # If max_points is specified and this is the hover text file, limit the number of lines
+            if max_points is not None and "cord19_large_hover_text.txt.bz2" in str(filepath):
+                mode = kwargs.get('mode', args[0] if args else 'r')
+
+                if 'r' in mode:  # Only limit when reading
+                    lines = []
+                    for i, line in enumerate(file_obj):
+                        if i >= max_points:
+                            break
+                        lines.append(line)
+
+                    file_obj.close()
+
+                    # Create a mock file-like object
+                    mock_file = BytesIO(b''.join(lines))
+
+                    # Create a simple wrapper that behaves like a bz2 file
+                    class MockBZ2File:
+                        def __init__(self, data, mode):
+                            self.data = data
+                            self.mode = mode
+
+                        def __iter__(self):
+                            self.data.seek(0)
+                            return self
+
+                        def __next__(self):
+                            line = self.data.readline()
+                            if not line:
+                                raise StopIteration
+                            return line
+
+                        def read(self):
+                            self.data.seek(0)
+                            return self.data.read()
+
+                        def readlines(self):
+                            self.data.seek(0)
+                            return self.data.readlines()
+
+                        def close(self):
+                            self.data.close()
+
+                    return MockBZ2File(mock_file, mode)
+
+            return file_obj
 
         monkeypatch.setattr(bz2, 'open', bz2_open)
 
@@ -137,17 +250,19 @@ def run_interactive_examples_script(
     script_dir: Path,
     html_output_dir: Path,
     change_np_load_path,
-    destination_html: str
+    destination_html: str,
+    max_points: int = None
 ):
     """
-    Run an example script that generates interactive HTML output.
+    Run an example script that generates interactive HTML output with an option to limit dataset size.
 
     Args:
         script_filename (str): The name of the script to run (e.g., 'plot_cord19_interactive.py')
         script_dir (Path): Path to the directory containing the script
         html_output_dir (Path): Directory where HTML outputs should be saved
-        change_np_load_path: Test fixture to mock numpy.load paths
+        change_np_load_path: Test fixture for numpy.load path context
         destination_html (str): The name of the destination html file
+        max_points (int, optional): Maximum number of points to use in the dataset
 
     Returns:
         Path: Path to the generated HTML file
@@ -163,7 +278,7 @@ def run_interactive_examples_script(
     sys.modules[script_name] = module
 
 
-    with change_np_load_path(script_dir):
+    with change_np_load_path(script_dir, max_points=max_points):
         spec.loader.exec_module(module)
 
         html_files = list(html_output_dir.glob('*.html'))
