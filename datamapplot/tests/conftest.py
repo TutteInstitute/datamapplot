@@ -76,19 +76,18 @@ def mock_image_requests(monkeypatch, request):
 
     return _mock_requests
 
-
 @pytest.fixture
 def change_np_load_path(monkeypatch):
     """
-    Fixture to modify np.load to use a specific directory
+    Fixture to modify np.load to use a specific directory and optionally limit dataset size
 
     Usage:
     def test_example(examples_dir, change_np_load_path):
-        with change_np_load_path(examples_dir):
+        with change_np_load_path(examples_dir, max_points=10000):
             data = np.load("arxiv_ml_data_map.npy")
     """
     @contextlib.contextmanager
-    def _patch_load(base_path):
+    def _patch_load(base_path, max_points=None):
         base_path = Path(base_path)
 
         original_load = np.load
@@ -99,7 +98,15 @@ def change_np_load_path(monkeypatch):
             if not file_path.is_absolute():
                 file_path = base_path / file_path
 
-            return original_load(str(file_path), *args, **kwargs)
+            data = original_load(str(file_path), *args, **kwargs)
+
+            # If max_points is specified and this is a dataset file, limit the number of points
+            if max_points is not None and isinstance(data, np.ndarray) and len(data.shape) > 0:
+                file_str = str(file_path)
+                if data.shape[0] > max_points:
+                    return data[:max_points]
+
+            return data
 
         monkeypatch.setattr(np, 'load', patched_load)
 
