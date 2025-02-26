@@ -336,9 +336,19 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
                 )
                 for font_data in encoded_fonts
             ]
-            return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
+            urls = [
+                {
+                    "url": f"""url(data:font/{font_data["type"]};base64,{font_data["content"]})""",
+                    "descriptors": {
+                        "style": font_data["style"],
+                        "weight": font_data["weight"],
+                    }
+                }
+                for font_data in encoded_fonts
+            ]
+            return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n", urls
         else:
-            return ""
+            return "", []
 
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
@@ -359,9 +369,18 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
         return (
             "\n".join(font_links)
             + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
-        )
+        ), [
+            {
+                "url": f"url({font_data[2]})",
+                "descriptors": {
+                    "style": font_data[0],
+                    "weight": font_data[1],
+                },
+            } 
+            for font_data in re.findall(r"font-style:\s*(.+?);.*?font-weight:\s*(.+?);.*?(https?://[^\)]+)", str(api_response.content), re.DOTALL)
+        ]
     else:
-        return ""
+        return "", []
 
 
 def _get_js_dependency_sources(
@@ -1568,7 +1587,7 @@ def render_html(
     point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
     text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
     if color_label_text:
-        label_text_color = "d => [d.r, d.g, d.b]"
+        label_text_color = "d => [d.r, d.g, d.b, d.a]"
     else:
         label_text_color = "d => [0, 0, 0, d.a]" if not darkmode else "d => [255, 255, 255, d.a]"
 
@@ -1970,7 +1989,7 @@ def render_html(
         offline_mode_data = None
 
     api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
+    font_data, font_urls = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
     if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
@@ -2027,6 +2046,7 @@ def render_html(
         google_font=api_fontname,
         google_font_data=font_data,
         google_tooltip_font=api_tooltip_fontname,
+        font_urls=json.dumps(font_urls),
         page_background_color=page_background_color,
         search=enable_search,
         enable_table_of_contents=enable_table_of_contents,

@@ -15,23 +15,16 @@ function isFontLoaded(fontName) {
 }
 
 // Function to wait for a font to load
-function waitForFont(fontName, maxWait = 500) {
-  return new Promise((resolve, reject) => {
-    if (isFontLoaded(fontName)) {
-      resolve();
-    } else {
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-        if (isFontLoaded(fontName)) {
-          clearInterval(interval);
-          resolve();
-        } else if (Date.now() - startTime > maxWait) {
-          clearInterval(interval);
-          reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
-        }
-      }, 50);
-    }
-  });
+async function waitForFont(fontName, fontURL, fontDescriptors) {
+  const font = new FontFace(fontName, fontURL, fontDescriptors);
+  font.load().then(() => {
+    // document.fonts.add(font);
+    console.log(`Font ${fontName} loaded`);
+  }
+  ).catch((error) => {
+    console.error(`Font ${fontName} did not load: ${error}`);
+  }
+  );
 }
 
 function getInitialViewportSize() {
@@ -178,7 +171,7 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
-  addLabels(labelData, {
+  async addLabels(labelData, {
     labelTextColor = d => [d.r, d.g, d.b, d.a],
     textMinPixelSize = 18,
     textMaxPixelSize = 36,
@@ -186,6 +179,7 @@ class DataMap {
     textOutlineColor = [238, 238, 238, 221],
     textBackgroundColor = [255, 255, 255, 64],
     fontFamily = "Roboto",
+    fontURLs = [{"url":"url(https://fonts.gstatic.com/s/roboto/v47/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3GUBGEe.woff2)", descriptors: { style: "normal", weight: "500" }}],
     minFontWeight = 100,
     maxFontWeight = 900,
     lineSpacing = 0.95,
@@ -201,15 +195,18 @@ class DataMap {
     this.textOutlineColor = textOutlineColor;
     this.textBackgroundColor = textBackgroundColor;
     this.fontFamily = fontFamily;
+    this.fontURLs = fontURLs;
     this.minFontWeight = minFontWeight;
     this.maxFontWeight = maxFontWeight;
     this.lineSpacing = lineSpacing;
     this.textCollisionSizeScale = textCollisionSizeScale;
-    this.numLabelLayers = Math.max(...labelData.map(d => d.layer));
+    this.numLabelLayers = Math.max(...labelData.map(d => d.layer)) + 1;
 
     const maxSize = Math.max(...labelData.map(d => d.size));
 
-    waitForFont(this.fontFamily);
+    for (const fontURL of this.fontURLs) {
+      await waitForFont(this.fontFamily, fontURL.url, fontURL.descriptors);
+    }
 
     const collisionFilter = new deck.CollisionFilterExtension();
     const weightRange = maxFontWeight - minFontWeight;
