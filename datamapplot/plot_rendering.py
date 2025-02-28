@@ -6,12 +6,13 @@ import datashader.transfer_functions as tf
 from datashader.mpl_ext import dsshow
 
 from functools import partial
+from tempfile import NamedTemporaryFile
 
 from sklearn.neighbors import KernelDensity
 from skimage.transform import rescale
 
-from matplotlib import pyplot as plt
 from matplotlib import font_manager
+from matplotlib import pyplot as plt
 from matplotlib import patheffects
 
 from datamapplot.overlap_computations import get_2d_coordinates
@@ -24,47 +25,23 @@ from datamapplot.text_placement import (
     pylabeladjust_text_locations,
 )
 from datamapplot.config import ConfigManager
-
+from datamapplot.fonts import (
+    can_reach_google_fonts,
+    query_google_fonts,
+    GoogleAPIUnreachable,
+)
 from warnings import warn
-from tempfile import NamedTemporaryFile
-
-import requests
-import re
 
 
 cfg = ConfigManager()
 
 
-class GoogleAPIUnreachable(Warning):
-    pass
-
-
-def _can_reach_google_fonts(timeout: float = 5.0) -> bool:
-    try:
-        response = requests.get(
-            "https://fonts.googleapis.com/css?family=Roboto", timeout=timeout
-        )
-        return response.ok
-    except requests.RequestException:
-        return False
-
-
-def get_google_font(fontname):
-    try:
-        api_fontname = fontname.replace(" ", "+")
-        api_response = requests.get(
-            f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
-        )
-        if api_response.ok:
-            font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
-            for font_url in font_urls:
-                font_data = requests.get(font_url)
-                f = NamedTemporaryFile(delete=False, suffix=".ttf")
-                f.write(font_data.content)
-                f.close()
-                font_manager.fontManager.addfont(f.name)
-    except:
-        warn(f"Failed in getting google-font {fontname}; using fallback ...")
+def manage_google_font(fontname):
+    for font in query_google_fonts(fontname):
+        f = NamedTemporaryFile(delete=False, suffix=".ttf")
+        f.write(font.fetch())
+        f.close()
+        font_manager.fontManager.addfont(f.name)
 
 
 def datashader_scatterplot(
@@ -439,7 +416,7 @@ def render_plot(
 
     label_font_stroke_width: float (optional, default=3)
         The width of the stroke to use when rendering the font. This is used to create an outline
-        that distinguishes the text from the background. Larger values will make text more visible 
+        that distinguishes the text from the background. Larger values will make text more visible
         against the background at some loss of font legibility. You may need to change this value
         when rendering at particularly high resolutions.
 
@@ -469,18 +446,18 @@ def render_plot(
     else:
         fig = ax.get_figure()
 
-    if _can_reach_google_fonts(timeout=5.0):
+    if can_reach_google_fonts(timeout=5.0):
         if verbose:
             print("Getting any required fonts...")
-        # Get any google fonts if required
-        get_google_font(font_family)
-        get_google_font(font_family.split()[0])
+        # Get any google font we require
+        manage_google_font(font_family)
+        manage_google_font(font_family.split()[0])
         if title_keywords is not None and "fontfamily" in title_keywords:
-            get_google_font(title_keywords["fontfamily"])
-            get_google_font(title_keywords["fontfamily"].split()[0])
+            manage_google_font(title_keywords["fontfamily"])
+            manage_google_font(title_keywords["fontfamily"].split()[0])
         if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
-            get_google_font(sub_title_keywords["fontfamily"])
-            get_google_font(sub_title_keywords["fontfamily"].split()[0])
+            manage_google_font(sub_title_keywords["fontfamily"])
+            manage_google_font(sub_title_keywords["fontfamily"].split()[0])
     else:
         warn(
             "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
