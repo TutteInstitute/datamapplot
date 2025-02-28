@@ -887,7 +887,6 @@ def label_text_and_polygon_dataframes(
     cluster_polygons=False,
     include_related_points=False,
     alpha=0.05,
-    layer_num=0,
     parents=None,
 ):
     """
@@ -1046,7 +1045,6 @@ def label_text_and_polygon_dataframes(
         "y": label_locations.T[1],
         "label": unique_non_noise_labels,
         "size": cluster_sizes,
-        "layer": np.full(label_locations.shape[0], layer_num, dtype=np.int32),
     }
     if cluster_polygons:
         data["polygon"] = polygons
@@ -1102,7 +1100,7 @@ def render_html(
     text_min_pixel_size=18,
     text_max_pixel_size=36,
     font_family="Roboto",
-    font_weight=None,
+    font_weight=600,
     tooltip_font_family=None,
     tooltip_font_weight=300,
     logo=None,
@@ -1111,8 +1109,6 @@ def render_html(
     line_spacing=0.95,
     min_fontsize=18,
     max_fontsize=28,
-    min_font_weight=200,
-    max_font_weight=800,
     text_outline_width=8,
     text_outline_color="#eeeeeedd",
     point_size_scale=None,
@@ -1218,11 +1214,10 @@ def render_html(
         google font then the required google font api handling will automatically
         make the font available, so any google font family is acceptable.
 
-    font_weight: None or int (optional, default=600)
-        The font weight to use for the text labels within the plot. This should 
-        be an integer value between 0 (ultra-thin) and 1000 (ultra-black). 
-        If None then variable font weight bnased on how fine-grained the label 
-        layers are will be used. See min_font_weight and max_font_weight.
+    font_weight: str or int (optional, default=600)
+        The font weight to use for the text labels within the plot. Either weight
+        specification such as "thin", "normal", or "bold" or an integer value
+        between 0 (ultra-thin) and 1000 (ultra-black).
 
     tooltip_font_family: str (optional default="Roboto")
         The font family to use in tooltips/hover text. If the font family is a
@@ -1258,18 +1253,6 @@ def render_html(
         The maximum font size (in points) of label text. In general label text is scaled
         based on the size of the cluster the label if for; this will set the maximum
         value for that scaling.
-
-    min_font_weight: int (optional, default=200)
-        The minimum font weight of label text. The most fine-grained layer of labels
-        will be rendered with this font weight. Note that this should take a value between
-        100 and 900 and is subject to the availability of the font weight in the chosen
-        font family. Note that this will be overridden by ``font_weight`` if set.
-
-    max_font_weight: int (optional, default=800)
-        The maximum font weight of label text. The most coarse-grained layer of labels
-        will be rendered with this font weight. Note that this should take a value between
-        100 and 900 and is subject to the availability of the font weight in the chosen
-        font family. Note that this will be overridden by ``font_weight`` if set.
 
     text_outline_width: float (optional, default=8)
         The size of the outline around the label text. The outline, in a contrasting
@@ -1570,7 +1553,7 @@ def render_html(
     if color_label_text:
         label_text_color = "d => [d.r, d.g, d.b]"
     else:
-        label_text_color = "d => [0, 0, 0, d.a]" if not darkmode else "d => [255, 255, 255, d.a]"
+        label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
 
     # Compute text scaling
     size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
@@ -1912,10 +1895,6 @@ def render_html(
     else:
         page_background_color = background_color
 
-    if font_weight is not None:
-        min_font_weight = font_weight
-        max_font_weight = font_weight
-
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
@@ -2076,8 +2055,7 @@ def render_html(
         text_outline_color=[int(c * 255) for c in to_rgba(text_outline_color)],
         text_background_color=text_background_color,
         font_family=font_family,
-        min_font_weight=min_font_weight,
-        max_font_weight=max_font_weight,
+        font_weight=font_weight,
         text_collision_size_scale=text_collision_size_scale,
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,

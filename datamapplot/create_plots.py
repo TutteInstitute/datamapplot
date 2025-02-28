@@ -512,10 +512,9 @@ def create_interactive_plot(
                 cluster_polygons=cluster_boundary_polygons,
                 alpha=polygon_alpha,
                 include_related_points=True,
-                layer_num=layer_num,
                 parents=parents,
             )
-            for layer_num, labels in reversed(list(enumerate(label_layers)))
+            for labels in label_layers[::-1]
         ]
 
         # Mark the lowest layer labels so they can be displayed differently in the table of contents.
@@ -533,9 +532,8 @@ def create_interactive_plot(
                     use_medoids=use_medoids,
                     cluster_polygons=cluster_boundary_polygons,
                     alpha=polygon_alpha,
-                    layer_num=layer_num,
                 )
-                for layer_num, labels in enumerate(label_layers)
+                for labels in label_layers
             ]
         )
 
@@ -622,12 +620,6 @@ def create_interactive_plot(
 
     # Recombine noise label placeholders.
     label_dataframe = pd.concat([label_dataframe, noise_label_dataframe])
-
-    # Remove duplcicated labels from the label-dataframe (same location)
-    #
-    label_dataframe = label_dataframe.reset_index(drop=True)
-    idx_to_keep = label_dataframe.groupby(['x', 'y'])['layer'].idxmax()
-    label_dataframe = label_dataframe.loc[idx_to_keep.values]
 
     point_dataframe = pd.DataFrame(
         {
