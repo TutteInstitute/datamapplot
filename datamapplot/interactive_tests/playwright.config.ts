@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
 const htmlDir = path.resolve(__dirname, '../tests/html');
@@ -9,7 +9,6 @@ console.log(`Resolved htmlDir: ${projDir}`);
 
 export default defineConfig({
   use: {
-    viewport: { width: 1280, height: 720 },
     screenshot: 'on',
     headless: true,
   },
@@ -21,6 +20,45 @@ export default defineConfig({
       animations: 'disabled',
     }
   },
+  projects: [
+    /* Test against desktop browsers */
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    {
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    /* Test against mobile viewports. */
+    {
+      name: 'Mobile Chrome',
+      use: {
+        ...devices['Pixel 5'],
+        viewport: { width: 412, height: 732 },
+      },
+    },
+    {
+      name: 'Mobile Safari',
+      use: {
+        ...devices['iPhone 12'],
+        viewport: { width: 390, height: 844 },
+      },
+    },
+  ],
   webServer: {
     command: `python -m http.server 8000 -d ${htmlDir}`,
     url: 'http://localhost:8000',

@@ -24,17 +24,19 @@ test.describe('Arxiv ML Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('arxiv-ml-initial-state.png');
   };
 
-  test('zoom functionality', async ({ page }) => {
-    test.slow();
-    await verifyInitialState(page);
-    const canvas = page.locator('#deck-container canvas');
+  test('zoom functionality', async ({ page }, testInfo ) => {
+    if (testInfo.project.name === 'Mobile Safari') {
+      test.skip('page.mouse.wheel is not supported on mobile webkit');
+    } else {
+      test.slow();
+      await verifyInitialState(page);
+      const canvas = page.locator('#deck-container canvas');
 
-    // Perform zoom
-    await canvas.hover();
-    await page.mouse.wheel(0, -100);
-
-    await page.waitForLoadState('networkidle');
-    await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png');
+      // Perform zoom
+      await canvas.hover();
+      await page.mouse.wheel(0, -100);
+      await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png');
+    }
   });
 
   test('search functionality', async ({ page }) => {
