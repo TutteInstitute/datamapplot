@@ -190,7 +190,12 @@ stages:
 
         - script: |
             npx playwright install --with-deps
-          displayName: 'Install Playwright browsers'
+          displayName: 'Install default Playwright browsers'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install --with-deps firefox
+          displayName: 'Install Firefox browser'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |
