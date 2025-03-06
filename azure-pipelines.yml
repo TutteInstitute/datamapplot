@@ -194,8 +194,13 @@ stages:
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |
-            npx playwright install --with-deps firefox webkit
+            npx playwright install --with-deps firefox
           displayName: 'Install Firefox browser'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install --with-deps webkit
+          displayName: 'Install Safari browser'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |

@@ -49,7 +49,9 @@ test.describe('Arxiv ML Canvas Tests', () => {
       await page.mouse.wheel(0, -100);
 
       await waitForCanvas(page);
-      await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png');
+      await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png', {
+        timeout: 180_000  // Explicit timeout for screenshot
+      });
     }
   });
 

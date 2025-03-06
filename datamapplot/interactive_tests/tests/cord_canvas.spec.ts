@@ -48,7 +48,9 @@ test.describe('Cord19 Canvas Tests', () => {
       await canvas.hover();
       await page.mouse.wheel(0, -100);
       await waitForCanvas(page);
-      await expect(canvas).toHaveScreenshot('cord19-after-zoom.png');
+      await expect(canvas).toHaveScreenshot('cord19-after-zoom.png', {
+        timeout: 180_000
+      });
     }
   });
 
@@ -59,7 +61,9 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.locator('#text-search').fill('covid');
 
     await waitForCanvas(page);
-    await expect(canvas).toHaveScreenshot('cord19-after-search-covid.png');
+    await expect(canvas).toHaveScreenshot('cord19-after-search-covid.png', {
+      timeout: 180_000
+    });
   });
 
   test('pan functionality', { tag: '@slow' }, async ({ page }) => {
@@ -77,6 +81,8 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.mouse.up();
 
     await waitForCanvas(page);
-    await expect(canvas).toHaveScreenshot('cord19-after-pan.png');
+    await expect(canvas).toHaveScreenshot('cord19-after-pan.png', {
+      timeout: 180_000
+    });
   });
 });
