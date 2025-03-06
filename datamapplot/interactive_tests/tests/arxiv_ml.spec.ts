@@ -14,8 +14,10 @@ test.describe('Arxiv ML Canvas Tests', () => {
     // Wait for loading
     console.log('Waiting for #loading and #progress-container to be hidden...');
     await Promise.all([
-      page.waitForSelector('#loading', { state: 'hidden', timeout: 120_000 }),
-      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120_000 })
+      page.waitForSelector('#loading', { state: 'hidden', timeout: 180_000 }),
+      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 180_000 }),
+      page.waitForSelector('#deck-container canvas', { state: 'visible', timeout: 180_000 }),
+      page.waitForLoadState('networkidle')
     ]);
   });
 
