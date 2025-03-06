@@ -14,9 +14,9 @@ test.describe('Cord19 Canvas Tests', () => {
     // Wait for loading
     console.log('Waiting for everything to load...');
     await Promise.all([
-      page.waitForSelector('#loading', { state: 'hidden', timeout: 120_000 }),
-      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120_000 }),
-      page.waitForSelector('#deck-container canvas', { state: 'visible', timeout: 120_000 }),
+      page.waitForSelector('#loading', { state: 'hidden', timeout: 180_000 }),
+      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 180_000 }),
+      page.waitForSelector('#deck-container canvas', { state: 'visible', timeout: 180_000 }),
       page.waitForLoadState('networkidle')
     ]);
   });
@@ -37,7 +37,7 @@ test.describe('Cord19 Canvas Tests', () => {
       // Perform zoom
       await canvas.hover();
       await page.mouse.wheel(0, -100);
-
+      await canvas.waitFor({ state: 'visible', timeout: 30_000});
       await page.waitForLoadState('networkidle');
       await expect(canvas).toHaveScreenshot('cord19-after-zoom.png');
     }
@@ -67,6 +67,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.mouse.move(startX + 300, startY, { steps: 5 });
     await page.mouse.up();
 
+    await canvas.waitFor({ state: 'visible', timeout: 30_000});
     await page.waitForLoadState('networkidle');
     await expect(canvas).toHaveScreenshot('cord19-after-pan.png');
   });

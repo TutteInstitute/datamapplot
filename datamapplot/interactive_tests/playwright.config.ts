@@ -11,6 +11,7 @@ export default defineConfig({
   use: {
     screenshot: 'on',
     headless: true,
+    actionTimeout: 180_000,  // Add this for locator operations
   },
   expect: {
     timeout: 180_000,

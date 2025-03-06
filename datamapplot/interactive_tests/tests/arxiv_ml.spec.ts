@@ -35,6 +35,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
       // Perform zoom
       await canvas.hover();
       await page.mouse.wheel(0, -100);
+      await canvas.waitFor({ state: 'visible', timeout: 30_000});
       await page.waitForLoadState('networkidle');
       await expect(canvas).toHaveScreenshot('arxiv-ml-after-zoom.png');
     }
