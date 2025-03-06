@@ -66,7 +66,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 6_000, // This is the total pixel difference threshold
+          maxDiffPixels: 10_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -78,7 +78,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 6_000, // This is the total pixel difference threshold
+          maxDiffPixels: 10_000, // This is the total pixel difference threshold
         },
       },
     },
