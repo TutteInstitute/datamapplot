@@ -15,7 +15,6 @@ export default defineConfig({
   expect: {
     timeout: 180_000,
     toHaveScreenshot: {
-      maxDiffPixels: 30_000, // This is the total pixel difference threshold
       threshold: 0.2, // This is the per pixel color difference threshold
       animations: 'disabled',
     }
@@ -28,6 +27,11 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
       },
+      expect:{
+        toHaveScreenshot: {
+          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+        },
+      },
     },
     {
       name: 'firefox',
@@ -35,12 +39,22 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         viewport: { width: 1280, height: 720 },
       },
+      expect:{
+        toHaveScreenshot: {
+          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+        },
+      },
     },
     {
       name: 'webkit',
       use: {
         ...devices['Desktop Safari'],
         viewport: { width: 1280, height: 720 },
+      },
+      expect:{
+        toHaveScreenshot: {
+          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+        },
       },
     },
     /* Test against mobile viewports. */
@@ -50,12 +64,22 @@ export default defineConfig({
         ...devices['Pixel 5'],
         viewport: { width: 412, height: 732 },
       },
+      expect:{
+        toHaveScreenshot: {
+          maxDiffPixels: 6_000, // This is the total pixel difference threshold
+        },
+      },
     },
     {
       name: 'Mobile Safari',
       use: {
         ...devices['iPhone 12'],
         viewport: { width: 390, height: 844 },
+      },
+      expect:{
+        toHaveScreenshot: {
+          maxDiffPixels: 6_000, // This is the total pixel difference threshold
+        },
       },
     },
   ],
