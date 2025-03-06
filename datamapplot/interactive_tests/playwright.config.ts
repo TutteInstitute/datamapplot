@@ -65,6 +65,7 @@ export default defineConfig({
         ...devices['Pixel 5'],
         viewport: { width: 412, height: 732 },
       },
+      grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
           maxDiffPixels: 10_000, // This is the total pixel difference threshold
@@ -77,6 +78,7 @@ export default defineConfig({
         ...devices['iPhone 12'],
         viewport: { width: 390, height: 844 },
       },
+      grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
           maxDiffPixels: 10_000, // This is the total pixel difference threshold
