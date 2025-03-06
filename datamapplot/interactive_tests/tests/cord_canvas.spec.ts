@@ -26,6 +26,16 @@ test.describe('Cord19 Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
   };
 
+  const waitForCanvas = async (page) => {
+    console.log('Waiting for canvas...');
+    const canvas = page.locator('#deck-container canvas');
+    await canvas.waitFor({ state: 'visible', timeout: 180_000 });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1000); // Additional wait for stability
+    console.log('Canvas ready');
+    return canvas;
+  };
+
   test('zoom functionality', { tag: '@slow' }, async ({ page }, testInfo) => {
     if (testInfo.project.name === 'Mobile Safari') {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
@@ -37,8 +47,7 @@ test.describe('Cord19 Canvas Tests', () => {
       // Perform zoom
       await canvas.hover();
       await page.mouse.wheel(0, -100);
-      await canvas.waitFor({ state: 'visible', timeout: 30_000});
-      await page.waitForLoadState('networkidle');
+      await waitForCanvas(page);
       await expect(canvas).toHaveScreenshot('cord19-after-zoom.png');
     }
   });
@@ -49,7 +58,7 @@ test.describe('Cord19 Canvas Tests', () => {
 
     await page.locator('#text-search').fill('covid');
 
-    await page.waitForLoadState('networkidle');
+    await waitForCanvas(page);
     await expect(canvas).toHaveScreenshot('cord19-after-search-covid.png');
   });
 
@@ -67,8 +76,7 @@ test.describe('Cord19 Canvas Tests', () => {
     await page.mouse.move(startX + 300, startY, { steps: 5 });
     await page.mouse.up();
 
-    await canvas.waitFor({ state: 'visible', timeout: 30_000});
-    await page.waitForLoadState('networkidle');
+    await waitForCanvas(page);
     await expect(canvas).toHaveScreenshot('cord19-after-pan.png');
   });
 });
