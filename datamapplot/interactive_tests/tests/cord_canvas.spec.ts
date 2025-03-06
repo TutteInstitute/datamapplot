@@ -12,10 +12,12 @@ test.describe('Cord19 Canvas Tests', () => {
     expect(response.status()).toBe(200);
 
     // Wait for loading
-    console.log('Waiting for #loading and #progress-container to be hidden...');
+    console.log('Waiting for everything to load...');
     await Promise.all([
       page.waitForSelector('#loading', { state: 'hidden', timeout: 120_000 }),
-      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120_000 })
+      page.waitForSelector('#progress-container', { state: 'hidden', timeout: 120_000 }),
+      page.waitForSelector('#deck-container canvas', { state: 'visible', timeout: 120_000 }),
+      page.waitForLoadState('networkidle')
     ]);
   });
 
