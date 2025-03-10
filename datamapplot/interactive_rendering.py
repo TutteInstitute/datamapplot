@@ -31,6 +31,11 @@ from datamapplot.histograms import (
     generate_bins_from_temporal_data,
 )
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
+from datamapplot.fonts import (
+    can_reach_google_fonts,
+    query_google_fonts,
+    GoogleAPIUnreachable,
+)
 from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
@@ -310,7 +315,6 @@ class InteractiveFigure:
 
 
 def get_google_font_for_embedding(fontname, offline_mode=False):
-    api_fontname = fontname.replace(" ", "+")
     if offline_mode:
         all_encoded_fonts = offline_mode_caching.load_fonts()
         encoded_fonts = all_encoded_fonts.get(fontname, None)
@@ -340,25 +344,21 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
         else:
             return ""
 
-    api_response = requests.get(
-        f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light",
-        timeout=10,
-    )
-    if api_response.ok:
-        font_urls = re.findall(r"(https?://[^\)]+)", str(api_response.content))
+    if can_reach_google_fonts(timeout=10.0):
         font_links = []
-        for url in font_urls:
-            if url.endswith(".ttf"):
+        collection = query_google_fonts(fontname)
+        for font in collection:
+            if font.url.endswith(".ttf"):
                 font_links.append(
-                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/ttf" />'
+                    f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/ttf" />'
                 )
-            elif url.endswith(".woff2"):
+            elif font.url.endswith(".woff2"):
                 font_links.append(
-                    f'<link rel="preload" href="{url}" as="font" crossorigin="anonymous" type="font/woff2" />'
+                    f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/woff2" />'
                 )
         return (
             "\n".join(font_links)
-            + f"\n<style>\n{api_response.content.decode()}\n</style>\n"
+            + f"\n<style>\n{collection.content}\n</style>\n"
         )
     else:
         return ""
