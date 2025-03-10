@@ -32,10 +32,7 @@ def no_google(num_warnings):
     with patch(
         "datamapplot.fonts.requests.get",
         side_effect=ConnectionError
-    ) as mock_get, catch_warnings(
-        category=GoogleAPIUnreachable,
-        record=True
-    ) as caught:
+    ) as mock_get, catch_warnings(record=True) as caught:
         yield mock_get
     assert num_warnings == len(
         [wm for wm in caught if wm.category is GoogleAPIUnreachable]
