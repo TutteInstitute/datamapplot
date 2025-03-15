@@ -17,9 +17,13 @@ parameters:
     mac_py311:
       imageName: 'macOS-latest'
       python.version: '3.11'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox --project=mobile-chrome'
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     # windows_py311:
     #   imageName: 'windows-latest'
     #   python.version: '3.11'
@@ -122,11 +126,29 @@ stages:
 
         - script: |
             npx playwright install --with-deps
-          displayName: 'Install Playwright browsers'
+          displayName: 'Install default Playwright browsers'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |
-            npx playwright test --update-snapshots
+            npx playwright install --with-deps $(browsers)
+          displayName: 'Install extra browsers (if needed)'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - powershell: |
+            Get-ChildItem -Path "$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests" -Directory |
+            ForEach-Object {
+                Get-ChildItem -Path $_.FullName -Recurse -File | Remove-Item -Force
+            }
+          displayName: 'Clean subdirectory files (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - script: |
+            find "$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests" -mindepth 2 -type f -delete
+          displayName: 'Clean subdirectory files (Darwin/Linux)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - script: |
+            npx playwright test --update-snapshots $(browserProjects)
           displayName: 'Update Playwright snapshots'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:
