@@ -26,6 +26,9 @@ test.describe('Arxiv ML Canvas Tests', () => {
     // Evaluate inside the browser context to access canvas properties
     const canvasInfo = await page.evaluate(() => {
       const canvasSelector = document.querySelector('#deck-container canvas');
+      if (canvasSelector.width === 0 || canvasSelector.height === 0) {
+        window.dispatchEvent(new Event('resize'));
+      }
       if (!canvasSelector) return null;
 
       const ctx = canvasSelector.getContext('webgl2') || canvasSelector.getContext('webgl');
