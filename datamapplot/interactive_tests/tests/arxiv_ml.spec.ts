@@ -135,14 +135,20 @@ test.describe('Arxiv ML Canvas Tests', () => {
   };
 
   test('zoom functionality', async ({ page }, testInfo ) => {
-    if (testInfo.project.name === 'Mobile Safari') {
+    if (testInfo.project.name === 'mobile-safari') {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
     } else {
       test.slow();
       const canvas = await verifyInitialState(page);
 
-      // Perform zoom
-      await canvas.hover();
+      // Handle hover/tap based on device
+      const isMobile = testInfo.project.name.includes('mobile');
+      if (isMobile) {
+        await page.touchscreen.tap(100, 100);
+      } else {
+        await canvas.hover();
+      }
+
       await page.mouse.wheel(0, -100);
 
       await waitForCanvas(page);
@@ -161,17 +167,27 @@ test.describe('Arxiv ML Canvas Tests', () => {
     await expect(canvas).toHaveScreenshot('arxiv-ml-after-search-nlp.png');
   });
 
-  test('pan functionality', async ({ page }) => {
+  test('pan functionality', async ({ page }, testInfo) => {
     test.slow();
     const canvas = await verifyInitialState(page);
+    const size = await page.evaluate(() => {
+      const canvasSelector = document.querySelector('#deck-container canvas');
+      return { width: canvasSelector.width, height: canvasSelector.height };
+    });
+    const startX = 100;
+    const startY =  360;
+    const move = Math.min(size.width / 4, 300); // Move either quarter canvas width or 300px, whichever is smaller
 
-    const startX = 640;  // Half of 1280 (middle of canvas)
-    const startY = 360;  // Half of 720 (middle of canvas)
-
-    await canvas.hover();
+    // Handle hover/tap based on device
+    const isMobile = testInfo.project.name.includes('mobile');
+    if (isMobile) {
+      await page.touchscreen.tap(startX, startY);
+    } else {
+      await canvas.hover();
+    }
     await page.mouse.move(startX, startY);
     await page.mouse.down();
-    await page.mouse.move(startX + 300, startY, { steps: 5 });
+    await page.mouse.move(startX + move, startY, { steps: 5 });
     await page.mouse.up();
 
     await waitForCanvas(page);
