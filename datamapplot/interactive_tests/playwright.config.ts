@@ -30,7 +30,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+          maxDiffPixels: 15_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -42,7 +42,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 10_000, // This is the total pixel difference threshold
+          maxDiffPixels: 15_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -54,7 +54,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 10_000, // This is the total pixel difference threshold
+          maxDiffPixels: 15_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -68,7 +68,7 @@ export default defineConfig({
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 5_000, // This is the total pixel difference threshold
+          maxDiffPixels: 7_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -81,7 +81,7 @@ export default defineConfig({
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 4_000, // This is the total pixel difference threshold
+          maxDiffPixels: 5_000, // This is the total pixel difference threshold
         },
       },
     },

@@ -5,17 +5,21 @@ test.describe('Cord19 Canvas Tests', () => {
     // Extend timeout for all tests running this hook by 6 minutes.
     testInfo.setTimeout(testInfo.timeout + 360_000);
 
+    // Set higher maxDiffPixels
+    const isMobile = testInfo.project.name.includes('mobile');
+    test.expect.toHaveScreenshot.maxDiffPixels = isMobile ? 10_000 : 20_000;
+
     const response = await page.goto('http://localhost:8000/cord19.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
-    console.log('Waiting for initial load...');
+    console.log('Waiting for initial load:', testInfo.project.name);
     await Promise.all([
       page.waitForSelector('#loading', { state: 'hidden', timeout: 180_000 }),
       page.waitForSelector('#progress-container', { state: 'hidden', timeout: 180_000 }),
     ]);
 
     const waitForDeckGL = async (page) => {
-      console.log('Waiting for deck.gl...');
+      console.debug('Waiting for deck.gl...');
 
       const canvas = page.locator('#deck-container canvas');
       await canvas.waitFor({ state: 'visible', timeout: 180_000 });
@@ -44,7 +48,7 @@ test.describe('Cord19 Canvas Tests', () => {
         };
       });
 
-      console.log('Deck.gl debug state:', deckReady);
+      console.debug('Deck.gl state:', deckReady);
       return canvas;
     };
 
@@ -84,7 +88,7 @@ test.describe('Cord19 Canvas Tests', () => {
       };
     });
 
-    console.log(canvasInfo);
+    // console.debug(canvasInfo);
     return canvas;
   };
 

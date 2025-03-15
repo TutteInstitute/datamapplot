@@ -15,7 +15,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
     const response = await page.goto('http://localhost:8000/arxiv_ml.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
-    console.log('Waiting for initial load...');
+    console.log('Waiting for initial load:', testInfo.project.name);
     await Promise.all([
       page.waitForSelector('#loading', { state: 'hidden', timeout: 180_000 }),
       page.waitForSelector('#progress-container', { state: 'hidden', timeout: 180_000 }),
@@ -51,7 +51,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
         };
       });
 
-      console.log('Deck.gl debug state:', deckReady);
+      console.debug('Deck.gl debug state:', deckReady);
       return canvas;
     };
 
@@ -124,7 +124,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
       };
     });
 
-    console.log(canvasInfo);
+    // console.debug(canvasInfo);
     return canvas;
   };
 
