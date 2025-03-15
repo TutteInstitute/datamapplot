@@ -49,7 +49,7 @@ parameters:
       imageName: 'macOS-latest'
       python.version: '3.11'
       browsers: 'chromium firefox'
-      browserProjects: '--project=chromium --project=firefox --project=mobile-chrome'
+      browserProjects: '--project=chromium --project=firefox'
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
@@ -62,7 +62,7 @@ parameters:
       imageName: 'macOS-latest'
       python.version: '3.12'
       browsers: 'chromium firefox'
-      browserProjects: '--project=chromium --project=firefox --project=mobile-chrome'
+      browserProjects: '--project=chromium --project=firefox'
     linux_py312:
       imageName: 'ubuntu-latest'
       python.version: '3.12'
