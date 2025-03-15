@@ -42,7 +42,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+          maxDiffPixels: 10_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -54,7 +54,7 @@ export default defineConfig({
       },
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 20_000, // This is the total pixel difference threshold
+          maxDiffPixels: 10_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -63,12 +63,12 @@ export default defineConfig({
       name: 'Mobile Chrome',
       use: {
         ...devices['Pixel 5'],
-        viewport: { width: 412, height: 732 },
+        viewport: { width: 732, height: 412 },
       },
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 10_000, // This is the total pixel difference threshold
+          maxDiffPixels: 5_000, // This is the total pixel difference threshold
         },
       },
     },
@@ -76,12 +76,12 @@ export default defineConfig({
       name: 'Mobile Safari',
       use: {
         ...devices['iPhone 12'],
-        viewport: { width: 390, height: 844 },
+        viewport: { width: 844, height: 390 },
       },
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
       expect:{
         toHaveScreenshot: {
-          maxDiffPixels: 10_000, // This is the total pixel difference threshold
+          maxDiffPixels: 4_000, // This is the total pixel difference threshold
         },
       },
     },

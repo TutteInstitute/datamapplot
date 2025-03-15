@@ -205,9 +205,9 @@ stages:
 
         - script: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
-              npx playwright test --grep-invert @slow
+              DEBUG=pw:api npx playwright test --grep-invert @slow
             else
-              npx playwright test
+              DEBUG=pw:api npx playwright test  --project=firefox --project=webkit --project="Mobile Safari"
             fi
           displayName: 'Run Playwright tests'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'

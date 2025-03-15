@@ -149,7 +149,7 @@ stages:
           condition: ne(variables['Agent.OS'], 'Windows_NT')
 
         - script: |
-            npx playwright test --update-snapshots
+            npx playwright test --update-snapshots --project=firefox --project=webkit --project="Mobile Safari" --project="Mobile Chrome"
           displayName: 'Update Playwright snapshots'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:

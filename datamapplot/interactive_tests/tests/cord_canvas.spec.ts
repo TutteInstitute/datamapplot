@@ -4,35 +4,48 @@ test.describe('Cord19 Canvas Tests', () => {
   test.beforeEach(async ({ page }, testInfo) => {
     // Extend timeout for all tests running this hook by 6 minutes.
     testInfo.setTimeout(testInfo.timeout + 360_000);
-    // Set consistent viewport size
-    await page.setViewportSize({ width: 1280, height: 720 });
 
-    // Load the page
     const response = await page.goto('http://localhost:8000/cord19.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
-    // Wait for loading
-    console.log('Waiting for everything to load...');
+    console.log('Waiting for initial load...');
     await Promise.all([
       page.waitForSelector('#loading', { state: 'hidden', timeout: 180_000 }),
       page.waitForSelector('#progress-container', { state: 'hidden', timeout: 180_000 }),
-      page.waitForSelector('#deck-container canvas', { state: 'visible', timeout: 180_000 }),
-      page.waitForLoadState('networkidle')
     ]);
   });
-
-  const verifyInitialState = async (page) => {
-    const canvas = page.locator('#deck-container canvas');
-    await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
-  };
 
   const waitForCanvas = async (page) => {
     console.log('Waiting for canvas...');
     const canvas = page.locator('#deck-container canvas');
     await canvas.waitFor({ state: 'visible', timeout: 180_000 });
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1000); // Additional wait for stability
+    await page.waitForTimeout(500); // Additional wait for stability
+
+    // Evaluate inside the browser context to access canvas properties
+    const canvasInfo = await page.evaluate(() => {
+      const canvasSelector = document.querySelector('#deck-container canvas');
+      if (!canvasSelector) return null;
+
+      const ctx = canvasSelector.getContext('webgl2') || canvasSelector.getContext('webgl');
+      if (!ctx) return { width: canvasSelector.width, height: canvasSelector.height, error: 'No WebGL context available' };
+
+      return {
+        width: canvasSelector.width,
+        height: canvasSelector.height,
+        contextAttributes: ctx.getContextAttributes(),
+        // extensions: ctx.getSupportedExtensions()
+      };
+    });
+
+    console.log(canvasInfo);
     console.log('Canvas ready');
+    return canvas;
+  };
+
+  const verifyInitialState = async (page) => {
+    const canvas = await waitForCanvas(page);
+    await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
     return canvas;
   };
 
@@ -41,8 +54,7 @@ test.describe('Cord19 Canvas Tests', () => {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
     } else {
       test.slow();
-      await verifyInitialState(page);
-      const canvas = page.locator('#deck-container canvas');
+      const canvas = await verifyInitialState(page);
 
       // Perform zoom
       await canvas.hover();
@@ -55,8 +67,7 @@ test.describe('Cord19 Canvas Tests', () => {
   });
 
   test('search functionality', { tag: '@slow' }, async ({ page }) => {
-    await verifyInitialState(page);
-    const canvas = page.locator('#deck-container canvas');
+    const canvas = await verifyInitialState(page);
 
     await page.locator('#text-search').fill('covid');
 
@@ -68,8 +79,7 @@ test.describe('Cord19 Canvas Tests', () => {
 
   test('pan functionality', { tag: '@slow' }, async ({ page }) => {
     test.slow();
-    await verifyInitialState(page);
-    const canvas = page.locator('#deck-container canvas');
+    const canvas = await verifyInitialState(page);
 
     const startX = 640;  // Half of 1280 (middle of canvas)
     const startY = 360;  // Half of 720 (middle of canvas)
