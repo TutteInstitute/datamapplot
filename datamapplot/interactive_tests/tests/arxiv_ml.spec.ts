@@ -26,15 +26,23 @@ test.describe('Arxiv ML Canvas Tests', () => {
     // Evaluate inside the browser context to access canvas properties
     const canvasInfo = await page.evaluate(() => {
       const canvasSelector = document.querySelector('#deck-container canvas');
-      if (canvasSelector.width === 0 || canvasSelector.height === 0) {
+      let msg = "No redraw"
+      if (canvasSelector.width === 0 || canvasSelector.height === 0 || !canvasSelector) {
+        if (window.deckInstance) {
+          window.deckInstance.redraw(true);
+        }
         window.dispatchEvent(new Event('resize'));
+        window.dispatchEvent(new Event('redraw'));
+        msg = "Redraw"
       }
+
       if (!canvasSelector) return null;
 
       const ctx = canvasSelector.getContext('webgl2') || canvasSelector.getContext('webgl');
       if (!ctx) return { width: canvasSelector.width, height: canvasSelector.height, error: 'No WebGL context available' };
 
       return {
+        message: msg,
         width: canvasSelector.width,
         height: canvasSelector.height,
         contextAttributes: ctx.getContextAttributes(),
