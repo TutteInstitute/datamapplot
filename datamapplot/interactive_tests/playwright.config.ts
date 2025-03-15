@@ -60,7 +60,7 @@ export default defineConfig({
     },
     /* Test against mobile viewports. */
     {
-      name: 'Mobile Chrome',
+      name: 'mobile-chrome',
       use: {
         ...devices['Pixel 5'],
         viewport: { width: 732, height: 412 },
@@ -73,7 +73,7 @@ export default defineConfig({
       },
     },
     {
-      name: 'Mobile Safari',
+      name: 'mobile-safari',
       use: {
         ...devices['iPhone 12'],
         viewport: { width: 844, height: 390 },
