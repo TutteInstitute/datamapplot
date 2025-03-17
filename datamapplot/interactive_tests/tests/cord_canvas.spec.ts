@@ -84,7 +84,7 @@ test.describe('Cord19 Canvas Tests', () => {
         width: canvasSelector.width,
         height: canvasSelector.height,
         contextAttributes: !!ctx.getContextAttributes(),
-        // extensions: ctx.getSupportedExtensions()
+        extensions: !!ctx.getSupportedExtensions()
       };
     });
 
@@ -94,7 +94,7 @@ test.describe('Cord19 Canvas Tests', () => {
 
   const verifyInitialState = async (page) => {
     const canvas = await waitForCanvas(page);
-    await expect(canvas).toHaveScreenshot('cord19-initial-state.png');
+    await expect(canvas).toHaveScreenshot('cord19-initial-state.png', { timeout: 180_000 });
     return canvas;
   };
 

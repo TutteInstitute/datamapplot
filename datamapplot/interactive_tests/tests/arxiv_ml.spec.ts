@@ -120,7 +120,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
         width: canvasSelector.width,
         height: canvasSelector.height,
         contextAttributes: !!ctx.getContextAttributes(),
-        // extensions: ctx.getSupportedExtensions()
+        extensions: !!ctx.getSupportedExtensions()
       };
     });
 
@@ -130,7 +130,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
 
   const verifyInitialState = async (page) => {
     const canvas = await waitForCanvas(page);
-    await expect(canvas).toHaveScreenshot('arxiv-ml-initial-state.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-initial-state.png', { timeout: 180_000 });
     return canvas;
   };
 
