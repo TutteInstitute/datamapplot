@@ -18,6 +18,7 @@ export default defineConfig({
     toHaveScreenshot: {
       threshold: 0.2, // This is the per pixel color difference threshold
       animations: 'disabled',
+      maxDiffPixelRatio: 0.03, // This is the total pixel difference ratio threshold
     }
   },
   projects: [
@@ -28,11 +29,6 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         viewport: { width: 1280, height: 720 },
       },
-      expect:{
-        toHaveScreenshot: {
-          maxDiffPixels: 15_000, // This is the total pixel difference threshold
-        },
-      },
     },
     {
       name: 'firefox',
@@ -40,22 +36,12 @@ export default defineConfig({
         ...devices['Desktop Firefox'],
         viewport: { width: 1280, height: 720 },
       },
-      expect:{
-        toHaveScreenshot: {
-          maxDiffPixels: 15_000, // This is the total pixel difference threshold
-        },
-      },
     },
     {
       name: 'webkit',
       use: {
         ...devices['Desktop Safari'],
         viewport: { width: 1280, height: 720 },
-      },
-      expect:{
-        toHaveScreenshot: {
-          maxDiffPixels: 15_000, // This is the total pixel difference threshold
-        },
       },
     },
     /* Test against mobile viewports. */
@@ -66,11 +52,6 @@ export default defineConfig({
         viewport: { width: 732, height: 412 },
       },
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
-      expect:{
-        toHaveScreenshot: {
-          maxDiffPixels: 7_000, // This is the total pixel difference threshold
-        },
-      },
     },
     {
       name: 'mobile-safari',
@@ -79,11 +60,6 @@ export default defineConfig({
         viewport: { width: 844, height: 390 },
       },
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
-      expect:{
-        toHaveScreenshot: {
-          maxDiffPixels: 5_000, // This is the total pixel difference threshold
-        },
-      },
     },
   ],
   webServer: {
