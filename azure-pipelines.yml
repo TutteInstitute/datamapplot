@@ -35,27 +35,39 @@ parameters:
     mac_py310:
       imageName: 'macOS-latest'
       python.version: '3.10'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
     linux_py310:
       imageName: 'ubuntu-latest'
       python.version: '3.10'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     # windows_py310:
     #   imageName: 'windows-latest'
     #   python.version: '3.10'
     mac_py311:
       imageName: 'macOS-latest'
       python.version: '3.11'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     # windows_py311:
     #   imageName: 'windows-latest'
     #   python.version: '3.11'
     mac_py312:
       imageName: 'macOS-latest'
       python.version: '3.12'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
     linux_py312:
       imageName: 'ubuntu-latest'
       python.version: '3.12'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     # windows_py312:
     #   imageName: 'windows-latest'
     #   python.version: '3.12'
@@ -190,14 +202,19 @@ stages:
 
         - script: |
             npx playwright install --with-deps
-          displayName: 'Install Playwright browsers'
+          displayName: 'Install default Playwright browsers'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+
+        - script: |
+            npx playwright install --with-deps $(browsers)
+          displayName: 'Install extra browsers'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
         - script: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
-              npx playwright test --grep-invert @slow
+              npx playwright test $(browserProjects) --grep-invert @slow
             else
-              npx playwright test
+              npx playwright test $(browserProjects)
             fi
           displayName: 'Run Playwright tests'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
