@@ -136,7 +136,7 @@ stages:
             export CI=true
             pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive test_plotting
           displayName: 'Run python tests to generate static baseline and interactive html'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all')
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
         - script: |
             export CI=true
@@ -178,7 +178,7 @@ stages:
             Contents: '*.png'
             TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
           displayName: 'Copy updated mpl screenshots (Darwin)'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all')
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
         - task: NodeTool@0
           inputs:
