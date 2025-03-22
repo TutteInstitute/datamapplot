@@ -93,7 +93,7 @@ stages:
 
   - stage: UpdateInteractiveImages
     displayName: Update Test Baseline Images
-    condition: neq('${{ parameters.runUpdates }}', 'static')
+    condition: ne('${{ parameters.runUpdates }}', 'static')
     jobs:
       - job: UpdateAllScreenshots
         strategy:
