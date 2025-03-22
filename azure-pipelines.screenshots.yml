@@ -289,7 +289,7 @@ stages:
           vmImage: $(imageName)
 
         steps:
-          - task: PublishPipelineArtifact@1
+        - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
             artifact: 'updated-mpl-screenshots'
