@@ -29,10 +29,7 @@ parameters:
 stages:
   - stage: UpdateStaticImagesOnly
     displayName: Update Static Test Images
-    condition: and(
-      eq('${{ parameters.runUpdates }}', 'static'),
-      eq('${{ parameters.matrix }}', 'mac_py311')
-    ) # Only run on macOS with Python 3.11 as it doesn't need to be platform specific
+    condition: and(eq('${{ parameters.runUpdates }}', 'static'), eq(variables['Agent.OS'], 'Darwin')) # Only run on macOS with Python 3.11 as it doesn't need to be platform specific
     jobs:
       - job: UpdateStaticScreenshotsOnly
         strategy:
