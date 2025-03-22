@@ -278,7 +278,7 @@ stages:
 
   - stage: UploadStaticImages
     displayName: Upload Static Test Images
-    condition: eq('${{ parameters.matrix }}', 'mac_py311')
+    condition: eq(variables['Agent.OS'], 'Darwin')
 
     jobs:
       - job: UploadStaticScreenshots
