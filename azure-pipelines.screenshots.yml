@@ -29,7 +29,7 @@ parameters:
 stages:
   - stage: UpdateStaticImagesOnly
     displayName: Update Static Test Images
-    condition: and(eq('${{ parameters.runUpdates }}', 'static'), eq(variables['Agent.OS'], 'Darwin')) # Only run on macOS with Python 3.11 as it doesn't need to be platform specific
+    condition: and(eq('${{ parameters.runUpdates }}', 'static'), eq(variables['Agent.OS'], 'Darwin')) # Only run on macOS as it doesn't need to be platform specific
     jobs:
       - job: UpdateStaticScreenshotsOnly
         strategy:
@@ -70,7 +70,7 @@ stages:
 
         - script: |
             export CI=true
-            pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -k test_plotting
+            pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -k plotting
           displayName: 'Run python mpl tests to generate new baseline'
 
         - task: CopyFiles@2
@@ -134,7 +134,7 @@ stages:
 
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive test_plotting
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plotting
           displayName: 'Run python tests to generate static baseline and interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
