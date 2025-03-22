@@ -36,9 +36,7 @@ update-static-baseline:
 .PHONY: report-static
 ## Open the mpl static test report
 report-static:
-	@echo "Serving test-results/fig_comparison.html at http://localhost:8000"
-	@$(PYTHON_INTERPRETER) -m http.server --directory test-results 8000 &
-	@sleep 1 && open http://localhost:8000/fig_comparison.html
+	@open test-results/fig_comparison.html
 
 .PHONY: report-interactive
 ## Open the playwright test report
