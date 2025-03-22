@@ -5,15 +5,7 @@ parameters:
   displayName: Pool Image and Python Version Matrix
   type: object
   default:
-    # mac_py310:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.10'
-    # linux_py310:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.10'
-    # windows_py310:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.10'
+
     mac_py311:
       imageName: 'macOS-latest'
       python.version: '3.11'
@@ -24,27 +16,25 @@ parameters:
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py311:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.11'
-    # mac_py312:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.12'
-    # linux_py312:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.12'
-    # windows_py312:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.12'
 
-variables:
-  triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+- name: runUpdates
+  displayName: Select which baseline images to update
+  type: string
+  default: "all"
+  values:
+    - all
+    - interactive
+    - static
 
 stages:
-  - stage: GenerateScreenshots
-    displayName: Generate Test Screenshots
+  - stage: UpdateStaticImagesOnly
+    displayName: Update Static Test Images
+    condition: and(
+      eq('${{ parameters.runUpdates }}', 'static'),
+      eq('${{ parameters.matrix }}', 'mac_py311')
+    ) # Only run on macOS with Python 3.11 as it doesn't need to be platform specific
     jobs:
-      - job: UpdateScreenshots
+      - job: UpdateStaticScreenshotsOnly
         strategy:
           matrix: ${{ parameters.matrix }}
 
@@ -83,8 +73,79 @@ stages:
 
         - script: |
             export CI=true
+            pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -k test_plotting
+          displayName: 'Run python mpl tests to generate new baseline'
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/tests/baseline'
+            Contents: '*.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+          displayName: 'Copy updated mpl screenshots (Darwin)'
+
+        - task: PublishTestResults@2
+          displayName: 'Publish frontest test results'
+          inputs:
+            searchFolder: 'test-results'
+            testResultsFormat: 'JUnit'
+            testResultsFiles: 'e2e-junit-results.xml'
+            mergeTestResults: true
+            failTaskOnFailedTests: true
+            testRunTitle: 'Playwright Test Results'
+          condition: succeededOrFailed()
+
+  - stage: UpdateInteractiveImages
+    displayName: Update Test Baseline Images
+    condition: neq('${{ parameters.runUpdates }}', 'static')
+    jobs:
+      - job: UpdateAllScreenshots
+        strategy:
+          matrix: ${{ parameters.matrix }}
+
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: '$(python.version)'
+          displayName: 'Use Python $(python.version)'
+
+        - script: |
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+          displayName: 'Set PIP_CACHE_DIR'
+
+        - task: Cache@2
+          inputs:
+            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            restoreKeys: |
+              pip |
+            path: $(PIP_CACHE_DIR)
+          displayName: 'Cache pip dependencies'
+
+        - script: |
+            python -m pip install --upgrade pip setuptools wheel
+          displayName: 'Upgrade pip'
+
+        - script: |
+            pip install -r test-requirements.txt
+          displayName: 'Install pip dependencies'
+
+        - script: |
+            pip install -e .
+          displayName: 'Install local package'
+
+        - script: |
+            export CI=true
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive test_plotting
+          displayName: 'Run python tests to generate static baseline and interactive html'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all')
+
+        - script: |
+            export CI=true
             pytest datamapplot/tests -k interactive
-          displayName: 'Run python tests to generate html'
+          displayName: 'Run python tests to generate interactive html'
+          condition: ne(variables['Agent.OS'], 'Darwin')
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
@@ -113,6 +174,14 @@ stages:
             }
           displayName: 'Start HTTP server (Windows)'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/tests/baseline'
+            Contents: '*.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+          displayName: 'Copy updated mpl screenshots (Darwin)'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all')
 
         - task: NodeTool@0
           inputs:
@@ -200,7 +269,7 @@ stages:
           condition: always()
 
         - task: PublishTestResults@2
-          displayName: 'Publish frontest test results'
+          displayName: 'Publish test results'
           inputs:
             searchFolder: 'test-results'
             testResultsFormat: 'JUnit'
@@ -209,3 +278,23 @@ stages:
             failTaskOnFailedTests: true
             testRunTitle: 'Playwright Test Results'
           condition: succeededOrFailed()
+
+  - stage: UploadStaticImages
+    displayName: Upload Static Test Images
+    condition: eq('${{ parameters.matrix }}', 'mac_py311')
+
+    jobs:
+      - job: UploadStaticScreenshots
+        strategy:
+          matrix: ${{ parameters.matrix }}
+
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+          - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+            artifact: 'updated-mpl-screenshots'
+          displayName: 'Publish updated pytest mpl screenshots'
+          condition: always()
