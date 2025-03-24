@@ -119,7 +119,7 @@ stages:
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
-            artifact: 'interactive-output'
+            artifact: 'interactive-output-$(Agent.OS)'
             publishLocation: 'pipeline'
           condition: ne('${{ parameters.runUpdates }}', 'static')
 
@@ -142,7 +142,7 @@ stages:
 
         - task: DownloadPipelineArtifact@2
           inputs:
-            artifactName: 'interactive-output'
+            artifactName: 'interactive-output-$(Agent.OS)'
             targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
 
         # Check if the HTML directory exists and artifacts were downloaded
