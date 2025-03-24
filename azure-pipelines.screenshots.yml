@@ -27,11 +27,13 @@ parameters:
     - static
 
 stages:
-  - stage: UpdateStaticImagesOnly
-    displayName: Update Static Test Images
-    condition: and(eq('${{ parameters.runUpdates }}', 'static'), eq(variables['Agent.OS'], 'Darwin')) # Only run on macOS as it doesn't need to be platform specific
+  - stage: UpdateBaselineImages
+    displayName: Update Test Baseline Images
+    # Run all tests on macOS and only interactive tests on Linux
+    condition: or(and(eq(variables['Agent.OS'], 'Linux'), ne('${{ parameters.runUpdates }}', 'static')), eq(variables['Agent.OS'], 'Darwin'))
+
     jobs:
-      - job: UpdateStaticScreenshotsOnly
+      - job: RunPythonTests
         strategy:
           matrix: ${{ parameters.matrix }}
 
@@ -45,7 +47,7 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+            echo "#vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
           displayName: 'Set PIP_CACHE_DIR'
 
         - task: Cache@2
@@ -68,10 +70,34 @@ stages:
             pip install -e .
           displayName: 'Install local package'
 
+        # Static tests only (macOS)
         - script: |
             export CI=true
-            pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -k plotting
-          displayName: 'Run python mpl tests to generate new baseline'
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k plot
+          displayName: 'Run python mpl tests to generate new static baseline'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'static'))
+
+        # Static and interactive tests (macOS)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plot
+          displayName: 'Run python tests to generate static baseline and interactive html'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
+
+        # Interactive tests (macOS)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plot
+          displayName: 'Run python tests to generate static baseline and interactive html'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
+
+        # Interactive tests only (linux)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests -k interactive
+          displayName: 'Run python tests to generate interactive html'
+          condition: ne(variables['Agent.OS'], 'Darwin')
+
 
         - task: CopyFiles@2
           inputs:
@@ -79,23 +105,28 @@ stages:
             Contents: '*.png'
             TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
           displayName: 'Copy updated mpl screenshots (Darwin)'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
 
-        - task: PublishTestResults@2
-          displayName: 'Publish frontest test results'
+        - task: PublishPipelineArtifact@1
           inputs:
-            searchFolder: 'test-results'
-            testResultsFormat: 'JUnit'
-            testResultsFiles: 'e2e-junit-results.xml'
-            mergeTestResults: true
-            failTaskOnFailedTests: true
-            testRunTitle: 'Playwright Test Results'
-          condition: succeededOrFailed()
+            targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+            artifact: 'updated-mpl-screenshots'
+          displayName: 'Publish updated pytest mpl screenshots'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
 
-  - stage: UpdateInteractiveImages
-    displayName: Update Test Baseline Images
-    condition: ne('${{ parameters.runUpdates }}', 'static')
-    jobs:
-      - job: UpdateAllScreenshots
+        # Publish the files as an artifact for use in the next job
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
+            artifact: 'interactive-output'
+            publishLocation: 'pipeline'
+          condition: ne('${{ parameters.runUpdates }}', 'static')
+
+      - job: RunPlaywrightTests
+        displayName: Run Interactive Tests
+        dependsOn: RunPythonTests
+        condition: ne('${{ parameters.runUpdates }}', 'static'))
+
         strategy:
           matrix: ${{ parameters.matrix }}
 
@@ -108,41 +139,17 @@ stages:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
-        - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-          displayName: 'Set PIP_CACHE_DIR'
-
-        - task: Cache@2
+        - task: DownloadPipelineArtifact@2
           inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
-            restoreKeys: |
-              pip |
-            path: $(PIP_CACHE_DIR)
-          displayName: 'Cache pip dependencies'
+            artifactName: 'interactive-output'
+            targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
 
+        # Check if the HTML directory exists and artifacts were downloaded
         - script: |
-            python -m pip install --upgrade pip setuptools wheel
-          displayName: 'Upgrade pip'
-
-        - script: |
-            pip install -r test-requirements.txt
-          displayName: 'Install pip dependencies'
-
-        - script: |
-            pip install -e .
-          displayName: 'Install local package'
-
-        - script: |
-            export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plotting
-          displayName: 'Run python tests to generate static baseline and interactive html'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
-
-        - script: |
-            export CI=true
-            pytest datamapplot/tests -k interactive
-          displayName: 'Run python tests to generate interactive html'
-          condition: ne(variables['Agent.OS'], 'Darwin')
+            echo "Listing contents of $(Build.SourcesDirectory)/datamapplot/tests/html:"
+            ls -l $(Build.SourcesDirectory)/datamapplot/tests/html
+          displayName: 'List contents of HTML directory'
+          condition: always()
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
@@ -172,13 +179,6 @@ stages:
           displayName: 'Start HTTP server (Windows)'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
 
-        - task: CopyFiles@2
-          inputs:
-            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/tests/baseline'
-            Contents: '*.png'
-            TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
-          displayName: 'Copy updated mpl screenshots (Darwin)'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
         - task: NodeTool@0
           inputs:
@@ -275,23 +275,3 @@ stages:
             failTaskOnFailedTests: true
             testRunTitle: 'Playwright Test Results'
           condition: succeededOrFailed()
-
-  - stage: UploadStaticImages
-    displayName: Upload Static Test Images
-    condition: eq(variables['Agent.OS'], 'Darwin')
-
-    jobs:
-      - job: UploadStaticScreenshots
-        strategy:
-          matrix: ${{ parameters.matrix }}
-
-        pool:
-          vmImage: $(imageName)
-
-        steps:
-        - task: PublishPipelineArtifact@1
-          inputs:
-            targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
-            artifact: 'updated-mpl-screenshots'
-          displayName: 'Publish updated pytest mpl screenshots'
-          condition: always()
