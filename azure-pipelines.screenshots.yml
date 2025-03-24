@@ -125,7 +125,7 @@ stages:
       - job: RunPlaywrightTests
         displayName: Run Interactive Tests
         dependsOn: RunPythonTests
-        condition: ne('${{ parameters.runUpdates }}', 'static'))
+        condition: ne('${{ parameters.runUpdates }}', 'static')
 
         strategy:
           matrix: ${{ parameters.matrix }}
