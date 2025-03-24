@@ -31,7 +31,7 @@ test-ui-fast:
 .PHONY: update-static-baseline
 ## Update static baseline images
 update-static-baseline:
-	pytest --mpl --mpl-generate-path=datamapplot/tests/baseline
+	pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
 
 .PHONY: report-static
 ## Open the mpl static test report

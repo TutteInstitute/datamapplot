@@ -80,28 +80,28 @@ stages:
         # Static tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k plot
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
           displayName: 'Run python mpl tests to generate new static baseline'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'static'))
 
         # Static and interactive tests (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plot
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
           displayName: 'Run python tests to generate static baseline and interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
-        # Interactive tests (macOS)
+        # Interactive tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -k interactive plot
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m interactive
           displayName: 'Run python tests to generate static baseline and interactive html'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
 
         # Interactive tests only (linux)
         - script: |
             export CI=true
-            pytest datamapplot/tests -k interactive
+            pytest datamapplot/tests -m interactive
           displayName: 'Run python tests to generate interactive html'
           condition: ne(variables['Agent.OS'], 'Darwin')
 
