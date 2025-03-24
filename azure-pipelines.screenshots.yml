@@ -94,8 +94,8 @@ stages:
         # Interactive tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m interactive
-          displayName: 'Run python tests to generate static baseline and interactive html'
+            pytest datamapplot/tests -m interactive
+          displayName: 'Run python tests to generate interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
 
         # Interactive tests only (linux)
@@ -121,11 +121,11 @@ stages:
           displayName: 'Publish updated pytest mpl screenshots'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
 
-        # Publish the files as an artifact for use in the next job
+        # Publish the html files for use in the next job
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
-            artifact: 'interactive-output-$(Agent.OS)'
+            artifact: 'interactive-html-$(Agent.OS)'
             publishLocation: 'pipeline'
           condition: ne('${{ parameters.runUpdates }}', 'static')
 
@@ -148,7 +148,7 @@ stages:
 
         - task: DownloadPipelineArtifact@2
           inputs:
-            artifactName: 'interactive-output-$(Agent.OS)'
+            artifactName: 'interactive-html-$(Agent.OS)'
             targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
 
         # Check if the HTML directory exists and artifacts were downloaded
@@ -268,8 +268,8 @@ stages:
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
-            artifact: 'updated-screenshots-$(Agent.OS)'
-          displayName: 'Publish updated screenshots'
+            artifact: 'updated-playwright-screenshots-$(Agent.OS)'
+          displayName: 'Publish updated playwright screenshots'
           condition: always()
 
         - task: PublishTestResults@2
