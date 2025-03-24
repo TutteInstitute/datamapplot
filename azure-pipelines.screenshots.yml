@@ -66,7 +66,7 @@ stages:
 
         # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
         - script: |
-            python -m pip install setuptools<78.0.0
+            python -m pip install "setuptools<78.0.0"
           displayName: 'Install setuptools'
 
         - script: |
