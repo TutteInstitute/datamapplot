@@ -29,11 +29,12 @@ parameters:
 stages:
   - stage: UpdateBaselineImages
     displayName: Update Test Baseline Images
-    # Run all tests on macOS and only interactive tests on Linux
-    condition: or(and(eq(variables['Agent.OS'], 'Linux'), ne('${{ parameters.runUpdates }}', 'static')), eq(variables['Agent.OS'], 'Darwin'))
 
     jobs:
       - job: RunPythonTests
+        # Run all tests on macOS and only interactive tests on Linux
+        condition: ne(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
+
         strategy:
           matrix: ${{ parameters.matrix }}
 
