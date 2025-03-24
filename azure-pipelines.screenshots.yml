@@ -33,7 +33,7 @@ stages:
     jobs:
       - job: RunPythonTests
         # Run all tests on macOS and only interactive tests on Linux
-        condition: ne(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
+        condition: not(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
 
         strategy:
           matrix: ${{ parameters.matrix }}
