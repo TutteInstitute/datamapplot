@@ -104,8 +104,10 @@ stages:
             path: $(PIP_CACHE_DIR)
           displayName: 'Cache pip dependencies'
 
+        # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
         - script: |
-            python -m pip install --upgrade pip setuptools wheel
+            python -m pip install --upgrade pip wheel
+            python -m pip install setuptools<78.0.0
           displayName: 'Upgrade pip'
 
         - script: |

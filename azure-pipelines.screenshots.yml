@@ -32,7 +32,8 @@ stages:
 
     jobs:
       - job: RunPythonTests
-        # Run all tests on macOS and only interactive tests on Linux
+        displayName: Run Python Tests
+        # Run on macOS and only interactive tests on Linux
         condition: not(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
 
         strategy:
@@ -59,8 +60,10 @@ stages:
             path: $(PIP_CACHE_DIR)
           displayName: 'Cache pip dependencies'
 
+        # temporarily cap setuptools version. 78.0.0 Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
         - script: |
-            python -m pip install --upgrade pip setuptools wheel
+            python -m pip install --upgrade pip wheel
+            python -m pip install setuptools<78.0.0
           displayName: 'Upgrade pip'
 
         - script: |
