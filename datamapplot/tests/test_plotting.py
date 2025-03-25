@@ -17,6 +17,7 @@ custom_style = {
     "figure.constrained_layout.w_pad": 0.05,
 }
 
+@pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default')
 def test_plot_cord19(
     examples_dir,
@@ -34,6 +35,7 @@ def test_plot_cord19(
     fig = run_static_examples_script('plot_cord19.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
+@pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default')
 def test_plot_arxiv_ml(
     examples_dir,
@@ -51,6 +53,7 @@ def test_plot_arxiv_ml(
     fig = run_static_examples_script('plot_arxiv_ml.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
+@pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style='default', tolerance=20)
 def test_plot_arxiv_ml_word_cloud(
     examples_dir,
@@ -68,6 +71,7 @@ def test_plot_arxiv_ml_word_cloud(
     fig = run_static_examples_script('plot_arxiv_ml_word_cloud.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
+@pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style, tolerance=35)
 #@pytest.mark.xfail(os.environ.get('TF_BUILD') == 'True', reason="Image dimensions differ slightly in CI", strict=False)
 def test_plot_wikipedia(
@@ -90,6 +94,7 @@ def test_plot_wikipedia(
     fig = run_static_examples_script('plot_wikipedia.py', examples_dir, change_np_load_path, mock_savefig)
     return fig
 
+@pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir='baseline', style=custom_style)
 #@pytest.mark.xfail(os.environ.get('TF_BUILD') == 'True', reason="Image dimensions differ slightly in CI", strict=False)
 def test_plot_simple_arxiv(

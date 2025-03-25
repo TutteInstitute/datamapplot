@@ -5,15 +5,7 @@ parameters:
   displayName: Pool Image and Python Version Matrix
   type: object
   default:
-    # mac_py310:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.10'
-    # linux_py310:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.10'
-    # windows_py310:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.10'
+
     mac_py311:
       imageName: 'macOS-latest'
       python.version: '3.11'
@@ -24,27 +16,26 @@ parameters:
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py311:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.11'
-    # mac_py312:
-    #   imageName: 'macOS-latest'
-    #   python.version: '3.12'
-    # linux_py312:
-    #   imageName: 'ubuntu-latest'
-    #   python.version: '3.12'
-    # windows_py312:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.12'
 
-variables:
-  triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+- name: runUpdates
+  displayName: Select which baseline images to update
+  type: string
+  default: "all"
+  values:
+    - all
+    - interactive
+    - static
 
 stages:
-  - stage: GenerateScreenshots
-    displayName: Generate Test Screenshots
+  - stage: UpdateBaselineImages
+    displayName: Update Test Baseline Images
+
     jobs:
-      - job: UpdateScreenshots
+      - job: RunPythonTests
+        displayName: Run Python Tests
+        # Run on macOS and only interactive tests on Linux
+        condition: not(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
+
         strategy:
           matrix: ${{ parameters.matrix }}
 
@@ -58,7 +49,7 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+            echo "#vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
           displayName: 'Set PIP_CACHE_DIR'
 
         - task: Cache@2
@@ -70,8 +61,13 @@ stages:
           displayName: 'Cache pip dependencies'
 
         - script: |
-            python -m pip install --upgrade pip setuptools wheel
+            python -m pip install --upgrade pip wheel
           displayName: 'Upgrade pip'
+
+        # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
+        - script: |
+            python -m pip install "setuptools<78.0.0"
+          displayName: 'Install setuptools'
 
         - script: |
             pip install -r test-requirements.txt
@@ -81,10 +77,86 @@ stages:
             pip install -e .
           displayName: 'Install local package'
 
+        # Static tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests -k interactive
-          displayName: 'Run python tests to generate html'
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
+          displayName: 'Run python mpl tests to generate new static baseline'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'static'))
+
+        # Static and interactive tests (macOS)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
+          displayName: 'Run python tests to generate static baseline and interactive html'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
+
+        # Interactive tests only (macOS)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests -m interactive
+          displayName: 'Run python tests to generate interactive html'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
+
+        # Interactive tests only (linux)
+        - script: |
+            export CI=true
+            pytest datamapplot/tests -m interactive
+          displayName: 'Run python tests to generate interactive html'
+          condition: ne(variables['Agent.OS'], 'Darwin')
+
+
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Build.SourcesDirectory)/datamapplot/tests/baseline'
+            Contents: '*.png'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+          displayName: 'Copy updated mpl screenshots (Darwin)'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
+
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
+            artifact: 'updated-mpl-screenshots'
+          displayName: 'Publish updated pytest mpl screenshots'
+          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
+
+        # Publish the html files for use in the next job
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
+            artifact: 'interactive-html-$(Agent.OS)'
+            publishLocation: 'pipeline'
+          condition: ne('${{ parameters.runUpdates }}', 'static')
+
+      - job: RunPlaywrightTests
+        displayName: Run Interactive Tests
+        dependsOn: RunPythonTests
+        condition: ne('${{ parameters.runUpdates }}', 'static')
+
+        strategy:
+          matrix: ${{ parameters.matrix }}
+
+        pool:
+          vmImage: $(imageName)
+
+        steps:
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: '$(python.version)'
+          displayName: 'Use Python $(python.version)'
+
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifactName: 'interactive-html-$(Agent.OS)'
+            targetPath: '$(Build.SourcesDirectory)/datamapplot/tests/html'
+
+        # Check if the HTML directory exists and artifacts were downloaded
+        - script: |
+            echo "Listing contents of $(Build.SourcesDirectory)/datamapplot/tests/html:"
+            ls -l $(Build.SourcesDirectory)/datamapplot/tests/html
+          displayName: 'List contents of HTML directory'
+          condition: always()
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
@@ -113,6 +185,7 @@ stages:
             }
           displayName: 'Start HTTP server (Windows)'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
+
 
         - task: NodeTool@0
           inputs:
@@ -195,12 +268,12 @@ stages:
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.ArtifactStagingDirectory)/filtered-screenshots'
-            artifact: 'updated-screenshots-$(Agent.OS)'
-          displayName: 'Publish updated screenshots'
+            artifact: 'updated-playwright-screenshots-$(Agent.OS)'
+          displayName: 'Publish updated playwright screenshots'
           condition: always()
 
         - task: PublishTestResults@2
-          displayName: 'Publish frontest test results'
+          displayName: 'Publish test results'
           inputs:
             searchFolder: 'test-results'
             testResultsFormat: 'JUnit'

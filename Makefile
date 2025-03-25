@@ -28,22 +28,26 @@ test-ui:
 test-ui-fast:
 	cd datamapplot/interactive_tests && npx playwright test --grep-invert @slow
 
-.PHONY: update-static-baseline
-## Update static baseline images
-update-static-baseline:
-	pytest --mpl --mpl-generate-path=datamapplot/tests/baseline
-
 .PHONY: report-static
 ## Open the mpl static test report
 report-static:
-	@echo "Serving test-results/fig_comparison.html at http://localhost:8000"
-	@$(PYTHON_INTERPRETER) -m http.server --directory test-results 8000 &
-	@sleep 1 && open http://localhost:8000/fig_comparison.html
+	@open test-results/fig_comparison.html
 
 .PHONY: report-interactive
 ## Open the playwright test report
 report-interactive:
 	cd datamapplot/interactive_tests && npx playwright show-report
+
+.PHONY: update-static-baseline
+## Update static baseline images
+update-static-baseline:
+	pytest --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
+
+.PHONY: update-interactive-baseline
+## Update interactive baseline images
+update-interactive-baseline:
+	pytest -m interactive
+	cd datamapplot/interactive_tests && npx playwright test --update-snapshots
 
 #################################################################################
 # Self Documenting Commands                                                     #

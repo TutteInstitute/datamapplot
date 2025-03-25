@@ -88,7 +88,7 @@ Pull Request Process
 2. Make your changes and commit them
 3. Run the tests locally and check the results
 4. Create a pull request and make sure CI tests pass
-5. Update baseline images if necessary
+5. :ref:`Update baseline images<Updating Test Baseline Images>` if necessary
 6. Address any feedback from code reviewers
 7. Once approved, your changes will be merged
 
@@ -113,14 +113,15 @@ There is a Makefile to simplify running the various kinds of tests and viewing t
 
     *** AVAILABLE RULES ***
 
-    test                    Run all tests
-    test-static             Run python based backend and static frontend tests
-    test-backend            Run python based backend tests
-    test-ui                 Run interactive frontend tests
-    test-ui-fast            Run interactive frontend tests, not slow tests
-    update-static-baseline  Update static baseline images
-    report-static           Open the mpl static test report
-    report-interactive      Open the playwright test report
+   test                         Run all tests
+   test-static                  Run python based backend and static frontend tests
+   test-backend                 Run python based backend tests
+   test-ui                      Run interactive frontend tests
+   test-ui-fast                 Run interactive frontend tests, not slow tests
+   report-static                Open the mpl static test report
+   report-interactive           Open the playwright test report
+   update-static-baseline       Update static baseline images
+   update-interactive-baseline  Update interactive baseline images
 
 Running Unit and Backend Tests
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -173,7 +174,7 @@ Interpreting Test Results
 - **Static test failures**: Examine the difference images in the resulting test report
 - **Interactive test failures**: Review the Playwright report for screenshots and error details
 
-Both of the static and interactive tests compare the results againsts baseline images. If the changes are expected, you can update the baseline images using CI if needed.
+Both of the static and interactive tests compare the results againsts baseline images. If the changes are expected, you can :ref:`update the baseline images using CI if needed<Updating Test Baseline Images>`.
 
 Continuous Integration
 ----------------------
