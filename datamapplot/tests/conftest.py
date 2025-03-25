@@ -6,6 +6,7 @@ import requests
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import contextlib
 
 matplotlib.use("Agg")
@@ -135,6 +136,50 @@ def change_np_load_path(monkeypatch):
             monkeypatch.setattr(np, 'load', original_load)
 
     return _patch_load
+
+@pytest.fixture
+def change_read_feather_load_path(monkeypatch):
+    """
+    Fixture to modify pd.read_feather to use a specific directory and optionally limit dataset size
+
+    Usage:
+    def test_example(examples_dir, change_read_feather_load_path):
+        with change_read_feather_load_path(examples_dir, max_points=10000):
+            data = pd.read_feather("cord19_extra_data.arrow")
+    """
+    @contextlib.contextmanager
+    def _patch_read(base_path, max_points=None):
+        base_path = Path(base_path)
+
+        original_read = pd.read_feather
+
+        def patched_read(file, *args, **kwargs):
+            file_path = Path(file)
+
+            if not file_path.is_absolute():
+                file_path = base_path / file_path
+
+            data = original_read(str(file_path), *args, **kwargs)
+            logger.info(f"{file_path} data original shape: {data.shape}")
+            # If max_points is specified and this is a dataset file, limit the number of points
+            if max_points is not None and len(data.shape) > 0:
+                file_str = str(file_path)
+                if len(data) > max_points:
+                    new_data = data[:max_points]
+                    logger.info(f"{file_path} data new shape: {new_data.shape}")
+                    return new_data
+
+
+            return data
+
+        monkeypatch.setattr(pd, 'read_feather', patched_read)
+
+        try:
+            yield
+        finally:
+            monkeypatch.setattr(pd, 'read_feather', original_read)
+
+    return _patch_read
 
 @pytest.fixture
 def examples_dir(request):

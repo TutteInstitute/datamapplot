@@ -1,4 +1,5 @@
 from datamapplot.interactive_rendering import InteractiveFigure
+import contextlib
 import datamapplot
 import sys
 import importlib.util
@@ -30,8 +31,8 @@ def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_pa
         "plot_interactive_cord19.py",
         examples_dir,
         html_dir,
-        change_np_load_path,
-        destination_html="cord19.html"
+        destination_html="cord19.html",
+        load_handlers=[change_np_load_path],
     )
     assert output_path.exists()
     assert (html_dir / "cord_gallery_meta_data_0.zip").exists()
@@ -63,14 +64,46 @@ def test_interactive_cord19_small(examples_dir, mock_image_requests, change_np_l
         "plot_interactive_cord19.py",
         examples_dir,
         html_dir,
-        change_np_load_path,
-        destination_html=destination_html,
+        destination_html,
+        load_handlers=[change_np_load_path],
         max_points=max_points
     )
     assert output_path.exists()
     assert (html_dir / f"cord_gallery_{max_points}_meta_data_0.zip").exists()
     assert (html_dir / f"cord_gallery_{max_points}_point_data_0.zip").exists()
     assert (html_dir / f"cord_gallery_{max_points}_label_data.zip").exists()
+
+@pytest.mark.interactive
+@pytest.mark.fast
+def test_interactive_cord19_custom_small(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
+        mock_bz2_open, mock_display, mock_gzip_open, html_dir, change_read_feather_load_path):
+    """
+    Test that the outputs files from running examples/plot_interactive_custom_cord19.py all exist.
+    Uses a reduced dataset to size max_points for faster test execution.
+
+    UI testing of the resulting html output can be found in the interactive_tests directory.
+    """
+    mock_image_requests([
+        "https://allenai.org/newsletters/archive/2023-03-newsletter_files/927c3ca8-6c75-862c-ee5d-81703ef10a8d.png"
+    ])
+    max_points = 250000 # Reduced by about half
+    destination_html=f"custom_cord19_{max_points}.html"
+    mock_interactive_save(html_dir, destination_html, max_points=max_points)
+    mock_bz2_open(examples_dir, max_points=max_points)
+    mock_gzip_open(html_dir)
+
+    output_path = run_interactive_examples_script(
+        "plot_interactive_custom_cord19.py",
+        examples_dir,
+        html_dir,
+        destination_html,
+        load_handlers = [change_np_load_path, change_read_feather_load_path],
+        max_points=max_points
+    )
+    assert output_path.exists()
+    assert (html_dir / f"custom_cord_gallery_{max_points}_meta_data_0.zip").exists()
+    assert (html_dir / f"custom_cord_gallery_{max_points}_point_data_0.zip").exists()
+    assert (html_dir / f"custom_cord_gallery_{max_points}_label_data.zip").exists()
 
 def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
         mock_bz2_open, mock_display, mock_gzip_open, html_dir):
@@ -91,8 +124,8 @@ def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_
         "plot_interactive_arxiv_ml.py",
         examples_dir,
         html_dir,
-        change_np_load_path,
-        destination_html="arxiv_ml.html"
+        "arxiv_ml.html",
+        load_handlers = [change_np_load_path],
     )
     assert output_path.exists()
     assert (html_dir / "arxivml_gallery_label_data.zip").exists()
@@ -247,12 +280,12 @@ def mock_gzip_open(monkeypatch):
 
 ### Helper Scripts
 def run_interactive_examples_script(
-    script_filename: str,
-    script_dir: Path,
-    html_output_dir: Path,
-    change_np_load_path,
-    destination_html: str,
-    max_points: int = None
+    script_filename,
+    script_dir,
+    html_output_dir,
+    destination_html,
+    load_handlers = None,
+    max_points = None
 ):
     """
     Run an example script that generates interactive HTML output with an option to limit dataset size.
@@ -263,6 +296,7 @@ def run_interactive_examples_script(
         html_output_dir (Path): Directory where HTML outputs should be saved
         change_np_load_path: Test fixture for numpy.load path context
         destination_html (str): The name of the destination html file
+        load_handlers (list, optional): List of context managers to use for loading data
         max_points (int, optional): Maximum number of points to use in the dataset
 
     Returns:
@@ -279,7 +313,11 @@ def run_interactive_examples_script(
     sys.modules[script_name] = module
 
 
-    with change_np_load_path(script_dir, max_points=max_points):
+    with contextlib.ExitStack() as stack:
+        if load_handlers:
+            for handler in load_handlers:
+                stack.enter_context(handler(script_dir, max_points=max_points))
+
         spec.loader.exec_module(module)
 
         html_files = list(html_output_dir.glob('*.html'))
