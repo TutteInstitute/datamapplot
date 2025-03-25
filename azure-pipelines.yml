@@ -130,10 +130,18 @@ stages:
         - script: |
             export CI=true
             mkdir -p $(Build.ArtifactStagingDirectory)/mpl
-            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+            if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+              pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+                  --cov=datamapplot/ --cov-report=html \
+                  --mpl-generate-summary=html \
+                  --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl \
+                  -m "not slow"
+            else
+              pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
+            fi
           displayName: 'Run python tests'
 
         - script: |
