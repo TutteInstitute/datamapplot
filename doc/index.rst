@@ -65,8 +65,11 @@ and followed by guides on basic usage, through to the more complicated options a
    api
    faq
 
+.. toctree::
+   :maxdepth: 1
+   :caption: Contributing and development:
 
-
+   dev_docs
 
 Indices and tables
 ==================
