@@ -70,6 +70,7 @@ and followed by guides on basic usage, through to the more complicated options a
    :caption: Contributing and development:
 
    dev_docs
+   update_baselines
 
 Indices and tables
 ==================

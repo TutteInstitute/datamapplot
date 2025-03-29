@@ -11,6 +11,7 @@ from io import BytesIO
 
 
 ### Tests
+@pytest.mark.interactive
 @pytest.mark.slow
 def test_interactive_cord19(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
         mock_bz2_open, mock_display, mock_gzip_open, html_dir):
