@@ -106,6 +106,7 @@ def test_interactive_cord19_custom_small(examples_dir, mock_image_requests, chan
     assert (html_dir / f"custom_cord_gallery_{max_points}_point_data_0.zip").exists()
     assert (html_dir / f"custom_cord_gallery_{max_points}_label_data.zip").exists()
 
+@pytest.mark.interactive
 def test_interactive_arxiv_ml(examples_dir, mock_image_requests, change_np_load_path, mock_interactive_save,
         mock_bz2_open, mock_display, mock_gzip_open, html_dir):
     """
