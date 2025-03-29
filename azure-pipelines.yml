@@ -93,12 +93,18 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            python -c "import pip; print(f'##vso[task.setvariable variable=PIP_CACHE_DIR]{pip.cache.cache_dir}')"
+            PIP_CACHE_DIR=$(pip cache dir)
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
             echo "PIP_CACHE_DIR is: $PIP_CACHE_DIR"
           displayName: 'Set PIP_CACHE_DIR'
-        # - script: |
-        #     echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-        #   displayName: 'Set PIP_CACHE_DIR'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - powershell: |
+            $PIP_CACHE_DIR = $(pip cache dir)
+            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$PIP_CACHE_DIR"
+            echo "PIP_CACHE_DIR is: $PIP_CACHE_DIR"
+          displayName: 'Set PIP_CACHE_DIR (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
 
         - task: Cache@2
           inputs:
