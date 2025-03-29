@@ -59,6 +59,7 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
     });
   });
 
+
   test('pan functionality', async ({ page }, testInfo) => {
     test.slow();
     const canvas = await verifyInitialState(page);
@@ -84,6 +85,63 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
     await page.mouse.up();
     await waitForCanvas(page);
     await expect(canvas).toHaveScreenshot('custom-cord19-250k-after-pan.png', {
+      timeout: 180_000
+    });
+  });
+
+  test('check ticks for disciplines in legend', async ({ page }) => {
+    const disciplines = [
+        "Biology", "Chemistry", "Physics", "Business", "Economics",
+        "Political Science", "Psychology", "Sociology", "Geography",
+        "History", "Computer Science", "Engineering", "Mathematics",
+        "Environmental Science", "Geology", "Materials Science",
+        "Art", "Philosophy", "Unknown"
+    ];
+
+    const canvas = await verifyInitialState(page);
+    await page.waitForSelector('#legend');
+
+    // Check each discipline that selecting it adds a tick to the legend
+    // and unselecting it removes the tick
+    for (const discipline of disciplines) {
+        const selectedDiscipline = `✓${discipline}`;
+        const disciplineId = `[id="${discipline.replace(/ /g, '\\ ')}"]`;
+
+        // Before clicking
+        await expect(page.locator('#legend')).toContainText(discipline, {
+            timeout: 5000
+        });
+        await expect(page.locator('#legend')).not.toContainText(selectedDiscipline, {
+            timeout: 5000
+        });
+
+        // Click the discipline to select it
+        await page.locator(disciplineId).click();
+        await expect(page.locator('#legend')).toContainText(selectedDiscipline, {
+            timeout: 5000
+        });
+
+        // Click the discipline again to unselect it
+        await page.locator(disciplineId).click();
+        await expect(page.locator('#legend')).toContainText(discipline, {
+            timeout: 5000
+        });
+        await expect(page.locator('#legend')).not.toContainText(selectedDiscipline, {
+            timeout: 5000
+        });
+    }
+  });
+
+  test('legend functionality', async ({ page }, testInfo) => {
+    test.slow();
+    const canvas = await verifyInitialState(page);
+
+    // Check that the tick box on the legend appears
+    await expect(page.locator('#legend')).toContainText('Biology');
+    await page.locator('#Biology').click();
+    await expect(page.locator('#legend')).toContainText('✓Biology');
+
+    await expect(canvas).toHaveScreenshot('custom-cord19-250k-after-select-biology.png', {
       timeout: 180_000
     });
   });

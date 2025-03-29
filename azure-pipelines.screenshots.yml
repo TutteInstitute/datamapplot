@@ -132,6 +132,7 @@ stages:
       - job: RunPlaywrightTests
         displayName: Run Interactive Tests
         dependsOn: RunPythonTests
+        timeoutInMinutes: 120
         condition: ne('${{ parameters.runUpdates }}', 'static')
 
         strategy:
