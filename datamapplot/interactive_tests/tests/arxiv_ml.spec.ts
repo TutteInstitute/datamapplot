@@ -25,12 +25,16 @@ test.describe('Arxiv ML Canvas Tests', () => {
     return canvas;
   };
 
+  test('initial state', async ({ page }) => {
+    const canvas = await verifyInitialState(page);
+  });
+
   test('zoom functionality', async ({ page }, testInfo ) => {
     if (testInfo.project.name === 'mobile-safari') {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
     } else {
       test.slow();
-      const canvas = await verifyInitialState(page);
+      const canvas = await waitForCanvas(page);
 
       // Handle hover/tap based on device
       const isMobile = testInfo.project.name.includes('mobile');
@@ -50,7 +54,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
   });
 
   test('search functionality', async ({ page }) => {
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     await page.locator('#text-search').fill('nlp');
 
@@ -60,7 +64,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
 
   test('pan functionality', async ({ page }, testInfo) => {
     test.slow();
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
     const size = await page.evaluate(() => {
       const canvasSelector = document.querySelector('#deck-container canvas');
       return { width: canvasSelector.width, height: canvasSelector.height };

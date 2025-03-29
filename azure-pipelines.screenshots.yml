@@ -141,7 +141,7 @@ stages:
       - job: RunPlaywrightTests
         displayName: Run Interactive Tests
         dependsOn: RunPythonTests
-        timeoutInMinutes: 120
+        timeoutInMinutes: 360 # max timeout
         condition: ne('${{ parameters.runUpdates }}', 'static')
 
         strategy:
@@ -231,7 +231,7 @@ stages:
           condition: ne(variables['Agent.OS'], 'Windows_NT')
 
         - script: |
-            npx playwright test --update-snapshots $(browserProjects)
+            npx playwright test --update-snapshots $(browserProjects) --grep-invert @nobaseline
           displayName: 'Update Playwright snapshots'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:

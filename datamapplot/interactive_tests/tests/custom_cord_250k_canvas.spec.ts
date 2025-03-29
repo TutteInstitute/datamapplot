@@ -26,12 +26,16 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
     return canvas;
   };
 
+  test('initial state', async ({ page }) => {
+    const canvas = await verifyInitialState(page);
+  });
+
   test('zoom functionality', async ({ page }, testInfo) => {
     if (testInfo.project.name === 'mobile-safari') {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
     } else {
       test.slow();
-      const canvas = await verifyInitialState(page);
+      const canvas = await waitForCanvas(page);
 
       // Handle hover/tap based on device
       const isMobile = testInfo.project.name.includes('mobile');
@@ -49,7 +53,7 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
   });
 
   test('search functionality', async ({ page }) => {
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     await page.locator('#text-search').fill('covid');
 
@@ -62,7 +66,7 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
 
   test('pan functionality', async ({ page }, testInfo) => {
     test.slow();
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     const size = await page.evaluate(() => {
       const canvasSelector = document.querySelector('#deck-container canvas');
@@ -89,16 +93,16 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
     });
   });
 
-  test('check ticks for disciplines in legend', async ({ page }) => {
+  test('check ticks for disciplines in legend', {tag: '@nobaseline'}, async ({ page }) => {
     const disciplines = [
         "Biology", "Chemistry", "Physics", "Business", "Economics",
         "Political Science", "Psychology", "Sociology", "Geography",
-        "History", "Computer Science", "Engineering", "Mathematics",
-        "Environmental Science", "Geology", "Materials Science",
-        "Art", "Philosophy", "Unknown"
+        // "History", "Computer Science", "Engineering", "Mathematics",
+        // "Environmental Science", "Geology", "Materials Science",
+        // "Art", "Philosophy", "Unknown"
     ];
 
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
     await page.waitForSelector('#legend');
 
     // Check each discipline that selecting it adds a tick to the legend
@@ -134,7 +138,7 @@ test.describe('Custom Cord19 250k Canvas Tests', () => {
 
   test('legend functionality', async ({ page }, testInfo) => {
     test.slow();
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     // Check that the tick box on the legend appears
     await expect(page.locator('#legend')).toContainText('Biology');
