@@ -80,6 +80,7 @@ stages:
     displayName: Run python test suite
     jobs:
       - job: run_tests
+        timeoutInMinutes: 360 # max timeout
         strategy:
           matrix: ${{ parameters.matrix }}
 
