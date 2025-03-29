@@ -93,30 +93,32 @@ stages:
           displayName: 'Use Python $(python.version)'
 
         - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+            python -c "import pip; print(f'##vso[task.setvariable variable=PIP_CACHE_DIR]{pip.cache.cache_dir}')"
+            echo "PIP_CACHE_DIR is: $PIP_CACHE_DIR"
           displayName: 'Set PIP_CACHE_DIR'
+        # - script: |
+        #     echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
+        #   displayName: 'Set PIP_CACHE_DIR'
 
         - task: Cache@2
           inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            key: 'pip | "$(Agent.OS)" | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
             restoreKeys: |
-              pip |
+              pip | "$(Agent.OS)" | "$(Build.SourcesDirectory)/test-requirements.txt"
+              pip | "$(Agent.OS)"
             path: $(PIP_CACHE_DIR)
+            cacheHitVar: CACHE_RESTORED
           displayName: 'Cache pip dependencies'
 
         - script: |
             python -m pip install --upgrade pip wheel
           displayName: 'Upgrade pip'
-
-        # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
-        - script: |
-            python -m pip install "setuptools<78.0.0"
-          displayName: 'Install setuptools'
+          condition: ne(variables.CACHE_RESTORED, 'true')
 
         - script: |
             pip install -r test-requirements.txt
-
           displayName: 'Install pip dependencies'
+          condition: ne(variables.CACHE_RESTORED, 'true')
 
         - script: |
             pip install -e .
