@@ -80,7 +80,6 @@ stages:
         - script: |
             pip install -r test-requirements.txt
           displayName: 'Install pip dependencies'
-          condition: ne(variables.CACHE_RESTORED, 'true')
 
         - script: |
             pip install -e .
