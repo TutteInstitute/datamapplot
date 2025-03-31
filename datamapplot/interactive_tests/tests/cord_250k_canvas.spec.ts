@@ -31,8 +31,8 @@ test.describe('Cord19 250k Canvas Tests', () => {
   });
 
   test('zoom functionality', async ({ page }, testInfo) => {
-    if (testInfo.project.name === 'mobile-safari') {
-      test.skip('page.mouse.wheel is not supported on mobile webkit');
+    if (testInfo.project.name.includes('mobile-')) {
+      test.skip('page.mouse.wheel does not work right on mobile');
     } else {
       test.slow();
       const canvas = await waitForCanvas(page);
