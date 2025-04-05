@@ -1,5 +1,10 @@
 .. -*- mode: rst -*-
 
+.. image:: https://dev.azure.com/TutteInstitute/build-pipelines/_apis/build/status%2FTutteInstitute.datamapplot
+  :target: https://dev.azure.com/TutteInstitute/build-pipelines/_build/latest?definitionId=22&branchName=main
+  :alt: Build Status
+
+
 .. image:: doc/datamapplot_text_horizontal.png
   :width: 600
   :alt: DataMapPlot logo
