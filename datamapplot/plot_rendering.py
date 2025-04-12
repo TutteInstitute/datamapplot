@@ -14,6 +14,7 @@ from skimage.transform import rescale
 from matplotlib import font_manager
 from matplotlib import pyplot as plt
 from matplotlib import patheffects
+from matplotlib.collections import LineCollection
 
 from datamapplot.overlap_computations import get_2d_coordinates
 from datamapplot.text_placement import (
@@ -24,6 +25,7 @@ from datamapplot.text_placement import (
     estimate_font_size,
     pylabeladjust_text_locations,
 )
+from datamapplot.edge_bundling import bundle_edges
 from datamapplot.config import ConfigManager
 from datamapplot.fonts import (
     can_reach_google_fonts,
@@ -44,11 +46,17 @@ def manage_google_font(fontname):
         font_manager.fontManager.addfont(f.name)
 
 
+def convert_lines_dtype(df):
+    df["group_no"] = df.isnull().all(axis=1).cumsum()
+    df = df.dropna()
+    x_values = np.array(df["x"])
+    y_values = np.array(df["y"])
+    groups = np.array(df["group_no"])
+    n_rows = np.max(np.unique(x_values))
+
+
 def datashader_scatterplot(
-    data_map_coords,
-    color_list,
-    point_size,
-    ax,
+    data_map_coords, color_list, point_size, ax, lines=None, line_colors=None
 ):
     data = pd.DataFrame(
         {
@@ -57,7 +65,32 @@ def datashader_scatterplot(
             "label": pd.Categorical(color_list),
         }
     )
+
+    if lines is not None and line_colors is not None:
+        lines = np.array(lines)
+        lines_data = pd.DataFrame(
+            {
+                "x": lines[:, 0],
+                "x1": lines[:, 2],
+                "y": lines[:, 1],
+                "y1": lines[:, 3],
+                "color": pd.Categorical(line_colors),
+            }
+        )
+
+        lines_color_key = {x: x for x in np.unique(line_colors)}
+
+        dsshow(
+            lines_data,
+            ds.glyphs.LinesAxis1(["x", "x1"], ["y", "y1"]),
+            ds.count_cat("color"),
+            norm="eq_hist",
+            color_key=lines_color_key,
+            ax=ax,
+        )
+
     color_key = {x: x for x in np.unique(color_list)}
+
     dsshow(
         data,
         ds.Point("x", "y"),
@@ -67,6 +100,7 @@ def datashader_scatterplot(
         ax=ax,
         shade_hook=partial(tf.spread, px=point_size, how="over"),
     )
+
     return ax
 
 
@@ -212,6 +246,14 @@ def render_plot(
     label_font_outline_alpha=0.5,
     ax=None,
     verbose=False,
+    edge_bundle=False,
+    edge_bundle_keywords={
+        "n_neighbors": 10,
+        "sample_size": None,
+        "color_map_nn": 100,
+        "hammer_bundle_kwargs": {"use_dask": False},
+    },
+    matplotlib_lineswidth=0.05,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
     a lower level function, and should usually not be used directly unless there are specific
@@ -465,9 +507,25 @@ def render_plot(
         )
 
     # Apply matplotlib or datashader based on heuristics
+    if edge_bundle:
+        if verbose:
+            print("Performing edge bundling...")
+        lines, colors = bundle_edges(
+            data_map_coords, color_list, **edge_bundle_keywords
+        )
+
     if data_map_coords.shape[0] < 100_000 or force_matplotlib:
         if marker_size_array is not None:
             point_size = marker_size_array * point_size
+
+        if edge_bundle:
+            lc = LineCollection(
+                lines.reshape((-1, 2, 2)),
+                colors=colors,
+                linewidths=matplotlib_lineswidth,
+            )
+            ax.add_collection(lc)
+
         ax.scatter(
             *data_map_coords.T,
             c=color_list,
@@ -476,14 +534,25 @@ def render_plot(
             alpha=alpha,
             edgecolors="none",
         )
+
     else:
         if marker_size_array is not None or marker_type != "o":
             warn(
                 "Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True"
             )
-        datashader_scatterplot(
-            data_map_coords, color_list, point_size=point_size, ax=ax
-        )
+        if edge_bundle:
+            datashader_scatterplot(
+                data_map_coords,
+                color_list,
+                point_size=point_size,
+                ax=ax,
+                lines=lines,
+                line_colors=colors,
+            )
+        else:
+            datashader_scatterplot(
+                data_map_coords, color_list, point_size=point_size, ax=ax
+            )
 
     # Create background glow
     if verbose:
