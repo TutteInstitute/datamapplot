@@ -88,7 +88,7 @@ def bundle_edges(
     nbrs = NearestNeighbors(
         n_neighbors=max(n_neighbors, color_map_nn), algorithm="ball_tree", n_jobs=-1
     ).fit(data_map_coords)
-    
+
     # if user does not provide edges, use KNN
     if edges is None:
         _, indices = nbrs.kneighbors(data_map_coords, n_neighbors=n_neighbors)
