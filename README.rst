@@ -5,6 +5,37 @@
   :alt: DataMapPlot logo
   :align: center
 
+|pypi_version|_ |pypi_downloads|_
+
+|conda_version|_ |conda_downloads|_
+
+|License|_ |build_status|_ |Coverage|_
+
+|Docs|_
+
+.. |pypi_version| image:: https://img.shields.io/pypi/v/datamapplot.svg
+.. _pypi_version: https://pypi.python.org/pypi/datamapplot/
+
+.. |pypi_downloads| image:: https://pepy.tech/badge/datamapplot/month
+.. _pypi_downloads: https://pepy.tech/project/datamapplot
+
+.. |conda_version| image:: https://anaconda.org/conda-forge/datamapplot/badges/version.svg
+.. _conda_version: https://anaconda.org/conda-forge/datamapplot
+
+.. |conda_downloads| image:: https://anaconda.org/conda-forge/datamapplot/badges/downloads.svg
+.. _conda_downloads: https://anaconda.org/conda-forge/datamapplot
+
+.. |License| image:: https://img.shields.io/pypi/l/datamapplot.svg
+.. _License: https://github.com/TutteInstitute/datamapplot/blob/master/LICENSE.txt
+
+.. |build_status| image:: https://dev.azure.com/TutteInstitute/build-pipelines/_apis/build/status/lmcinnes.umap?branchName=master
+.. _build_status: https://dev.azure.com/TutteInstitute/build-pipelines/_build/latest?definitionId=2&branchName=master
+
+.. |Coverage| image:: https://img.shields.io/azure-devops/coverage/TutteInstitute/build-pipelines/22.svg
+.. _Coverage: https://dev.azure.com/TutteInstitute/build-pipelines/_build/results?buildId=1445&view=codecoverage-tab
+
+.. |Docs| image:: https://readthedocs.org/projects/datamapplot/badge/?version=latest
+.. _Docs: https://datamapplot.readthedocs.io/en/latest/?badge=latest
 ===========
 DataMapPlot
 ===========
