@@ -1904,6 +1904,12 @@ def render_html(
         tooltip_format_js = dynamic_tooltip["format_js"]
         tooltip_loading_js = dynamic_tooltip["loading_js"]
         tooltip_error_js = dynamic_tooltip["error_js"]
+    else:
+        enable_dynamic_tooltip = False
+        tooltip_fetch_js = None
+        tooltip_format_js = None
+        tooltip_loading_js = None
+        tooltip_error_js = None
 
     if background_color is None:
         page_background_color = "#ffffff" if not darkmode else "#000000"
