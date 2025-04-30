@@ -18,7 +18,7 @@
     flex-direction: column;
     gap: 4px;
     padding: 4px;
-    pointer-events: auto; /* allow pointer events */
+    pointer-events: none;
     max-height: 50vh;
     overflow-y: visible;
   }

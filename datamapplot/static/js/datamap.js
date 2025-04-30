@@ -184,7 +184,7 @@ class DataMap {
     fontWeight = 900,
     lineSpacing = 0.95,
     textCollisionSizeScale = 3.0,
-    pickable = true,
+    pickable = false,
   }) {
     
     const numLabels = labelData.length;

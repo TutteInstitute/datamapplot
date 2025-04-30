@@ -371,6 +371,7 @@ def _get_js_dependency_sources(
     enable_lasso_selection,
     colormap_selector,
     enable_table_of_contents,
+    enable_dynamic_tooltip,
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -391,6 +392,9 @@ def _get_js_dependency_sources(
 
     enable_table_of_contents: bool
         Whether to include JS dependencies for the table of contents functionality.
+
+    enable_dynamic_tooltip: bool
+        Whether to include JS dependencies for the API tooltip functionality.
 
     Returns
     -------
@@ -414,6 +418,9 @@ def _get_js_dependency_sources(
 
     if enable_table_of_contents:
         js_dependencies.append("table_of_contents.js")
+
+    if enable_dynamic_tooltip:
+        js_dependencies.append("dynamic_tooltip.js")
 
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
@@ -1128,6 +1135,7 @@ def render_html(
     offline_data_chunk_size=500_000,
     tooltip_css=None,
     hover_text_html_template=None,
+    dynamic_tooltip=None,
     extra_point_data=None,
     enable_search=False,
     search_field="hover_text",
@@ -1890,6 +1898,19 @@ def render_html(
             shadow_color=shadow_color,
         )
 
+    if dynamic_tooltip is not None:
+        enable_dynamic_tooltip = True
+        tooltip_fetch_js = dynamic_tooltip["fetch_js"]
+        tooltip_format_js = dynamic_tooltip["format_js"]
+        tooltip_loading_js = dynamic_tooltip["loading_js"]
+        tooltip_error_js = dynamic_tooltip["error_js"]
+    else:
+        enable_dynamic_tooltip = False
+        tooltip_fetch_js = None
+        tooltip_format_js = None
+        tooltip_loading_js = None
+        tooltip_error_js = None
+
     if background_color is None:
         page_background_color = "#ffffff" if not darkmode else "#000000"
     else:
@@ -1910,6 +1931,7 @@ def render_html(
             enable_lasso_selection,
             enable_colormap_selector,
             enable_table_of_contents,
+            enable_dynamic_tooltip,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
             minify_deps,
@@ -2072,6 +2094,11 @@ def render_html(
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
         splash_warning=splash_warning,
+        enable_api_tooltip=enable_dynamic_tooltip,
+        tooltip_fetch_js=tooltip_fetch_js,
+        tooltip_format_js=tooltip_format_js,
+        tooltip_loading_js=tooltip_loading_js,
+        tooltip_error_js=tooltip_error_js,
         **dependencies_ctx,
     )
     return html_str
