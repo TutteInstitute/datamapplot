@@ -167,4 +167,5 @@ plot = datamapplot.create_interactive_plot(
     inline_data=False,
     offline_data_prefix="custom_cord_gallery",
 )
+plot.save("custom_cord19.html")
 plot
