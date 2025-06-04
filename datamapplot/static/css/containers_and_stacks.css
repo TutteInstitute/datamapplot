@@ -16,7 +16,7 @@
   .stack {
     display: flex;
     flex-direction: column;
-    gap: 0px;
+    gap: 0;
     padding: 0px;
     pointer-events: none;
     max-height: 50vh;
