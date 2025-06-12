@@ -36,6 +36,7 @@
 
 .. |Docs| image:: https://readthedocs.org/projects/datamapplot/badge/?version=latest
 .. _Docs: https://datamapplot.readthedocs.io/en/latest/?badge=latest
+
 ===========
 DataMapPlot
 ===========
