@@ -5,7 +5,7 @@
     width: 100%;
     height: 100%;
     z-index: 1;
-    padding: 8px;
+    padding: 0;
     /* Use grid to create the basic layout */
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -16,9 +16,9 @@
   .stack {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 4px;
-    pointer-events: auto; /* allow pointer events */
+    gap: 0;
+    padding: 0;
+    pointer-events: none;
     max-height: 50vh;
     overflow-y: visible;
   }

@@ -3,8 +3,13 @@ import inspect as ins
 import json
 from pathlib import Path
 import platformdirs
-from typing import Any, Callable, cast, ParamSpec, TypeVar, Union
+from typing import Any, Callable, cast, TypeVar, Union
 from warnings import warn
+
+try:
+    from typing import ParamSpec
+except ImportError:
+    from typing_extensions import ParamSpec
 
 
 P = ParamSpec("P")

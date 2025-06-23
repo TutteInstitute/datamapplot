@@ -74,6 +74,7 @@
         background: {{title_background}};
         box-shadow: 2px 3px 10px {{shadow_color}};
         position: relative;
+        pointer-events: auto;
       }
       .more-opaque {
         backdrop-filter: blur(6px);
@@ -81,8 +82,7 @@
       }
       #deck-container {
         width: 100vw;
-        height: 100vh;
-        position: fixed;
+        height: 100vh;  
       }
       #deck-container canvas {
         z-index: 1;
@@ -380,7 +380,6 @@
     splashWarning.className = 'container-box';
     function dismissSplash() {
       document.body.removeChild(overlay);
-      console.log(loadData);
       loadData = true;
     }
     splashWarning.innerHTML = `
@@ -651,7 +650,7 @@
             fontWeight: {{font_weight}},
             lineSpacing: {{line_spacing}},
             textCollisionSizeScale: {{text_collision_size_scale}},
-            pickable: true,
+            pickable: false,
           });
 
           {% if enable_table_of_contents %}
@@ -901,6 +900,17 @@
     loadMetaData();
     {%- if enable_histogram %}
     loadHistogramData();
+    {% endif -%}
+    {%- if enable_api_tooltip %}
+    const tooltip = new DynamicTooltipManager(
+      datamap,
+      {
+        fetchData: {{tooltip_fetch_js}},
+        formatContent: {{tooltip_format_js}},
+        formatLoading: {{tooltip_loading_js}},
+        formatError: {{tooltip_error_js}},
+      }
+    );
     {% endif -%}
     {% if custom_js %}
     {{ custom_js }}
