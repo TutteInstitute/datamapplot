@@ -1132,6 +1132,7 @@ def render_html(
     background_image_bounds=None,
     darkmode=False,
     offline_data_prefix=None,
+    offline_data_path=None,
     offline_data_chunk_size=500_000,
     tooltip_css=None,
     hover_text_html_template=None,
@@ -1326,7 +1327,14 @@ def render_html(
     offline_data_prefix: str or None (optional, default=None)
         If ``inline_data=False`` a number of data files will be created storing data for
         the plot and referenced by the HTML file produced. If not none then this will provide
-        a prefix on the filename of all the files created.
+        a prefix on the filename of all the files created. Deprecated in favor of
+        ``offline_data_path``.
+
+    offline_data_path: str, pathlib.Path, or None (optional, default=None)
+        If ``inline_data=False``, this specifies the path (including directory) where data 
+        files will be saved. Can be a string path or pathlib.Path object. The directory
+        will be created if it doesn't exist. If not specified, falls back to 
+        ``offline_data_prefix`` behavior for backward compatibility.
 
     tooltip_css: str or None (optional, default=None)
         Custom CSS used to fine the properties of the tooltip. If ``None`` a default
@@ -1837,6 +1845,7 @@ def render_html(
             base64_color_data = None
 
         file_prefix = None
+        html_file_prefix = None
         n_chunks = 0
     else:
         base64_point_data = ""
@@ -1845,9 +1854,33 @@ def render_html(
         base64_histogram_bin_data = ""
         base64_histogram_index_data = ""
         base64_color_data = ""
-        file_prefix = (
-            offline_data_prefix if offline_data_prefix is not None else "datamapplot"
-        )
+        
+        # Handle offline_data_path with backward compatibility
+        if offline_data_path is not None:
+            # Convert to Path object for easier handling
+            data_path = Path(offline_data_path)
+            
+            # Create directory if it doesn't exist
+            if data_path.suffix:  # If user provided a file with extension, use parent dir
+                data_dir = data_path.parent
+                base_name = data_path.stem
+                file_prefix = str(data_path.with_suffix(''))
+            else:  # User provided directory/basename
+                data_dir = data_path.parent if data_path.parent != Path('.') else Path('.')
+                base_name = data_path.name
+                file_prefix = str(data_path)
+            
+            # Ensure directory exists
+            data_dir.mkdir(parents=True, exist_ok=True)
+            
+            # For HTML references, we need just the basename
+            html_file_prefix = base_name
+        else:
+            # Backward compatibility: use offline_data_prefix
+            file_prefix = (
+                offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+            )
+            html_file_prefix = file_prefix
         n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
         for i in range(n_chunks):
             chunk_start = i * offline_data_chunk_size
@@ -2060,7 +2093,7 @@ def render_html(
         base64_histogram_bin_data=base64_histogram_bin_data,
         base64_histogram_index_data=base64_histogram_index_data,
         base64_color_data=base64_color_data,
-        file_prefix=file_prefix,
+        file_prefix=html_file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
         point_line_width=point_line_width,
