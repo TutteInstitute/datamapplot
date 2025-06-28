@@ -314,9 +314,9 @@ class InteractiveFigure:
                 zf.write(filename)
 
 
-def get_google_font_for_embedding(fontname, offline_mode=False):
+def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_file=None):
     if offline_mode:
-        all_encoded_fonts = offline_mode_caching.load_fonts()
+        all_encoded_fonts = offline_mode_caching.load_fonts(file_path=offline_font_file)
         encoded_fonts = all_encoded_fonts.get(fontname, None)
         if encoded_fonts is not None:
             font_descriptions = [
@@ -2004,7 +2004,11 @@ def render_html(
         offline_mode_data = None
 
     api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
+    font_data = get_google_font_for_embedding(
+        font_family, 
+        offline_mode=offline_mode,
+        offline_font_file=offline_mode_font_data_file if offline_mode else None
+    )
     if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
