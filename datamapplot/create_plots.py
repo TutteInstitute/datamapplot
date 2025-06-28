@@ -359,6 +359,7 @@ def create_interactive_plot(
     cvd_safer=False,
     jupyterhub_api_token=None,
     enable_table_of_contents=False,
+    offline_data_path=None,
     **render_html_kwds,
 ):
     """
@@ -470,6 +471,13 @@ def create_interactive_plot(
 
     enable_table_of_contents: bool (optional, default=False)
         Whether to build and display a table of contents with the label heirarchy.
+
+    offline_data_path: str, pathlib.Path, or None (optional, default=None)
+        If ``inline_data=False``, this specifies the path (including directory) where data 
+        files will be saved. Can be a string path or pathlib.Path object. The directory
+        will be created if it doesn't exist. If not specified, falls back to using the
+        ``offline_data_prefix`` parameter passed through ``render_html_kwds`` for backward
+        compatibility.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -680,6 +688,7 @@ def create_interactive_plot(
         label_layers=label_layers,
         cluster_colormap=color_map | {noise_label:noise_color},
         enable_table_of_contents=enable_table_of_contents,
+        offline_data_path=offline_data_path,
         **render_html_kwds,
     )
 
