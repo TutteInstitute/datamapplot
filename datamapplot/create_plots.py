@@ -54,6 +54,7 @@ def create_plot(
     cmap=None,
     cvd_safer=False,
     marker_color_array=None,
+    use_system_fonts=False,
     **render_plot_kwds,
 ):
     """Create a static plot from ``data_map_coords`` with text labels provided by ``labels``.
@@ -167,6 +168,11 @@ def create_plot(
     marker_color_array: np.ndarray or None (optional, default=None)
         An array of colours for each of the points in the data map scatterplot. If provided
         this will override any colouring provided by the ``labels`` array.
+
+    use_system_fonts: bool (optional, default=False)
+        Whether to skip downloading fonts from Google Fonts and only use system-installed fonts.
+        This is useful when working offline, behind a firewall, or when you want to ensure 
+        consistent font rendering using only locally available fonts.
 
     **render_plot_kwds
         All other keyword arguments are passed through the ``render_plot`` which provides
@@ -325,6 +331,7 @@ def create_plot(
         force_matplotlib=force_matplotlib,
         darkmode=darkmode,
         highlight_labels=highlight_labels,
+        use_system_fonts=use_system_fonts,
         **render_plot_kwds,
     )
 
