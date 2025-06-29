@@ -68,6 +68,12 @@ and followed by guides on basic usage, through to the more complicated options a
 
 .. toctree::
    :maxdepth: 1
+   :caption: Odd corners and advanced usage:
+
+   example_offline_fonts
+
+.. toctree::
+   :maxdepth: 1
    :caption: Contributing and development:
 
    dev_docs
