@@ -42,19 +42,26 @@ def palette_from_datamap(
     location_lightness = []
     if label_location_thetas.shape[0] < 256:
         for r, theta in zip(label_location_radii, label_location_thetas):
-            theta_high = theta + theta_range
-            theta_low = theta - theta_range
-            if theta_high > np.pi:
-                theta_high -= 2 * np.pi
-            if theta_low < -np.pi:
-                theta_low -= 2 * np.pi
+            # use increasing values of theta range to ensure that we find a mask containing some elements
+            for i_theta_range in np.linspace(theta_range, np.pi, 16):
+                theta_high = theta + i_theta_range
+                theta_low = theta - i_theta_range
+                if theta_high > np.pi:
+                    theta_high -= 2 * np.pi
+                if theta_low < -np.pi:
+                    theta_low -= 2 * np.pi
 
-            if theta_low > 0 and theta_high < 0:
-                r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                if theta_low > 0 and theta_high < 0:
+                    r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                else:
+                    r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+
+                mask_size = np.sum(r_mask)
+                if mask_size > 0:
+                    break
             else:
-                r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                raise ValueError("No mask found for theta range.")
 
-            mask_size = np.sum(r_mask)
             chroma = (
                 np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
             ) * 80 + 20
