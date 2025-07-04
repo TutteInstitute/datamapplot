@@ -145,7 +145,7 @@ _CLUSTER_LAYER_DESCRIPTORS = {
 
 cfg = ConfigManager()
 
-_TOC_DEFAULT_KWDS = {
+_TOPIC_TREE_DEFAULT_KWDS = {
     "title": "Topic Tree",
     "font_size": "12pt",
     "max_width": "30vw",
@@ -356,10 +356,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
                 font_links.append(
                     f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/woff2" />'
                 )
-        return (
-            "\n".join(font_links)
-            + f"\n<style>\n{collection.content}\n</style>\n"
-        )
+        return "\n".join(font_links) + f"\n<style>\n{collection.content}\n</style>\n"
     else:
         return ""
 
@@ -370,7 +367,7 @@ def _get_js_dependency_sources(
     enable_histogram,
     enable_lasso_selection,
     colormap_selector,
-    enable_table_of_contents,
+    enable_topic_tree,
     enable_dynamic_tooltip,
 ):
     """
@@ -390,8 +387,8 @@ def _get_js_dependency_sources(
     enable_lasso_selection: bool
         Whether to include JS dependencies for the lasso selection functionality.
 
-    enable_table_of_contents: bool
-        Whether to include JS dependencies for the table of contents functionality.
+    enable_topic_tree: bool
+        Whether to include JS dependencies for the topic tree functionality.
 
     enable_dynamic_tooltip: bool
         Whether to include JS dependencies for the API tooltip functionality.
@@ -416,8 +413,8 @@ def _get_js_dependency_sources(
     if colormap_selector:
         js_dependencies.append("colormap_selector.js")
 
-    if enable_table_of_contents:
-        js_dependencies.append("table_of_contents.js")
+    if enable_topic_tree:
+        js_dependencies.append("topic_tree.js")
 
     if enable_dynamic_tooltip:
         js_dependencies.append("dynamic_tooltip.js")
@@ -435,7 +432,7 @@ def _get_css_dependency_sources(
     enable_histogram,
     show_loading_progress,
     enable_colormap_selector,
-    enable_table_of_contents,
+    enable_topic_tree,
 ):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
@@ -451,7 +448,7 @@ def _get_css_dependency_sources(
     show_loading_progress: bool
         Whether to have progress bars for data loading.
 
-    enable_table_of_contents: bool
+    enable_topic_tree: bool
         Whether to include CSS dependencies for the table of contents functionality.
 
     Returns
@@ -473,8 +470,8 @@ def _get_css_dependency_sources(
     if enable_colormap_selector:
         css_dependencies.append("colormap_selector_style.css")
 
-    if enable_table_of_contents:
-        css_dependencies.append("table_of_contents_style.css")
+    if enable_topic_tree:
+        css_dependencies.append("topic_tree_style.css")
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -486,7 +483,7 @@ def _get_css_dependency_sources(
 
 def _get_js_dependency_urls(
     enable_histogram,
-    enable_table_of_contents,
+    enable_topic_tree,
     selection_handler=None,
     cdn_url="unpkg.com",
 ):
@@ -497,6 +494,9 @@ def _get_js_dependency_urls(
     ----------
     enable_histogram: bool
         Whether to include JS URLs for the histogram functionality.
+
+    enable_topic_tree: bool
+        Whether to include JS URLs for the topic tree functionality.
 
     Returns
     -------
@@ -516,7 +516,7 @@ def _get_js_dependency_urls(
     if enable_histogram:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
-    if enable_table_of_contents:
+    if enable_topic_tree:
         js_dependency_urls.append(f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js")
 
     if selection_handler is not None:
@@ -892,6 +892,7 @@ def label_text_and_polygon_dataframes(
     noise_label="Unlabelled",
     use_medoids=False,
     cluster_polygons=False,
+    include_zoom_bounds=False,
     include_related_points=False,
     alpha=0.05,
     parents=None,
@@ -917,9 +918,13 @@ def label_text_and_polygon_dataframes(
     cluster_polygons: bool (optional, default=False)
         Whether to build polygon cluster boundaries.
 
+    include_zoom_bounds: bool (optional, default=False)
+        Whether to include the zoom boundary of a cluster associated with a label.
+        Normally used when displaying a topic tree.
+
     include_related_points: bool (optional, default=False)
         Whether to include indexes of related points to each label.
-        Normally used when displaying a table of contents.
+        Normally used when displaying a topic tree with on_click functionality.
 
     alpha: float (optional, default=0.05)
         Display transparency for cluster polygons.
@@ -943,7 +948,7 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
-    # related_points = []
+    related_points = []
     points_bounds = []
     label_ids = []
     parent_ids = []
@@ -971,12 +976,13 @@ def label_text_and_polygon_dataframes(
                 ]
             )
         if include_related_points:
-            # related_points.append(np.where(cluster_mask))
+            related_points.append(np.where(cluster_mask))
+        if include_zoom_bounds:
             points_bounds.append(compute_percentile_bounds(cluster_points))
         if parents is not None:
             if len(parents[0]):
                 # Get the provenance (cluster membership at different heirarchical layers).
-                # This should be consistent.(??)
+                # This should be consistent.(?? could break with different topic naming ??)
                 p = (
                     ["base"]
                     + list(
@@ -1017,7 +1023,8 @@ def label_text_and_polygon_dataframes(
                 polygons.append(None)
                 unique_non_noise_labels.append(noise_label)
                 if include_related_points:
-                    # related_points.append(np.where(cluster_mask))
+                    related_points.append(np.where(cluster_mask))
+                if include_zoom_bounds:
                     points_bounds.append(compute_percentile_bounds(cluster_points))
                 if len(parents[0]):
                     # Get the provenance.
@@ -1058,12 +1065,13 @@ def label_text_and_polygon_dataframes(
     # Points are far too heavyweight for large datasets
     # We can use a different more efficient data-structure later
     # if we require this information for selection etc.
-    # if include_related_points:
-    #     data["points"] = related_points
+    if include_related_points:
+        data["points"] = related_points
     if parents is not None:
         data["id"] = label_ids
         data["parent"] = parent_ids
-        data["bounds"] = points_bounds
+        if include_zoom_bounds:
+            data["bounds"] = points_bounds
     return pd.DataFrame(data)
 
 
@@ -1153,8 +1161,8 @@ def render_html(
     cluster_layer_colormaps=False,
     label_layers=None,
     cluster_colormap=None,
-    enable_table_of_contents=False,
-    table_of_contents_kwds={},
+    enable_topic_tree=False,
+    topic_tree_kwds={},
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1448,33 +1456,33 @@ def render_html(
         data is split into multiple layers, and you would like users to be able to select
         individual clustering resolutions to colour by.
 
-    enable_table_of_contents: bool (optional, default=False)
-        Whether to enable a table of contents that highlights label heirarchy and aids navigation in
+    enable_topic_tree: bool (optional, default=False)
+        Whether to enable a topic tree that highlights label heirarchy and aids navigation in
         the datamap.
 
-    table_of_contents_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
-        A dictionary containing custom settings for the table of contents. The dictionary can include
+    topic_tree_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
+        A dictionary containing custom settings for the topic tree. The dictionary can include
         the following keys:
           * "title": str
-                The title of the table of contents.
+                The title of the topic tree.
           * "font_size": str
-                The font size of the table of contents.
+                The font size of the topic tree.
           * "max_width": str
-                The max width of the table of contents.
+                The max width of the topic tree.
           * "max_height": str
-                The max height of the table of contents.
+                The max height of the topic tree.
           * "color_bullets": bool
                 Whether to use cluster colors for the bullets.
           * "button_on_click": str or None
-                An optional javascript action to be taken if a button in the table of contents is selected.
+                An optional javascript action to be taken if a button in the topic tree is selected.
                 If None, there will be no buttons, otherwise they will be added with the "button_icon" setting.
                 Each button will be related to a label, and can access the points related to that label.
                 This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
                 point an array is built with those values for each point that the label describes.
-                For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
+                For example one could provide ``"console.log({hover_text})"`` to log the hover_text of all
                 points related to the label.
           * "button_icon": str
-                The text to appear on the table of contents buttons.
+                The text to appear on the topic tree buttons.
                 These buttons do not appear unless "button_on_click" is defined.
 
     custom_css: str or None (optional, default=None)
@@ -1631,18 +1639,18 @@ def render_html(
                 )
 
             if (
-                "button_on_click" in table_of_contents_kwds
-                and table_of_contents_kwds["button_on_click"] is not None
+                "button_on_click" in topic_tree_kwds
+                and topic_tree_kwds["button_on_click"] is not None
             ):
-                toc_replacements = FormattingDict(
+                topic_tree_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                     "button_on_click"
-                ].format_map(toc_replacements)
+                ].format_map(topic_tree_replacements)
         else:
             hover_data = point_dataframe[["hover_text"]].copy()
             get_tooltip = "({index}) => hoverData.hover_text[index]"
@@ -1661,18 +1669,18 @@ def render_html(
                     + " } }"
                 )
             if (
-                "button_on_click" in table_of_contents_kwds
-                and table_of_contents_kwds["button_on_click"] is not None
+                "button_on_click" in topic_tree_kwds
+                and topic_tree_kwds["button_on_click"] is not None
             ):
-                toc_replacements = FormattingDict(
+                topic_tree_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                     "button_on_click"
-                ].format_map(toc_replacements)
+                ].format_map(topic_tree_replacements)
 
     elif extra_point_data is not None:
         hover_data = extra_point_data.copy()
@@ -1698,18 +1706,18 @@ def render_html(
                 + " } }"
             )
         if (
-            "button_on_click" in table_of_contents_kwds
-            and table_of_contents_kwds["button_on_click"] is not None
+            "button_on_click" in topic_tree_kwds
+            and topic_tree_kwds["button_on_click"] is not None
         ):
-            toc_replacements = FormattingDict(
+            topic_tree_replacements = FormattingDict(
                 **{
                     str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                     for name in hover_data.columns
                 }
             )
-            table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+            topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                 "button_on_click"
-            ].format_map(toc_replacements)
+            ].format_map(topic_tree_replacements)
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
@@ -1919,7 +1927,7 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
-    table_of_contents_kwds = {**_TOC_DEFAULT_KWDS, **table_of_contents_kwds}
+    topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1953,7 +1961,7 @@ def render_html(
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
             enable_histogram,
-            enable_table_of_contents,
+            enable_topic_tree,
             selection_handler,
             cdn_url=cdn_url,
         ),
@@ -1963,7 +1971,7 @@ def render_html(
             enable_histogram,
             enable_lasso_selection,
             enable_colormap_selector,
-            enable_table_of_contents,
+            enable_topic_tree,
             enable_dynamic_tooltip,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
@@ -1971,7 +1979,7 @@ def render_html(
             enable_histogram,
             show_loading_progress,
             enable_colormap_selector,
-            enable_table_of_contents,
+            enable_topic_tree,
         ),
     }
 
@@ -2067,10 +2075,10 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
-        enable_table_of_contents=enable_table_of_contents,
+        enable_topic_tree=enable_topic_tree,
         **{
-            f"table_of_contents_{key}": json.dumps(value)
-            for key, value in table_of_contents_kwds.items()
+            f"topic_tree_{key}": json.dumps(value)
+            for key, value in topic_tree_kwds.items()
         },
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,

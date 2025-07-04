@@ -1,0 +1,187 @@
+#topic-tree {
+    display: block;
+    height: fit-content;
+    width: fit-content;
+}
+
+#topic-tree-body {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    /* max-height: 42vh;
+    max-width: 30vw; */
+}
+
+/* Add some padding to prevent scroll bar from overlapping content */
+#topic-tree-body > .nested {
+    display: block;
+    padding-right: 10px;
+}
+/* Add some padding to prevent scroll bar from overlapping content */
+#topic-tree > .nested {
+    display: block;
+    padding-right: 10px;
+}
+
+.topic-tree-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.topic-tree-header {
+    padding: 0px 4px 4px 2em;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 4px;
+    margin-top: -2em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: row;
+    text-wrap: nowrap;
+    overflow: hidden;
+}
+
+.nested {
+    display: none;
+    margin-left: 20px;
+    list-style-type: none;
+    padding-inline-start: 10px;
+}
+
+.nested.active {
+    display: block;
+}
+
+/* Optional: Style the scrollbar for webkit browsers */
+#topic-tree::-webkit-scrollbar {
+    width: 8px;
+}
+
+#topic-tree-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+#topic-tree-body::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+#topic-tree-body::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+.caret {
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
+}
+
+.caret::before {
+    content: "\25B6";
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.caret-down::before {
+    transform: rotate(90deg);
+}
+
+.caret.unlabeled::before {
+    content: "\25b7";
+}
+
+.bullet {
+    cursor: pointer;
+    user-select: none;
+    padding: 2px 4px;
+    border-radius: 3px;
+    opacity: 0.4;
+    transition: opacity 0.3s ease;
+}
+
+.bullet::before {
+    content: "\25CF";
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.bullet.unlabeled::before {
+    content: "\25CB";
+}
+
+li {
+    list-style-type: none;
+    margin: 5px 0;
+}
+
+/* table of contents buttons */
+.topic-tree-btn {
+    border: none; /* Remove borders */
+    color: white; /* White text */
+    padding: 2px 4px;
+    border-radius: 5px;
+    cursor: pointer; /* Mouse pointer on hover */
+    margin-right:5px;
+}
+
+/* Darker background on mouse-over */
+.topic-tree-btn:hover {
+    background-color: RoyalBlue;
+}
+
+/* table of contents labels */
+.topic-tree-label {
+    border: none; /* Remove borders */
+    cursor: pointer; /* Mouse pointer on hover */
+}
+
+/* Darker background on mouse-over */
+.topic-tree-label:hover {
+    text-decoration: underline;
+}
+
+.expand-all-btn {
+    padding: 4px 8px;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    background: #3ba5e7;
+    color: white;
+}
+
+.expand-all-btn:hover {
+    text-decoration: underline;
+}
+
+/* Highlight styling */
+.highlighted {
+    opacity: 1.0;
+    transition: opacity 0.3s ease;
+}
+
+.topic-tree-close-btn {
+    font-size: 1.5em;
+    font-weight: bold;
+    border: none;
+    padding: 0px 02px;
+    cursor: pointer;
+    transform: rotate(270deg);
+    transition: transform 0.25s ease-in-out;
+    margin: -2px;
+    background: none;
+    color: inherit;
+}
+
+.topic-tree-close-btn.closed {
+    font-size: 1.5em;
+    font-weight: bold;
+    border: none;
+    padding: 0px 0px;
+    cursor: pointer;
+    transition: transform 0.25s ease-in-out;
+    transform: rotate(90deg);
+    margin: -2px;
+    background: none;
+    color: inherit;
+}
