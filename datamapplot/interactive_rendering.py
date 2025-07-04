@@ -1634,7 +1634,7 @@ def render_html(
                 )
 
             if (
-                "button_on_click" in topic_tree_kwds_kwds
+                "button_on_click" in topic_tree_kwds
                 and topic_tree_kwds["button_on_click"] is not None
             ):
                 topic_tree_replacements = FormattingDict(
