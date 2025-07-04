@@ -358,7 +358,7 @@ def create_interactive_plot(
     polygon_alpha=0.1,
     cvd_safer=False,
     jupyterhub_api_token=None,
-    enable_table_of_contents=False,
+    enable_topic_tree=False,
     **render_html_kwds,
 ):
     """
@@ -468,8 +468,8 @@ def create_interactive_plot(
         This should not be necessary for most users, but can be useful in some environments where
         the default token is not available.
 
-    enable_table_of_contents: bool (optional, default=False)
-        Whether to build and display a table of contents with the label heirarchy.
+    enable_topic_tree: bool (optional, default=False)
+        Whether to build and display a topic tree with the label heirarchy.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -497,7 +497,8 @@ def create_interactive_plot(
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
         )
-    elif enable_table_of_contents:
+    elif enable_topic_tree:
+        include_related_points = True if render_html_kwds.get('topic_tree_kwds',{}).get('button_on_click') is not None else False
         # This method of allowing label_text_and_polygon_dataframes to edit parents is unsavory,
         # but means that the function has the same return statement each time and we can still use
         # list comprehension.
@@ -511,13 +512,14 @@ def create_interactive_plot(
                 use_medoids=use_medoids,
                 cluster_polygons=cluster_boundary_polygons,
                 alpha=polygon_alpha,
-                include_related_points=True,
+                include_zoom_bounds=True,
+                include_related_points=include_related_points,
                 parents=parents,
             )
             for labels in label_layers[::-1]
         ]
 
-        # Mark the lowest layer labels so they can be displayed differently in the table of contents.
+        # Mark the lowest layer labels so they can be displayed differently in the topic tree.
         #
         label_lists[-1]["lowest_layer"] = True
 
@@ -537,7 +539,7 @@ def create_interactive_plot(
             ]
         )
 
-    # Split out the noise labels (placeholders for table of contents) so we can make color palettes.
+    # Split out the noise labels (placeholders for topic tree) so we can make color palettes.
     #
     noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]
     label_dataframe = label_dataframe[label_dataframe["label"] != noise_label]
@@ -679,7 +681,7 @@ def create_interactive_plot(
         noise_color=noise_color,
         label_layers=label_layers,
         cluster_colormap=color_map | {noise_label:noise_color},
-        enable_table_of_contents=enable_table_of_contents,
+        enable_topic_tree=enable_topic_tree,
         **render_html_kwds,
     )
 

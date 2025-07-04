@@ -1,10 +1,10 @@
-#table-of-contents {
+#topic-tree {
     display: block;
     height: fit-content;
     width: fit-content;
 }
 
-#toc-body {
+#topic-tree-body {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
@@ -13,22 +13,22 @@
 }
 
 /* Add some padding to prevent scroll bar from overlapping content */
-#toc-body > .nested {
+#topic-tree-body > .nested {
     display: block;
     padding-right: 10px;
 }
 /* Add some padding to prevent scroll bar from overlapping content */
-#table-of-contents > .nested {
+#topic-tree > .nested {
     display: block;
     padding-right: 10px;
 }
 
-.toc-container {
+.topic-tree-container {
     display: flex;
     flex-direction: column;
 }
 
-.toc-header {
+.topic-tree-header {
     padding: 0px 4px 4px 2em;
     border-bottom: 1px solid #ddd;
     margin-bottom: 4px;
@@ -53,18 +53,18 @@
 }
 
 /* Optional: Style the scrollbar for webkit browsers */
-#table-of-contents::-webkit-scrollbar {
+#topic-tree::-webkit-scrollbar {
     width: 8px;
 }
 
-#toc-body::-webkit-scrollbar-track {
+#topic-tree-body::-webkit-scrollbar-track {
     background: #f1f1f1;
 }
-#toc-body::-webkit-scrollbar-thumb {
+#topic-tree-body::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 4px;
 }
-#toc-body::-webkit-scrollbar-thumb:hover {
+#topic-tree-body::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
@@ -116,7 +116,7 @@ li {
 }
 
 /* table of contents buttons */
-.toc-btn {
+.topic-tree-btn {
     border: none; /* Remove borders */
     color: white; /* White text */
     padding: 2px 4px;
@@ -126,18 +126,18 @@ li {
 }
 
 /* Darker background on mouse-over */
-.toc-btn:hover {
+.topic-tree-btn:hover {
     background-color: RoyalBlue;
 }
 
 /* table of contents labels */
-.toc-label {
+.topic-tree-label {
     border: none; /* Remove borders */
     cursor: pointer; /* Mouse pointer on hover */
 }
 
 /* Darker background on mouse-over */
-.toc-label:hover {
+.topic-tree-label:hover {
     text-decoration: underline;
 }
 
@@ -160,7 +160,7 @@ li {
     transition: opacity 0.3s ease;
 }
 
-.toc-close-btn {
+.topic-tree-close-btn {
     font-size: 1.5em;
     font-weight: bold;
     border: none;
@@ -173,7 +173,7 @@ li {
     color: inherit;
 }
 
-.toc-close-btn.closed {
+.topic-tree-close-btn.closed {
     font-size: 1.5em;
     font-weight: bold;
     border: none;

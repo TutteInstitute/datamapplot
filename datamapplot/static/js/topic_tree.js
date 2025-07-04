@@ -1,4 +1,4 @@
-// Helper to get the next nested list out of the table of contents.
+// Helper to get the next nested list out of the topic tree.
 var getNextSibling = function (elem, selector) {
     // Get the next sibling element
     var sibling = elem.nextElementSibling;
@@ -14,13 +14,13 @@ var getNextSibling = function (elem, selector) {
     }
 };
 
-function formatTocButtonHtml(icon, labelId) {
-    return `<button class="toc-btn" data-label-id="${labelId}">${icon}</button>`;
+function formatTopicTreeButtonHtml(icon, labelId) {
+    return `<button class="topic-tree-btn" data-label-id="${labelId}">${icon}</button>`;
 }
 
-class TableOfContents {
+class TopicTree {
     constructor(
-        tocContainer,
+        topicTreeContainer,
         datamap,
         buttons,
         icon,
@@ -32,7 +32,7 @@ class TableOfContents {
             colorBullets: false,
         }
     ) {
-        this.container = tocContainer;
+        this.container = topicTreeContainer;
         this.datamap = datamap;
         this.colorBullets = options.colorBullets;
         this.maxWidth = options.maxWidth;
@@ -46,13 +46,13 @@ class TableOfContents {
         this.container.style.fontSize = this.fontSize;
 
         this.showHideButton = document.createElement('button');
-        this.showHideButton.classList.add('toc-close-btn');
+        this.showHideButton.classList.add('topic-tree-close-btn');
         this.showHideButton.innerHTML = '&#10095;';
         this.container.appendChild(this.showHideButton);
 
-        this.tocContainer = document.createElement('div');
+        this.topicTreeContainer = document.createElement('div');
         this.header = document.createElement('div');
-        this.header.classList.add('toc-header');
+        this.header.classList.add('topic-tree-header');
         this.heading = document.createElement('h3');
         this.heading.textContent = this.title;
         this.expandAllBtn = document.createElement('button');
@@ -62,18 +62,18 @@ class TableOfContents {
 
         this.header.appendChild(this.heading);
         this.header.appendChild(this.expandAllBtn);
-        this.tocContainer.appendChild(this.header);
+        this.topicTreeContainer.appendChild(this.header);
 
-        this.tocBody = document.createElement('div');
-        this.tocBody.id = 'toc-body';
-        this.tocBody.style.maxWidth = this.maxWidth;
-        this.tocBody.style.maxHeight = this.maxHeight;
-        this.tocBody.innerHTML = this.buildTreeHtml(buttons, icon);
-        this.tocBody.style.textWrap = 'nowrap';
-        this.tocBody.style.overflowX = 'auto';
-        this.tocContainer.appendChild(this.tocBody);
+        this.topicTreeBody = document.createElement('div');
+        this.topicTreeBody.id = 'topic-tree-body';
+        this.topicTreeBody.style.maxWidth = this.maxWidth;
+        this.topicTreeBody.style.maxHeight = this.maxHeight;
+        this.topicTreeBody.innerHTML = this.buildTreeHtml(buttons, icon);
+        this.topicTreeBody.style.textWrap = 'nowrap';
+        this.topicTreeBody.style.overflowX = 'auto';
+        this.topicTreeContainer.appendChild(this.topicTreeBody);
 
-        this.container.appendChild(this.tocContainer);
+        this.container.appendChild(this.topicTreeContainer);
     
         this.spanCache = new Map();
         this.parentChainCache = new Map();
@@ -112,8 +112,8 @@ class TableOfContents {
                     ${children.map(label => `
                         <li>
                             <span class="${label.lowest_layer ? 'bullet' : 'caret'} ${label.id.endsWith('-1') ? 'unlabeled' : ''}" data-element-id="${label.id}" style="color: rgb(${label.r}, ${label.g}, ${label.b});">
-                            </span>${buttons ? formatTocButtonHtml(icon, label.id) : ''}
-                            <span class="toc-label" data-bounds="${JSON.stringify(label.bounds)}" data-label-id="${label.id}">
+                            </span>${buttons ? formatTopicTreeButtonHtml(icon, label.id) : ''}
+                            <span class="topic-tree-label" data-bounds="${JSON.stringify(label.bounds)}" data-label-id="${label.id}">
                                 ${label.label || label.id}
                             </span>
                             ${this.buildTreeHtml(buttons, icon, label.id)}
@@ -127,8 +127,8 @@ class TableOfContents {
                 ${children.map(label => `
                     <li>
                         <span class="${label.lowest_layer ? 'bullet' : 'caret'} ${label.id.endsWith('-1') ? 'unlabeled' : ''}" data-element-id="${label.id}">
-                        </span>${buttons ? formatTocButtonHtml(icon, label.id) : ''}
-                        <span class="toc-label" data-bounds="${JSON.stringify(label.bounds)}" data-label-id="${label.id}">
+                        </span>${buttons ? formatTopicTreeButtonHtml(icon, label.id) : ''}
+                        <span class="topic-tree-label" data-bounds="${JSON.stringify(label.bounds)}" data-label-id="${label.id}">
                             ${label.label || label.id}
                         </span>
                         ${this.buildTreeHtml(buttons, icon, label.id)}
@@ -140,12 +140,12 @@ class TableOfContents {
     }
 
     setupLabelHandlers(datamap) {
-        var toc = this
-        this.container.querySelectorAll('.toc-label').forEach(button => {
+        var topicTree = this
+        this.container.querySelectorAll('.topic-tree-label').forEach(button => {
             button.addEventListener('click', function() {
                 const bounds = JSON.parse(this.dataset.bounds);
                 const labelId = this.dataset.labelId;
-                toc.zoomToLabelBounds(bounds, labelId);
+                topicTree.zoomToLabelBounds(bounds, labelId);
             });
         });
     }
@@ -260,20 +260,20 @@ class TableOfContents {
     }
 
     setupShowHideHandler() {
-        const tocBody = this.tocBody;
+        const topicTreeBody = this.topicTreeBody;
         const header = this.header;
         const heading = this.heading;
         const expandAllBtn = this.expandAllBtn;
-        const tocContainer = this.tocContainer;
+        const topicTreeContainer = this.topicTreeContainer;
         this.showHideButton.addEventListener('click', function() {
-            const hidden = tocContainer.hidden;
+            const hidden = topicTreeContainer.hidden;
             if (hidden) {
-                $(tocContainer).animate({height: 'show', width: 'show', opacity: 'show'}, 250);
-                tocContainer.hidden = false;
-                tocBody.style.overflowX = 'auto';
+                $(topicTreeContainer).animate({height: 'show', width: 'show', opacity: 'show'}, 250);
+                topicTreeContainer.hidden = false;
+                topicTreeBody.style.overflowX = 'auto';
                 this.classList.remove('closed');
             } else {
-                tocBody.style.overflowX = 'hidden';
+                topicTreeBody.style.overflowX = 'hidden';
                 const carets = document.querySelectorAll('.caret');
                 carets.forEach(caret => {
                     const nestedList = getNextSibling(caret, '.nested');
@@ -285,8 +285,8 @@ class TableOfContents {
                 });
                 expandAllBtn.textContent = 'Expand All';
                 expandAllBtn.dataset.expanded = 'false';
-                $(tocContainer).animate({height: 'hide', width: 'hide', opacity: 'hide'}, 250);
-                tocContainer.hidden = true;
+                $(topicTreeContainer).animate({height: 'hide', width: 'hide', opacity: 'hide'}, 250);
+                topicTreeContainer.hidden = true;
                 this.classList.add('closed');
             }
         });
