@@ -54,6 +54,7 @@ def create_plot(
     cmap=None,
     cvd_safer=False,
     marker_color_array=None,
+    use_system_fonts=False,
     **render_plot_kwds,
 ):
     """Create a static plot from ``data_map_coords`` with text labels provided by ``labels``.
@@ -167,6 +168,11 @@ def create_plot(
     marker_color_array: np.ndarray or None (optional, default=None)
         An array of colours for each of the points in the data map scatterplot. If provided
         this will override any colouring provided by the ``labels`` array.
+
+    use_system_fonts: bool (optional, default=False)
+        Whether to skip downloading fonts from Google Fonts and only use system-installed fonts.
+        This is useful when working offline, behind a firewall, or when you want to ensure 
+        consistent font rendering using only locally available fonts.
 
     **render_plot_kwds
         All other keyword arguments are passed through the ``render_plot`` which provides
@@ -325,6 +331,7 @@ def create_plot(
         force_matplotlib=force_matplotlib,
         darkmode=darkmode,
         highlight_labels=highlight_labels,
+        use_system_fonts=use_system_fonts,
         **render_plot_kwds,
     )
 
@@ -359,6 +366,7 @@ def create_interactive_plot(
     cvd_safer=False,
     jupyterhub_api_token=None,
     enable_topic_tree=False,
+    offline_data_path=None,
     **render_html_kwds,
 ):
     """
@@ -470,6 +478,13 @@ def create_interactive_plot(
 
     enable_topic_tree: bool (optional, default=False)
         Whether to build and display a topic tree with the label heirarchy.
+
+    offline_data_path: str, pathlib.Path, or None (optional, default=None)
+        If ``inline_data=False``, this specifies the path (including directory) where data 
+        files will be saved. Can be a string path or pathlib.Path object. The directory
+        will be created if it doesn't exist. If not specified, falls back to using the
+        ``offline_data_prefix`` parameter passed through ``render_html_kwds`` for backward
+        compatibility.
 
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
@@ -689,6 +704,7 @@ def create_interactive_plot(
         label_layers=label_layers,
         cluster_colormap=color_map | {noise_label: noise_color},
         enable_topic_tree=enable_topic_tree,
+        offline_data_path=offline_data_path,
         **render_html_kwds,
     )
 
