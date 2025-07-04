@@ -486,7 +486,9 @@ def create_interactive_plot(
     raw_data_height = raw_data_bounds[3] - raw_data_bounds[2]
     raw_data_scale = np.max([raw_data_width, raw_data_height])
 
-    data_map_coords = (30.0 / raw_data_scale) * (data_map_coords - np.mean(data_map_coords, axis=0))
+    data_map_coords = (30.0 / raw_data_scale) * (
+        data_map_coords - np.mean(data_map_coords, axis=0)
+    )
 
     if len(label_layers) == 0:
         label_dataframe = pd.DataFrame(
@@ -498,7 +500,12 @@ def create_interactive_plot(
             }
         )
     elif enable_topic_tree:
-        include_related_points = True if render_html_kwds.get('topic_tree_kwds',{}).get('button_on_click') is not None else False
+        include_related_points = (
+            True
+            if render_html_kwds.get("topic_tree_kwds", {}).get("button_on_click")
+            is not None
+            else False
+        )
         # This method of allowing label_text_and_polygon_dataframes to edit parents is unsavory,
         # but means that the function has the same return statement each time and we can still use
         # list comprehension.
@@ -680,7 +687,7 @@ def create_interactive_plot(
         darkmode=darkmode,
         noise_color=noise_color,
         label_layers=label_layers,
-        cluster_colormap=color_map | {noise_label:noise_color},
+        cluster_colormap=color_map | {noise_label: noise_color},
         enable_topic_tree=enable_topic_tree,
         **render_html_kwds,
     )

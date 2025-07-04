@@ -356,10 +356,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
                 font_links.append(
                     f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/woff2" />'
                 )
-        return (
-            "\n".join(font_links)
-            + f"\n<style>\n{collection.content}\n</style>\n"
-        )
+        return "\n".join(font_links) + f"\n<style>\n{collection.content}\n</style>\n"
     else:
         return ""
 
