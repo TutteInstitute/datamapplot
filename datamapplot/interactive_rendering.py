@@ -1347,6 +1347,10 @@ def render_html(
         for the supplied hover text and ``{column_name}`` for columns from
         ``extra_point_data`` (see below).
 
+    dynamic_tooltip: dict[str, str] or None (optional, default=None)
+        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript 
+        functions that are passed to DynamicTooltipManager and define the behavior of the tooltip.
+
     extra_point_data: pandas.DataFrame or None (optional, default=None)
         A dataframe of extra information about points. This should be a dataframe with
         one row per point. The information in this dataframe can be referenced by column-name
