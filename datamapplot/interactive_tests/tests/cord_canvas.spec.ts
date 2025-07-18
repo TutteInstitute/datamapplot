@@ -26,12 +26,16 @@ test.describe('Cord19 Canvas Tests', () => {
     return canvas;
   };
 
+  test('initial state', async ({ page }) => {
+    const canvas = await verifyInitialState(page);
+  });
+
   test('zoom functionality', { tag: '@slow' }, async ({ page }, testInfo) => {
-    if (testInfo.project.name === 'mobile-safari') {
-      test.skip('page.mouse.wheel is not supported on mobile webkit');
+    if (testInfo.project.name.includes('mobile-')) {
+      test.skip('page.mouse.wheel does not work right on mobile');
     } else {
       test.slow();
-      const canvas = await verifyInitialState(page);
+      const canvas = await waitForCanvas(page);
 
       // Handle hover/tap based on device
       const isMobile = testInfo.project.name.includes('mobile');
@@ -49,7 +53,7 @@ test.describe('Cord19 Canvas Tests', () => {
   });
 
   test('search functionality', { tag: '@slow' }, async ({ page }) => {
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     await page.locator('#text-search').fill('covid');
 
@@ -61,7 +65,7 @@ test.describe('Cord19 Canvas Tests', () => {
 
   test('pan functionality', { tag: '@slow' }, async ({ page }, testInfo) => {
     test.slow();
-    const canvas = await verifyInitialState(page);
+    const canvas = await waitForCanvas(page);
 
     const size = await page.evaluate(() => {
       const canvasSelector = document.querySelector('#deck-container canvas');
