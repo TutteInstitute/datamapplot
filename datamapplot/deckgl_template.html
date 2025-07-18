@@ -825,6 +825,7 @@
           {%- if histogram_title %}
           title: "{{ histogram_title }}",
           {%- endif %}
+          enableClickPersistence: {{ histogram_enable_click_persistence|lower }},
           {%- if histogram_bin_fill_color %}
           binDefaultFillColor: "{{ histogram_bin_fill_color }}",
           {%- endif %}
