@@ -28,10 +28,10 @@ const D3Histogram = (() => {
      * @private
      */
     isValidDataType = data => {
-        return typeof data[0] === 'number' || 
-               typeof data[0] === 'string' || 
-               data[0] instanceof Date || 
-               isValidDateStr(data[0]);
+        return typeof data[0] === 'number' ||
+            typeof data[0] === 'string' ||
+            data[0] instanceof Date ||
+            isValidDateStr(data[0]);
     };
 
     /**
@@ -52,9 +52,9 @@ const D3Histogram = (() => {
 
         // Constants
         static DATA_TYPE_E = Object.freeze({
-            NUMERICAL : 'number',
-            CATEGORICAL : 'string',
-            TEMPORAL : 'date'
+            NUMERICAL: 'number',
+            CATEGORICAL: 'string',
+            TEMPORAL: 'date'
         });
 
         static CLIP_BOUNDS_ID = "d3histogram-clipBounds";
@@ -63,7 +63,7 @@ const D3Histogram = (() => {
         static BIN_FOCUS_RECT_CLASS_ID = "d3histogram-binFocus";
         static BIN_MIN_WIDTH = 10;
         static BIN_MAX_WIDTH = 30;
-        static AXIS_CLASS_ID  = 'd3histogram-axis';
+        static AXIS_CLASS_ID = 'd3histogram-axis';
         static XAXIS_GROUP_ID = 'd3histogram-xaxis';
         static YAXIS_GROUP_ID = 'd3histogram-yaxis';
         static XAXIS_TICKS_NB = 4;
@@ -83,6 +83,8 @@ const D3Histogram = (() => {
          * @param {string} [binSelectedFillColor="#2EBFA5"] - The color for the selected histogram bins.
          * @param {string} [binUnselectedFillColor="#9E9E9E"] - The color for the unselected histogram bins.
          * @param {string} [binContextFillColor="#E6E6E6"] - The color for the contextual histogram bins.
+         * @param {boolean} [logScale=false] - Whether to use logarithmic scale for the y-axis.
+         * @param {boolean} [enableClickPersistence=false] - Enable persistent selection when clicking on histogram bins.
          * @param {function} [chartSelectionCallback=() => {}] - A callback function that is invoked when a selection is made on the chart.
          * @returns {D3Histogram|null} A new instance of D3Histogram if no errors occur, otherwise null.
          * @static
@@ -99,7 +101,8 @@ const D3Histogram = (() => {
             binUnselectedFillColor = "#9E9E9E",
             binContextFillColor = "#E6E6E6",
             logScale = false,
-            chartSelectionCallback = () => {}
+            enableClickPersistence = false,
+            chartSelectionCallback = () => { }
         }) {
 
             // Parameter validation
@@ -132,6 +135,7 @@ const D3Histogram = (() => {
                     binUnselectedFillColor,
                     binContextFillColor,
                     logScale,
+                    enableClickPersistence,
                     chartSelectionCallback
                 });
             } catch (error) {
@@ -155,6 +159,7 @@ const D3Histogram = (() => {
             binUnselectedFillColor,
             binContextFillColor,
             logScale,
+            enableClickPersistence,
             chartSelectionCallback
         }) {
             // Define chart dimensions
@@ -193,7 +198,7 @@ const D3Histogram = (() => {
                     binFocusSelectedFillColor: binSelectedFillColor,
                     binFocusUnselectedFillColor: binUnselectedFillColor,
                     chartSelectionCallback
-                },     
+                },
                 peripherals: {
                     header: {
                         title: title.length !== 0 ? title : "DataMap Distribution",
@@ -202,12 +207,12 @@ const D3Histogram = (() => {
                         subtitleDiv: null,
                     },
                     axes: {
-                        xAccessor: () => {},
-                        yAccessor: () => {},
-                        xScale: () => {},
-                        yScale: () => {},
-                        xAxis: () => {},
-                        yAxis: () => {},
+                        xAccessor: () => { },
+                        yAccessor: () => { },
+                        xScale: () => { },
+                        yScale: () => { },
+                        xAxis: () => { },
+                        yAxis: () => { },
                         originalXScaleRange: null,
                     }
                 },
@@ -218,10 +223,14 @@ const D3Histogram = (() => {
                     isPanningActive: false,
                     prevPanX: 0,
                     prevHoveredBinId: -1,
-                    prevZoomK: 1
+                    prevZoomK: 1,
+                    isClickPersistenceEnabled: enableClickPersistence,
+                    clickedBinId: -1,
+                    isClickActive: false,
+                    clickJustDeactivated: false
                 }
             };
-            
+
             // this.#parseData();
             this.#parseData();
             this.#drawCanvas();
@@ -258,16 +267,16 @@ const D3Histogram = (() => {
             this.#clearFocusData();
 
             bounds.select(`#${binsFocusGroupId}`).remove();
-            
+
             // Reset context
-            this.#reset();   
+            this.#reset();
         }
 
 
         // **********************************************************************************
-//#region Data
+        //#region Data
         // **********************************************************************************
-        
+
         #parseData() {
             const { DATA_TYPE_E } = D3Histogram;
             let { dataType } = this.state.data;
@@ -278,24 +287,24 @@ const D3Histogram = (() => {
             // Get data type, and aggregate the raw data based on its type
             const value = rawBinData[0].mean_value;
 
-            if (typeof value === 'number') { 
+            if (typeof value === 'number') {
                 dataType = DATA_TYPE_E.NUMERICAL;
             }
-            else if (isValidDateStr(value)) { 
+            else if (isValidDateStr(value)) {
                 dataType = DATA_TYPE_E.TEMPORAL;
             }
             else {
-                dataType = DATA_TYPE_E.CATEGORICAL; 
+                dataType = DATA_TYPE_E.CATEGORICAL;
             }
 
             rawBinData.forEach(bin => {
                 const parsedBin = {
-                  id: bin.id,
-                  min: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.min_value) : bin.min_value, 
-                  max: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.max_value) : bin.max_value, 
-                  mean: dataType === DATA_TYPE_E.CATEGORICAL ? bin.id : bin.mean_value, 
-                  label: bin.mean_value, 
-                  indices: new Set(bin.indices)
+                    id: bin.id,
+                    min: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.min_value) : bin.min_value,
+                    max: dataType === DATA_TYPE_E.TEMPORAL ? new Date(bin.max_value) : bin.max_value,
+                    mean: dataType === DATA_TYPE_E.CATEGORICAL ? bin.id : bin.mean_value,
+                    label: bin.mean_value,
+                    indices: new Set(bin.indices)
                 };
                 binsData.set(bin.id, parsedBin);
             });
@@ -317,7 +326,7 @@ const D3Histogram = (() => {
         */
         #parseFocusData(selectedIndices) {
             const { binsData, indicesData } = this.state.data;
-           
+
             // Set up focus raw data
             const rawFocusData = new Map();
             binsData.forEach(bin => {
@@ -343,7 +352,7 @@ const D3Histogram = (() => {
 
             // Aggregate raw data based on its type
             const binsFocusData = rawFocusData;
-            
+
             this.state.data.rawFocusData = rawFocusData;
             this.state.data.binsFocusData = binsFocusData;
         }
@@ -356,30 +365,30 @@ const D3Histogram = (() => {
         */
         #clearFocusData() {
             let { rawFocusData, binsFocusData } = this.state.data;
-            
+
             rawFocusData = null;
             binsFocusData = null;
-            
+
             this.state.data.rawFocusData = rawFocusData;
-            this.state.data.binsFocusData = binsFocusData;         
+            this.state.data.binsFocusData = binsFocusData;
         }
 
-//#endregion Data
+        //#endregion Data
 
 
 
         // **********************************************************************************
-//#region Chart
+        //#region Chart
         // **********************************************************************************
         /**
          * Draws chart canvas.
          * 
          * @returns {undefined} No return value.
          * @private
-        */    
+        */
         #drawCanvas() {
-            const { chartContainerId, dimensions,  } = this.state.chart;
-            let { wrapper , bounds } = this.state.chart;
+            const { chartContainerId, dimensions, } = this.state.chart;
+            let { wrapper, bounds } = this.state.chart;
 
             wrapper = d3.select(`#${chartContainerId}`)
                 .append("svg")
@@ -398,58 +407,58 @@ const D3Histogram = (() => {
          * 
          * @returns {undefined} No return value.
          * @private
-        */    
-        #drawChart() {   
-            const { 
-                CLIP_BOUNDS_ID, BIN_RECT_CLASS_ID, AXIS_CLASS_ID, XAXIS_GROUP_ID, YAXIS_GROUP_ID, 
-                XAXIS_TICKS_NB, YAXIS_TICKS_NB 
+        */
+        #drawChart() {
+            const {
+                CLIP_BOUNDS_ID, BIN_RECT_CLASS_ID, AXIS_CLASS_ID, XAXIS_GROUP_ID, YAXIS_GROUP_ID,
+                XAXIS_TICKS_NB, YAXIS_TICKS_NB
             } = D3Histogram;
             const { dimensions, chartContainerId, bounds, binDefaultFillColor, logScale } = this.state.chart;
             const { title } = this.state.peripherals.header;
             const binsData = Array.from(this.state.data.binsData.values());
             let { overallBinMin, overallBinMax } = this.state.data;
-            
+
             // Define accessors & scales
             // --------------------------
             const xAccessor = d => d.mean;
             const yAccessor = d => d.indices.size;
-            
+
             const xScale = d3.scaleBand()
                 .domain(binsData.map(d => xAccessor(d)))
                 .range([0, dimensions.boundedWidth])
                 .padding(0.1);
 
-            xScale.invert = function(_) {
+            xScale.invert = function (_) {
                 const scale = this;
                 const domain = scale.domain;
                 const paddingOuter = scale.paddingOuter();
                 // const paddingInner = scale.paddingInner();
                 const step = scale.step();
-            
+
                 const range = scale.range();
                 var domainIndex,
                     n = domain().length,
                     reverse = range[1] < range[0],
                     start = range[reverse - 0],
                     stop = range[1 - reverse];
-            
+
                 if (_ < start + paddingOuter * step) domainIndex = 0;
                 else if (_ > stop - paddingOuter * step) domainIndex = n - 1;
                 else domainIndex = Math.floor((_ - start - paddingOuter * step) / step);
-            
+
                 return domain()[domainIndex];
             };
 
             let yScale = null;
             if (logScale) {
-                 yScale = d3.scaleSymlog()
+                yScale = d3.scaleSymlog()
                     .domain([0, d3.max(binsData, yAccessor)])
                     .range([dimensions.boundedHeight, 0]);
             } else {
                 yScale = d3.scaleLinear()
-                .domain([0, d3.max(binsData, yAccessor)])
-                .range([dimensions.boundedHeight, 0]);
-            }                
+                    .domain([0, d3.max(binsData, yAccessor)])
+                    .range([dimensions.boundedHeight, 0]);
+            }
 
 
             this.state.peripherals.axes.originalXScaleRange = xScale.range();
@@ -491,7 +500,7 @@ const D3Histogram = (() => {
             bounds.append("g")
                 .attr("id", YAXIS_GROUP_ID)
                 .attr("class", AXIS_CLASS_ID)
-                .style("transform", `translate(-${dimensions.margin.left*.5}px, 0px)`)
+                .style("transform", `translate(-${dimensions.margin.left * .5}px, 0px)`)
                 .call(yAxis);
 
             const xAxis = d3.axisBottom(xScale)
@@ -504,7 +513,7 @@ const D3Histogram = (() => {
                 .attr("transform", `translate(0,${dimensions.boundedHeight})`)
                 .call(xAxis);
 
-                
+
             // Title & subtitle
             const chartDiv = document.getElementById(chartContainerId);
             const titleDiv = document.createElement('div');
@@ -527,10 +536,10 @@ const D3Histogram = (() => {
             });
             const subtitle = this.#getSubtitle([overallBinMin, overallBinMax]);
             d3.select(`#${subtitleDiv.id}`).html(subtitle);
-    
+
 
             this.state.data.overallBinMin = overallBinMin;
-            this.state.data.overallBinMax = overallBinMax;  
+            this.state.data.overallBinMax = overallBinMax;
             this.state.peripherals.axes.xAxis = xAxis;
             this.state.peripherals.axes.yAxis = yAxis;
             this.state.peripherals.header.title = title;
@@ -538,24 +547,24 @@ const D3Histogram = (() => {
             this.state.peripherals.header.titleDiv = titleDiv;
             this.state.peripherals.header.subtitleDiv = subtitleDiv;
         }
-    
+
         /**
          * Draws the focus chart.
          * 
          * @returns {undefined} No return value.
          * @private
-        */   
+        */
         #drawFocusChart() {
             const { CLIP_BOUNDS_ID, BIN_FOCUS_GROUP_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
             const { xAccessor, yAccessor, xScale, yScale } = this.state.peripherals.axes;
-            const { binFocusDefaultFillColor, dimensions, bounds } = this.state.chart; 
+            const { binFocusDefaultFillColor, dimensions, bounds } = this.state.chart;
             let binsFocusData = Array.from(this.state.data.binsFocusData.values());
 
             // Remove prior focus bins, if any
             bounds.select(`#${BIN_FOCUS_GROUP_ID}`).remove();
 
             // Draw focus bins
-            const binsFocusGroup = bounds.append("g").attr("id", BIN_FOCUS_GROUP_ID); 
+            const binsFocusGroup = bounds.append("g").attr("id", BIN_FOCUS_GROUP_ID);
             const binsFocusGroups = binsFocusGroup.selectAll("g")
                 .data(binsFocusData)
                 .join("g");
@@ -565,7 +574,7 @@ const D3Histogram = (() => {
                 .attr("x", d => xScale(xAccessor(d)))
                 .attr("y", d => yScale(yAccessor(d)))
                 .attr("width", xScale.bandwidth())
-                .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d))) 
+                .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d)))
                 .attr("fill", binFocusDefaultFillColor)
                 .attr("clip-path", `url(#${CLIP_BOUNDS_ID})`);
         }
@@ -581,28 +590,52 @@ const D3Histogram = (() => {
         /**
          * Resets the chart and peripherals to their default state.
          * 
+         * @param {boolean} preserveClick - Whether to preserve click state during reset
          * @returns {undefined} No return value.
          * @private
          */
-        #reset() {
-            const { 
-                BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID, 
-                YAXIS_GROUP_ID, INTERACTION_CONTAINER_ID 
+        #reset(preserveClick = false) {
+            const {
+                BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID,
+                YAXIS_GROUP_ID, INTERACTION_CONTAINER_ID
             } = D3Histogram;
             const { overallBinMin, overallBinMax } = this.state.data;
             const { subtitleDiv } = this.state.peripherals.header;
             const { brush } = this.state.interactions;
-            const { 
-                binDefaultFillColor, binContextFillColor, 
-                binFocusDefaultFillColor, 
-                chartSelectionCallback 
+            const {
+                binDefaultFillColor, binContextFillColor,
+                binFocusDefaultFillColor,
+                chartSelectionCallback
             } = this.state.chart;
-            let { 
-                isBrushingActive, prevBrushedDomain, 
-                isPanningActive, prevPanX, 
-                prevHoveredBinId 
+            let {
+                isBrushingActive, prevBrushedDomain,
+                isPanningActive, prevPanX,
+                prevHoveredBinId,
+                isClickActive, clickedBinId
             } = this.state.interactions;
 
+            // If there's an active click and we want to preserve it, don't reset colors or callback
+            if (preserveClick && isClickActive) {
+                // Only reset interactions that are not click-related
+                d3.select(`#${INTERACTION_CONTAINER_ID}`).call(brush.clear);
+                prevBrushedDomain = null;
+                isBrushingActive = false;
+                isPanningActive = false;
+                prevHoveredBinId = -1;
+                prevPanX = 0;
+
+                d3.select(`#${YAXIS_GROUP_ID}`).raise();
+                d3.select(`#${INTERACTION_CONTAINER_ID}`).raise();
+
+                this.state.interactions.isBrushingActive = isBrushingActive;
+                this.state.interactions.prevBrushedDomain = prevBrushedDomain;
+                this.state.interactions.prevHoveredBinId = prevHoveredBinId;
+                this.state.interactions.isPanningActive = isPanningActive;
+                this.state.interactions.prevPanX = prevPanX;
+                return;
+            }
+
+            // Complete reset (original behavior)
             // Reset bins
             d3.selectAll(`.${BIN_RECT_CLASS_ID}`).style("fill", this.#hasFocusChart() ? binContextFillColor : binDefaultFillColor);
             d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`).style("fill", binFocusDefaultFillColor);
@@ -621,7 +654,9 @@ const D3Histogram = (() => {
             isPanningActive = false;
             prevHoveredBinId = -1;
             prevPanX = 0;
-            
+            isClickActive = false;
+            clickedBinId = -1;
+
             d3.select(`#${YAXIS_GROUP_ID}`).raise();
             d3.select(`#${INTERACTION_CONTAINER_ID}`).raise();
 
@@ -629,15 +664,17 @@ const D3Histogram = (() => {
             this.state.interactions.prevBrushedDomain = prevBrushedDomain;
             this.state.interactions.prevHoveredBinId = prevHoveredBinId;
             this.state.interactions.isPanningActive = isPanningActive;
-            this.state.interactions.prevPanX = prevPanX;    
+            this.state.interactions.prevPanX = prevPanX;
+            this.state.interactions.isClickActive = isClickActive;
+            this.state.interactions.clickedBinId = clickedBinId;
         }
 
-//#endregion Chart
+        //#endregion Chart
 
 
 
         // **********************************************************************************
-//#region Interactions
+        //#region Interactions
         // **********************************************************************************
 
         /**
@@ -648,16 +685,20 @@ const D3Histogram = (() => {
         */
         #initInteractions() {
             const { INTERACTION_CONTAINER_ID, BIN_MAX_WIDTH } = D3Histogram;
-            const { dimensions, bounds } = this.state.chart; 
+            const { dimensions, bounds } = this.state.chart;
             const { binCount } = this.state.data;
             let { brush } = this.state.interactions;
-            
+
             // Set brushing behavior
             brush = d3.brushX()
                 .extent([[0, 0], [dimensions.boundedWidth, dimensions.boundedHeight]])
+                .filter(event => {
+                    // Allow brush only with Shift+click or drag, not with simple clicks
+                    return event.shiftKey || event.type === 'mousedown' && event.detail > 1;
+                })
                 .on("brush", e => this.#handleBrush(e))
                 .on("end", e => this.#handleBrushEnd(e));
-        
+
             bounds.append("g")
                 .attr("id", INTERACTION_CONTAINER_ID)
                 .call(brush);
@@ -667,10 +708,11 @@ const D3Histogram = (() => {
                 .on('mousedown', e => this.#handleMouseDown(e))
                 .on('mouseup', e => this.#handleMouseUp(e))
                 .on('mousemove', e => this.#handleMouseMove(e))
-                .on('mouseleave', e => this.#handleMouseLeave(e));
+                .on('mouseleave', e => this.#handleMouseLeave(e))
+                .on('click', e => this.#handleClick(e));
 
             // Set zoom behavior
-            const maxK =  (binCount * BIN_MAX_WIDTH) / dimensions.boundedWidth;
+            const maxK = (binCount * BIN_MAX_WIDTH) / dimensions.boundedWidth;
 
             const zoom = d3.zoom()
                 .scaleExtent([1, maxK])
@@ -679,8 +721,8 @@ const D3Histogram = (() => {
                 .filter(event => event.type === 'wheel')
                 .on("zoom", e => this.#handleZoom(e));
 
-            d3.select(`#${INTERACTION_CONTAINER_ID}`).call(zoom);    
-    
+            d3.select(`#${INTERACTION_CONTAINER_ID}`).call(zoom);
+
             this.state.interactions.brush = brush;
         }
 
@@ -697,10 +739,10 @@ const D3Histogram = (() => {
          */
         #handleBrush(e) {
             const { DATA_TYPE_E, BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
-            const { 
-                binSelectedFillColor, binUnselectedFillColor, binContextFillColor, 
-                binFocusSelectedFillColor, binFocusUnselectedFillColor, 
-                chartSelectionCallback 
+            const {
+                binSelectedFillColor, binUnselectedFillColor, binContextFillColor,
+                binFocusSelectedFillColor, binFocusUnselectedFillColor,
+                chartSelectionCallback
             } = this.state.chart;
             const { xAccessor, xScale } = this.state.peripherals.axes;
             const { subtitleDiv } = this.state.peripherals.header;
@@ -728,22 +770,22 @@ const D3Histogram = (() => {
             });
             const brushedBinIds = brushedBins.map(b => b.id);
 
-            if (prevBrushedDomain != null && 
+            if (prevBrushedDomain != null &&
                 prevBrushedDomain[0] === brushedDomainBinned[0] &&
                 prevBrushedDomain[1] === brushedDomainBinned[1]) { return; }
             prevBrushedDomain = brushedDomainBinned;
-            
+
             // Update bins
             d3.selectAll(`.${BIN_RECT_CLASS_ID}`)
-                .style("fill", this.#hasFocusChart() ? binContextFillColor 
+                .style("fill", this.#hasFocusChart() ? binContextFillColor
                     : (_, i) => brushedBinIds.includes(i)
-                    ? binSelectedFillColor : binUnselectedFillColor
-            );
+                        ? binSelectedFillColor : binUnselectedFillColor
+                );
 
             d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`)
-            .style("fill", (_, i) => brushedBinIds.includes(i)
-                ?  binFocusSelectedFillColor : binFocusUnselectedFillColor
-            );
+                .style("fill", (_, i) => brushedBinIds.includes(i)
+                    ? binFocusSelectedFillColor : binFocusUnselectedFillColor
+                );
 
             // Update subtitle
             const subtitle = this.#getSubtitle(brushedDomainBinned);
@@ -752,7 +794,7 @@ const D3Histogram = (() => {
             // Update datamap plot
             let brushedIndices = new Set();
             brushedBins.forEach(b => {
-              brushedIndices = brushedIndices.union(b.indices);
+                brushedIndices = brushedIndices.union(b.indices);
             });
             chartSelectionCallback(brushedIndices);
 
@@ -816,6 +858,7 @@ const D3Histogram = (() => {
             this.state.interactions.prevPanX = prevPanX;
         }
 
+
         /**
          * Handles the mouse up interaction on the chart.
          * It deactivates panning if the middle mouse button is released.
@@ -853,7 +896,7 @@ const D3Histogram = (() => {
             if (isBrushingActive) { return; }
 
             if (isPanningActive) {
-                this.#handlePan(e); 
+                this.#handlePan(e);
             }
             else {
                 this.#handleHover(e);
@@ -869,9 +912,15 @@ const D3Histogram = (() => {
          * @private
          */
         #handleMouseLeave(_) {
-            const { isBrushingActive } = this.state.interactions;
+            const { isBrushingActive, isClickActive } = this.state.interactions;
 
-            if (!isBrushingActive) { this.#reset(); }
+
+            if (!isBrushingActive && !isClickActive) {
+
+                this.#reset();
+            } else {
+
+            }
         }
 
         /**
@@ -885,15 +934,18 @@ const D3Histogram = (() => {
         */
         #handleHover(e) {
             const { BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
-            const { 
+            const {
                 binSelectedFillColor, binUnselectedFillColor, binContextFillColor,
-                binFocusSelectedFillColor, binFocusUnselectedFillColor, 
-                chartSelectionCallback 
+                binFocusSelectedFillColor, binFocusUnselectedFillColor,
+                chartSelectionCallback
             } = this.state.chart;
             const { xAccessor, xScale } = this.state.peripherals.axes;
             const { subtitleDiv } = this.state.peripherals.header;
             const { binsData, binsFocusData } = this.state.data;
-            let { prevHoveredBinId } = this.state.interactions;
+            let { prevHoveredBinId, isClickActive, clickedBinId } = this.state.interactions;
+            if (isClickActive || this.state.interactions.clickJustDeactivated) {
+                return;
+            }
 
             // Locate hovered bin
             const data = this.#hasFocusChart() ? binsFocusData : binsData;
@@ -919,15 +971,15 @@ const D3Histogram = (() => {
 
             // Update bins
             d3.selectAll(`.${BIN_RECT_CLASS_ID}`)
-                .style("fill", (_, i) => this.#hasFocusChart() 
-                                        ? binContextFillColor 
-                                        : i == hoveredBinId ? binSelectedFillColor : binUnselectedFillColor);
+                .style("fill", (_, i) => this.#hasFocusChart()
+                    ? binContextFillColor
+                    : i == hoveredBinId ? binSelectedFillColor : binUnselectedFillColor);
 
             d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`)
-                .style("fill", (_, i) =>  i == hoveredBinId ? binFocusSelectedFillColor : binFocusUnselectedFillColor);
+                .style("fill", (_, i) => i == hoveredBinId ? binFocusSelectedFillColor : binFocusUnselectedFillColor);
 
             // Update datamap plot
-            chartSelectionCallback(hoveredBin.indices); 
+            chartSelectionCallback(hoveredBin.indices);
 
 
             this.state.interactions.prevHoveredBinId = prevHoveredBinId;
@@ -948,13 +1000,13 @@ const D3Histogram = (() => {
             const { binsData } = this.state.data;
             let { xScale, yScale } = this.state.peripherals.axes;
             let { prevPanX } = this.state.interactions;
-            
+
             // Calculate delta in x direction
             const dX = e.clientX - prevPanX;
             prevPanX = e.clientX;
 
             // Update x-scale and x-axis
-            let pannedRange = xScale.range().map(d => d+dX);
+            let pannedRange = xScale.range().map(d => d + dX);
 
             if (pannedRange[1] < originalXScaleRange[1]) {
                 pannedRange = [pannedRange[0] + originalXScaleRange[1] - pannedRange[1], originalXScaleRange[1]];
@@ -962,14 +1014,14 @@ const D3Histogram = (() => {
                 pannedRange = [originalXScaleRange[0], pannedRange[1] - pannedRange[0] - originalXScaleRange[0]];
             }
 
-           xScale.range(pannedRange);
-           wrapper.select(`#${XAXIS_GROUP_ID}`).call(xAxis);
+            xScale.range(pannedRange);
+            wrapper.select(`#${XAXIS_GROUP_ID}`).call(xAxis);
 
             // Update y-scale and y-axis
             const pannedDomain = originalXScaleRange.map(xScale.invert, xScale);
             const pannedBinsData = Array.from(binsData.values()).filter(d => xAccessor(d) >= pannedDomain[0] && xAccessor(d) <= pannedDomain[1]);
 
-            yScale.domain([0, d3.max(pannedBinsData, yAccessor)]);      
+            yScale.domain([0, d3.max(pannedBinsData, yAccessor)]);
             wrapper.select(`#${YAXIS_GROUP_ID}`)
                 .transition()
                 .call(yAxis);
@@ -996,23 +1048,23 @@ const D3Histogram = (() => {
             const { isBrushingActive } = this.state.interactions;
             const { dimensions, wrapper } = this.state.chart;
             const { binsData } = this.state.data;
-            const { 
-                XAXIS_GROUP_ID, YAXIS_GROUP_ID, XAXIS_TICKS_NB, 
-                BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID 
+            const {
+                XAXIS_GROUP_ID, YAXIS_GROUP_ID, XAXIS_TICKS_NB,
+                BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID
             } = D3Histogram;
-            const { 
-                originalXScaleRange, xAccessor, yAccessor, 
-                xScale, yScale, xAxis, yAxis 
-            } = this.state.peripherals.axes; 
+            const {
+                originalXScaleRange, xAccessor, yAccessor,
+                xScale, yScale, xAxis, yAxis
+            } = this.state.peripherals.axes;
             let { prevZoomK } = this.state.interactions;
 
-            if(isBrushingActive || e.sourceEvent.type !== "wheel" || prevZoomK == e.transform.k) return;
+            if (isBrushingActive || e.sourceEvent.type !== "wheel" || prevZoomK == e.transform.k) return;
             prevZoomK = e.transform.k;
-        
+
             // Update x-scale and x-axis
             xScale.range([0, dimensions.boundedWidth].map(d => e.transform.applyX(d)));
-            
-            xAxis.tickValues(this.#getAxisTickValues(xScale, XAXIS_TICKS_NB*e.transform.k));
+
+            xAxis.tickValues(this.#getAxisTickValues(xScale, XAXIS_TICKS_NB * e.transform.k));
 
             wrapper.select(`#${XAXIS_GROUP_ID}`)
                 .transition()
@@ -1022,28 +1074,121 @@ const D3Histogram = (() => {
             const zoomedDomain = originalXScaleRange.map(xScale.invert, xScale);
             const zoomedData = Array.from(binsData.values()).filter(d => xAccessor(d) >= zoomedDomain[0] && xAccessor(d) <= zoomedDomain[1]);
 
-            yScale.domain([0, d3.max(zoomedData, yAccessor)]);           
+            yScale.domain([0, d3.max(zoomedData, yAccessor)]);
             wrapper.select(`#${YAXIS_GROUP_ID}`)
                 .transition()
                 .call(yAxis);
-            
+
             // Update bins
             wrapper.selectAll(`.${BIN_RECT_CLASS_ID}, .${BIN_FOCUS_RECT_CLASS_ID}`)
                 .transition()
                 .attr("x", d => xScale(xAccessor(d)))
                 .attr("y", d => yScale(yAccessor(d)))
-                .attr("width", xScale.bandwidth())       
+                .attr("width", xScale.bandwidth())
                 .attr("height", d => dimensions.boundedHeight - yScale(yAccessor(d)))
 
             this.state.interactions.prevZoomK = prevZoomK;
         }
 
-//#endregion Interactions
+        /**
+         * Handles click events on histogram bins to enable selection/deselection functionality.
+         * This method implements a toggle-based selection system where clicking a bin selects it,
+         * and clicking the same bin again deselects it. Only one bin can be selected at a time.
+         * 
+         * @param {MouseEvent} e - The mouse click event object containing coordinates and target info
+         * @returns {void} Returns early if click persistence is disabled or no bin is clicked
+         */
+        #handleClick(e) {
+
+            const { isClickPersistenceEnabled } = this.state.interactions;
+            if (!isClickPersistenceEnabled) return;
+
+            const { BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
+            const { chartSelectionCallback } = this.state.chart;
+            const { xAccessor, xScale } = this.state.peripherals.axes;
+            const { binsData, binsFocusData } = this.state.data;
+            let { clickedBinId, isClickActive } = this.state.interactions;
+
+            const data = this.#hasFocusChart() ? binsFocusData : binsData;
+            const xCoord = d3.pointer(e)[0];
+
+            let newClickedBinId = -1;
+            data.forEach((d, i) => {
+                if (xCoord > xScale(xAccessor(d)) && xCoord <= xScale(xAccessor(d)) + xScale.bandwidth()) {
+                    newClickedBinId = i;
+                }
+            });
+
+            if (newClickedBinId === -1) return;
+
+
+
+            if (clickedBinId === newClickedBinId && isClickActive) {
+                // Deselect: reset completely
+                isClickActive = false;
+                clickedBinId = -1;
+                this.state.interactions.isClickActive = isClickActive;
+                this.state.interactions.clickedBinId = clickedBinId;
+                this.state.interactions.clickJustDeactivated = true;
+
+                chartSelectionCallback(null);
+                this.#reset();
+
+                // Disable the flag after a brief period to allow normal hover
+                setTimeout(() => {
+                    this.state.interactions.clickJustDeactivated = false;
+                }, 100);
+            } else {
+                // Select new bar: maintain click state
+                isClickActive = true;
+                clickedBinId = newClickedBinId;
+                this.state.interactions.isClickActive = isClickActive;
+                this.state.interactions.clickedBinId = clickedBinId;
+
+                const binClassId = this.#hasFocusChart() ? BIN_FOCUS_RECT_CLASS_ID : BIN_RECT_CLASS_ID;
+                const clickedBin = d3.select(`#${binClassId}${clickedBinId}`).data()[0];
+
+                chartSelectionCallback(clickedBin.indices);
+                this.#updateBinColors(clickedBinId);
+
+                // Update subtitle to show the selected bar's range
+                const { subtitleDiv } = this.state.peripherals.header;
+                const subtitle = this.#getSubtitle([clickedBin.min, clickedBin.max]);
+                d3.select(`#${subtitleDiv.id}`).html(subtitle);
+            }
+
+
+        }
+
+        /**  
+         * Updates the colors of histogram bins based on the selected bin ID.  
+         *   
+         * @param {number} selectedBinId - The ID of the bin that should be highlighted as selected  
+         * @returns {void} No return value  
+         * @private  
+         */
+        #updateBinColors(selectedBinId) {
+            const { BIN_RECT_CLASS_ID, BIN_FOCUS_RECT_CLASS_ID } = D3Histogram;
+            const {
+                binSelectedFillColor, binUnselectedFillColor, binContextFillColor,
+                binFocusSelectedFillColor, binFocusUnselectedFillColor
+            } = this.state.chart;
+
+            d3.selectAll(`.${BIN_RECT_CLASS_ID}`)
+                .style("fill", (_, i) => this.#hasFocusChart()
+                    ? binContextFillColor
+                    : i == selectedBinId ? binSelectedFillColor : binUnselectedFillColor);
+
+            d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`)
+                .style("fill", (_, i) => i == selectedBinId ? binFocusSelectedFillColor : binFocusUnselectedFillColor);
+        }
+
+        //#endregion Interactions
 
 
 
         // **********************************************************************************
-//#region  Peripherals
+        //#region  Peripherals
         // **********************************************************************************
 
         /**
@@ -1054,12 +1199,12 @@ const D3Histogram = (() => {
          * @returns {Array} An array of tick values.
          * @private
          */
-        #getAxisTickValues = (scale, numTicks) => {         
+        #getAxisTickValues = (scale, numTicks) => {
             const domain = scale.domain();
             const ticksInterval = Math.max(1, Math.floor(domain.length / numTicks));
 
             let tickValues;
-            if (domain.length <= numTicks) { 
+            if (domain.length <= numTicks) {
                 tickValues = domain;
             } else {
                 tickValues = domain.filter((_, i) => i % ticksInterval === 0);
@@ -1096,7 +1241,7 @@ const D3Histogram = (() => {
                 formattedValue = this.#formatTemporalValue(value);
             }
 
-            return formattedValue;           
+            return formattedValue;
         }
 
         /**
@@ -1108,18 +1253,18 @@ const D3Histogram = (() => {
          */
         #getSubtitle(range) {
             const { DATA_TYPE_E } = D3Histogram;
-            const { dataType, binsData } = this.state.data;           
+            const { dataType, binsData } = this.state.data;
 
-            if (dataType === DATA_TYPE_E.CATEGORICAL) { 
+            if (dataType === DATA_TYPE_E.CATEGORICAL) {
                 return range[0] === range[1] ? `<b>${binsData.get(range[0]).label}</b>` : '';
             }
-            
+
             let formattedRange = null;
 
-            if (dataType === DATA_TYPE_E.NUMERICAL) { 
-                formattedRange = range.map(d => this.#formatNumericalValue(d));  
+            if (dataType === DATA_TYPE_E.NUMERICAL) {
+                formattedRange = range.map(d => this.#formatNumericalValue(d));
             }
-            else { 
+            else {
                 formattedRange = range.map(d => this.#formatTemporalValue(d));
             }
 
@@ -1139,7 +1284,7 @@ const D3Histogram = (() => {
 
             const tickBin = Array.from(binsData.values()).filter(b => xAccessor(b) === value)[0];
             const firstWhiteSpaceIndex = tickBin.label.indexOf(' ');
-            
+
             return firstWhiteSpaceIndex !== -1 ? tickBin.label.slice(0, firstWhiteSpaceIndex) : tickBin.label;
         }
 
@@ -1154,10 +1299,10 @@ const D3Histogram = (() => {
             // Format with the SI prefixes
             const formatWithSI = d3.format(".4s");
             let formattedValue = formatWithSI(value);
-            
+
             // Replace the 'µ' symbol with 'u' for micro, if any
             formattedValue = formattedValue.replace('µ', 'u');
-            
+
             // Remove trailing zeros after the decimal point and the decimal point if not needed
             return formattedValue.replace(/(\.[0-9]*[1-9])0+|\.0*([a-zA-Z]*)$/, '$1$2');
         }
@@ -1173,9 +1318,9 @@ const D3Histogram = (() => {
             const formatTime = d3.utcFormat("%b %Y");
             return formatTime(new Date(value));
         }
-//#endregion  Peripherals
+        //#endregion  Peripherals
 
     }
-    
+
     return D3Histogram;
 })();

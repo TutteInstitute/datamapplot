@@ -1149,6 +1149,7 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
+    histogram_enable_click_persistence=False,
     histogram_n_bins=20,
     histogram_group_datetime_by=None,
     histogram_range=None,
@@ -1339,9 +1340,9 @@ def render_html(
         ``offline_data_path``.
 
     offline_data_path: str, pathlib.Path, or None (optional, default=None)
-        If ``inline_data=False``, this specifies the path (including directory) where data 
+        If ``inline_data=False``, this specifies the path (including directory) where data
         files will be saved. Can be a string path or pathlib.Path object. The directory
-        will be created if it doesn't exist. If not specified, falls back to 
+        will be created if it doesn't exist. If not specified, falls back to
         ``offline_data_prefix`` behavior for backward compatibility.
 
     tooltip_css: str or None (optional, default=None)
@@ -1594,6 +1595,7 @@ def render_html(
     histogram_ctx = {
         "enable_histogram": enable_histogram,
         "histogram_data_attr": histogram_data_attr,
+        "histogram_enable_click_persistence": histogram_enable_click_persistence,
         **histogram_settings,
     }
     enable_lasso_selection = selection_handler is not None
@@ -1862,31 +1864,37 @@ def render_html(
         base64_histogram_bin_data = ""
         base64_histogram_index_data = ""
         base64_color_data = ""
-        
+
         # Handle offline_data_path with backward compatibility
         if offline_data_path is not None:
             # Convert to Path object for easier handling
             data_path = Path(offline_data_path)
-            
+
             # Create directory if it doesn't exist
-            if data_path.suffix:  # If user provided a file with extension, use parent dir
+            if (
+                data_path.suffix
+            ):  # If user provided a file with extension, use parent dir
                 data_dir = data_path.parent
                 base_name = data_path.stem
-                file_prefix = str(data_path.with_suffix(''))
+                file_prefix = str(data_path.with_suffix(""))
             else:  # User provided directory/basename
-                data_dir = data_path.parent if data_path.parent != Path('.') else Path('.')
+                data_dir = (
+                    data_path.parent if data_path.parent != Path(".") else Path(".")
+                )
                 base_name = data_path.name
                 file_prefix = str(data_path)
-            
+
             # Ensure directory exists
             data_dir.mkdir(parents=True, exist_ok=True)
-            
+
             # For HTML references, we need just the basename
             html_file_prefix = base_name
         else:
             # Backward compatibility: use offline_data_prefix
             file_prefix = (
-                offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+                offline_data_prefix
+                if offline_data_prefix is not None
+                else "datamapplot"
             )
             html_file_prefix = file_prefix
         n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
@@ -2013,9 +2021,9 @@ def render_html(
 
     api_fontname = font_family.replace(" ", "+")
     font_data = get_google_font_for_embedding(
-        font_family, 
+        font_family,
         offline_mode=offline_mode,
-        offline_font_file=offline_mode_font_data_file if offline_mode else None
+        offline_font_file=offline_mode_font_data_file if offline_mode else None,
     )
     if font_data == "":
         api_fontname = None

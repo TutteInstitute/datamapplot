@@ -367,6 +367,7 @@ def create_interactive_plot(
     jupyterhub_api_token=None,
     enable_topic_tree=False,
     offline_data_path=None,
+    histogram_enable_click_persistence=False,
     **render_html_kwds,
 ):
     """
@@ -480,7 +481,7 @@ def create_interactive_plot(
         Whether to build and display a topic tree with the label heirarchy.
 
     offline_data_path: str, pathlib.Path, or None (optional, default=None)
-        If ``inline_data=False``, this specifies the path (including directory) where data 
+        If ``inline_data=False``, this specifies the path (including directory) where data
         files will be saved. Can be a string path or pathlib.Path object. The directory
         will be created if it doesn't exist. If not specified, falls back to using the
         ``offline_data_prefix`` parameter passed through ``render_html_kwds`` for backward
@@ -705,6 +706,7 @@ def create_interactive_plot(
         cluster_colormap=color_map | {noise_label: noise_color},
         enable_topic_tree=enable_topic_tree,
         offline_data_path=offline_data_path,
+        histogram_enable_click_persistence=histogram_enable_click_persistence,
         **render_html_kwds,
     )
 
