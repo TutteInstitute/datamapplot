@@ -770,6 +770,7 @@ def render_plot(
         y_min -= 0.05 * height
         y_max += 0.05 * height
     else:
+        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
         x_min, y_min = data_map_coords.min(axis=0)
         x_max, y_max = data_map_coords.max(axis=0)
         width = x_max - x_min
