@@ -1949,12 +1949,14 @@ def render_html(
 
     if dynamic_tooltip is not None:
         enable_dynamic_tooltip = True
+        tooltip_identifier_js = dynamic_tooltip['identifier_js']
         tooltip_fetch_js = dynamic_tooltip["fetch_js"]
         tooltip_format_js = dynamic_tooltip["format_js"]
         tooltip_loading_js = dynamic_tooltip["loading_js"]
         tooltip_error_js = dynamic_tooltip["error_js"]
     else:
         enable_dynamic_tooltip = False
+        tooltip_identifier_js = None
         tooltip_fetch_js = None
         tooltip_format_js = None
         tooltip_loading_js = None
@@ -2148,6 +2150,7 @@ def render_html(
         offline_mode_data=offline_mode_data,
         splash_warning=splash_warning,
         enable_api_tooltip=enable_dynamic_tooltip,
+        tooltip_identifier_js=tooltip_identifier_js,
         tooltip_fetch_js=tooltip_fetch_js,
         tooltip_format_js=tooltip_format_js,
         tooltip_loading_js=tooltip_loading_js,
