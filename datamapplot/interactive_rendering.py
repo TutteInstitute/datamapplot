@@ -484,6 +484,7 @@ def _get_css_dependency_sources(
 def _get_js_dependency_urls(
     enable_histogram,
     enable_topic_tree,
+    enable_colormaps,
     selection_handler=None,
     cdn_url="unpkg.com",
 ):
@@ -497,6 +498,15 @@ def _get_js_dependency_urls(
 
     enable_topic_tree: bool
         Whether to include JS URLs for the topic tree functionality.
+
+    enable_colormaps: bool
+        Whether to include JS URLs for the colormap functionality.
+
+    selection_handler: SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
+        The selection handler(s) to use for managing data selection.
+
+    cdn_url: str, optional
+        The CDN URL to use for loading external JavaScript libraries.
 
     Returns
     -------
@@ -513,7 +523,7 @@ def _get_js_dependency_urls(
     js_dependency_urls.extend(common_js_urls)
 
     # Conditionally add dependencies based on functionality
-    if enable_histogram:
+    if enable_histogram or enable_colormaps:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if enable_topic_tree:
@@ -1976,6 +1986,7 @@ def render_html(
         "js_dependency_urls": _get_js_dependency_urls(
             enable_histogram,
             enable_topic_tree,
+            enable_colormap_selector,
             selection_handler,
             cdn_url=cdn_url,
         ),
