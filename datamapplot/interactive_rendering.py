@@ -1190,6 +1190,7 @@ def render_html(
     offline_mode_font_data_file=None,
     splash_warning=None,
     noise_color="#999999",
+    noise_label="Unlabelled",
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -1775,15 +1776,18 @@ def render_html(
             if len(colormap_metadata) > 0
             else 5
         )
-        quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
-            cielab_colors
-        )
-        cluster_colors = [
-            rgb2hex(c)
-            for c in np.clip(
-                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+        if len(cielab_colors) > 0:
+            quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
+                cielab_colors
             )
-        ]
+            cluster_colors = [
+                rgb2hex(c)
+                for c in np.clip(
+                    cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+                )
+            ]
+        else:
+            cluster_colors = [noise_color] * n_swatches
         if cluster_layer_colormaps:
             if label_layers is None or cluster_colormap is None:
                 raise ValueError(
@@ -2140,6 +2144,7 @@ def render_html(
         point_radius_max_pixels=point_radius_max_pixels,
         point_radius_min_pixels=point_radius_min_pixels,
         label_text_color=label_text_color,
+        noise_label=noise_label,
         line_spacing=line_spacing,
         text_min_pixel_size=text_min_pixel_size,
         text_max_pixel_size=text_max_pixel_size,
