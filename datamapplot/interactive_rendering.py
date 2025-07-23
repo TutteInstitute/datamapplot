@@ -1614,6 +1614,10 @@ def render_html(
 
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
+            assert extra_point_data.shape[0] == point_dataframe.shape[0], (
+                "If `extra_point_data` is provided, it must have the same number of rows as "
+                "`point_dataframe`."
+            )
             hover_data = pd.concat(
                 [point_dataframe[["hover_text"]], extra_point_data],
                 axis=1,
