@@ -1052,6 +1052,21 @@ def label_text_and_polygon_dataframes(
         else:
             parents[0] = np.vstack((cluster_idx_vector,))
 
+    if len(label_locations) == 0:
+        # No labels, return empty dataframe
+        return pd.DataFrame(
+            {
+                "x": [],
+                "y": [],
+                "label": [],
+                "size": [],
+                "polygon": [],
+                "points": [],
+                "id": [],
+                "parent": [],
+            }
+        )
+
     label_locations = np.asarray(label_locations)
 
     data = {
