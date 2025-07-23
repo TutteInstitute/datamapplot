@@ -10,7 +10,7 @@
     display: flex;
     align-items: center;
     padding: 10px;
-    border: 1px solid #ccc;
+    border: 1px solid #aaaaaa77;
     border-radius: 8px;
     cursor: pointer;
     width: 100%;
@@ -23,13 +23,13 @@
     bottom: 100%;
     left: 0;
     right: 0;
-    border: 1px solid #ccc;
+    border: 1px solid #aaaaaa77;
     border-radius: 4px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     max-height: 500px;
     overflow-y: auto;
     display: none;
-    background-color: #ffffff77;
+    background-color: inherit;
     backdrop-filter: blur(6px);
     box-sizing: border-box;
     z-index: 101;
@@ -41,11 +41,11 @@
     padding: 10px;
     cursor: pointer;
     z-index: 102;
-    background-color: #ffffffee;
+    background-color: inherit;
     backdrop-filter: blur(6px);
   }
   .color-map-option:hover {
-    background-color: #ccccccee;
+    background-color: #77777744;
     backdrop-filter: blur(6px);
   }
   .color-swatch {
