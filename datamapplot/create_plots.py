@@ -511,7 +511,7 @@ def create_interactive_plot(
             {
                 "x": [data_map_coords.T[0].mean()],
                 "y": [data_map_coords.T[1].mean()],
-                "label": [""],
+                "label": ["Unlabelled"] * data_map_coords.shape[0],
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
         )
