@@ -11,9 +11,10 @@ For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_customised_example.html
 """
 
+import bz2
+
 import numpy as np
 import pandas as pd
-import bz2
 import seaborn as sns
 from matplotlib.colors import rgb2hex
 

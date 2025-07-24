@@ -3,9 +3,11 @@ Example demonstrating the new offline_data_path parameter for better control
 over where data files are saved when inline_data=False.
 """
 
-import numpy as np
-import datamapplot
 from pathlib import Path
+
+import numpy as np
+
+import datamapplot
 
 # Generate example data
 np.random.seed(42)

@@ -9,6 +9,7 @@ https://lmcinnes.github.io/datamapplot_examples/Wikipedia_data_map_example.html
 """
 
 import numpy as np
+
 import datamapplot
 
 wikipedia_data_map = np.load("wikipedia_layered_data_map.npy")

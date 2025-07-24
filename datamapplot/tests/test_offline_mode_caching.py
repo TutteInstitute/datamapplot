@@ -1,20 +1,19 @@
-from copy import copy
-from pathlib import Path
-import pytest
 import shutil
 import subprocess as sp
+from copy import copy
+from pathlib import Path
 from unittest.mock import patch
 
-from ..offline_mode_caching import (
-    _DATA_DIRECTORY,
-    Cache,
-    ConfirmInteractiveStdio,
-    ConfirmYes,
-    DEFAULT_CACHE_FILES,
-    load_fonts,
-    load_js_files,
-    make_store,
-)
+import pytest
+
+from ..offline_mode_caching import _DATA_DIRECTORY
+from ..offline_mode_caching import DEFAULT_CACHE_FILES
+from ..offline_mode_caching import Cache
+from ..offline_mode_caching import ConfirmInteractiveStdio
+from ..offline_mode_caching import ConfirmYes
+from ..offline_mode_caching import load_fonts
+from ..offline_mode_caching import load_js_files
+from ..offline_mode_caching import make_store
 
 
 @pytest.fixture

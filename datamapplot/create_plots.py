@@ -1,28 +1,23 @@
+import textwrap
+
+import colorcet
 import numpy as np
 import pandas as pd
-import textwrap
-from tqdm import tqdm
-import colorcet
-
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb
+from tqdm import tqdm
 
-from datamapplot.palette_handling import (
-    palette_from_datamap,
-    palette_from_cmap_and_datamap,
-    deep_palette,
-    pastel_palette,
-)
-from datamapplot.plot_rendering import render_plot
-from datamapplot.medoids import medoid
-from datamapplot.interactive_rendering import (
-    render_html,
-    compute_percentile_bounds,
-    label_text_and_polygon_dataframes,
-    InteractiveFigure,
-)
 from datamapplot.config import ConfigManager
-
+from datamapplot.interactive_rendering import InteractiveFigure
+from datamapplot.interactive_rendering import compute_percentile_bounds
+from datamapplot.interactive_rendering import label_text_and_polygon_dataframes
+from datamapplot.interactive_rendering import render_html
+from datamapplot.medoids import medoid
+from datamapplot.palette_handling import deep_palette
+from datamapplot.palette_handling import palette_from_cmap_and_datamap
+from datamapplot.palette_handling import palette_from_datamap
+from datamapplot.palette_handling import pastel_palette
+from datamapplot.plot_rendering import render_plot
 
 cfg = ConfigManager()
 

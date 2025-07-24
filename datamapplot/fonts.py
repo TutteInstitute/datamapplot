@@ -1,7 +1,8 @@
-from dataclasses import dataclass
 import re
-import requests
+from dataclasses import dataclass
 from warnings import warn
+
+import requests
 
 
 class GoogleAPIUnreachable(Warning):

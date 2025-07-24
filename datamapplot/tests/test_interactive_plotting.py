@@ -1,10 +1,12 @@
-from datamapplot.interactive_rendering import InteractiveFigure
-import sys
-import importlib.util
-from pathlib import Path
-import pytest
 import bz2
 import gzip
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+from datamapplot.interactive_rendering import InteractiveFigure
 
 
 ### Tests

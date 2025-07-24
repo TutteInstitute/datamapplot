@@ -1,14 +1,13 @@
-import numpy as np
+import importlib.util
 import os
+import sys
 from pathlib import Path
-import pytest
+
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
-from pathlib import Path
-import importlib.util
-import requests
-import sys
+import numpy as np
 import pytest
+import requests
 
 custom_style = {
     "figure.constrained_layout.use": True,

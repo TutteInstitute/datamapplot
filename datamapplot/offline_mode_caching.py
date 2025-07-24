@@ -1,20 +1,24 @@
 import base64
-from collections.abc import Iterator, Sequence
-from contextlib import AbstractContextManager, contextmanager
-from dataclasses import dataclass
 import io
 import json
-import numpy as np
-from pathlib import Path
-import platformdirs
 import re
-import requests
 import sys
-from typing import Any, Protocol
+from collections.abc import Iterator
+from collections.abc import Sequence
+from contextlib import AbstractContextManager
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+from typing import Protocol
 from urllib.parse import urlparse
-from zipfile import ZipFile, ZIP_DEFLATED
-
 from warnings import warn
+from zipfile import ZIP_DEFLATED
+from zipfile import ZipFile
+
+import numpy as np
+import platformdirs
+import requests
 
 DEFAULT_URLS = [
     "https://unpkg.com/deck.gl@latest/dist.min.js",

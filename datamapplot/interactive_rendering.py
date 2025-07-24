@@ -2,46 +2,47 @@ import base64
 import gzip
 import html
 import io
+import json
 import os
+import re
 import warnings
 import zipfile
-import json
-import platformdirs
-from urllib.error import HTTPError, URLError
+from collections.abc import Iterable
+from pathlib import Path
+from urllib.error import HTTPError
+from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import urlopen
+from warnings import warn
 
 import jinja2
 import numpy as np
 import pandas as pd
+import platformdirs
 import requests
-import re
+from colorspacious import cspace_convert
 from importlib_resources import files
+from matplotlib.colors import rgb2hex
 from matplotlib.colors import to_rgba
-from pathlib import Path
+from pandas.api.types import is_datetime64_any_dtype
+from pandas.api.types import is_numeric_dtype
+from pandas.api.types import is_string_dtype
 from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
-from colorspacious import cspace_convert
 from sklearn.cluster import KMeans
-from collections.abc import Iterable
 
-from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
-
-from datamapplot.histograms import (
-    generate_bins_from_numeric_data,
-    generate_bins_from_categorical_data,
-    generate_bins_from_temporal_data,
-)
-from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
-from datamapplot.fonts import (
-    can_reach_google_fonts,
-    query_google_fonts,
-    GoogleAPIUnreachable,
-)
-from datamapplot.medoids import medoid
-from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
+from datamapplot.alpha_shapes import create_boundary_polygons
+from datamapplot.alpha_shapes import smooth_polygon
+from datamapplot.config import ConfigManager
+from datamapplot.fonts import GoogleAPIUnreachable
+from datamapplot.fonts import can_reach_google_fonts
+from datamapplot.fonts import query_google_fonts
+from datamapplot.histograms import generate_bins_from_categorical_data
+from datamapplot.histograms import generate_bins_from_numeric_data
+from datamapplot.histograms import generate_bins_from_temporal_data
+from datamapplot.medoids import medoid
 from datamapplot.selection_handlers import SelectionHandlerBase
 
 try:
@@ -50,9 +51,6 @@ try:
     get_cmap = matplotlib.colormaps.get_cmap
 except ImportError:
     from matplotlib.cm import get_cmap
-from matplotlib.colors import rgb2hex
-
-from warnings import warn
 
 _DEFAULT_DICRETE_COLORMAPS = [
     "tab10",

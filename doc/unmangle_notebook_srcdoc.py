@@ -1,8 +1,8 @@
-import os
 import glob
 import html
-import shutil
+import os
 import re
+import shutil
 
 _ORIGINAL_NON_INLINE_WORKER = """
     const parsingWorkerBlob = new Blob([`

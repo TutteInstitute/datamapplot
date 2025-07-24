@@ -9,8 +9,8 @@ https://lmcinnes.github.io/datamapplot_examples/ArXiv_data_map_example.html
 """
 
 import numpy as np
-import datamapplot
 
+import datamapplot
 
 arxivml_data_map = np.load("arxiv_ml_data_map.npy")
 arxivml_label_layers = []

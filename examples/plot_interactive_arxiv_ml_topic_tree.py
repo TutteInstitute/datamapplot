@@ -6,8 +6,8 @@ Demonstrating interactive plotting with the ArXiv ML data map using a topic tree
 """
 
 import numpy as np
-import datamapplot
 
+import datamapplot
 
 arxivml_data_map = np.load("arxiv_ml_data_map.npy")
 arxivml_label_layers = []

@@ -3,11 +3,13 @@ Example demonstrating offline mode with custom font file paths.
 This addresses issue #112 where offline mode would fail when specifying individual files.
 """
 
-import numpy as np
-import datamapplot
-import tempfile
 import json
+import tempfile
 from pathlib import Path
+
+import numpy as np
+
+import datamapplot
 
 # Generate example data
 np.random.seed(42)

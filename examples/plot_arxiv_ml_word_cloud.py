@@ -5,12 +5,13 @@ ArXiv ML Word Cloud Style
 Demonstrating the word cloud style using the ArXiv ML dataset.
 """
 
-import datamapplot
-import numpy as np
-import requests
-import PIL
-import matplotlib.pyplot as plt
 import colorcet
+import matplotlib.pyplot as plt
+import numpy as np
+import PIL
+import requests
+
+import datamapplot
 
 plt.rcParams["savefig.bbox"] = "tight"
 

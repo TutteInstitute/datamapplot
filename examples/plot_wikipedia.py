@@ -5,11 +5,12 @@ Wikipedia
 Demonstrating some style options with the Simple-Wikipedia Data map
 """
 
-import datamapplot
-import numpy as np
-import requests
-import PIL
 import matplotlib.pyplot as plt
+import numpy as np
+import PIL
+import requests
+
+import datamapplot
 
 plt.rcParams["savefig.bbox"] = "tight"
 

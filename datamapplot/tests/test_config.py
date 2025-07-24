@@ -1,12 +1,19 @@
-from copy import copy
 import inspect as ins
+from copy import copy
 from pathlib import Path
+
 import platformdirs
 import pytest
 
-from .. import create_plot, create_interactive_plot, render_plot, render_html
-from ..config import ConfigManager, ConfigError
-from ..selection_handlers import DisplaySample, WordCloud, CohereSummary
+from .. import create_interactive_plot
+from .. import create_plot
+from .. import render_html
+from .. import render_plot
+from ..config import ConfigError
+from ..config import ConfigManager
+from ..selection_handlers import CohereSummary
+from ..selection_handlers import DisplaySample
+from ..selection_handlers import WordCloud
 
 
 @pytest.fixture

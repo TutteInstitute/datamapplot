@@ -1,7 +1,7 @@
-import numpy as np
 import numba
-
-from scipy.interpolate import splprep, splev
+import numpy as np
+from scipy.interpolate import splev
+from scipy.interpolate import splprep
 
 
 @numba.njit()

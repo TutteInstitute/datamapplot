@@ -1,11 +1,12 @@
+import contextlib
 import io
-import pytest
 from pathlib import Path
-import requests
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import contextlib
+import pytest
+import requests
 
 matplotlib.use("Agg")
 

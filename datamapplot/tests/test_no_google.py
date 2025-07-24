@@ -1,11 +1,12 @@
 from contextlib import contextmanager
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
-import numpy as np
-import pytest
-from requests.exceptions import ConnectionError
 from unittest.mock import patch
 from warnings import catch_warnings
+
+import numpy as np
+import pytest
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from requests.exceptions import ConnectionError
 
 import datamapplot as dmp
 from datamapplot.interactive_rendering import InteractiveFigure

@@ -1,8 +1,8 @@
-from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
 
-from datamapplot.config import ConfigManager
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
+from datamapplot.config import ConfigManager
 
 cfg = ConfigManager()
 

@@ -1,9 +1,12 @@
-import unittest
-import tempfile
 import json
-import numpy as np
+import tempfile
+import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
+import numpy as np
+
 import datamapplot
 from datamapplot.interactive_rendering import get_google_font_for_embedding
 

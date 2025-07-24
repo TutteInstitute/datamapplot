@@ -1,9 +1,13 @@
 import unittest
+from unittest.mock import MagicMock
+from unittest.mock import patch
+
 import numpy as np
-from unittest.mock import patch, MagicMock
+
 import datamapplot
-from datamapplot.plot_rendering import render_plot, manage_google_font
 from datamapplot.create_plots import create_plot
+from datamapplot.plot_rendering import manage_google_font
+from datamapplot.plot_rendering import render_plot
 
 
 class TestUseSystemFonts(unittest.TestCase):

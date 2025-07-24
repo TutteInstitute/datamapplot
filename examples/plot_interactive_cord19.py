@@ -8,10 +8,12 @@ For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_data_map_example.html
 """
 
-import numpy as np
 import bz2
-import datamapplot
+
 import colorcet
+import numpy as np
+
+import datamapplot
 
 cord19_data_map = np.load("cord19_umap_vectors.npy")
 cord19_label_layers = []

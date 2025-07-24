@@ -1,10 +1,15 @@
-from collections.abc import Sequence
 import inspect as ins
 import json
+from collections.abc import Sequence
 from pathlib import Path
-import platformdirs
-from typing import Any, Callable, cast, TypeVar, Union
+from typing import Any
+from typing import Callable
+from typing import TypeVar
+from typing import Union
+from typing import cast
 from warnings import warn
+
+import platformdirs
 
 try:
     from typing import ParamSpec

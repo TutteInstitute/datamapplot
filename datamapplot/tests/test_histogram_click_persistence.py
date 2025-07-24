@@ -1,5 +1,6 @@
-import pytest
 import numpy as np
+import pytest
+
 from datamapplot import create_interactive_plot
 
 

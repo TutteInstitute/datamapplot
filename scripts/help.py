@@ -1,6 +1,6 @@
-from argparse import ArgumentParser
 import re
 import sys
+from argparse import ArgumentParser
 
 
 def bold(s):

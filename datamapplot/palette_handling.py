@@ -1,7 +1,8 @@
-import numpy as np
-
 import colorspacious
-from matplotlib.colors import rgb2hex, to_rgb, ListedColormap
+import numpy as np
+from matplotlib.colors import ListedColormap
+from matplotlib.colors import rgb2hex
+from matplotlib.colors import to_rgb
 
 
 def palette_from_datamap(

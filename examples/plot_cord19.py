@@ -5,12 +5,13 @@ CORD-19
 CORD-19 Data map with highlights applied to some important labels
 """
 
-import datamapplot
-import numpy as np
-import requests
-import PIL
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import PIL
+import requests
+
+import datamapplot
 
 plt.rcParams["savefig.bbox"] = "tight"
 

@@ -5,12 +5,13 @@ Simple ArXiv ML
 Demonstrating some arrow and font styles that can be used with the ArXiv ML data map
 """
 
-import datamapplot
-import numpy as np
-import requests
-import PIL
-import matplotlib.pyplot as plt
 import colorcet
+import matplotlib.pyplot as plt
+import numpy as np
+import PIL
+import requests
+
+import datamapplot
 
 plt.rcParams["savefig.bbox"] = "tight"
 

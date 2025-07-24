@@ -4,6 +4,7 @@ fonts from Google Fonts. This is useful when working offline or behind a firewal
 """
 
 import numpy as np
+
 import datamapplot
 
 # Generate example data
