@@ -1,12 +1,16 @@
 from copy import copy
-import inspect as ins
-from pathlib import Path
-import platformdirs
+
 import pytest
 
-from .. import create_plot, create_interactive_plot, render_plot, render_html
-from ..config import ConfigManager, ConfigError
-from ..selection_handlers import DisplaySample, WordCloud, CohereSummary
+from .. import create_interactive_plot
+from .. import create_plot
+from .. import render_html
+from .. import render_plot
+from ..config import ConfigError
+from ..config import ConfigManager
+from ..selection_handlers import CohereSummary
+from ..selection_handlers import DisplaySample
+from ..selection_handlers import WordCloud
 
 
 @pytest.fixture
@@ -49,6 +53,7 @@ def the_func(config):
     @config.complete({"dont_touch"})
     def _the_func(a, *args, b=None, c="asdf", dont_touch="nope", **kwargs):
         return a, args, b, c, dont_touch, kwargs
+
     return _the_func
 
 
@@ -103,8 +108,8 @@ def test_override_donttouch(the_func):
         render_html,
         DisplaySample.__init__,
         WordCloud.__init__,
-        CohereSummary.__init__
-    ]
+        CohereSummary.__init__,
+    ],
 )
 def test_has_config(func):
     assert ConfigManager.gets_completed(func)

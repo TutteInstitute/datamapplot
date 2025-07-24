@@ -4,6 +4,7 @@ fonts from Google Fonts. This is useful when working offline or behind a firewal
 """
 
 import numpy as np
+
 import datamapplot
 
 # Generate example data
@@ -41,9 +42,9 @@ fig1, ax1 = datamapplot.create_plot(
     sub_title="This plot attempts to download fonts from Google",
     font_family="Roboto",
     use_system_fonts=False,  # Default behavior
-    verbose=True
+    verbose=True,
 )
-fig1.savefig("example_with_google_fonts.png", dpi=150, bbox_inches='tight')
+fig1.savefig("example_with_google_fonts.png", dpi=150, bbox_inches="tight")
 
 print("\nCreating plot with system fonts only...")
 fig2, ax2 = datamapplot.create_plot(
@@ -53,9 +54,11 @@ fig2, ax2 = datamapplot.create_plot(
     sub_title="This plot uses only locally installed fonts",
     font_family="Arial",  # Use a common system font
     use_system_fonts=True,  # Skip Google Fonts download
-    verbose=True
+    verbose=True,
 )
-fig2.savefig("example_with_system_fonts.png", dpi=150, bbox_inches='tight')
+fig2.savefig("example_with_system_fonts.png", dpi=150, bbox_inches="tight")
 
 print("\nDone! Check the generated PNG files to see the difference.")
-print("Note: When use_system_fonts=True, make sure to specify fonts that are installed on your system.")
+print(
+    "Note: When use_system_fonts=True, make sure to specify fonts that are installed on your system."
+)

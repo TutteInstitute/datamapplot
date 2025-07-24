@@ -1,16 +1,13 @@
 import numpy as np
+from matplotlib import pyplot as plt
+from pylabeladjust import adjust_texts
 from sklearn.metrics import pairwise_distances
 from sklearn.preprocessing import MinMaxScaler
-from pylabeladjust import adjust_texts
 
-from datamapplot.overlap_computations import (
-    get_2d_coordinates,
-    overlap_intervals,
-    text_line_overlaps,
-    intersect,
-)
-
-from matplotlib import pyplot as plt
+from datamapplot.overlap_computations import get_2d_coordinates
+from datamapplot.overlap_computations import intersect
+from datamapplot.overlap_computations import overlap_intervals
+from datamapplot.overlap_computations import text_line_overlaps
 
 
 def row_norm(an_array):
@@ -287,12 +284,14 @@ def adjust_text_locations(
             alpha=0.0,
             fontfamily=fontfamily,
             fontsize=(
-                highlight_label_keywords.get("fontsize", font_size)
-                if label_text[i] in highlight
-                else font_size
-            )
-            if font_sizes is None
-            else font_sizes[i],
+                (
+                    highlight_label_keywords.get("fontsize", font_size)
+                    if label_text[i] in highlight
+                    else font_size
+                )
+                if font_sizes is None
+                else font_sizes[i]
+            ),
             fontweight=(
                 "bold"
                 if label_text[i] in highlight
@@ -441,12 +440,14 @@ def pylabeladjust_text_locations(
             alpha=0.0,
             fontfamily=fontfamily,
             fontsize=(
-                highlight_label_keywords.get("fontsize", font_size)
-                if label_text[i] in highlight
-                else font_size
-            )
-            if font_sizes is None
-            else font_sizes[i],
+                (
+                    highlight_label_keywords.get("fontsize", font_size)
+                    if label_text[i] in highlight
+                    else font_size
+                )
+                if font_sizes is None
+                else font_sizes[i]
+            ),
             fontweight=(
                 "bold"
                 if label_text[i] in highlight

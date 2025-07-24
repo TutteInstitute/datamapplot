@@ -1,6 +1,8 @@
-import pandas as pd
+from typing import Optional
+from typing import Tuple
+
 import numpy as np
-from typing import Tuple, Optional
+import pandas as pd
 
 _NAME_TO_FREQ_CODE = {
     "year": "YS",
