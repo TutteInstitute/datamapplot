@@ -52,9 +52,13 @@ def palette_from_datamap(
                     theta_low -= 2 * np.pi
 
                 if theta_low > 0 and theta_high < 0:
-                    r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                    r_mask = (data_map_thetas < theta_low) & (
+                        data_map_thetas > theta_high
+                    )
                 else:
-                    r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                    r_mask = (data_map_thetas > theta_low) & (
+                        data_map_thetas < theta_high
+                    )
 
                 mask_size = np.sum(r_mask)
                 if mask_size > 0:
@@ -261,8 +265,12 @@ def deep_palette(base_palette, degree=2.0):
     jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
     min_lightness = jch_palette.T[0].min()
     min_chroma = jch_palette.T[1].min()
-    jch_palette[:, 0] = np.clip(jch_palette[:, 0] / degree, min(20 / degree, min_lightness), 50)
-    jch_palette[:, 1] = np.clip(jch_palette[:, 1] / degree, min(40 / degree, min_chroma), 100)
+    jch_palette[:, 0] = np.clip(
+        jch_palette[:, 0] / degree, min(20 / degree, min_lightness), 50
+    )
+    jch_palette[:, 1] = np.clip(
+        jch_palette[:, 1] / degree, min(40 / degree, min_chroma), 100
+    )
     result = [
         rgb2hex(x)
         for x in np.clip(
@@ -278,7 +286,9 @@ def pastel_palette(base_palette, degree=2.0):
     min_lightness = jch_palette.T[0].min()
     min_chroma = jch_palette.T[1].min()
     jch_palette[:, 0] = np.clip(jch_palette[:, 0] * np.sqrt(degree), min_lightness, 100)
-    jch_palette[:, 1] = np.clip(jch_palette[:, 1] / degree, min(10 / degree, min_chroma), 50)
+    jch_palette[:, 1] = np.clip(
+        jch_palette[:, 1] / degree, min(10 / degree, min_chroma), 50
+    )
     result = [
         rgb2hex(x)
         for x in np.clip(

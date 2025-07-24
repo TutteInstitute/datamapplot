@@ -4,6 +4,7 @@ CORD-19
 
 CORD-19 Data map with highlights applied to some important labels
 """
+
 import datamapplot
 import numpy as np
 import requests
@@ -11,7 +12,7 @@ import PIL
 import matplotlib.pyplot as plt
 import pandas as pd
 
-plt.rcParams['savefig.bbox'] = 'tight'
+plt.rcParams["savefig.bbox"] = "tight"
 
 cord19_data_map = np.load("CORD19-subset-data-map.npy")
 cord19_labels = np.load("CORD19-subset-cluster_labels.npy", allow_pickle=True)
@@ -46,7 +47,11 @@ fig, ax = datamapplot.create_plot(
     label_linespacing=1.25,
     label_margin_factor=1.5,
     label_direction_bias=1.0,
-    highlight_label_keywords={"fontsize": 11, "fontweight": "bold", "bbox": {"boxstyle": "circle", "pad": 0.75}},
+    highlight_label_keywords={
+        "fontsize": 11,
+        "fontweight": "bold",
+        "bbox": {"boxstyle": "circle", "pad": 0.75},
+    },
     title_keywords={"fontsize": 28},
     logo=allenai_logo,
 )

@@ -7,22 +7,134 @@ from datamapplot.config import ConfigManager
 cfg = ConfigManager()
 
 _DEFAULT_TAG_COLORS = [
-    "#1f77b4", "#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f",
-    "#bcbd22","#17becf","#a6008a","#656100","#8aa6ff","#007155","#ce968a","#6139f3",
-    "#82b692","#ae8210","#ae9ebe","#5d5d79","#ce86ff","#398e92","#b65504","#ce31d7",
-    "#758a55","#9204c6","#187100","#965982","#ef6959","#5d79ff","#7986b2","#b2a66d",
-    "#5d614d","#009e71","#00a2e7","#8ea6ae","#8a9a0c","#9e7d5d","#00c66d","#246979",
-    "#65c210","#865510","#a23118","#9e7dff","#9239fb","#00c2a6","#ae7d9e","#6165b2",
-    "#aaa69e","#005def","#754d8e","#ce7d49","#ba5549","#f35dff","#df9600","#be4dff",
-    "#55716d","#8ab65d","#6d9686","#e75500","#75616d","#4d713d","#5d8200","#9e45a6",
-    "#7daed7","#867596","#5d798e","#ba75c6","#be55a2","#827135","#008641","#5d96b2",
-    "#ae9ae7","#61a261","#b6756d","#5daaa6","#eb41c6","#8e9e7d","#9e8e96","#b69e10",
-    "#6d49b6","#867d00","#a66d2d","#ca92c6","#6592df","#4d8265","#7d6d5d","#7d65ef",
-    "#45658a","#8a8e9e","#d29a55","#b220df","#9a8e4d","#0086eb","#00829e","#969eca",
-    "#c614aa","#007975","#9a86be","#5d6165","#c67100","#755939","#9a4d24","#8e3d7d",
-    "#c23900","#6d7961","#eb8a69","#35baeb","#b29679","#718a8e","#9e69a2","#ae75e3",
-    "#008a00","#3561ae","#8e9692","#a66549","#7d82db","#00a2b6","#24b682","#9e00aa",
-    "#08ba39","#8a49ba","#75659e","#008e79","#5579c6","#927186","#558a41","#755171",
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+    "#a6008a",
+    "#656100",
+    "#8aa6ff",
+    "#007155",
+    "#ce968a",
+    "#6139f3",
+    "#82b692",
+    "#ae8210",
+    "#ae9ebe",
+    "#5d5d79",
+    "#ce86ff",
+    "#398e92",
+    "#b65504",
+    "#ce31d7",
+    "#758a55",
+    "#9204c6",
+    "#187100",
+    "#965982",
+    "#ef6959",
+    "#5d79ff",
+    "#7986b2",
+    "#b2a66d",
+    "#5d614d",
+    "#009e71",
+    "#00a2e7",
+    "#8ea6ae",
+    "#8a9a0c",
+    "#9e7d5d",
+    "#00c66d",
+    "#246979",
+    "#65c210",
+    "#865510",
+    "#a23118",
+    "#9e7dff",
+    "#9239fb",
+    "#00c2a6",
+    "#ae7d9e",
+    "#6165b2",
+    "#aaa69e",
+    "#005def",
+    "#754d8e",
+    "#ce7d49",
+    "#ba5549",
+    "#f35dff",
+    "#df9600",
+    "#be4dff",
+    "#55716d",
+    "#8ab65d",
+    "#6d9686",
+    "#e75500",
+    "#75616d",
+    "#4d713d",
+    "#5d8200",
+    "#9e45a6",
+    "#7daed7",
+    "#867596",
+    "#5d798e",
+    "#ba75c6",
+    "#be55a2",
+    "#827135",
+    "#008641",
+    "#5d96b2",
+    "#ae9ae7",
+    "#61a261",
+    "#b6756d",
+    "#5daaa6",
+    "#eb41c6",
+    "#8e9e7d",
+    "#9e8e96",
+    "#b69e10",
+    "#6d49b6",
+    "#867d00",
+    "#a66d2d",
+    "#ca92c6",
+    "#6592df",
+    "#4d8265",
+    "#7d6d5d",
+    "#7d65ef",
+    "#45658a",
+    "#8a8e9e",
+    "#d29a55",
+    "#b220df",
+    "#9a8e4d",
+    "#0086eb",
+    "#00829e",
+    "#969eca",
+    "#c614aa",
+    "#007975",
+    "#9a86be",
+    "#5d6165",
+    "#c67100",
+    "#755939",
+    "#9a4d24",
+    "#8e3d7d",
+    "#c23900",
+    "#6d7961",
+    "#eb8a69",
+    "#35baeb",
+    "#b29679",
+    "#718a8e",
+    "#9e69a2",
+    "#ae75e3",
+    "#008a00",
+    "#3561ae",
+    "#8e9692",
+    "#a66549",
+    "#7d82db",
+    "#00a2b6",
+    "#24b682",
+    "#9e00aa",
+    "#08ba39",
+    "#8a49ba",
+    "#75659e",
+    "#008e79",
+    "#5579c6",
+    "#927186",
+    "#558a41",
+    "#755171",
 ]
 
 
@@ -79,11 +191,16 @@ class DisplaySample(SelectionHandlerBase):
     """
 
     @cfg.complete(unconfigurable={"self", "n_samples"})
-    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", other_triggers=None, **kwargs):
+    def __init__(
+        self,
+        n_samples=256,
+        font_family=None,
+        cdn_url="unpkg.com",
+        other_triggers=None,
+        **kwargs,
+    ):
         super().__init__(
-            dependencies=[
-                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
-            ],
+            dependencies=[f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"],
             **kwargs,
         )
         self.n_samples = n_samples
@@ -170,7 +287,7 @@ await datamap.addSelectionHandler(samplerCallback);
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(samplerCallback, "{trigger}");\n"""
         return result
-    
+
     @property
     def css(self):
         if self.font_family:
@@ -480,7 +597,7 @@ await datamap.addSelectionHandler(debounce(wordCloudCallback, 100));
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback, 100), "{trigger}");\n"""
         return result
- 
+
     @property
     def html(self):
         # return """<div id="word-cloud" class="container-box more-opaque"></div>"""
@@ -684,7 +801,7 @@ await datamap.addSelectionHandler(cohereSummaryCallback);
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(cohereSummaryCallback, "{trigger}");\n"""
         return result
-    
+
     @property
     def html(self):
         return ""
@@ -731,14 +848,22 @@ class TagSelection(SelectionHandlerBase):
         A list of colors to use for the tags. Default is a set of default colors extending the tab10 palette.
 
     location : str, optional
-        The location of the tag container on the page. Default is "top-right".  
+        The location of the tag container on the page. Default is "top-right".
         Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
 
     max_height : str, optional
-        The maximum height of the tag container as a CSS descriptor string. Default is "95%".      
+        The maximum height of the tag container as a CSS descriptor string. Default is "95%".
     """
 
-    def __init__(self, tag_colors=None, location="top-right", width=308, max_height="80vh", other_triggers=None, **kwargs):
+    def __init__(
+        self,
+        tag_colors=None,
+        location="top-right",
+        width=308,
+        max_height="80vh",
+        other_triggers=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         if tag_colors is None:
             self.tag_colors = _DEFAULT_TAG_COLORS

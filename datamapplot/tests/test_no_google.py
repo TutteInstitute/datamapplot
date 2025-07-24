@@ -30,8 +30,7 @@ def hover_text():
 @contextmanager
 def no_google(num_warnings):
     with patch(
-        "datamapplot.fonts.requests.get",
-        side_effect=ConnectionError
+        "datamapplot.fonts.requests.get", side_effect=ConnectionError
     ) as mock_get, catch_warnings(record=True) as caught:
         yield mock_get
     assert num_warnings == len(
@@ -48,9 +47,5 @@ def test_no_google_static(datamap):
 
 def test_no_google_interactive(datamap, labels, hover_text):
     with no_google(0):
-        fig = dmp.create_interactive_plot(
-            datamap,
-            labels,
-            hover_text=hover_text
-        )
+        fig = dmp.create_interactive_plot(datamap, labels, hover_text=hover_text)
     assert isinstance(fig, InteractiveFigure)

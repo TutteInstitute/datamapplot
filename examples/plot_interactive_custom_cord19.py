@@ -10,6 +10,7 @@ in the legend to select a specific field).
 For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_customised_example.html
 """
+
 import numpy as np
 import pandas as pd
 import bz2
@@ -26,23 +27,33 @@ for i in range(6):
     )
 cord19_hover_text = [
     x.decode("utf-8").strip()
-    for x in bz2.open(
-        "cord19_large_hover_text.txt.bz2",
-        mode="r"
-    )
+    for x in bz2.open("cord19_large_hover_text.txt.bz2", mode="r")
 ]
 
 color_mapping = {}
 color_mapping["Medicine"] = "#bbbbbb"
-for key, color in zip(("Biology", "Chemistry", "Physics"), sns.color_palette("YlOrRd_r", 3)):
+for key, color in zip(
+    ("Biology", "Chemistry", "Physics"), sns.color_palette("YlOrRd_r", 3)
+):
     color_mapping[key] = rgb2hex(color)
-for key, color in zip(("Business", "Economics", "Political Science"), sns.color_palette("BuPu_r", 3)):
+for key, color in zip(
+    ("Business", "Economics", "Political Science"), sns.color_palette("BuPu_r", 3)
+):
     color_mapping[key] = rgb2hex(color)
-for key, color in zip(("Psychology", "Sociology", "Geography", "History"), sns.color_palette("YlGnBu_r", 4)):
+for key, color in zip(
+    ("Psychology", "Sociology", "Geography", "History"),
+    sns.color_palette("YlGnBu_r", 4),
+):
     color_mapping[key] = rgb2hex(color)
-for key, color in zip(("Computer Science", "Engineering", "Mathematics"), sns.color_palette("light:teal_r", 4)[:-1]):
+for key, color in zip(
+    ("Computer Science", "Engineering", "Mathematics"),
+    sns.color_palette("light:teal_r", 4)[:-1],
+):
     color_mapping[key] = rgb2hex(color)
-for key, color in zip(("Environmental Science", "Geology", "Materials Science"), sns.color_palette("pink", 3), ):
+for key, color in zip(
+    ("Environmental Science", "Geology", "Materials Science"),
+    sns.color_palette("pink", 3),
+):
     color_mapping[key] = rgb2hex(color)
 for key, color in zip(("Art", "Philosophy", "Unknown"), sns.color_palette("bone", 3)):
     color_mapping[key] = rgb2hex(color)
@@ -159,7 +170,7 @@ plot = datamapplot.create_interactive_plot(
     color_cluster_boundaries=False,
     extra_point_data=cord19_extra_data,
     hover_text_html_template=hover_text_template,
-    on_click="window.open(`http://google.com/search?q=\"{hover_text}\"`)",
+    on_click='window.open(`http://google.com/search?q="{hover_text}"`)',
     enable_search=True,
     custom_css=custom_css,
     custom_html=custom_html,

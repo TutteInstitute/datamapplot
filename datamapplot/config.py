@@ -59,7 +59,7 @@ class ConfigManager:
             self._config_file.parent.mkdir(parents=True, exist_ok=True)
 
             if not self._config_file.exists():
-                with open(self._config_file, 'w') as f:
+                with open(self._config_file, "w") as f:
                     json.dump(DEFAULT_CONFIG, f, indent=2)
         except Exception as e:
             warn(f"Error creating config file: {e}")
@@ -76,7 +76,7 @@ class ConfigManager:
     def save(self) -> None:
         """Save current configuration to file."""
         try:
-            with open(self._config_file, 'w') as f:
+            with open(self._config_file, "w") as f:
                 json.dump(self._config, f, indent=2)
         except Exception as e:
             warn(f"Error saving config file: {e}")
@@ -113,14 +113,14 @@ class ConfigManager:
                                 "can be set through the DataMapPlot configuration "
                                 f"file. Parameter {param.name} ({param.kind}) "
                                 "is thus not admissible.",
-                                param
+                                param,
                             )
                         if name in unconfigurable:
                             raise ConfigError(
                                 f"Parameter {param.name} is deliberately listed as "
                                 "forbidden from being defined through the DataMapPlot "
                                 "configuration file.",
-                                param
+                                param,
                             )
                         from_config[name] = self[name]
                 return fn(*bound_args.args, **(bound_args.kwargs | from_config))

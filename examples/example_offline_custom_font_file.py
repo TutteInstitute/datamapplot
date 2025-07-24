@@ -42,35 +42,37 @@ print("Creating example with custom font cache file...")
 with tempfile.TemporaryDirectory() as temp_dir:
     # Path for our custom font cache
     custom_font_file = Path(temp_dir) / "my_custom_fonts.json"
-    
+
     # Create a minimal font cache (in practice, you'd use dmp_offline_cache to generate this)
     font_cache = {
-        "Roboto": [{
-            "style": "normal",
-            "weight": "400", 
-            "unicode_range": "",
-            "type": "woff2",
-            "content": "d09GMgABAAAAAAIAAA4AAAAAA..."  # Truncated for example
-        }]
+        "Roboto": [
+            {
+                "style": "normal",
+                "weight": "400",
+                "unicode_range": "",
+                "type": "woff2",
+                "content": "d09GMgABAAAAAAIAAA4AAAAAA...",  # Truncated for example
+            }
+        ]
     }
-    
-    with open(custom_font_file, 'w') as f:
+
+    with open(custom_font_file, "w") as f:
         json.dump(font_cache, f)
-    
+
     print(f"Created custom font cache at: {custom_font_file}")
-    
+
     # Also need a JS cache file for offline mode
     js_cache_file = Path(temp_dir) / "my_js_cache.json"
     js_cache = {
         "https://unpkg.com/deck.gl@latest/dist.min.js": {
             "encoded_content": "ZGVja2dsX2NvbnRlbnQ=",  # Placeholder
-            "name": "unpkg_com_deck_gl_latest_dist_min_js"
+            "name": "unpkg_com_deck_gl_latest_dist_min_js",
         }
     }
-    
-    with open(js_cache_file, 'w') as f:
+
+    with open(js_cache_file, "w") as f:
         json.dump(js_cache, f)
-    
+
     try:
         # Create interactive plot with custom font file
         fig = datamapplot.create_interactive_plot(
@@ -83,18 +85,18 @@ with tempfile.TemporaryDirectory() as temp_dir:
             offline_mode=True,
             offline_mode_font_data_file=str(custom_font_file),
             offline_mode_js_data_file=str(js_cache_file),
-            offline_data_path=temp_dir / "plot_data"
+            offline_data_path=temp_dir / "plot_data",
         )
-        
+
         # Save the plot
         output_file = Path(temp_dir) / "offline_custom_font_plot.html"
         fig.save(str(output_file))
-        
+
         print(f"\nSuccess! Plot saved to: {output_file}")
         print("\nThis demonstrates the fix for issue #112:")
         print("- Offline mode now correctly uses specified font file paths")
         print("- No longer defaults to potentially non-existent cache locations")
-        
+
     except Exception as e:
         print(f"\nError: {e}")
         print("\nNote: For a real use case, you would:")

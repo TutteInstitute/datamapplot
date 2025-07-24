@@ -49,6 +49,7 @@ def the_func(config):
     @config.complete({"dont_touch"})
     def _the_func(a, *args, b=None, c="asdf", dont_touch="nope", **kwargs):
         return a, args, b, c, dont_touch, kwargs
+
     return _the_func
 
 
@@ -103,8 +104,8 @@ def test_override_donttouch(the_func):
         render_html,
         DisplaySample.__init__,
         WordCloud.__init__,
-        CohereSummary.__init__
-    ]
+        CohereSummary.__init__,
+    ],
 )
 def test_has_config(func):
     assert ConfigManager.gets_completed(func)

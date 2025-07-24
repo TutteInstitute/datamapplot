@@ -7,6 +7,7 @@ Demonstrating interactive plotting with colormaps and search with the CORD-19 la
 For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_data_map_example.html
 """
+
 import numpy as np
 import bz2
 import datamapplot
@@ -20,12 +21,9 @@ for i in range(6):
     )
 cord19_hover_text = [
     x.decode("utf-8").strip()
-    for x in bz2.open(
-        "cord19_large_hover_text.txt.bz2",
-        mode="r"
-    )
+    for x in bz2.open("cord19_large_hover_text.txt.bz2", mode="r")
 ]
-cord19_marker_size_array = np.log(1+np.load("cord19_marker_size_array.npy"))
+cord19_marker_size_array = np.log(1 + np.load("cord19_marker_size_array.npy"))
 
 plot = datamapplot.create_interactive_plot(
     cord19_data_map,

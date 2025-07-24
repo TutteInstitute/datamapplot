@@ -4,14 +4,16 @@ import sys
 
 
 def bold(s):
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         return s
     return f"\033[1;35m{s}\033[0m"
 
+
 def cyan(s):
-    if sys.platform.startswith('win'):
+    if sys.platform.startswith("win"):
         return s
     return f"\033[36m{s}\033[0m"
+
 
 ap = ArgumentParser()
 ap.add_argument("-v", nargs=2, action="append", dest="variables")
@@ -50,7 +52,14 @@ for path in set(makefiles):
             if len(lines_doc) > 0:
                 # We have collected some documentation. Current line now contains the target name.
                 target = line.split(b":")[0]
-                lines_doc = [re.sub(r"\$\(([-a-zA-Z0-9_]+)\)", lambda m: d_variables.get(m.group(1), b"???"), ll.decode("utf-8")).strip() for ll in lines_doc]
+                lines_doc = [
+                    re.sub(
+                        r"\$\(([-a-zA-Z0-9_]+)\)",
+                        lambda m: d_variables.get(m.group(1), b"???"),
+                        ll.decode("utf-8"),
+                    ).strip()
+                    for ll in lines_doc
+                ]
                 rules.append((target.decode("utf-8"), " ".join(lines_doc)))
         except StopIteration:
             break

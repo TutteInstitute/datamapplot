@@ -221,7 +221,10 @@ class Cache:
         store = make_store(path)
         data = {}
         with store.reading() as reading:
-            for name in ["datamapplot_js_encoded.json", "datamapplot_fonts_encoded.json"]:
+            for name in [
+                "datamapplot_js_encoded.json",
+                "datamapplot_fonts_encoded.json",
+            ]:
                 try:
                     with reading.open(name) as file:
                         data[name] = json.load(file)
@@ -231,7 +234,7 @@ class Cache:
             js=data["datamapplot_js_encoded.json"],
             fonts=data["datamapplot_fonts_encoded.json"],
             confirm=confirm,
-            store=store
+            store=store,
         )
 
     def update(self, src_cache: "Cache") -> "Cache":
@@ -258,7 +261,7 @@ class Cache:
                             f"\n{msg_resource} would be replaced in cache at "
                             f"{self.store.path}. Select to confirm:"
                         ),
-                        sorted(entries_to_confirm)
+                        sorted(entries_to_confirm),
                     )
                 )
             dest.update({k: src[k] for k in entries_to_pull})
@@ -364,8 +367,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     "NUMBER single item, FIRST-LAST interval, a all, ? help, . finish> "
                 ).strip()
                 for match in re.finditer(
-                    r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])",
-                    line
+                    r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])", line
                 ):
                     if (cmd := match.group("cmd")) is not None:
                         if cmd == "?":
@@ -393,9 +395,9 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     else:
                         # This condition can be ignored, but when debugging we should
                         # break on it so it gets fixed.
-                        assert False, (
-                             "Either one of the conditions above should be true."
-                         )
+                        assert (
+                            False
+                        ), "Either one of the conditions above should be true."
         except EOFError:
             print(
                 (
@@ -405,7 +407,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     "Cancelling this operation, lest entries to update were "
                     "misselected."
                 ),
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(11)
         return confirmed
@@ -440,10 +442,7 @@ class ConfirmYes(EquivalenceClass):
         return set(entries)
 
 
-_MAP_CONFIRM = {
-    True: ConfirmYes,
-    False: ConfirmInteractiveStdio
-}
+_MAP_CONFIRM = {True: ConfirmYes, False: ConfirmInteractiveStdio}
 
 
 import argparse
@@ -457,7 +456,7 @@ def main():
             a Zip file (with the Zip-standard DEFLATE compression). However, if the
             path given through --import or --export is an existing directory, the cache
             files are stored as is into this directory, without any compression.
-        """
+        """,
     )
     parser.add_argument(
         "--js_urls", nargs="+", help="CDN URLs to fetch and cache js from"
@@ -472,14 +471,13 @@ def main():
         help=(
             "Force refresh cached files from Internet repositories. "
             "This is the default."
-        )
+        ),
     )
     parser.add_argument(
         "--no-refresh",
         dest="refresh",
         action="store_false",
-        help="Omit refreshing cached files from Internet repositories."
-
+        help="Omit refreshing cached files from Internet repositories.",
     )
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
@@ -491,7 +489,7 @@ def main():
             user's cache directory. This omits updating cache fonts and Javascript files
             from the Internet. If any font or Javascript entry from the given cache
             dump already exists, confirmation to replace it is requested first.
-        """
+        """,
     )
     parser.add_argument(
         "--export",
@@ -500,7 +498,7 @@ def main():
             updating it. If the cache archive or directory already exists, and a font
             or Javascript entry from the export would clobber it, confirmation is
             requested first (unless option --yes is also used).
-        """
+        """,
     )
     parser.add_argument(
         "-y",
@@ -509,7 +507,7 @@ def main():
         default=False,
         help="""
             Forgo confirmation of cache entry replacement; just go ahead and do it.
-        """
+        """,
     )
 
     args = parser.parse_args()
@@ -542,7 +540,7 @@ def main():
                         "export the cache to a directory, create it before running "
                         "this program."
                     ),
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
             cache_home = Cache.from_path(dir_cache_home, ConfirmYes())
             cache_dest = Cache.from_path(path_export, _MAP_CONFIRM[args.yes]())

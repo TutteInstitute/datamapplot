@@ -287,12 +287,14 @@ def adjust_text_locations(
             alpha=0.0,
             fontfamily=fontfamily,
             fontsize=(
-                highlight_label_keywords.get("fontsize", font_size)
-                if label_text[i] in highlight
-                else font_size
-            )
-            if font_sizes is None
-            else font_sizes[i],
+                (
+                    highlight_label_keywords.get("fontsize", font_size)
+                    if label_text[i] in highlight
+                    else font_size
+                )
+                if font_sizes is None
+                else font_sizes[i]
+            ),
             fontweight=(
                 "bold"
                 if label_text[i] in highlight
@@ -441,12 +443,14 @@ def pylabeladjust_text_locations(
             alpha=0.0,
             fontfamily=fontfamily,
             fontsize=(
-                highlight_label_keywords.get("fontsize", font_size)
-                if label_text[i] in highlight
-                else font_size
-            )
-            if font_sizes is None
-            else font_sizes[i],
+                (
+                    highlight_label_keywords.get("fontsize", font_size)
+                    if label_text[i] in highlight
+                    else font_size
+                )
+                if font_sizes is None
+                else font_sizes[i]
+            ),
             fontweight=(
                 "bold"
                 if label_text[i] in highlight
