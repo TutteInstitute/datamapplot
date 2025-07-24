@@ -2,7 +2,6 @@ import inspect as ins
 import json
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 from typing import Callable
 from typing import TypeVar
 from typing import Union

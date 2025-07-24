@@ -25,7 +25,6 @@ from importlib_resources import files
 from matplotlib.colors import rgb2hex
 from matplotlib.colors import to_rgba
 from pandas.api.types import is_datetime64_any_dtype
-from pandas.api.types import is_numeric_dtype
 from pandas.api.types import is_string_dtype
 from rcssmin import cssmin
 from rjsmin import jsmin
@@ -36,7 +35,6 @@ from datamapplot import offline_mode_caching
 from datamapplot.alpha_shapes import create_boundary_polygons
 from datamapplot.alpha_shapes import smooth_polygon
 from datamapplot.config import ConfigManager
-from datamapplot.fonts import GoogleAPIUnreachable
 from datamapplot.fonts import can_reach_google_fonts
 from datamapplot.fonts import query_google_fonts
 from datamapplot.histograms import generate_bins_from_categorical_data

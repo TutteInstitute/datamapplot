@@ -1,6 +1,5 @@
 import shutil
 import subprocess as sp
-from copy import copy
 from pathlib import Path
 from unittest.mock import patch
 

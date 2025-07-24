@@ -4,9 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-import datamapplot
 from datamapplot.create_plots import create_plot
-from datamapplot.plot_rendering import manage_google_font
 from datamapplot.plot_rendering import render_plot
 
 

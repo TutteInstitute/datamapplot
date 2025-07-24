@@ -1,8 +1,5 @@
-import inspect as ins
 from copy import copy
-from pathlib import Path
 
-import platformdirs
 import pytest
 
 from .. import create_interactive_plot
