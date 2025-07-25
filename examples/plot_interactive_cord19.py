@@ -8,7 +8,6 @@ For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_data_map_example.html
 """
 import numpy as np
-import bz2
 import datamapplot
 import colorcet
 
@@ -18,13 +17,7 @@ for i in range(6):
     cord19_label_layers.append(
         np.load(f"cord19_layer{i}_cluster_labels.npz", allow_pickle=True)["arr_0"]
     )
-cord19_hover_text = [
-    x.decode("utf-8").strip()
-    for x in bz2.open(
-        "cord19_large_hover_text.txt.bz2",
-        mode="r"
-    )
-]
+cord19_hover_text = np.load("cord19_large_hover_text.npz", allow_pickle=True)["arr_0"]
 cord19_marker_size_array = np.log(1 + np.load("cord19_marker_size_array.npz")["arr_0"])
 
 plot = datamapplot.create_interactive_plot(
