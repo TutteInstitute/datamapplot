@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
-wikipedia_data_map = np.load("Wikipedia-data_map.npy")
-wikipedia_labels = np.load("Wikipedia-cluster_labels.npy", allow_pickle=True)
+wikipedia_data_map = np.load("Wikipedia-data_map.npz")["arr_0"]
+wikipedia_labels = np.load("Wikipedia-cluster_labels.npz", allow_pickle=True)["arr_0"]
 
 cohere_logo_response = requests.get(
     "https://asset.brandfetch.io/idfDTLvPCK/idyv4d98RT.png",

@@ -12,11 +12,11 @@ import bz2
 import datamapplot
 import colorcet
 
-cord19_data_map = np.load("cord19_umap_vectors.npy")
+cord19_data_map = np.load("cord19_umap_vectors.npz")["arr_0"]
 cord19_label_layers = []
 for i in range(6):
     cord19_label_layers.append(
-        np.load(f"cord19_layer{i}_cluster_labels.npy", allow_pickle=True)
+        np.load(f"cord19_layer{i}_cluster_labels.npz", allow_pickle=True)["arr_0"]
     )
 cord19_hover_text = [
     x.decode("utf-8").strip()
@@ -25,7 +25,7 @@ cord19_hover_text = [
         mode="r"
     )
 ]
-cord19_marker_size_array = np.log(1+np.load("cord19_marker_size_array.npy"))
+cord19_marker_size_array = np.log(1 + np.load("cord19_marker_size_array.npz")["arr_0"])
 
 plot = datamapplot.create_interactive_plot(
     cord19_data_map,

@@ -18,11 +18,11 @@ from matplotlib.colors import rgb2hex
 
 import datamapplot
 
-cord19_data_map = np.load("cord19_umap_vectors.npy")
+cord19_data_map = np.load("cord19_umap_vectors.npz")["arr_0"]
 cord19_label_layers = []
 for i in range(6):
     cord19_label_layers.append(
-        np.load(f"cord19_layer{i}_cluster_labels.npy", allow_pickle=True)
+        np.load(f"cord19_layer{i}_cluster_labels.npz", allow_pickle=True)["arr_0"]
     )
 cord19_hover_text = [
     x.decode("utf-8").strip()
