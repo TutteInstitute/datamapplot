@@ -10,20 +10,14 @@ https://lmcinnes.github.io/datamapplot_examples/Wikipedia_data_map_example.html
 import numpy as np
 import datamapplot
 
-wikipedia_data_map = np.load("wikipedia_layered_data_map.npy")
+wikipedia_data_map = np.load("wikipedia_layered_data_map.npz")["arr_0"]
 wikipedia_label_layers = []
 for i in range(6):
     wikipedia_label_layers.append(
-        np.load(f"wikipedia_layer{i}_cluster_labels.npy", allow_pickle=True)
+        np.load(f"wikipedia_layer{i}_cluster_labels.npz", allow_pickle=True)["arr_0"]
     )
-wikipedia_hover_text = [
-    x.strip()
-    for x in open(
-        "wikipedia_large_hover_text.txt",
-        mode="r"
-    )
-]
-wikipedia_marker_size_array = np.load("wikipedia_marker_size_array.npy")
+wikipedia_hover_text = np.load("wikipedia_large_hover_text.npz", allow_pickle=True)["arr_0"]
+wikipedia_marker_size_array = np.load("wikipedia_marker_size_array.npz")["arr_0"]
 
 plot = datamapplot.create_interactive_plot(
     wikipedia_data_map,
