@@ -13,8 +13,8 @@ import pandas as pd
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
-cord19_data_map = np.load("CORD19-subset-data-map.npy")
-cord19_labels = np.load("CORD19-subset-cluster_labels.npy", allow_pickle=True)
+cord19_data_map = np.load("CORD19-subset-data-map.npz")["arr_0"]
+cord19_labels = np.load("CORD19-subset-cluster_labels.npz", allow_pickle=True)["arr_0"]
 
 # Prune labels down slightly
 label_counts = pd.Series(cord19_labels).value_counts()
