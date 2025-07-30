@@ -4,14 +4,16 @@ ArXiv ML Word Cloud Style
 
 Demonstrating the word cloud style using the ArXiv ML dataset.
 """
-import datamapplot
-import numpy as np
-import requests
-import PIL
-import matplotlib.pyplot as plt
-import colorcet
 
-plt.rcParams['savefig.bbox'] = 'tight'
+import colorcet
+import matplotlib.pyplot as plt
+import numpy as np
+import PIL
+import requests
+
+import datamapplot
+
+plt.rcParams["savefig.bbox"] = "tight"
 
 arxivml_data_map = np.load("arxiv_ml_data_map.npy")
 arxivml_labels = np.load("arxiv_ml_cluster_labels.npy", allow_pickle=True)
@@ -19,7 +21,7 @@ arxivml_labels = np.load("arxiv_ml_cluster_labels.npy", allow_pickle=True)
 arxiv_logo_response = requests.get(
     "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png",
     stream=True,
-    headers={'User-Agent': 'My User Agent 1.0'}
+    headers={"User-Agent": "My User Agent 1.0"},
 )
 arxiv_logo = np.asarray(PIL.Image.open(arxiv_logo_response.raw))
 

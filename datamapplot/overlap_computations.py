@@ -1,5 +1,6 @@
-import numpy as np
 import io
+
+import numpy as np
 from matplotlib import pyplot as plt
 
 try:

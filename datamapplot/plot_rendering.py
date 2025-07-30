@@ -1,37 +1,29 @@
-import numpy as np
-import pandas as pd
+from functools import partial
+from tempfile import NamedTemporaryFile
+from warnings import warn
 
 import datashader as ds
 import datashader.transfer_functions as tf
+import numpy as np
+import pandas as pd
 from datashader.mpl_ext import dsshow
-
-from functools import partial
-from tempfile import NamedTemporaryFile
-
-from sklearn.neighbors import KernelDensity
-from skimage.transform import rescale
-
 from matplotlib import font_manager
-from matplotlib import pyplot as plt
 from matplotlib import patheffects
+from matplotlib import pyplot as plt
+from skimage.transform import rescale
+from sklearn.neighbors import KernelDensity
 
-from datamapplot.overlap_computations import get_2d_coordinates
-from datamapplot.text_placement import (
-    estimate_dynamic_font_size,
-    initial_text_location_placement,
-    fix_crossings,
-    adjust_text_locations,
-    estimate_font_size,
-    pylabeladjust_text_locations,
-)
 from datamapplot.config import ConfigManager
-from datamapplot.fonts import (
-    can_reach_google_fonts,
-    query_google_fonts,
-    GoogleAPIUnreachable,
-)
-from warnings import warn
-
+from datamapplot.fonts import GoogleAPIUnreachable
+from datamapplot.fonts import can_reach_google_fonts
+from datamapplot.fonts import query_google_fonts
+from datamapplot.overlap_computations import get_2d_coordinates
+from datamapplot.text_placement import adjust_text_locations
+from datamapplot.text_placement import estimate_dynamic_font_size
+from datamapplot.text_placement import estimate_font_size
+from datamapplot.text_placement import fix_crossings
+from datamapplot.text_placement import initial_text_location_placement
+from datamapplot.text_placement import pylabeladjust_text_locations
 
 cfg = ConfigManager()
 
