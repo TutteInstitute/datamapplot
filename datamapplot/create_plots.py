@@ -629,15 +629,15 @@ def create_interactive_plot(
             )
 
     if color_label_text or color_cluster_boundaries:
-        label_dataframe["r"] = text_palette.T[0]
-        label_dataframe["g"] = text_palette.T[1]
-        label_dataframe["b"] = text_palette.T[2]
-        label_dataframe["a"] = 64
+        label_dataframe["r"] = text_palette.T[0].astype(np.uint8)
+        label_dataframe["g"] = text_palette.T[1].astype(np.uint8)
+        label_dataframe["b"] = text_palette.T[2].astype(np.uint8)
+        label_dataframe["a"] = np.uint8(64)
     else:
-        label_dataframe["r"] = 15 if not darkmode else 240
-        label_dataframe["g"] = 15 if not darkmode else 240
-        label_dataframe["b"] = 15 if not darkmode else 240
-        label_dataframe["a"] = 64
+        label_dataframe["r"] = np.uint8(15) if not darkmode else np.uint8(240)
+        label_dataframe["g"] = np.uint8(15) if not darkmode else np.uint8(240)
+        label_dataframe["b"] = np.uint8(15) if not darkmode else np.uint8(240)
+        label_dataframe["a"] = np.uint8(64)
 
     label_dataframe["label"] = label_dataframe.label.map(
         lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
