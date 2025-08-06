@@ -43,6 +43,7 @@ and followed by guides on basic usage, through to the more complicated options a
    size_controls
    colour_controls
    placement_controls
+   offline_fonts
 
 .. toctree::
    :maxdepth: 1
@@ -64,6 +65,12 @@ and followed by guides on basic usage, through to the more complicated options a
    auto_examples/index
    api
    faq
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Odd corners and advanced usage:
+
+   example_offline_fonts
 
 .. toctree::
    :maxdepth: 1
