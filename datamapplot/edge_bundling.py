@@ -82,8 +82,11 @@ def bundle_edges(
     n_neighbors=10,
     color_map_nn=100,
     edges=None,
-    hammer_bundle_kwargs={"use_dask": False},
+    hammer_bundle_kwargs=None,
 ):
+    if hammer_bundle_kwargs is None:
+        hammer_bundle_kwargs = {"use_dask": False}
+
     """Use hammer edge bundling on nearest neighbors"""
     nbrs = NearestNeighbors(
         n_neighbors=max(n_neighbors, color_map_nn), algorithm="ball_tree", n_jobs=-1
