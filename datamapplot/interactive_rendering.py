@@ -7,6 +7,9 @@ import warnings
 import zipfile
 import json
 import platformdirs
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import jinja2
 import numpy as np
@@ -145,7 +148,7 @@ _CLUSTER_LAYER_DESCRIPTORS = {
 
 cfg = ConfigManager()
 
-_TOC_DEFAULT_KWDS = {
+_TOPIC_TREE_DEFAULT_KWDS = {
     "title": "Topic Tree",
     "font_size": "12pt",
     "max_width": "30vw",
@@ -314,9 +317,9 @@ class InteractiveFigure:
                 zf.write(filename)
 
 
-def get_google_font_for_embedding(fontname, offline_mode=False):
+def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_file=None):
     if offline_mode:
-        all_encoded_fonts = offline_mode_caching.load_fonts()
+        all_encoded_fonts = offline_mode_caching.load_fonts(file_path=offline_font_file)
         encoded_fonts = all_encoded_fonts.get(fontname, None)
         if encoded_fonts is not None:
             font_descriptions = [
@@ -356,10 +359,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False):
                 font_links.append(
                     f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/woff2" />'
                 )
-        return (
-            "\n".join(font_links)
-            + f"\n<style>\n{collection.content}\n</style>\n"
-        )
+        return "\n".join(font_links) + f"\n<style>\n{collection.content}\n</style>\n"
     else:
         return ""
 
@@ -370,7 +370,7 @@ def _get_js_dependency_sources(
     enable_histogram,
     enable_lasso_selection,
     colormap_selector,
-    enable_table_of_contents,
+    enable_topic_tree,
     enable_dynamic_tooltip,
 ):
     """
@@ -390,8 +390,8 @@ def _get_js_dependency_sources(
     enable_lasso_selection: bool
         Whether to include JS dependencies for the lasso selection functionality.
 
-    enable_table_of_contents: bool
-        Whether to include JS dependencies for the table of contents functionality.
+    enable_topic_tree: bool
+        Whether to include JS dependencies for the topic tree functionality.
 
     enable_dynamic_tooltip: bool
         Whether to include JS dependencies for the API tooltip functionality.
@@ -416,8 +416,8 @@ def _get_js_dependency_sources(
     if colormap_selector:
         js_dependencies.append("colormap_selector.js")
 
-    if enable_table_of_contents:
-        js_dependencies.append("table_of_contents.js")
+    if enable_topic_tree:
+        js_dependencies.append("topic_tree.js")
 
     if enable_dynamic_tooltip:
         js_dependencies.append("dynamic_tooltip.js")
@@ -435,7 +435,7 @@ def _get_css_dependency_sources(
     enable_histogram,
     show_loading_progress,
     enable_colormap_selector,
-    enable_table_of_contents,
+    enable_topic_tree,
 ):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
@@ -451,7 +451,7 @@ def _get_css_dependency_sources(
     show_loading_progress: bool
         Whether to have progress bars for data loading.
 
-    enable_table_of_contents: bool
+    enable_topic_tree: bool
         Whether to include CSS dependencies for the table of contents functionality.
 
     Returns
@@ -473,8 +473,8 @@ def _get_css_dependency_sources(
     if enable_colormap_selector:
         css_dependencies.append("colormap_selector_style.css")
 
-    if enable_table_of_contents:
-        css_dependencies.append("table_of_contents_style.css")
+    if enable_topic_tree:
+        css_dependencies.append("topic_tree_style.css")
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -486,7 +486,8 @@ def _get_css_dependency_sources(
 
 def _get_js_dependency_urls(
     enable_histogram,
-    enable_table_of_contents,
+    enable_topic_tree,
+    enable_colormaps,
     selection_handler=None,
     cdn_url="unpkg.com",
 ):
@@ -497,6 +498,18 @@ def _get_js_dependency_urls(
     ----------
     enable_histogram: bool
         Whether to include JS URLs for the histogram functionality.
+
+    enable_topic_tree: bool
+        Whether to include JS URLs for the topic tree functionality.
+
+    enable_colormaps: bool
+        Whether to include JS URLs for the colormap functionality.
+
+    selection_handler: SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
+        The selection handler(s) to use for managing data selection.
+
+    cdn_url: str, optional
+        The CDN URL to use for loading external JavaScript libraries.
 
     Returns
     -------
@@ -513,10 +526,10 @@ def _get_js_dependency_urls(
     js_dependency_urls.extend(common_js_urls)
 
     # Conditionally add dependencies based on functionality
-    if enable_histogram:
+    if enable_histogram or enable_colormaps:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
-    if enable_table_of_contents:
+    if enable_topic_tree:
         js_dependency_urls.append(f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js")
 
     if selection_handler is not None:
@@ -892,6 +905,7 @@ def label_text_and_polygon_dataframes(
     noise_label="Unlabelled",
     use_medoids=False,
     cluster_polygons=False,
+    include_zoom_bounds=False,
     include_related_points=False,
     alpha=0.05,
     parents=None,
@@ -917,9 +931,13 @@ def label_text_and_polygon_dataframes(
     cluster_polygons: bool (optional, default=False)
         Whether to build polygon cluster boundaries.
 
+    include_zoom_bounds: bool (optional, default=False)
+        Whether to include the zoom boundary of a cluster associated with a label.
+        Normally used when displaying a topic tree.
+
     include_related_points: bool (optional, default=False)
         Whether to include indexes of related points to each label.
-        Normally used when displaying a table of contents.
+        Normally used when displaying a topic tree with on_click functionality.
 
     alpha: float (optional, default=0.05)
         Display transparency for cluster polygons.
@@ -943,7 +961,7 @@ def label_text_and_polygon_dataframes(
     label_locations = []
     cluster_sizes = []
     polygons = []
-    # related_points = []
+    related_points = []
     points_bounds = []
     label_ids = []
     parent_ids = []
@@ -971,12 +989,13 @@ def label_text_and_polygon_dataframes(
                 ]
             )
         if include_related_points:
-            # related_points.append(np.where(cluster_mask))
+            related_points.append(np.where(cluster_mask))
+        if include_zoom_bounds:
             points_bounds.append(compute_percentile_bounds(cluster_points))
         if parents is not None:
             if len(parents[0]):
                 # Get the provenance (cluster membership at different heirarchical layers).
-                # This should be consistent.(??)
+                # This should be consistent.(?? could break with different topic naming ??)
                 p = (
                     ["base"]
                     + list(
@@ -1017,7 +1036,8 @@ def label_text_and_polygon_dataframes(
                 polygons.append(None)
                 unique_non_noise_labels.append(noise_label)
                 if include_related_points:
-                    # related_points.append(np.where(cluster_mask))
+                    related_points.append(np.where(cluster_mask))
+                if include_zoom_bounds:
                     points_bounds.append(compute_percentile_bounds(cluster_points))
                 if len(parents[0]):
                     # Get the provenance.
@@ -1058,40 +1078,40 @@ def label_text_and_polygon_dataframes(
     # Points are far too heavyweight for large datasets
     # We can use a different more efficient data-structure later
     # if we require this information for selection etc.
-    # if include_related_points:
-    #     data["points"] = related_points
+    if include_related_points:
+        data["points"] = related_points
     if parents is not None:
         data["id"] = label_ids
         data["parent"] = parent_ids
-        data["bounds"] = points_bounds
+        if include_zoom_bounds:
+            data["bounds"] = points_bounds
     return pd.DataFrame(data)
 
 
 def url_to_base64_img(url):
     try:
-        # Download the image
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        # Determine the image type from the Content-Type header
-        content_type = response.headers.get("Content-Type", "")
-        if not content_type.startswith("image/"):
-            raise ValueError(
-                f"URL does not point to an image (Content-Type: {content_type})"
-            )
-
-        # Convert the image data to base64
-        image_data = base64.b64encode(response.content).decode("utf-8")
-
-        # Create the complete data URL
-        return f"data:{content_type};base64,{image_data}"
-
-    except requests.RequestException as e:
-        print(f"Error downloading image: {e}")
+        # Download the image.
+        # The requests library doesn't support the file scheme so use urllib.
+        with urlopen(url, timeout=10) as response:
+            data = response.read()
+            content_type = response.info().get_content_type()
+    except HTTPError as e:
+        print(f"Error downloading image: HTTP error {e.code} {e.reason}")
         return None
-    except Exception as e:
-        print(f"Error processing image: {e}")
+    except URLError as e:
+        print(f"Error downloading image: Network error {e.reason}")
         return None
+
+    # Determine the image type from the response content type.
+    if not content_type.startswith("image/"):
+        print(f"URL {url} has content type {content_type} not image")
+        return None
+
+    # Convert the image data to base64.
+    image_data = base64.b64encode(data).decode("utf-8")
+
+    # Create the complete data URI.
+    return f"data:{content_type};base64,{image_data}"
 
 
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
@@ -1132,6 +1152,7 @@ def render_html(
     background_image_bounds=None,
     darkmode=False,
     offline_data_prefix=None,
+    offline_data_path=None,
     offline_data_chunk_size=500_000,
     tooltip_css=None,
     hover_text_html_template=None,
@@ -1140,6 +1161,7 @@ def render_html(
     enable_search=False,
     search_field="hover_text",
     histogram_data=None,
+    histogram_enable_click_persistence=False,
     histogram_n_bins=20,
     histogram_group_datetime_by=None,
     histogram_range=None,
@@ -1152,8 +1174,8 @@ def render_html(
     cluster_layer_colormaps=False,
     label_layers=None,
     cluster_colormap=None,
-    enable_table_of_contents=False,
-    table_of_contents_kwds={},
+    enable_topic_tree=False,
+    topic_tree_kwds={},
     show_loading_progress=True,
     custom_html=None,
     custom_css=None,
@@ -1239,7 +1261,7 @@ def render_html(
 
     logo: str or None (optional, default=None)
         A logo image to include in the bottom right corner of the map. This should be
-        a URL to the image.
+        a URL to the image with an http, https, or file scheme.
 
     logo_width: int (optional, default=256)
         The width, in pixels, of the logo to be included in the bottom right corner.
@@ -1326,7 +1348,14 @@ def render_html(
     offline_data_prefix: str or None (optional, default=None)
         If ``inline_data=False`` a number of data files will be created storing data for
         the plot and referenced by the HTML file produced. If not none then this will provide
-        a prefix on the filename of all the files created.
+        a prefix on the filename of all the files created. Deprecated in favor of
+        ``offline_data_path``.
+
+    offline_data_path: str, pathlib.Path, or None (optional, default=None)
+        If ``inline_data=False``, this specifies the path (including directory) where data
+        files will be saved. Can be a string path or pathlib.Path object. The directory
+        will be created if it doesn't exist. If not specified, falls back to
+        ``offline_data_prefix`` behavior for backward compatibility.
 
     tooltip_css: str or None (optional, default=None)
         Custom CSS used to fine the properties of the tooltip. If ``None`` a default
@@ -1440,33 +1469,33 @@ def render_html(
         data is split into multiple layers, and you would like users to be able to select
         individual clustering resolutions to colour by.
 
-    enable_table_of_contents: bool (optional, default=False)
-        Whether to enable a table of contents that highlights label heirarchy and aids navigation in
+    enable_topic_tree: bool (optional, default=False)
+        Whether to enable a topic tree that highlights label heirarchy and aids navigation in
         the datamap.
 
-    table_of_contents_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
-        A dictionary containing custom settings for the table of contents. The dictionary can include
+    topic_tree_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
+        A dictionary containing custom settings for the topic tree. The dictionary can include
         the following keys:
           * "title": str
-                The title of the table of contents.
+                The title of the topic tree.
           * "font_size": str
-                The font size of the table of contents.
+                The font size of the topic tree.
           * "max_width": str
-                The max width of the table of contents.
+                The max width of the topic tree.
           * "max_height": str
-                The max height of the table of contents.
+                The max height of the topic tree.
           * "color_bullets": bool
                 Whether to use cluster colors for the bullets.
           * "button_on_click": str or None
-                An optional javascript action to be taken if a button in the table of contents is selected.
+                An optional javascript action to be taken if a button in the topic tree is selected.
                 If None, there will be no buttons, otherwise they will be added with the "button_icon" setting.
                 Each button will be related to a label, and can access the points related to that label.
                 This javascript can reference ``{hover_text}`` or columns from ``extra_point_data``, at which
                 point an array is built with those values for each point that the label describes.
-                For example one could provide ``"console.log({hover_text}"`` to log the hover_text of all
+                For example one could provide ``"console.log({hover_text})"`` to log the hover_text of all
                 points related to the label.
           * "button_icon": str
-                The text to appear on the table of contents buttons.
+                The text to appear on the topic tree buttons.
                 These buttons do not appear unless "button_on_click" is defined.
 
     custom_css: str or None (optional, default=None)
@@ -1578,6 +1607,7 @@ def render_html(
     histogram_ctx = {
         "enable_histogram": enable_histogram,
         "histogram_data_attr": histogram_data_attr,
+        "histogram_enable_click_persistence": histogram_enable_click_persistence,
         **histogram_settings,
     }
     enable_lasso_selection = selection_handler is not None
@@ -1596,6 +1626,10 @@ def render_html(
 
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
+            assert extra_point_data.shape[0] == point_dataframe.shape[0], (
+                "If `extra_point_data` is provided, it must have the same number of rows as "
+                "`point_dataframe`."
+            )
             hover_data = pd.concat(
                 [point_dataframe[["hover_text"]], extra_point_data],
                 axis=1,
@@ -1623,18 +1657,18 @@ def render_html(
                 )
 
             if (
-                "button_on_click" in table_of_contents_kwds
-                and table_of_contents_kwds["button_on_click"] is not None
+                "button_on_click" in topic_tree_kwds
+                and topic_tree_kwds["button_on_click"] is not None
             ):
-                toc_replacements = FormattingDict(
+                topic_tree_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                     "button_on_click"
-                ].format_map(toc_replacements)
+                ].format_map(topic_tree_replacements)
         else:
             hover_data = point_dataframe[["hover_text"]].copy()
             get_tooltip = "({index}) => hoverData.hover_text[index]"
@@ -1653,18 +1687,18 @@ def render_html(
                     + " } }"
                 )
             if (
-                "button_on_click" in table_of_contents_kwds
-                and table_of_contents_kwds["button_on_click"] is not None
+                "button_on_click" in topic_tree_kwds
+                and topic_tree_kwds["button_on_click"] is not None
             ):
-                toc_replacements = FormattingDict(
+                topic_tree_replacements = FormattingDict(
                     **{
                         str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                         for name in hover_data.columns
                     }
                 )
-                table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                     "button_on_click"
-                ].format_map(toc_replacements)
+                ].format_map(topic_tree_replacements)
 
     elif extra_point_data is not None:
         hover_data = extra_point_data.copy()
@@ -1690,18 +1724,18 @@ def render_html(
                 + " } }"
             )
         if (
-            "button_on_click" in table_of_contents_kwds
-            and table_of_contents_kwds["button_on_click"] is not None
+            "button_on_click" in topic_tree_kwds
+            and topic_tree_kwds["button_on_click"] is not None
         ):
-            toc_replacements = FormattingDict(
+            topic_tree_replacements = FormattingDict(
                 **{
                     str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
                     for name in hover_data.columns
                 }
             )
-            table_of_contents_kwds["button_on_click"] = table_of_contents_kwds[
+            topic_tree_kwds["button_on_click"] = topic_tree_kwds[
                 "button_on_click"
-            ].format_map(toc_replacements)
+            ].format_map(topic_tree_replacements)
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
@@ -1837,6 +1871,7 @@ def render_html(
             base64_color_data = None
 
         file_prefix = None
+        html_file_prefix = None
         n_chunks = 0
     else:
         base64_point_data = ""
@@ -1845,9 +1880,39 @@ def render_html(
         base64_histogram_bin_data = ""
         base64_histogram_index_data = ""
         base64_color_data = ""
-        file_prefix = (
-            offline_data_prefix if offline_data_prefix is not None else "datamapplot"
-        )
+
+        # Handle offline_data_path with backward compatibility
+        if offline_data_path is not None:
+            # Convert to Path object for easier handling
+            data_path = Path(offline_data_path)
+
+            # Create directory if it doesn't exist
+            if (
+                data_path.suffix
+            ):  # If user provided a file with extension, use parent dir
+                data_dir = data_path.parent
+                base_name = data_path.stem
+                file_prefix = str(data_path.with_suffix(""))
+            else:  # User provided directory/basename
+                data_dir = (
+                    data_path.parent if data_path.parent != Path(".") else Path(".")
+                )
+                base_name = data_path.name
+                file_prefix = str(data_path)
+
+            # Ensure directory exists
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            # For HTML references, we need just the basename
+            html_file_prefix = base_name
+        else:
+            # Backward compatibility: use offline_data_prefix
+            file_prefix = (
+                offline_data_prefix
+                if offline_data_prefix is not None
+                else "datamapplot"
+            )
+            html_file_prefix = file_prefix
         n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
         for i in range(n_chunks):
             chunk_start = i * offline_data_chunk_size
@@ -1886,7 +1951,7 @@ def render_html(
     shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
     input_background = "#ffffffdd" if not darkmode else "#000000dd"
     input_border = "#ddddddff" if not darkmode else "222222ff"
-    table_of_contents_kwds = {**_TOC_DEFAULT_KWDS, **table_of_contents_kwds}
+    topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1900,12 +1965,14 @@ def render_html(
 
     if dynamic_tooltip is not None:
         enable_dynamic_tooltip = True
+        tooltip_identifier_js = dynamic_tooltip["identifier_js"]
         tooltip_fetch_js = dynamic_tooltip["fetch_js"]
         tooltip_format_js = dynamic_tooltip["format_js"]
         tooltip_loading_js = dynamic_tooltip["loading_js"]
         tooltip_error_js = dynamic_tooltip["error_js"]
     else:
         enable_dynamic_tooltip = False
+        tooltip_identifier_js = None
         tooltip_fetch_js = None
         tooltip_format_js = None
         tooltip_loading_js = None
@@ -1920,7 +1987,8 @@ def render_html(
     dependencies_ctx = {
         "js_dependency_urls": _get_js_dependency_urls(
             enable_histogram,
-            enable_table_of_contents,
+            enable_topic_tree,
+            enable_colormap_selector,
             selection_handler,
             cdn_url=cdn_url,
         ),
@@ -1930,7 +1998,7 @@ def render_html(
             enable_histogram,
             enable_lasso_selection,
             enable_colormap_selector,
-            enable_table_of_contents,
+            enable_topic_tree,
             enable_dynamic_tooltip,
         ),
         "css_dependency_srcs": _get_css_dependency_sources(
@@ -1938,11 +2006,25 @@ def render_html(
             enable_histogram,
             show_loading_progress,
             enable_colormap_selector,
-            enable_table_of_contents,
+            enable_topic_tree,
         ),
     }
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+
+    if logo is not None:
+        scheme = urlparse(logo).scheme
+        if not scheme:
+            # HTML will think logo is a relative path and fail to load it.
+            raise ValueError(
+                (
+                    "No scheme supplied for logo URL. "
+                    f"Perhaps you meant https://{logo}?"
+                )
+            )
+        elif offline_mode or scheme == "file":
+            # Store the image inline as a base64 URI.
+            logo = url_to_base64_img(logo)
 
     if offline_mode:
         if offline_mode_js_data_file is None:
@@ -1963,15 +2045,15 @@ def render_html(
             )
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
-
-        if logo is not None:
-            logo = url_to_base64_img(logo)
-
     else:
         offline_mode_data = None
 
     api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(font_family, offline_mode=offline_mode)
+    font_data = get_google_font_for_embedding(
+        font_family,
+        offline_mode=offline_mode,
+        offline_font_file=offline_mode_font_data_file if offline_mode else None,
+    )
     if font_data == "":
         api_fontname = None
     if tooltip_font_family is not None:
@@ -2030,10 +2112,10 @@ def render_html(
         google_tooltip_font=api_tooltip_fontname,
         page_background_color=page_background_color,
         search=enable_search,
-        enable_table_of_contents=enable_table_of_contents,
+        enable_topic_tree=enable_topic_tree,
         **{
-            f"table_of_contents_{key}": json.dumps(value)
-            for key, value in table_of_contents_kwds.items()
+            f"topic_tree_{key}": json.dumps(value)
+            for key, value in topic_tree_kwds.items()
         },
         **histogram_ctx,
         enable_colormap_selector=enable_colormap_selector,
@@ -2060,7 +2142,7 @@ def render_html(
         base64_histogram_bin_data=base64_histogram_bin_data,
         base64_histogram_index_data=base64_histogram_index_data,
         base64_color_data=base64_color_data,
-        file_prefix=file_prefix,
+        file_prefix=html_file_prefix,
         point_size=point_size,
         point_outline_color=point_outline_color,
         point_line_width=point_line_width,
@@ -2095,6 +2177,7 @@ def render_html(
         offline_mode_data=offline_mode_data,
         splash_warning=splash_warning,
         enable_api_tooltip=enable_dynamic_tooltip,
+        tooltip_identifier_js=tooltip_identifier_js,
         tooltip_fetch_js=tooltip_fetch_js,
         tooltip_format_js=tooltip_format_js,
         tooltip_loading_js=tooltip_loading_js,

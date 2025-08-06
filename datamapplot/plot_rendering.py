@@ -254,6 +254,7 @@ def render_plot(
         "hammer_bundle_kwargs": {"use_dask": False},
     },
     matplotlib_lineswidth=0.05,
+    use_system_fonts=False,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
     a lower level function, and should usually not be used directly unless there are specific
@@ -470,6 +471,11 @@ def render_plot(
     verbose: bool (optional, default=False)
         Print progress as the plot is being created.
 
+    use_system_fonts: bool (optional, default=False)
+        Whether to skip downloading fonts from Google Fonts and only use system-installed fonts.
+        This is useful when working offline, behind a firewall, or when you want to ensure 
+        consistent font rendering using only locally available fonts.
+
     ax: None or matplotlib.axes (optional, default=None)
         If not None, render the plot to this axis, otherwise create a new figure and axis.
 
@@ -488,23 +494,26 @@ def render_plot(
     else:
         fig = ax.get_figure()
 
-    if can_reach_google_fonts(timeout=5.0):
-        if verbose:
-            print("Getting any required fonts...")
-        # Get any google font we require
-        manage_google_font(font_family)
-        manage_google_font(font_family.split()[0])
-        if title_keywords is not None and "fontfamily" in title_keywords:
-            manage_google_font(title_keywords["fontfamily"])
-            manage_google_font(title_keywords["fontfamily"].split()[0])
-        if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
-            manage_google_font(sub_title_keywords["fontfamily"])
-            manage_google_font(sub_title_keywords["fontfamily"].split()[0])
-    else:
-        warn(
-            "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
-            GoogleAPIUnreachable,
-        )
+    if not use_system_fonts:
+        if can_reach_google_fonts(timeout=5.0):
+            if verbose:
+                print("Getting any required fonts...")
+            # Get any google font we require
+            manage_google_font(font_family)
+            manage_google_font(font_family.split()[0])
+            if title_keywords is not None and "fontfamily" in title_keywords:
+                manage_google_font(title_keywords["fontfamily"])
+                manage_google_font(title_keywords["fontfamily"].split()[0])
+            if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
+                manage_google_font(sub_title_keywords["fontfamily"])
+                manage_google_font(sub_title_keywords["fontfamily"].split()[0])
+        else:
+            warn(
+                "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
+                GoogleAPIUnreachable,
+            )
+    elif verbose:
+        print("Using system fonts only (use_system_fonts=True)")
 
     # Apply matplotlib or datashader based on heuristics
     if edge_bundle:
@@ -830,6 +839,7 @@ def render_plot(
         y_min -= 0.05 * height
         y_max += 0.05 * height
     else:
+        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
         x_min, y_min = data_map_coords.min(axis=0)
         x_max, y_max = data_map_coords.max(axis=0)
         width = x_max - x_min

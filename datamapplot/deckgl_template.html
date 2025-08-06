@@ -164,8 +164,8 @@
             <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
           </div>
           {% endif %}
-          {% if enable_table_of_contents %}
-          <div id="table-of-contents" class="container-box">
+          {% if enable_topic_tree %}
+          <div id="topic-tree" class="container-box">
           </div>
           {% endif %}
         </div>
@@ -635,7 +635,7 @@
           datamap.labelData = labelData;
           // Only build labels where we have a position.
           datamap.addLabels(
-            {%- if enable_table_of_contents -%}
+            {%- if enable_topic_tree -%}
             labelData.filter((d) => {return !(d.id.endsWith('-1'))})
             {%- else -%}
             labelData
@@ -653,45 +653,45 @@
             pickable: false,
           });
 
-          {% if enable_table_of_contents %}
-            const tocContainer = document.querySelector('#table-of-contents');
+          {% if enable_topic_tree %}
+            const topicTreeContainer = document.querySelector('#topic-tree');
             
-            {% if table_of_contents_button_on_click != 'null' %}
-            const toc = new TableOfContents(
-                tocContainer,
+            {% if topic_tree_button_on_click != 'null' %}
+            const topicTree = new TopicTree(
+                topicTreeContainer,
                 datamap,
                 true,
-                {{table_of_contents_button_icon}},
+                {{topic_tree_button_icon}},
                 {
-                  title:{{table_of_contents_title}},
-                  maxWidth:{{table_of_contents_max_width}},
-                  maxHeight:{{table_of_contents_max_height}},
-                  fontSize:{{table_of_contents_font_size}},
-                  colorBullets:{{table_of_contents_color_bullets}},
+                  title:{{topic_tree_title}},
+                  maxWidth:{{topic_tree_max_width}},
+                  maxHeight:{{topic_tree_max_height}},
+                  fontSize:{{topic_tree_font_size}},
+                  colorBullets:{{topic_tree_color_bullets}},
                 }             
             );
               
-            // Set up the table of contents button behaviour.
-            toc.container.querySelectorAll('.toc-btn').forEach(button => {
+            // Set up the topic tree button behaviour.
+            topicTree.container.querySelectorAll('.topic-tree-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     var label = datamap.labelData.find(l => {
                       return l.id === this.dataset.labelId
                     })
-                    {{table_of_contents_button_on_click[1:-1]}}
+                    {{topic_tree_button_on_click[1:-1]}}
                 });
             });
             {% else %}
-            const toc = new TableOfContents(
-                tocContainer,
+            const topicTree = new TopicTree(
+                topicTreeContainer,
                 datamap,
                 false,
                 null,
                 {
-                  title:{{table_of_contents_title}},
-                  maxWidth:{{table_of_contents_max_width}},
-                  maxHeight:{{table_of_contents_max_height}},
-                  fontSize:{{table_of_contents_font_size}},
-                  colorBullets:{{table_of_contents_color_bullets}},
+                  title:{{topic_tree_title}},
+                  maxWidth:{{topic_tree_max_width}},
+                  maxHeight:{{topic_tree_max_height}},
+                  fontSize:{{topic_tree_font_size}},
+                  colorBullets:{{topic_tree_color_bullets}},
                 }           
             );
             {% endif -%}
@@ -700,7 +700,7 @@
                 if (!userIsInteracting) {
                     const visible = getVisibleTextData(viewState)
                     if (visible) {
-                        toc.highlightElements(visible)
+                        topicTree.highlightElements(visible)
                     };
                 };
             }, 150);
@@ -825,6 +825,7 @@
           {%- if histogram_title %}
           title: "{{ histogram_title }}",
           {%- endif %}
+          enableClickPersistence: {{ histogram_enable_click_persistence|lower }},
           {%- if histogram_bin_fill_color %}
           binDefaultFillColor: "{{ histogram_bin_fill_color }}",
           {%- endif %}
@@ -848,7 +849,7 @@
     }
     {% endif -%}
 
-    {% if enable_table_of_contents %}
+    {% if enable_topic_tree %}
     function isBoundsVisible({bounds, viewState}) {
         const {width, height, longitude, latitude, zoom} = viewState;
     
@@ -905,6 +906,7 @@
     const tooltip = new DynamicTooltipManager(
       datamap,
       {
+        getIdentifier: {{tooltip_identifier_js}},
         fetchData: {{tooltip_fetch_js}},
         formatContent: {{tooltip_format_js}},
         formatLoading: {{tooltip_loading_js}},

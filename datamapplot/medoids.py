@@ -5,9 +5,14 @@ import numba
 @numba.njit(
     [
         "f4(f4[::1],f4[::1])",
+        "f4(f8[::1],f8[::1])",
         numba.types.float32(
             numba.types.Array(numba.types.float32, 1, "C", readonly=True),
             numba.types.Array(numba.types.float32, 1, "C", readonly=True),
+        ),
+        numba.types.float32(
+            numba.types.Array(numba.types.float64, 1, "C", readonly=True),
+            numba.types.Array(numba.types.float64, 1, "C", readonly=True),
         ),
     ],
     fastmath=True,
