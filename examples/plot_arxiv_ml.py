@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 plt.rcParams['savefig.bbox'] = 'tight'
 
-arxivml_data_map = np.load("arxiv_ml_data_map.npy")
-arxivml_labels = np.load("arxiv_ml_cluster_labels.npy", allow_pickle=True)
+arxivml_data_map = np.load("arxiv_ml_data_map.npz")["arr_0"]
+arxivml_labels = np.load("arxiv_ml_cluster_labels.npz", allow_pickle=True)["arr_0"]
 
 arxiv_logo_response = requests.get(
     "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png",
