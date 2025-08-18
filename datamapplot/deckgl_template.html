@@ -636,7 +636,7 @@
           // Only build labels where we have a position.
           datamap.addLabels(
             {%- if enable_topic_tree -%}
-            labelData.filter((d) => {return !(d.id.endsWith('-1'))})
+            labelData.filter((d) => {return !(d.id && d.id.endsWith('-1'))})
             {%- else -%}
             labelData
             {%- endif -%}, {
