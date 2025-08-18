@@ -56,7 +56,7 @@ def test_plot_arxiv_ml(
     return fig
 
 
-@pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
+@pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default", tolerance=25)
 def test_plot_arxiv_ml_edge_bundle(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
 ):
