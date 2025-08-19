@@ -304,6 +304,9 @@
     {% if enable_colormap_selector %}
     const colorDataEncoded = "{{base64_color_data}}";
     {% endif %}
+    {% if edge_bundle %}
+    const edgeDataEncoded = "{{base64_edge_data}}";
+    {% endif %}
 
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
@@ -434,6 +437,9 @@
       {% endfor -%}
     ];
     {% endif %}
+    {% if edge_bundle %}
+    const edgeDataEncoded = [`${originURL}/{{file_prefix}}_edge_data.zip`];
+    {% endif %}
 
     // Blob for the parsing worker
     const parsingWorkerBlob = new Blob([`
@@ -511,6 +517,9 @@
     {% endif -%}
     {% if enable_colormap_selector %}
     const colorDataWorker = new Worker(workerUrl);
+    {% endif %}
+    {% if edge_bundle %}
+    const edgeDataWorker = new Worker(workerUrl);
     {% endif %}
 
     const datamap = new DataMap({
@@ -614,6 +623,37 @@
             datamap,
           );
           datamap.colorSelector = colorSelector;
+        }
+      };
+      {% endif %}
+
+      {% if edge_bundle %}
+      edgeDataWorker.postMessage({encodedData: edgeDataEncoded, JSONParse: false});
+
+      edgeDataWorker.onmessage = async function(event) {
+        if (event.data.type === "progress") {
+          updateProgressBar('edge-data-progress', event.data.progress);
+        } else {
+          const { data } = event.data;
+          {% if inline_data %}
+          const edgeData = await simpleArrowParser(data);
+          {% else %}
+          const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+            return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+          });
+          const edgeData = await Promise.all(chunkArray).then(combineTypedTableChunks);
+          {% endif %}
+
+          datamap.addEdges(
+            edgeData,
+            {
+              edgeWidth: {{edge_width}},
+            }
+          );
+
+          document.getElementById("loading").style.display = "none";
+          updateProgressBar('edge-data-progress', 100);
+          checkAllDataLoaded();
         }
       };
       {% endif %}
