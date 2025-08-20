@@ -7,6 +7,9 @@ import warnings
 import zipfile
 import json
 import platformdirs
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import jinja2
 import numpy as np
@@ -484,6 +487,7 @@ def _get_css_dependency_sources(
 def _get_js_dependency_urls(
     enable_histogram,
     enable_topic_tree,
+    enable_colormaps,
     selection_handler=None,
     cdn_url="unpkg.com",
 ):
@@ -497,6 +501,15 @@ def _get_js_dependency_urls(
 
     enable_topic_tree: bool
         Whether to include JS URLs for the topic tree functionality.
+
+    enable_colormaps: bool
+        Whether to include JS URLs for the colormap functionality.
+
+    selection_handler: SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
+        The selection handler(s) to use for managing data selection.
+
+    cdn_url: str, optional
+        The CDN URL to use for loading external JavaScript libraries.
 
     Returns
     -------
@@ -513,7 +526,7 @@ def _get_js_dependency_urls(
     js_dependency_urls.extend(common_js_urls)
 
     # Conditionally add dependencies based on functionality
-    if enable_histogram:
+    if enable_histogram or enable_colormaps:
         js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
 
     if enable_topic_tree:
@@ -1092,29 +1105,28 @@ def label_text_and_polygon_dataframes(
 
 def url_to_base64_img(url):
     try:
-        # Download the image
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        # Determine the image type from the Content-Type header
-        content_type = response.headers.get("Content-Type", "")
-        if not content_type.startswith("image/"):
-            raise ValueError(
-                f"URL does not point to an image (Content-Type: {content_type})"
-            )
-
-        # Convert the image data to base64
-        image_data = base64.b64encode(response.content).decode("utf-8")
-
-        # Create the complete data URL
-        return f"data:{content_type};base64,{image_data}"
-
-    except requests.RequestException as e:
-        print(f"Error downloading image: {e}")
+        # Download the image.
+        # The requests library doesn't support the file scheme so use urllib.
+        with urlopen(url, timeout=10) as response:
+            data = response.read()
+            content_type = response.info().get_content_type()
+    except HTTPError as e:
+        print(f"Error downloading image: HTTP error {e.code} {e.reason}")
         return None
-    except Exception as e:
-        print(f"Error processing image: {e}")
+    except URLError as e:
+        print(f"Error downloading image: Network error {e.reason}")
         return None
+
+    # Determine the image type from the response content type.
+    if not content_type.startswith("image/"):
+        print(f"URL {url} has content type {content_type} not image")
+        return None
+
+    # Convert the image data to base64.
+    image_data = base64.b64encode(data).decode("utf-8")
+
+    # Create the complete data URI.
+    return f"data:{content_type};base64,{image_data}"
 
 
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
@@ -1265,7 +1277,7 @@ def render_html(
 
     logo: str or None (optional, default=None)
         A logo image to include in the bottom right corner of the map. This should be
-        a URL to the image.
+        a URL to the image with an http, https, or file scheme.
 
     logo_width: int (optional, default=256)
         The width, in pixels, of the logo to be included in the bottom right corner.
@@ -1371,6 +1383,10 @@ def render_html(
         hover tooltip. This should be HTML with placeholders of the form ``{hover_text}``
         for the supplied hover text and ``{column_name}`` for columns from
         ``extra_point_data`` (see below).
+
+    dynamic_tooltip: dict[str, str] or None (optional, default=None)
+        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript 
+        functions that are passed to DynamicTooltipManager and define the behavior of the tooltip.
 
     extra_point_data: pandas.DataFrame or None (optional, default=None)
         A dataframe of extra information about points. This should be a dataframe with
@@ -1630,6 +1646,10 @@ def render_html(
 
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
+            assert extra_point_data.shape[0] == point_dataframe.shape[0], (
+                "If `extra_point_data` is provided, it must have the same number of rows as "
+                "`point_dataframe`."
+            )
             hover_data = pd.concat(
                 [point_dataframe[["hover_text"]], extra_point_data],
                 axis=1,
@@ -1968,7 +1988,7 @@ def render_html(
 
     if dynamic_tooltip is not None:
         enable_dynamic_tooltip = True
-        tooltip_identifier_js = dynamic_tooltip['identifier_js']
+        tooltip_identifier_js = dynamic_tooltip.get("identifier_js", None)
         tooltip_fetch_js = dynamic_tooltip["fetch_js"]
         tooltip_format_js = dynamic_tooltip["format_js"]
         tooltip_loading_js = dynamic_tooltip["loading_js"]
@@ -1991,6 +2011,7 @@ def render_html(
         "js_dependency_urls": _get_js_dependency_urls(
             enable_histogram,
             enable_topic_tree,
+            enable_colormap_selector,
             selection_handler,
             cdn_url=cdn_url,
         ),
@@ -2014,6 +2035,20 @@ def render_html(
 
     template = jinja2.Template(_DECKGL_TEMPLATE_STR)
 
+    if logo is not None:
+        scheme = urlparse(logo).scheme
+        if not scheme:
+            # HTML will think logo is a relative path and fail to load it.
+            raise ValueError(
+                (
+                    "No scheme supplied for logo URL. "
+                    f"Perhaps you meant https://{logo}?"
+                )
+            )
+        elif offline_mode or scheme == "file":
+            # Store the image inline as a base64 URI.
+            logo = url_to_base64_img(logo)
+
     if offline_mode:
         if offline_mode_js_data_file is None:
             data_directory = platformdirs.user_data_dir("datamapplot")
@@ -2033,10 +2068,6 @@ def render_html(
             )
             if not offline_mode_font_data_file.is_file():
                 offline_mode_caching.cache_fonts()
-
-        if logo is not None:
-            logo = url_to_base64_img(logo)
-
     else:
         offline_mode_data = None
 

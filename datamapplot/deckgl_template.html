@@ -636,7 +636,7 @@
           // Only build labels where we have a position.
           datamap.addLabels(
             {%- if enable_topic_tree -%}
-            labelData.filter((d) => {return !(d.id.endsWith('-1'))})
+            labelData.filter((d) => {return !(d.id && d.id.endsWith('-1'))})
             {%- else -%}
             labelData
             {%- endif -%}, {
@@ -907,7 +907,7 @@
     const tooltip = new DynamicTooltipManager(
       datamap,
       {
-        getIdentifier: {{tooltip_identifier_js}},
+        {%- if tooltip_identifier_js %}getIdentifier: {{tooltip_identifier_js}},{% endif -%}
         fetchData: {{tooltip_fetch_js}},
         formatContent: {{tooltip_format_js}},
         formatLoading: {{tooltip_loading_js}},
