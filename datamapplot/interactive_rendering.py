@@ -1965,7 +1965,7 @@ def render_html(
 
     if dynamic_tooltip is not None:
         enable_dynamic_tooltip = True
-        tooltip_identifier_js = dynamic_tooltip["identifier_js"]
+        tooltip_identifier_js = dynamic_tooltip.get("identifier_js", None)
         tooltip_fetch_js = dynamic_tooltip["fetch_js"]
         tooltip_format_js = dynamic_tooltip["format_js"]
         tooltip_loading_js = dynamic_tooltip["loading_js"]

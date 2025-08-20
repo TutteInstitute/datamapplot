@@ -906,7 +906,7 @@
     const tooltip = new DynamicTooltipManager(
       datamap,
       {
-        getIdentifier: {{tooltip_identifier_js}},
+        {%- if tooltip_identifier_js %}getIdentifier: {{tooltip_identifier_js}},{% endif -%}
         fetchData: {{tooltip_fetch_js}},
         formatContent: {{tooltip_format_js}},
         formatLoading: {{tooltip_loading_js}},
