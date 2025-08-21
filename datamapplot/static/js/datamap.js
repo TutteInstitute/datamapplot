@@ -230,6 +230,7 @@ class DataMap {
     fontWeight = 900,
     lineSpacing = 0.95,
     textCollisionSizeScale = 3.0,
+    noiseLabel = "Unlabelled",
     pickable = false,
   }) {
     
@@ -250,7 +251,7 @@ class DataMap {
     this.labelLayer = new deck.TextLayer({
       id: 'labelLayer',
       // Only add labels with valid x positions.
-      data: labelData,
+      data: labelData.filter(d => d.label !== noiseLabel),
       pickable: pickable,
       getPosition: d => [d.x, d.y],
       getText: d => d.label,
