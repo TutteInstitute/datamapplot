@@ -1,11 +1,12 @@
+from typing import Union, List
+
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
 from scipy.interpolate import RegularGridInterpolator
 from datashader.bundling import hammer_bundle
 
-
-def _hex_to_rgb(hex_color):
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     """
     Converts a hex color string to an RGB tuple.
 
@@ -52,7 +53,7 @@ def _rgb_to_hex(rgb, round_to=30):
     return hex_colors
 
 
-def _interpolate_colors(tree, colors, target_points, nn=100):
+def _interpolate_colors(tree, colors: Union[np.ndarray, List[str]], target_points, nn=100, rgb_colors=False) -> np.ndarray:
     grid_x = np.linspace(target_points[:, 0].min(), target_points[:, 0].max(), 100)
     grid_y = np.linspace(target_points[:, 1].min(), target_points[:, 1].max(), 100)
     grid_xx, grid_yy = np.meshgrid(grid_x, grid_y, indexing="ij")
@@ -60,7 +61,8 @@ def _interpolate_colors(tree, colors, target_points, nn=100):
 
     # construct color grid
 
-    colors = np.array([_hex_to_rgb(color) for color in colors])
+    if not rgb_colors:
+        colors = np.array([_hex_to_rgb(color) for color in colors])
     distances, indices = tree.kneighbors(grid_points, n_neighbors=nn)
     weights = 1 / np.maximum(distances, 1e-6) ** 1  # Avoid division by zero
     weights /= weights.sum(axis=1)[:, None]  #
@@ -73,12 +75,13 @@ def _interpolate_colors(tree, colors, target_points, nn=100):
     )
     segment_colors = color_interpolator(target_points)
 
-    return _rgb_to_hex(segment_colors)
+    return segment_colors if rgb_colors else _rgb_to_hex(segment_colors)
 
 
 def bundle_edges(
     data_map_coords,
     color_list,
+    rgb_colors=False,
     n_neighbors=10,
     color_map_nn=100,
     edges=None,
@@ -126,6 +129,6 @@ def bundle_edges(
     ).T
 
     # Compute line segment color based on midpoint
-    segment_colors = _interpolate_colors(nbrs, color_list, midpoints, nn=color_map_nn)
+    segment_colors = _interpolate_colors(nbrs, color_list, midpoints, nn=color_map_nn, rgb_colors=rgb_colors)
 
     return segments, segment_colors

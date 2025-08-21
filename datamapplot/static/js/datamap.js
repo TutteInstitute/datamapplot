@@ -173,6 +173,52 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
+  addEdges(edgeData, {
+    edgeWidth = 0.05,
+    edgeOpacity = 0.8,
+  }) {
+    const numEdges = edgeData.r.length;
+    this.edgeWidth = edgeWidth;
+    this.edgeOpacity = edgeOpacity;
+
+    const sourcePosition = new Float32Array(numEdges * 2);
+    const targetPosition = new Float32Array(numEdges * 2);
+    const colors = new Uint8Array(numEdges * 4);
+
+    let lineAttributes = {
+      getSourcePosition: { value: sourcePosition, size: 2 },
+      getTargetPosition: { value: targetPosition, size: 2 },
+      getColor: { value: colors, size: 4 },
+    };
+
+    // Populate the arrays
+    for (let i = 0; i < numEdges; i++) {
+      sourcePosition[i * 2] = edgeData.x1[i];
+      sourcePosition[i * 2 + 1] = edgeData.y1[i];
+      targetPosition[i * 2] = edgeData.x2[i];
+      targetPosition[i * 2 + 1] = edgeData.y2[i];
+      colors[i * 4] = edgeData.r[i];
+      colors[i * 4 + 1] = edgeData.g[i];
+      colors[i * 4 + 2] = edgeData.b[i];
+      colors[i * 4 + 3] = 180;
+    }
+
+    this.edgeLayer = new deck.LineLayer({
+      id: 'edgeLayer',
+      data: {
+        length: numEdges,
+        attributes: lineAttributes
+      },
+      getSourcePosition: d => [d.source.x, d.source.y],
+      getTargetPosition: d => [d.target.x, d.target.y],
+      getWidth: this.edgeWidth,
+    });
+
+    this.layers.push(this.edgeLayer);
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
   addLabels(labelData, {
     labelTextColor = d => [d.r, d.g, d.b],
     textMinPixelSize = 18,
