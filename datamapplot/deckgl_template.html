@@ -660,18 +660,27 @@
     }
 
     function loadLabelDataLayer() {
-      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+      labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: false});
 
       labelDataWorker.onmessage = async function(event) {
         if (event.data.type === "progress") {
           updateProgressBar('label-data-progress', event.data.progress);
         } else {
           const { data } = event.data;
-          {% if inline_data -%}
-          const labelData = data;
-          {% else -%}
-          const labelData = data[0].chunkData;
-          {% endif -%}
+          {% if inline_data %}
+          const labelDataArrays = await simpleArrowParser(data);
+          {% else %}
+          const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+            return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+          });
+          const labelDataArrays = await Promise.all(chunkArray).then(combineTypedTableChunks);
+          {% endif %}
+          const keys = Object.keys(labelDataArrays);
+          const length = keys.length > 0 ? labelDataArrays[keys[0]].length : 0;
+
+          const labelData = Array.from({length}, (_, i) =>
+            Object.fromEntries(keys.map(key => [key, labelDataArrays[key][i]]))
+          );
           datamap.labelData = labelData;
           // Only build labels where we have a position.
           datamap.addLabels(
