@@ -255,6 +255,7 @@ def render_plot(
     },
     matplotlib_lineswidth=0.05,
     use_system_fonts=False,
+    show_labels=True,
 ):
     """Render a static data map plot with given colours and label locations and text. This is
     a lower level function, and should usually not be used directly unless there are specific
@@ -586,7 +587,7 @@ def render_plot(
     if verbose:
         print("Placing labels...")
     ax.autoscale_view()
-    if label_locations.shape[0] > 0:
+    if label_locations.shape[0] > 0 and show_labels:
 
         # Ensure we can look up labels for highlighting
         if highlight_labels is not None:
