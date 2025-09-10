@@ -257,6 +257,8 @@ def palette_from_cmap_and_datamap(
 
 
 def deep_palette(base_palette, degree=2.0):
+    if len(base_palette) == 0:
+        return []
     initial_palette = [to_rgb(color) for color in base_palette]
     jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
     min_lightness = jch_palette.T[0].min()
@@ -273,6 +275,8 @@ def deep_palette(base_palette, degree=2.0):
 
 
 def pastel_palette(base_palette, degree=2.0):
+    if len(base_palette) == 0:
+        return []
     initial_palette = [to_rgb(color) for color in base_palette]
     jch_palette = colorspacious.cspace_convert(initial_palette, "sRGB1", "JCh")
     min_lightness = jch_palette.T[0].min()
