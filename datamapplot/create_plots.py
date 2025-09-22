@@ -511,7 +511,7 @@ def create_interactive_plot(
             {
                 "x": [data_map_coords.T[0].mean()],
                 "y": [data_map_coords.T[1].mean()],
-                "label": [""],
+                "label": [noise_label],
                 "size": [np.power(data_map_coords.shape[0], 0.25)],
             }
         )
@@ -627,21 +627,21 @@ def create_interactive_plot(
                     )
                 ]
             )
+    if len(label_dataframe) > 0:
+        if color_label_text or color_cluster_boundaries:
+            label_dataframe["r"] = text_palette.T[0]
+            label_dataframe["g"] = text_palette.T[1]
+            label_dataframe["b"] = text_palette.T[2]
+            label_dataframe["a"] = 64
+        else:
+            label_dataframe["r"] = 15 if not darkmode else 240
+            label_dataframe["g"] = 15 if not darkmode else 240
+            label_dataframe["b"] = 15 if not darkmode else 240
+            label_dataframe["a"] = 64
 
-    if color_label_text or color_cluster_boundaries:
-        label_dataframe["r"] = text_palette.T[0]
-        label_dataframe["g"] = text_palette.T[1]
-        label_dataframe["b"] = text_palette.T[2]
-        label_dataframe["a"] = 64
-    else:
-        label_dataframe["r"] = 15 if not darkmode else 240
-        label_dataframe["g"] = 15 if not darkmode else 240
-        label_dataframe["b"] = 15 if not darkmode else 240
-        label_dataframe["a"] = 64
-
-    label_dataframe["label"] = label_dataframe.label.map(
-        lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
-    )
+        label_dataframe["label"] = label_dataframe.label.map(
+            lambda x: textwrap.fill(x, width=label_wrap_width, break_long_words=False)
+        )
 
     # Recombine noise label placeholders.
     label_dataframe = pd.concat([label_dataframe, noise_label_dataframe])
@@ -707,6 +707,7 @@ def create_interactive_plot(
         enable_topic_tree=enable_topic_tree,
         offline_data_path=offline_data_path,
         histogram_enable_click_persistence=histogram_enable_click_persistence,
+        noise_label=noise_label,
         **render_html_kwds,
     )
 
