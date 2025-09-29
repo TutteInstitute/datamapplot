@@ -668,7 +668,8 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
         ]
         metadata["kind"] = "datetime"
 
-    elif values.dtype.kind in ["U", "S", "O"]:  # String or object type
+    elif values.dtype.kind in ["U", "S", "O", "b"]:
+        # String, object, or boolean type.
         valid_mask = get_valid_mask(values)
         if not np.any(valid_mask):
             raise ValueError("No valid string values found")
