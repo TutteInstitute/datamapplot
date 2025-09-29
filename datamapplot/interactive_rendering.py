@@ -26,7 +26,8 @@ from colorspacious import cspace_convert
 from sklearn.cluster import KMeans
 from collections.abc import Iterable
 
-from pandas.api.types import is_string_dtype, is_numeric_dtype, is_datetime64_any_dtype
+from pandas.api.types import is_string_dtype, is_datetime64_any_dtype
+import datetime as dt
 
 from datamapplot.histograms import (
     generate_bins_from_numeric_data,
@@ -584,7 +585,7 @@ def default_colormap_options(values_dict):
                     cmap = _DEFAULT_DICRETE_COLORMAPS[n]
             colormap_metadata["cmap"] = cmap
             used_colormaps.add(cmap)
-        elif pd.api.types.is_datetime64_any_dtype(values):
+        elif is_datetime64_any_dtype(values):
             colormap_metadata["kind"] = "datetime"
             colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[
                 continuous_cmap_counter
@@ -622,9 +623,12 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
     else:
         cmap = get_cmap(cmap_name)
 
+    vmin = metadata.pop("vmin", None)
+    vmax = metadata.pop("vmax", None)
+
     # Function to get finite/non-null mask
     def get_valid_mask(arr):
-        if pd.api.types.is_datetime64_any_dtype(arr):
+        if is_datetime64_any_dtype(arr):
             return ~pd.isna(arr)
         elif arr.dtype.kind in ["f", "i"]:
             return np.isfinite(arr)
@@ -632,7 +636,7 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
             return ~pd.isna(arr)
 
     # Handle datetime values
-    if pd.api.types.is_datetime64_any_dtype(values):
+    if is_datetime64_any_dtype(values):
         if cmap is None:
             raise ValueError("cmap must be provided for datetime data")
 
@@ -641,7 +645,11 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
             raise ValueError("No valid datetime values found")
 
         valid_values = values[valid_mask]
-        vmin, vmax = valid_values.min(), valid_values.max()
+
+        if not isinstance(vmin, (pd.Timestamp, np.datetime64, dt.datetime)):
+            vmin = valid_values.min()
+        if not isinstance(vmax, (pd.Timestamp, np.datetime64, dt.datetime)):
+            vmax = valid_values.max()
 
         # Convert to float for normalization
         normalized_values = np.zeros_like(values, dtype=float)
@@ -733,7 +741,11 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
             raise ValueError("No valid numeric values found")
 
         valid_values = values[valid_mask]
-        vmin, vmax = valid_values.min(), valid_values.max()
+
+        if not np.issubdtype(type(vmin), np.number):
+            vmin = valid_values.min()
+        if not np.issubdtype(type(vmax), np.number):
+            vmax = valid_values.max()
 
         normalized_values = np.zeros_like(values, dtype=float)
         normalized_values[valid_mask] = (
@@ -846,6 +858,8 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "colors": cmap_colors,
             "kind": metadata.get("kind", "continuous"),
             "nColors": metadata.get("n_colors", 5),
+            "vmin": metadata.get("vmin", None),
+            "vmax": metadata.get("vmax", None),
         }
         if "show_legend" in metadata:
             colormap["showLegend"] = metadata["show_legend"]
