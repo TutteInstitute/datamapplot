@@ -567,7 +567,7 @@ def default_colormap_options(values_dict):
         colormap_metadata["field"] = candidate_field
         colormap_metadata["description"] = name
 
-        if values.dtype.kind in ["U", "S", "O"]:
+        if values.dtype.kind in ["U", "S", "O", "b"]:
             colormap_metadata["kind"] = "categorical"
             n_categories = len(np.unique(values))
             n = 0
@@ -672,7 +672,7 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
         # String, object, or boolean type.
         valid_mask = get_valid_mask(values)
         if not np.any(valid_mask):
-            raise ValueError("No valid string values found")
+            raise ValueError("No valid string, object, or boolean values found")
 
         # Get unique valid values
         unique_values = np.unique(values[valid_mask])
