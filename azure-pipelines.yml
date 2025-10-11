@@ -71,6 +71,16 @@ parameters:
     # windows_py312:
     #   imageName: 'windows-latest'
     #   python.version: '3.12'
+    mac_py313:
+      imageName: 'macOS-latest'
+      python.version: '3.13'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
+    linux_py313:
+      imageName: 'ubuntu-latest'
+      python.version: '3.13'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
 
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
@@ -147,13 +157,6 @@ stages:
             ls -la $(Build.ArtifactStagingDirectory)/mpl
           displayName: 'List contents of $(Build.ArtifactStagingDirectory)/mpl'
           condition: ne(variables['Agent.OS'], 'Windows_NT')
-
-        # - bash: |
-        #     coveralls
-        #   displayName: 'Publish to coveralls'
-        #   condition: and(succeeded(), eq(variables.triggeredByPullRequest, false)) # Don't run this for PRs because they can't access pipeline secrets
-        #   env:
-        #     COVERALLS_REPO_TOKEN: $(COVERALLS_TOKEN)
 
         - task: PublishBuildArtifacts@1
           inputs:
@@ -270,7 +273,8 @@ stages:
           displayName: 'Install package locally'
 
         - script: |
-            python setup.py sdist bdist_wheel
+            pip install build
+            python -m build --wheel --sdist --outdir dist/ .
           displayName: 'Build package'
 
         - bash: |
