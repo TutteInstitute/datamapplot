@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "datamapplot"
+version = "0.6.4"
+authors = [{name = "Leland McInnes", email = "leland.mcinnes@gmail.com"}]
+maintainers = [{name = "Leland McInnes", email = "leland.mcinnes@gmail.com"}]
+description = "A library for presentation and publication ready plots of data maps"
+readme = "README.rst"
+keywords = ["data map", "visualization", "topic modelling", "cluster", "clustering"]
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "colorcet",
+    "colorspacious>=1.1",
+    "dask[complete]>=2024.4.1, <2025.0.1",
+    "datashader>=0.16",
+    "importlib-resources",
+    "jinja2",
+    "matplotlib>=3.8",
+    "numba>=0.56",
+    "numpy>=2.0",
+    "pandas>=1.0",
+    "pyarrow",
+    "pylabeladjust",
+    "requests",
+    "rcssmin>=1.1.2",
+    "rjsmin>=1.2.2",
+    "scikit-image>=0.22",
+    "scikit-learn>=1.1",
+    "platformdirs",
+    "typing_extensions",
+]
+
+[project.urls]
+Homepage = "https://github.com/TutteInstitute/datamapplot"
+
+[project.scripts]
+dmp_offline_cache = "datamapplot.offline_mode_caching:main"
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+packages = ["datamapplot"]
