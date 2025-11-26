@@ -4,3 +4,4 @@ pytest
 pytest-azurepipelines
 pytest-cov
 pytest-mpl
+seaborn
