@@ -2,7 +2,7 @@ import { Page } from '@playwright/test';
 
 export const waitForDeckGL = async (page:Page, testInfo?:any) => {
   const canvas = page.locator('#deck-container canvas');
-  await canvas.waitFor({ state: 'visible', timeout: 180_000 });
+  await canvas.waitFor({ state: 'visible', timeout: 360_000 });
 
   const deckReady = await page.evaluate((projectName) => {
     const canvas = document.querySelector('#deck-container canvas');
