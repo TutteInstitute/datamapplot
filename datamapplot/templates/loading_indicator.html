@@ -1,0 +1,19 @@
+{# Loading indicator partial #}
+<div
+  id="loading"
+  style="
+    position: fixed;
+    z-index: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  "
+>
+  <img
+    src="data:image/gif;base64,{{loading_spinner_base64}}"
+    alt="Loading..."
+    width="5%"
+  />
+</div>

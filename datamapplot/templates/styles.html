@@ -1,0 +1,79 @@
+{# CSS dependencies and page styles #}
+{% for _, css_src in css_dependency_srcs.items() -%}
+<style>
+  {{ css_src | safe }}
+</style>
+{%- endfor %}
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: {{ page_background_color }};
+    font-family: {{ title_font_family }};
+    color: {{ title_font_color }};
+  }
+  .container-box {
+    margin: 8px 16px 8px 16px;
+    padding: 12px;
+    border-radius: 16px;
+    line-height: 0.95;
+    width: fit-content;
+    height: fit-content;
+    z-index: 2;
+    backdrop-filter: blur(3px);
+    background: {{ title_background }};
+    box-shadow: 2px 3px 10px {{ shadow_color }};
+    position: relative;
+    pointer-events: auto;
+  }
+  .more-opaque {
+    backdrop-filter: blur(6px);
+    background-color: {{ title_background[:-2] + "ee" }};
+  }
+  #deck-container {
+    width: 100vw;
+    height: 100vh;  
+  }
+  #deck-container canvas {
+    z-index: 1;
+    background: {{ page_background_color }};
+  }
+  .deck-tooltip {
+      {{ tooltip_css }}
+  }
+  input {
+    margin: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    color: {{ title_font_color }};
+    background: {{ input_background }};
+    border: 2px inset #77777744;
+    transition: 0.5s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input:focus {
+    border: 2px inset #555;
+  }
+  {%- if logo %}
+  img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #logo-container {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    margin: 8px 16px 8px 16px;
+    z-index: 0;
+  }
+  {%- endif %}
+
+  {%- if search %}
+  #search-container{
+    width: fit-content;
+  }
+  {%- endif %}
+</style>

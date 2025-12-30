@@ -1,0 +1,50 @@
+{# Web Worker code for inline data mode #}
+const parsingWorkerBlob = new Blob([`
+  self.onmessage = async function(event) {
+  const { encodedData, JSONParse } = event.data;
+    // Function to parse base64 to Uint8Array
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
+    {%- if show_loading_progress %}
+    async function decodeBase64WithProgress(base64) {
+      const totalLength = base64.length;
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+      let offset = 0;
+
+      for (let i = 0; i < totalLength; i += chunkSize) {
+        const chunk = base64.slice(i, i + chunkSize);
+        const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        decodedArray.set(decodedChunk, offset);
+        offset += decodedChunk.length;
+
+        const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+        self.postMessage({ type: 'progress', progress: progress });
+
+        // Allow other operations to occur
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      return decodedArray.slice(0, offset);
+    }
+    {%- else %}
+    async function decodeBase64WithProgress(base64) {
+        return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    }
+    {%- endif %}
+    const decodedData = await decodeBase64WithProgress(encodedData);
+    const decompressedData = await DecompressBytes(decodedData);
+    if (JSONParse) {
+      const parsedData = JSON.parse(new TextDecoder("utf-8").decode(decompressedData));
+      self.postMessage({ type: "data", data: parsedData });
+    } else {
+      self.postMessage({ type: "data", data: decompressedData });
+    }
+  }
+`], { type: 'application/javascript' });

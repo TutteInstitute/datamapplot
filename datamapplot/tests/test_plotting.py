@@ -56,6 +56,7 @@ def test_plot_arxiv_ml(
     return fig
 
 
+@pytest.mark.skip(reason="Edge bundling test requires too much memory for some machines")
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default", tolerance=30)
 def test_plot_arxiv_ml_edge_bundle(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path

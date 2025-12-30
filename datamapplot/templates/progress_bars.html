@@ -1,0 +1,39 @@
+{# Progress bars partial #}
+{%- if show_loading_progress %}
+<div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+  <div id="point-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+    </span>
+  </div>
+  <div id="label-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+    </span>
+  </div>
+  <div id="meta-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+    </span>
+  </div>
+  {%- if enable_histogram %}
+  <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
+    </span>
+  </div>
+  <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+    </span>
+  </div>
+  {%- endif -%}
+  {%- if enable_colormap_selector %}
+  <div id="color-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Colormap Data: 0%</span>
+    </span>
+  </div>
+  {%- endif %}
+</div>
+{%- endif %}

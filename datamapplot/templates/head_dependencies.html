@@ -1,0 +1,44 @@
+{# External dependencies - fonts, CSS, JS #}
+{%- if google_font %}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family={{ google_font }}&display=swap"
+  rel="stylesheet"
+/>
+{{ google_font_data }}
+{%- if google_tooltip_font %}
+<link
+  href="https://fonts.googleapis.com/css2?family={{ google_tooltip_font }}&display=swap"
+  rel="stylesheet"
+/>
+{%- endif -%} 
+{%- endif %}
+<link
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+  rel="stylesheet"
+/>
+{% if offline_mode %}
+<script>
+  // Function to decode and evaluate base64 encoded scripts
+  function loadBase64Script(base64Script) {
+      const decodedScript = atob(base64Script);
+      const script = document.createElement('script');
+      script.textContent = decodedScript;
+      document.head.appendChild(script);
+  }
+  {% for url in js_dependency_urls -%}
+    // Base64 encoded content from {{ url }}
+    const {{ offline_mode_data[url]["name"] }} = "{{ offline_mode_data[url]['encoded_content'] }}";
+    loadBase64Script({{ offline_mode_data[url]["name"] }});
+  {% endfor -%}
+</script>
+{% else %}
+{% for url in js_dependency_urls -%}
+<script src="{{ url }}"></script>
+{% endfor -%}
+{% endif -%}
