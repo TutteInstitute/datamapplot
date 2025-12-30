@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from unittest.mock import patch, MagicMock
 import datamapplot
-from datamapplot.plot_rendering import render_plot, manage_google_font
+from datamapplot.plot_rendering import render_plot
+from datamapplot.rendering_helpers import download_google_font
 from datamapplot.create_plots import create_plot
 
 
@@ -19,8 +20,8 @@ class TestUseSystemFonts(unittest.TestCase):
         
     def test_use_system_fonts_default_false(self):
         """Test that by default, use_system_fonts is False and fonts are downloaded."""
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=True), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=True), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font:
             
             # Create plot with default use_system_fonts (False)
             fig, ax = create_plot(
@@ -35,8 +36,8 @@ class TestUseSystemFonts(unittest.TestCase):
             
     def test_use_system_fonts_true_prevents_download(self):
         """Test that use_system_fonts=True prevents font downloads."""
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=True), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=True), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font:
             
             # Create plot with use_system_fonts=True
             fig, ax = create_plot(
@@ -73,9 +74,9 @@ class TestUseSystemFonts(unittest.TestCase):
             
     def test_use_system_fonts_false_with_no_internet(self):
         """Test behavior when use_system_fonts=False but can't reach Google Fonts."""
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=False), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font, \
-             patch('datamapplot.plot_rendering.warn') as mock_warn:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=False), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font, \
+             patch('datamapplot.rendering_helpers.warn') as mock_warn:
             
             # Create plot with use_system_fonts=False but no internet
             fig, ax = create_plot(
@@ -100,8 +101,8 @@ class TestUseSystemFonts(unittest.TestCase):
         label_locations = np.array([[0.0, 0.0], [1.0, 1.0]])
         label_cluster_sizes = np.array([50, 50])
         
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=True), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=True), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font:
             
             # Test with use_system_fonts=True
             fig, ax = render_plot(
@@ -133,8 +134,8 @@ class TestUseSystemFonts(unittest.TestCase):
             
     def test_use_system_fonts_with_custom_font_family(self):
         """Test that use_system_fonts works with custom font_family parameter."""
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=True), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=True), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font:
             
             # Create plot with custom font and use_system_fonts=True
             fig, ax = create_plot(
@@ -151,8 +152,8 @@ class TestUseSystemFonts(unittest.TestCase):
             
     def test_use_system_fonts_with_title_subtitle_fonts(self):
         """Test that use_system_fonts affects title and subtitle font downloads."""
-        with patch('datamapplot.plot_rendering.can_reach_google_fonts', return_value=True), \
-             patch('datamapplot.plot_rendering.manage_google_font') as mock_manage_font:
+        with patch('datamapplot.rendering_helpers.can_reach_google_fonts', return_value=True), \
+             patch('datamapplot.rendering_helpers.download_google_font') as mock_manage_font:
             
             # Create plot with custom title/subtitle fonts and use_system_fonts=True
             fig, ax = create_plot(
