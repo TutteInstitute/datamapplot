@@ -1,107 +1,25 @@
 import numpy as np
-import pandas as pd
-
-import datashader as ds
-import datashader.transfer_functions as tf
-from datashader.mpl_ext import dsshow
-
-from functools import partial
-from tempfile import NamedTemporaryFile
 
 from sklearn.neighbors import KernelDensity
 from skimage.transform import rescale
 
-from matplotlib import font_manager
 from matplotlib import pyplot as plt
-from matplotlib import patheffects
-from matplotlib.collections import LineCollection
 
-from datamapplot.overlap_computations import get_2d_coordinates
-from datamapplot.text_placement import (
-    estimate_dynamic_font_size,
-    initial_text_location_placement,
-    fix_crossings,
-    adjust_text_locations,
-    estimate_font_size,
-    pylabeladjust_text_locations,
-)
 from datamapplot.edge_bundling import bundle_edges
 from datamapplot.config import ConfigManager
-from datamapplot.fonts import (
-    can_reach_google_fonts,
-    query_google_fonts,
-    GoogleAPIUnreachable,
+from datamapplot.rendering_helpers import (
+    setup_fonts,
+    render_scatterplot,
+    add_logo,
+    create_all_annotations,
+    compute_label_bounds,
+    apply_title_and_subtitle,
+    finalize_axes,
 )
-from warnings import warn
+from datamapplot.label_rendering import process_labels
 
 
 cfg = ConfigManager()
-
-
-def manage_google_font(fontname):
-    for font in query_google_fonts(fontname):
-        f = NamedTemporaryFile(delete=False, suffix=".ttf")
-        f.write(font.fetch())
-        f.close()
-        font_manager.fontManager.addfont(f.name)
-
-
-def convert_lines_dtype(df):
-    df["group_no"] = df.isnull().all(axis=1).cumsum()
-    df = df.dropna()
-    x_values = np.array(df["x"])
-    y_values = np.array(df["y"])
-    groups = np.array(df["group_no"])
-    n_rows = np.max(np.unique(x_values))
-
-
-def datashader_scatterplot(
-    data_map_coords, color_list, point_size, ax, lines=None, line_colors=None
-):
-    data = pd.DataFrame(
-        {
-            "x": data_map_coords.T[0],
-            "y": data_map_coords.T[1],
-            "label": pd.Categorical(color_list),
-        }
-    )
-
-    if lines is not None and line_colors is not None:
-        lines = np.array(lines)
-        lines_data = pd.DataFrame(
-            {
-                "x": lines[:, 0],
-                "x1": lines[:, 2],
-                "y": lines[:, 1],
-                "y1": lines[:, 3],
-                "color": pd.Categorical(line_colors),
-            }
-        )
-
-        lines_color_key = {x: x for x in np.unique(line_colors)}
-
-        dsshow(
-            lines_data,
-            ds.glyphs.LinesAxis1(["x", "x1"], ["y", "y1"]),
-            ds.count_cat("color"),
-            norm="eq_hist",
-            color_key=lines_color_key,
-            ax=ax,
-        )
-
-    color_key = {x: x for x in np.unique(color_list)}
-
-    dsshow(
-        data,
-        ds.Point("x", "y"),
-        ds.count_cat("label"),
-        color_key=color_key,
-        norm="eq_hist",
-        ax=ax,
-        shade_hook=partial(tf.spread, px=point_size, how="over"),
-    )
-
-    return ax
 
 
 def add_glow_to_scatterplot(
@@ -495,76 +413,42 @@ def render_plot(
     else:
         fig = ax.get_figure()
 
-    if not use_system_fonts:
-        if can_reach_google_fonts(timeout=5.0):
-            if verbose:
-                print("Getting any required fonts...")
-            # Get any google font we require
-            manage_google_font(font_family)
-            manage_google_font(font_family.split()[0])
-            if title_keywords is not None and "fontfamily" in title_keywords:
-                manage_google_font(title_keywords["fontfamily"])
-                manage_google_font(title_keywords["fontfamily"].split()[0])
-            if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
-                manage_google_font(sub_title_keywords["fontfamily"])
-                manage_google_font(sub_title_keywords["fontfamily"].split()[0])
-        else:
-            warn(
-                "Cannot reach out Google APIs to download the font you selected. Will fallback on fonts already installed.",
-                GoogleAPIUnreachable,
-            )
-    elif verbose:
-        print("Using system fonts only (use_system_fonts=True)")
+    # Setup fonts (downloads from Google Fonts if needed)
+    setup_fonts(
+        font_family=font_family,
+        title_keywords=title_keywords,
+        sub_title_keywords=sub_title_keywords,
+        use_system_fonts=use_system_fonts,
+        verbose=verbose,
+    )
 
-    # Apply matplotlib or datashader based on heuristics
+    # Perform edge bundling if requested
+    lines, line_colors = None, None
     if edge_bundle:
         if verbose:
             print("Performing edge bundling...")
-        lines, colors = bundle_edges(
+        lines, line_colors = bundle_edges(
             data_map_coords, color_list, **edge_bundle_keywords
         )
 
-    if data_map_coords.shape[0] < 100_000 or force_matplotlib:
-        if marker_size_array is not None:
-            point_size = marker_size_array * point_size
+    # Render the scatterplot (choosing matplotlib vs datashader automatically)
+    render_scatterplot(
+        ax=ax,
+        data_map_coords=data_map_coords,
+        color_list=color_list,
+        point_size=point_size,
+        alpha=alpha,
+        marker_type=marker_type,
+        marker_size_array=marker_size_array,
+        force_matplotlib=force_matplotlib,
+        edge_bundle=edge_bundle,
+        lines=lines,
+        line_colors=line_colors,
+        matplotlib_lineswidth=matplotlib_lineswidth,
+        verbose=verbose,
+    )
 
-        if edge_bundle:
-            lc = LineCollection(
-                lines.reshape((-1, 2, 2)),
-                colors=colors,
-                linewidths=matplotlib_lineswidth,
-            )
-            ax.add_collection(lc)
-
-        ax.scatter(
-            *data_map_coords.T,
-            c=color_list,
-            marker=marker_type,
-            s=point_size,
-            alpha=alpha,
-            edgecolors="none",
-        )
-
-    else:
-        if marker_size_array is not None or marker_type != "o":
-            warn(
-                "Adjusting marker type or size cannot be done with datashader; use force_matplotlib=True"
-            )
-        if edge_bundle:
-            datashader_scatterplot(
-                data_map_coords,
-                color_list,
-                point_size=point_size,
-                ax=ax,
-                lines=lines,
-                line_colors=colors,
-            )
-        else:
-            datashader_scatterplot(
-                data_map_coords, color_list, point_size=point_size, ax=ax
-            )
-
-    # Create background glow
+    # Add background glow effect
     if verbose:
         print("Adding glow to scatterplot...")
     if add_glow:
@@ -572,355 +456,92 @@ def render_plot(
             data_map_coords, color_list, ax, noise_color=noise_color, **glow_keywords
         )
 
-    # Add a mark in the bottom right if provided
-    if logo is not None:
-        mark_height = (
-            (figsize[0] / figsize[1]) * (logo.shape[0] / logo.shape[1]) * logo_width
-        )
-        ax.imshow(
-            logo,
-            extent=(0.98 - logo_width, 0.98, 0.02, 0.02 + mark_height),
-            transform=ax.transAxes,
-        )
+    # Add logo if provided
+    add_logo(ax, logo, logo_width, figsize)
 
-    # Find initial placements for text, fix any line crossings, then optimize placements
-    if verbose:
-        print("Placing labels...")
-    ax.autoscale_view()
+    # Process and render labels
+    texts = []
+    font_scale_factor = np.sqrt(figsize[0] * figsize[1])
+
     if label_locations.shape[0] > 0 and show_labels:
-
-        # Ensure we can look up labels for highlighting
-        if highlight_labels is not None:
-            highlight = set(highlight_labels)
-        else:
-            highlight = set([])
-
-        if label_over_points:
-            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-            if verbose:
-                print("Estimating font size...")
-            if label_font_size is None:
-                if dynamic_label_size:
-                    font_sizes, font_weights = estimate_dynamic_font_size(
-                        label_locations,
-                        label_text,
-                        fontfamily=font_family,
-                        linespacing=label_linespacing,
-                        expand=(1.0, 1.0),
-                        overlap_percentage_allowed=0.66,
-                        dynamic_size_array=label_cluster_sizes
-                        ** dynamic_label_size_scaling_factor,
-                        min_font_size=min_font_size,
-                        max_font_size=max_font_size,
-                        min_font_weight=min_font_weight,
-                        max_font_weight=max_font_weight,
-                        ax=ax,
-                    )
-                    font_size = None
-                else:
-                    font_size = estimate_font_size(
-                        label_locations,
-                        label_text,
-                        font_scale_factor,
-                        fontfamily=font_family,
-                        fontweight=font_weight,
-                        linespacing=label_linespacing,
-                        expand=(1.0, 1.0),
-                        overlap_percentage_allowed=0.66,
-                        min_font_size=min_font_size,
-                        max_font_size=max_font_size,
-                        ax=ax,
-                    )
-                    font_sizes = None
-                    font_weights = None
-            else:
-                font_size = label_font_size
-                font_sizes = None
-                font_weights = None
-
-            label_text_locations = pylabeladjust_text_locations(
-                label_locations,
-                label_text,
-                fontfamily=font_family,
-                font_size=font_size,
-                font_sizes=font_sizes,
-                font_weights=font_weights,
-                linespacing=label_linespacing,
-                highlight=highlight,
-                highlight_label_keywords=highlight_label_keywords,
-                ax=ax,
-                fig=fig,
-                speed=pylabeladjust_speed,
-                max_iterations=pylabeladjust_max_iterations,
-                adjust_by_size=pylabeladjust_adjust_by_size,
-                margin_percentage=pylabeladjust_margin_percentage,
-                radius_scale=pylabeladjust_radius_scale,
-            )
-        else:
-            if verbose:
-                print("Creating initial label placements...")
-            label_text_locations = initial_text_location_placement(
-                label_locations,
-                base_radius=label_base_radius,
-                theta_stretch=label_direction_bias,
-            )
-            fix_crossings(label_text_locations, label_locations)
-
-            if verbose:
-                print("Estimating font size...")
-            font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-            if label_font_size is None:
-                if dynamic_label_size:
-                    font_sizes, font_weights = estimate_dynamic_font_size(
-                        label_locations,
-                        label_text,
-                        fontfamily=font_family,
-                        linespacing=label_linespacing,
-                        expand=(label_margin_factor, label_margin_factor),
-                        overlap_percentage_allowed=0.5,
-                        dynamic_size_array=label_cluster_sizes
-                        ** dynamic_label_size_scaling_factor,
-                        min_font_size=min_font_size,
-                        max_font_size=max_font_size,
-                        min_font_weight=min_font_weight,
-                        max_font_weight=max_font_weight,
-                        ax=ax,
-                    )
-                    font_size = None
-                else:
-                    font_size = estimate_font_size(
-                        label_text_locations,
-                        label_text,
-                        0.9 * font_scale_factor,
-                        fontfamily=font_family,
-                        fontweight=font_weight,
-                        linespacing=label_linespacing,
-                        min_font_size=min_font_size,
-                        max_font_size=max_font_size,
-                        ax=ax,
-                    )
-                    font_sizes = None
-                    font_weights = None
-            else:
-                font_size = label_font_size
-                font_sizes = None
-                font_weights = None
-
-            if verbose:
-                print("Adjusting label placements...")
-            label_text_locations = adjust_text_locations(
-                label_text_locations,
-                label_locations,
-                label_text,
-                fontfamily=font_family,
-                font_size=font_size,
-                fontweight=font_weight,
-                linespacing=label_linespacing,
-                highlight=highlight,
-                highlight_label_keywords=highlight_label_keywords,
-                ax=ax,
-                expand=(label_margin_factor, label_margin_factor),
-                font_sizes=font_sizes,
-                font_weights=font_weights,
-            )
-
-        # Build highlight boxes
-        if (
-            "bbox" in highlight_label_keywords
-            and highlight_label_keywords["bbox"] is not None
-        ):
-            base_bbox_keywords = highlight_label_keywords["bbox"]
-        else:
-            base_bbox_keywords = None
-
-        if verbose:
-            print("Adding labels to the plot...")
-        # Add the annotations to the plot
-        texts = []
-        for i in range(label_locations.shape[0]):
-            if base_bbox_keywords is not None:
-                bbox_keywords = dict(base_bbox_keywords.items())
-                if "fc" not in base_bbox_keywords:
-                    if highlight_colors is not None:
-                        bbox_keywords["fc"] = highlight_colors[i][:7] + "33"
-                    else:
-                        bbox_keywords["fc"] = "#cccccc33" if darkmode else "#33333333"
-                if "ec" not in base_bbox_keywords:
-                    bbox_keywords["ec"] = "none"
-            else:
-                bbox_keywords = None
-
-            if type(label_text_colors) == str:
-                text_color = label_text_colors
-            elif label_text_colors:
-                text_color = label_text_colors[i]
-            elif darkmode:
-                text_color = "white"
-            else:
-                text_color = "black"
-
-            outline_alpha = hex(int(255 * label_font_outline_alpha)).removeprefix("0x")
-            outline_color = (
-                f"#000000{outline_alpha}" if darkmode else f"#ffffff{outline_alpha}"
-            )
-
-            if type(label_arrow_colors) == str:
-                arrow_color = label_arrow_colors
-            elif label_arrow_colors:
-                arrow_color = label_arrow_colors[i]
-            elif darkmode:
-                arrow_color = "#dddddd"
-            else:
-                arrow_color = "#333333"
-
-            texts.append(
-                ax.annotate(
-                    label_text[i],
-                    label_locations[i],
-                    xytext=label_text_locations[i],
-                    ha="center",
-                    ma="center",
-                    va="center",
-                    linespacing=label_linespacing,
-                    fontfamily=font_family,
-                    arrowprops=(
-                        {
-                            "arrowstyle": "-",
-                            "linewidth": 0.5,
-                            "color": arrow_color,
-                            **arrowprops,
-                        }
-                        if not label_over_points
-                        else None
-                    ),
-                    fontsize=(
-                        (
-                            highlight_label_keywords.get("fontsize", font_size)
-                            if label_text[i] in highlight
-                            else font_size
-                        )
-                        if font_sizes is None
-                        else font_sizes[i]
-                    ),
-                    path_effects=(
-                        [
-                            patheffects.Stroke(
-                                linewidth=label_font_stroke_width,
-                                foreground=outline_color,
-                            ),
-                            patheffects.Normal(),
-                        ]
-                        if label_over_points
-                        else None
-                    ),
-                    bbox=bbox_keywords if label_text[i] in highlight else None,
-                    color=text_color,
-                    fontweight=(
-                        highlight_label_keywords.get("fontweight", font_weight)
-                        if label_text[i] in highlight
-                        else (
-                            font_weights[i] if font_weights is not None else font_weight
-                        )
-                    ),
-                )
-            )
-
-        # Ensure we have plot bounds that meet the newly place annotations
-        coords = get_2d_coordinates(texts)
-        x_min, y_min = ax.transData.inverted().transform(
-            (coords[:, [0, 2]].copy().min(axis=0))
+        # Process label placement and font sizing
+        label_text_locations, font_size, font_sizes, font_weights, highlight = process_labels(
+            label_locations,
+            label_text,
+            label_cluster_sizes,
+            figsize=figsize,
+            font_family=font_family,
+            font_weight=font_weight,
+            label_linespacing=label_linespacing,
+            label_font_size=label_font_size,
+            dynamic_label_size=dynamic_label_size,
+            dynamic_label_size_scaling_factor=dynamic_label_size_scaling_factor,
+            min_font_size=min_font_size,
+            max_font_size=max_font_size,
+            min_font_weight=min_font_weight,
+            max_font_weight=max_font_weight,
+            label_over_points=label_over_points,
+            label_base_radius=label_base_radius,
+            label_margin_factor=label_margin_factor,
+            label_direction_bias=label_direction_bias,
+            highlight_labels=highlight_labels,
+            highlight_label_keywords=highlight_label_keywords,
+            pylabeladjust_speed=pylabeladjust_speed,
+            pylabeladjust_max_iterations=pylabeladjust_max_iterations,
+            pylabeladjust_adjust_by_size=pylabeladjust_adjust_by_size,
+            pylabeladjust_margin_percentage=pylabeladjust_margin_percentage,
+            pylabeladjust_radius_scale=pylabeladjust_radius_scale,
+            ax=ax,
+            fig=fig,
+            verbose=verbose,
         )
-        x_max, y_max = ax.transData.inverted().transform(
-            (coords[:, [1, 3]].copy().max(axis=0))
-        )
-        width = x_max - x_min
-        height = y_max - y_min
-        x_min -= 0.05 * width
-        x_max += 0.05 * width
-        y_min -= 0.05 * height
-        y_max += 0.05 * height
-    else:
-        font_scale_factor = np.sqrt(figsize[0] * figsize[1])
-        x_min, y_min = data_map_coords.min(axis=0)
-        x_max, y_max = data_map_coords.max(axis=0)
-        width = x_max - x_min
-        height = y_max - y_min
-        x_min -= 0.05 * width
-        x_max += 0.05 * width
-        y_min -= 0.05 * height
-        y_max += 0.05 * height
 
-    # decorate the plot
+        # Create all label annotations
+        texts = create_all_annotations(
+            ax=ax,
+            label_text=label_text,
+            label_locations=label_locations,
+            label_text_locations=label_text_locations,
+            font_family=font_family,
+            font_size=font_size,
+            font_weight=font_weight,
+            font_sizes=font_sizes,
+            font_weights=font_weights,
+            label_text_colors=label_text_colors,
+            label_arrow_colors=label_arrow_colors,
+            label_linespacing=label_linespacing,
+            label_over_points=label_over_points,
+            label_font_stroke_width=label_font_stroke_width,
+            label_font_outline_alpha=label_font_outline_alpha,
+            arrowprops=arrowprops,
+            highlight=highlight,
+            highlight_label_keywords=highlight_label_keywords,
+            highlight_colors=highlight_colors,
+            darkmode=darkmode,
+            verbose=verbose,
+        )
+
+    # Compute plot bounds
+    x_min, x_max, y_min, y_max = compute_label_bounds(texts, ax, data_map_coords)
+
+    # Decorate the plot with titles
     if verbose:
         print("Decorating plot...")
-    ax.set(xticks=[], yticks=[])
-    if sub_title is not None:
-        if sub_title_keywords is not None:
-            keyword_args = {
-                "fontweight": "light",
-                "color": "gray",
-                "fontsize": (1.6 * font_scale_factor),
-                "fontfamily": font_family,
-                "fontweight": font_weight,
-                **sub_title_keywords,
-            }
-        else:
-            keyword_args = {
-                "fontweight": "light",
-                "color": "gray",
-                "fontsize": (1.6 * font_scale_factor),
-                "fontfamily": font_family,
-                "fontweight": font_weight,
-            }
-        axis_title = ax.set_title(
-            sub_title,
-            loc="left",
-            va="baseline",
-            fontdict=keyword_args,
-        )
-        sup_title_y_value = (
-            ax.transAxes.inverted().transform(
-                get_2d_coordinates([axis_title])[0, [0, 3]]
-            )[1]
-            + 1e-4
-        )
-    else:
-        sup_title_y_value = 1.00
 
-    if title is not None:
-        if title_keywords is not None:
-            keyword_args = {
-                "color": "white" if darkmode else "black",
-                "ha": "left",
-                "va": "bottom",
-                "fontweight": 900,
-                "fontsize": int(3.2 * font_scale_factor),
-                "fontfamily": font_family,
-                **title_keywords,
-            }
-        else:
-            keyword_args = {
-                "color": "white" if darkmode else "black",
-                "ha": "left",
-                "va": "bottom",
-                "fontweight": 900,
-                "fontsize": int(3.2 * font_scale_factor),
-                "fontfamily": font_family,
-            }
-        fig.suptitle(
-            title, x=0.0, y=sup_title_y_value, transform=ax.transAxes, **keyword_args
-        )
+    apply_title_and_subtitle(
+        fig=fig,
+        ax=ax,
+        title=title,
+        sub_title=sub_title,
+        font_family=font_family,
+        font_weight=font_weight,
+        font_scale_factor=font_scale_factor,
+        title_keywords=title_keywords,
+        sub_title_keywords=sub_title_keywords,
+        darkmode=darkmode,
+    )
 
-    ax_x_min, ax_x_max = ax.get_xlim()
-    ax_y_min, ax_y_max = ax.get_ylim()
-    ax.set_xlim(min(x_min, ax_x_min), max(x_max, ax_x_max))
-    ax.set_ylim(min(y_min, ax_y_min), max(y_max, ax_y_max))
-    for spine in ax.spines.values():
-        spine.set_edgecolor("#555555" if darkmode else "#aaaaaa")
-    ax.set_aspect("auto")
-
-    if darkmode:
-        ax.set(facecolor="black")
-        fig.set(facecolor="black")
+    # Finalize axes styling
+    finalize_axes(ax, fig, x_min, x_max, y_min, y_max, darkmode)
 
     return fig, ax
