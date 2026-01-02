@@ -160,9 +160,48 @@ _TOPIC_TREE_DEFAULT_KWDS = {
     "button_icon": "&#128194",
 }
 
+# Legacy template - loaded directly as a string
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
 )
+
+# Template directories for modular template support
+_TEMPLATE_DIRS = [
+    str(files("datamapplot") / "templates"),  # New modular templates
+    str(files("datamapplot")),  # Legacy template location
+]
+
+
+def _get_jinja_env():
+    """Get a Jinja2 Environment configured with template directories.
+    
+    This enables using {% include %} directives in templates.
+    """
+    return jinja2.Environment(
+        loader=jinja2.FileSystemLoader(_TEMPLATE_DIRS),
+        autoescape=False,
+    )
+
+
+def _get_template(use_modular=False):
+    """Get the appropriate Jinja2 template.
+    
+    Parameters
+    ----------
+    use_modular : bool
+        If True, use the new modular template with includes.
+        If False, use the legacy single-file template.
+    
+    Returns
+    -------
+    jinja2.Template
+        The configured template object.
+    """
+    if use_modular:
+        env = _get_jinja_env()
+        return env.get_template("deckgl_template.html.jinja2")
+    else:
+        return jinja2.Template(_DECKGL_TEMPLATE_STR)
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -2099,7 +2138,8 @@ def render_html(
         ),
     }
 
-    template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+    # Use modular template with includes
+    template = _get_template(use_modular=True)
 
     if logo is not None:
         scheme = urlparse(logo).scheme

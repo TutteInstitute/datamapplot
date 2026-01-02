@@ -1,29 +1,39 @@
 {# Web Worker code for file-based (non-inline) data mode #}
+{# Note: The filename passed to decompressFile already contains the full URL #}
 const parsingWorkerBlob = new Blob([`
   self.onmessage = async function(event) {
     const { encodedData, JSONParse } = event.data;
     
-    async function DecompressBytes(bytes) {
-      const blob = new Blob([bytes]);
-      const decompressedStream = blob.stream().pipeThrough(
-        new DecompressionStream("gzip")
-      );
-      const arr = await new Response(decompressedStream).arrayBuffer()
-      return new Uint8Array(arr);
-    }
-    
     async function decompressFile(filename) {
       try {
-        const currentPath = self.location.href;
-        const directoryPath = currentPath.substring(0, currentPath.lastIndexOf('/') + 1);
-        const originURL = self.location.origin + directoryPath.replace(self.location.origin, '');
-        
-        const response = await fetch(originURL + filename);
+        const response = await fetch(filename);
         if (!response.ok) {
           throw new Error(\`HTTP error! status: \${response.status}. Failed to fetch: \${filename}\`);
         }
-        const data = await response.arrayBuffer();
-        const decompressedData = await DecompressBytes(new Uint8Array(data));
+        const reader = response.body
+          .pipeThrough(new DecompressionStream("gzip"))
+          .getReader();
+
+        let chunks = [];
+        let totalSize = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            break;
+          }
+          chunks.push(value);
+          totalSize += value.length;
+        }
+
+        // Concatenate chunks into a single Uint8Array
+        const decompressedData = new Uint8Array(totalSize);
+        let offset = 0;
+        for (const chunk of chunks) {
+          decompressedData.set(chunk, offset);
+          offset += chunk.length;
+        }
+
         return decompressedData;
       } catch (error) {
         console.error('Decompression failed:', error);

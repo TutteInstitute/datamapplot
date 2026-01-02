@@ -1,0 +1,427 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>{{ title }}</title>
+    
+    {%- if custom_header %}
+    {{ custom_header }}
+    {%- endif %}
+
+    {#- Google Fonts -#}
+    {%- if google_font %}
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family={{ google_font }}&display=swap" rel="stylesheet" />
+    {{ google_font_data }}
+    {%- if google_tooltip_font %}
+    <link href="https://fonts.googleapis.com/css2?family={{ google_tooltip_font }}&display=swap" rel="stylesheet" />
+    {%- endif %}
+    {%- endif %}
+    
+    {#- Bootstrap and Font Awesome CSS -#}
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css" rel="stylesheet" />
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" rel="stylesheet" />
+    
+    {#- JavaScript Dependencies -#}
+    {% if offline_mode %}
+    <script>
+      function loadBase64Script(base64Script) {
+        const decodedScript = atob(base64Script);
+        const script = document.createElement('script');
+        script.textContent = decodedScript;
+        document.head.appendChild(script);
+      }
+      {% for url in js_dependency_urls -%}
+      const {{ offline_mode_data[url]["name"] }} = "{{ offline_mode_data[url]['encoded_content'] }}";
+      loadBase64Script({{ offline_mode_data[url]["name"] }});
+      {% endfor -%}
+    </script>
+    {% else %}
+    {% for url in js_dependency_urls -%}
+    <script src="{{ url }}"></script>
+    {% endfor -%}
+    {% endif %}
+
+    {#- CSS Dependencies (DataMap components) -#}
+    {% for _, css_src in css_dependency_srcs.items() -%}
+    <style>
+      {{ css_src | safe }}
+    </style>
+    {%- endfor %}
+
+    {#- Main Styles -#}
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: {{ page_background_color }};
+        font-family: {{ title_font_family }};
+        color: {{ title_font_color }};
+      }
+      .container-box {
+        margin: 8px 16px 8px 16px;
+        padding: 12px;
+        border-radius: 16px;
+        line-height: 0.95;
+        width: fit-content;
+        height: fit-content;
+        z-index: 2;
+        backdrop-filter: blur(3px);
+        background: {{ title_background }};
+        box-shadow: 2px 3px 10px {{ shadow_color }};
+        position: relative;
+        pointer-events: auto;
+      }
+      .more-opaque {
+        backdrop-filter: blur(6px);
+        background-color: {{ title_background[:-2] + "ee" }};
+      }
+      #deck-container {
+        width: 100vw;
+        height: 100vh;  
+      }
+      #deck-container canvas {
+        z-index: 1;
+        background: {{ page_background_color }};
+      }
+      .deck-tooltip {
+        {{ tooltip_css }}
+      }
+      input {
+        margin: 2px;
+        padding: 4px;
+        border-radius: 8px;
+        color: {{ title_font_color }};
+        background: {{ input_background }};
+        border: 2px inset #77777744;
+        transition: 0.5s;
+        outline: none;
+        box-sizing: border-box;
+      }
+      input:focus {
+        border: 2px inset #555;
+      }
+      {%- if logo %}
+      img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      #logo-container {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        margin: 8px 16px 8px 16px;
+        z-index: 0;
+      }
+      {%- endif %}
+      {%- if search %}
+      #search-container {
+        width: fit-content;
+      }
+      {%- endif %}
+      {%- if custom_css %}
+      {{ custom_css }}
+      {%- endif %}
+    </style>
+  </head>
+  
+  <body>
+    {#- Loading Indicator -#}
+    <div id="loading">
+      <img
+        id="loading-image"
+        src="{{ loading_image }}"
+        alt="Loading..."
+        width="5%"
+      />
+    </div>
+    
+    {#- Main Visualization Container -#}
+    <div style="isolation: isolate; position: relative;">
+      <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+      <div class="content-wrapper">
+        <div class="stack top-left">
+          {%- if title %}
+          <div id="title-container" class="container-box">
+            <span
+              style="font-family:{{ title_font_family }};font-size:{{ title_font_size }}pt;color:{{ title_font_color }}"
+            >
+              {{ title }}
+            </span>
+            <br />
+            <span
+              style="font-family:{{ title_font_family }};font-size:{{ sub_title_font_size }}pt;color:{{ sub_title_font_color }}"
+            >
+              {{ sub_title }}
+            </span>
+          </div>
+          {%- endif %}
+
+          {%- if search %}
+          <div id="search-container" class="container-box">
+            <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
+          </div>
+          {%- endif %}
+          
+          {%- if enable_topic_tree %}
+          <div id="topic-tree" class="container-box"></div>
+          {%- endif %}
+        </div>
+
+        <div class="stack top-right">
+          {%- if enable_colormap_selector %}
+          <div id="legend-container" class="container-box stack-box" style="display:none;"></div>
+          {%- endif %}
+        </div>
+        
+        <div class="stack bottom-right"></div>
+        
+        <div class="stack bottom-left">
+          {%- if enable_colormap_selector %}
+          <div id="colormap-selector-container" class="container-box stack-box"></div>
+          {%- endif %}
+          {%- if enable_histogram %}
+          <div id="d3histogram-container" class="container-box stack-box"></div>
+          {%- endif %}
+        </div>
+      </div>
+      
+      {%- if logo %}
+      <div id="logo-container" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
+        <img src="{{ logo }}" style="width:{{ logo_width }}px" />
+      </div>
+      {%- endif %}
+    </div>
+    
+    {#- Progress Bars -#}
+    {%- if show_loading_progress %}
+    <div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+      <div id="point-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+        </span>
+      </div>
+      <div id="label-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+        </span>
+      </div>
+      <div id="meta-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+        </span>
+      </div>
+      {%- if enable_histogram %}
+      <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
+        </span>
+      </div>
+      <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+        </span>
+      </div>
+      {%- endif %}
+      {%- if enable_colormap_selector %}
+      <div id="color-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Colormap Data: 0%</span>
+        </span>
+      </div>
+      {%- endif %}
+      {%- if edge_bundle %}
+      <div id="edge-data-progress" class="datamapplot-progress-bar">
+        <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+          <span class="datamapplot-progress-bar-text">Edge Data: 0%</span>
+        </span>
+      </div>
+      {%- endif %}
+    </div>
+    {%- endif %}
+    
+    {%- if custom_html %}
+    {{ custom_html }}
+    {%- endif %}
+  </body>
+  
+  {#- JavaScript Dependencies (DataMap components) -#}
+  {%- for _, js_src in js_dependency_srcs.items() %}
+  <script>
+    {{ js_src | safe }}
+  </script>
+  {%- endfor %}
+  
+  {#- Main Application Script -#}
+  <script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    function debounce(func, timeout = 250) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => { func.apply(this, args); }, timeout);
+      };
+    }
+
+    async function simpleArrowParser(arrow_bytes) {
+      const table = await Arrow.tableFromIPC(arrow_bytes);
+      const result = {};
+      table.schema.fields.forEach((field) => {
+        result[field.name] = table.getChild(field.name).toArray();
+      });
+      return result;
+    }
+
+    function mergeTypedArrays(arrays) {
+      let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+      let result = new arrays[0].constructor(totalLength);
+      let currentLength = 0;
+      for (let arr of arrays) {
+        result.set(arr, currentLength);
+        currentLength += arr.length;
+      }
+      return result;
+    }
+
+    {% if not inline_data %}
+    function combineTypedTableChunks(tableChunks) {
+      tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+      const combinedTable = {};
+      Object.keys(tableChunks[0].chunkData).forEach((key) => {
+        const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+        combinedTable[key] = mergeTypedArrays(arrays);
+      });
+      return combinedTable;
+    }
+
+    function combineTableChunks(tableChunks) {
+      tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+      const combinedTable = {};
+      Object.keys(tableChunks[0].chunkData).forEach((key) => {
+        const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+        combinedTable[key] = arrays.flat();
+      });
+      return combinedTable;
+    }
+    {% endif %}
+
+    function updateProgressBar(id, progress) {
+      const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+      const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+      if (progressBar && progressText) {
+        progressBar.style.width = `${progress}%`;
+        progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+      }
+    }
+
+    function checkAllDataLoaded() {
+      const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+      const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+      if (allLoaded) {
+        const loadingEl = document.getElementById("loading");
+        const progressEl = document.getElementById("progress-container");
+        if (loadingEl) loadingEl.style.display = "none";
+        if (progressEl) progressEl.style.display = "none";
+      }
+    }
+
+    {% if enable_topic_tree %}
+    function isBoundsVisible({bounds, viewState}) {
+      const {width, height, longitude, latitude, zoom} = viewState;
+      const Viewport = new deck.WebMercatorViewport({width, height, longitude, latitude, zoom});
+      const minBounds = Viewport.project([bounds[0], bounds[2]]);
+      const maxBounds = Viewport.project([bounds[1], bounds[3]]);
+      return (
+        ((minBounds[0] >= 0 && minBounds[0] <= width) || (maxBounds[0] >= 0 && maxBounds[0] <= width)) &&
+        ((minBounds[1] >= 0 && minBounds[1] <= height) || (maxBounds[1] >= 0 && maxBounds[1] <= height))
+      );
+    }
+
+    function getVisibleTextData(viewState, labelData) {
+      if (labelData) {
+        return labelData.filter((d) => isBoundsVisible({bounds: d.bounds, viewState: viewState}));
+      }
+    }
+    {% endif %}
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    {% include 'data_setup.js.jinja2' %}
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    const searchItemId = "text-search";
+    const histogramItemId = "d3histogram-container";
+    const selectionItemId = "lasso-select";
+    let histogramItem = null;
+    
+    const container = document.getElementById('deck-container');
+    
+    const datamap = new DataMap({
+      container: container,
+      bounds: {{ data_bounds }},
+      searchItemId: searchItemId,
+      lassoSelectionItemId: selectionItemId,      
+    });
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    {% include 'data_loaders.js.jinja2' %}
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+    
+    {%- if background_image %}
+    datamap.addBackgroundImage("{{ background_image }}", {{ background_image_bounds }});
+    {%- endif %}
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+    
+    {%- if enable_histogram %}
+    loadHistogramData();
+    {%- endif %}
+    
+    {%- if enable_api_tooltip %}
+    const tooltip = new DynamicTooltipManager(
+      datamap,
+      {
+        {%- if tooltip_identifier_js %}getIdentifier: {{ tooltip_identifier_js }},{% endif %}
+        fetchData: {{ tooltip_fetch_js }},
+        formatContent: {{ tooltip_format_js }},
+        formatLoading: {{ tooltip_loading_js }},
+        formatError: {{ tooltip_error_js }},
+      }
+    );
+    {%- endif %}
+    
+    {%- if custom_js %}
+    {{ custom_js }}
+    {%- endif %}
+  </script>
+</html>
