@@ -45,6 +45,25 @@ from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
 from datamapplot.selection_handlers import SelectionHandlerBase
+from datamapplot.interactive_helpers import (
+    get_google_font_for_embedding,
+    url_to_base64_img,
+    build_colormap_data,
+    default_colormap_options,
+    per_layer_cluster_colormaps,
+    compute_point_scaling,
+    compute_label_scaling,
+    get_style_config,
+    get_label_text_color,
+    prepare_hover_data,
+    prepare_edge_bundle_data,
+    prepare_histogram_data,
+    prepare_colormap_data,
+    encode_inline_data,
+    write_offline_data,
+    prepare_selection_handler,
+    prepare_dynamic_tooltip,
+)
 
 try:
     import matplotlib
@@ -1647,27 +1666,17 @@ def render_html(
     )
 
     # Compute point scaling
-    n_points = point_dataframe.shape[0]
-    if point_size_scale is not None:
-        magic_number = point_size_scale / 100.0
-    else:
-        width = bounds[1] - bounds[0]
-        height = bounds[3] - bounds[2]
-        size_scale = np.sqrt(width * height)
-        scaling = size_scale / 25.0
-        magic_number = scaling * np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+    magic_number, point_size, point_dataframe = compute_point_scaling(
+        point_dataframe, bounds, point_size_scale
+    )
 
-    if "size" not in point_dataframe.columns:
-        point_size = magic_number
-    else:
-        point_dataframe["size"] = magic_number * (
-            point_dataframe["size"] / point_dataframe["size"].mean()
-        )
-        point_size = -1
+    # Get style configuration
+    style_config = get_style_config(darkmode, text_outline_color)
+    text_outline_color = style_config["text_outline_color"]
+    point_outline_color = style_config["point_outline_color"]
+    text_background_color = style_config["text_background_color"]
 
-    if darkmode and text_outline_color == "#eeeeeedd":
-        text_outline_color = "#111111dd"
-
+    # Handle background image bounds
     if background_image is not None:
         if background_image_bounds is None:
             background_image_bounds = [
@@ -1677,21 +1686,11 @@ def render_html(
                 point_dataframe["y"].max(),
             ]
 
-    point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
-    text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
-    if color_label_text:
-        label_text_color = "d => [d.r, d.g, d.b]"
-    else:
-        label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
+    # Get label text color
+    label_text_color = get_label_text_color(color_label_text, darkmode)
 
-    # Compute text scaling
-    size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
-    if size_range > 0:
-        label_dataframe["size"] = (
-            label_dataframe["size"] - label_dataframe["size"].min()
-        ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
-    else:
-        label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
+    # Compute label text scaling
+    label_dataframe = compute_label_scaling(label_dataframe, min_fontsize, max_fontsize)
 
     # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
@@ -1716,369 +1715,98 @@ def render_html(
     # Point data, hover text, and on click formatting
     point_data = point_dataframe[point_data_cols]
 
-    if "hover_text" in point_dataframe.columns:
-        if extra_point_data is not None:
-            assert extra_point_data.shape[0] == point_dataframe.shape[0], (
-                "If `extra_point_data` is provided, it must have the same number of rows as "
-                "`point_dataframe`."
-            )
-            hover_data = pd.concat(
-                [point_dataframe[["hover_text"]], extra_point_data],
-                axis=1,
-            )
-            replacements = FormattingDict(
-                **{
-                    str(name): f"${{hoverData.{name}[index]}}"
-                    for name in hover_data.columns
-                }
-            )
-            if hover_text_html_template is not None:
-                get_tooltip = (
-                    '({index, picked, layer}) => picked ? {"html": `'
-                    + hover_text_html_template.format_map(replacements)
-                    + "`} : null"
-                )
-            else:
-                get_tooltip = "({index}) => hoverData.hover_text[index]"
+    # Prepare hover data and tooltip/click handlers
+    hover_result = prepare_hover_data(
+        point_dataframe,
+        extra_point_data,
+        hover_text_html_template,
+        on_click,
+        topic_tree_kwds,
+    )
+    hover_data = hover_result["hover_data"]
+    get_tooltip = hover_result["get_tooltip"]
+    on_click = hover_result["on_click"]
+    topic_tree_kwds = hover_result["topic_tree_kwds"]
 
-            if on_click is not None:
-                on_click = (
-                    "({index, picked, layer}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
-                )
-
-            if (
-                "button_on_click" in topic_tree_kwds
-                and topic_tree_kwds["button_on_click"] is not None
-            ):
-                topic_tree_replacements = FormattingDict(
-                    **{
-                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                        for name in hover_data.columns
-                    }
-                )
-                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                    "button_on_click"
-                ].format_map(topic_tree_replacements)
-        else:
-            hover_data = point_dataframe[["hover_text"]].copy()
-            get_tooltip = "({index}) => hoverData.hover_text[index]"
-
-            replacements = FormattingDict(
-                **{
-                    str(name): f"${{hoverData.{name}[index]}}"
-                    for name in hover_data.columns
-                }
-            )
-
-            if on_click is not None:
-                on_click = (
-                    "({index, picked, layer}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
-                )
-            if (
-                "button_on_click" in topic_tree_kwds
-                and topic_tree_kwds["button_on_click"] is not None
-            ):
-                topic_tree_replacements = FormattingDict(
-                    **{
-                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                        for name in hover_data.columns
-                    }
-                )
-                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                    "button_on_click"
-                ].format_map(topic_tree_replacements)
-
-    elif extra_point_data is not None:
-        hover_data = extra_point_data.copy()
-        replacements = FormattingDict(
-            **{
-                str(name): f"${{hoverData.{name}[index]}}"
-                for name in hover_data.columns
-            }
-        )
-        if hover_text_html_template is not None:
-            get_tooltip = (
-                '({index, picked, layer}) => picked ? {"html": `'
-                + hover_text_html_template.format_map(replacements)
-                + "`} : null"
-            )
-        else:
-            get_tooltip = "null"
-
-        if on_click is not None:
-            on_click = (
-                "({index, picked, layer}, event) => { if (picked) {"
-                + on_click.format_map(replacements)
-                + " } }"
-            )
-        if (
-            "button_on_click" in topic_tree_kwds
-            and topic_tree_kwds["button_on_click"] is not None
-        ):
-            topic_tree_replacements = FormattingDict(
-                **{
-                    str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                    for name in hover_data.columns
-                }
-            )
-            topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                "button_on_click"
-            ].format_map(topic_tree_replacements)
-    else:
-        hover_data = pd.DataFrame(columns=("hover_text",))
-        get_tooltip = "null"
-
-    # lines
+    # Prepare edge bundle data
     if edge_bundle:
-        data_map_coords = point_dataframe[["x", "y"]].values
-        color_list = point_dataframe[["r", "g", "b"]].values
-        lines, colors = bundle_edges(
-            data_map_coords, color_list, rgb_colors=True, **edge_bundle_keywords
-        )
-        edge_data = pd.DataFrame({
-            'x1': lines[:, 0],
-            'y1': lines[:, 1],
-            'x2': lines[:, 2],
-            'y2': lines[:, 3],
-            'r': colors[:, 0].astype(np.uint8),
-            'g': colors[:, 1].astype(np.uint8),
-            'b': colors[:, 2].astype(np.uint8)
-        })
+        edge_data = prepare_edge_bundle_data(point_dataframe, edge_bundle_keywords)
+    else:
+        edge_data = None
 
-    # Histogram
+    # Prepare histogram data
     if enable_histogram:
-        if isinstance(histogram_data.dtype, pd.CategoricalDtype):
-            bin_data, index_data = generate_bins_from_categorical_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-        elif is_string_dtype(histogram_data.dtype):
-            bin_data, index_data = generate_bins_from_categorical_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-        elif is_datetime64_any_dtype(histogram_data.dtype):
-            if histogram_group_datetime_by is not None:
-                bin_data, index_data = generate_bins_from_temporal_data(
-                    histogram_data, histogram_group_datetime_by, histogram_range
-                )
-            else:
-                bin_data, index_data = generate_bins_from_numeric_data(
-                    histogram_data, histogram_n_bins, histogram_range
-                )
-        else:
-            bin_data, index_data = generate_bins_from_numeric_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-
-    if colormap_rawdata is not None and colormap_metadata is not None:
-        jch_colors = cspace_convert(
-            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "JCh"
+        bin_data, index_data = prepare_histogram_data(
+            histogram_data,
+            histogram_n_bins,
+            histogram_group_datetime_by,
+            histogram_range,
         )
-        cielab_colors = cspace_convert(
-            jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
-        )
-        n_swatches = (
-            np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
-            if len(colormap_metadata) > 0
-            else 5
-        )
-        if len(cielab_colors) > 0:
-            quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
-                cielab_colors
-            )
-            cluster_colors = [
-                rgb2hex(c)
-                for c in np.clip(
-                    cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
-                )
-            ]
-        else:
-            cluster_colors = [noise_color] * n_swatches
-        if cluster_layer_colormaps:
-            if label_layers is None or cluster_colormap is None:
-                raise ValueError(
-                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
-                )
-            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
-                label_layers, cluster_colormap, n_swatches
-            )
-            colormap_metadata[0:0] = layer_color_metadata
-            colormap_rawdata[0:0] = layer_color_data
-        color_metadata, color_data = build_colormap_data(
-            colormap_rawdata, colormap_metadata, cluster_colors
-        )
-        enable_colormap_selector = True
-    elif colormaps is not None:
-        colormap_metadata = default_colormap_options(colormaps)
-        colormap_rawdata = list(colormaps.values())
-        cielab_colors = cspace_convert(
-            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
-        )
-        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
-        cluster_colors = [
-            rgb2hex(c)
-            for c in np.clip(
-                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
-            )
-        ]
-        if cluster_layer_colormaps:
-            if label_layers is None or cluster_colormap is None:
-                raise ValueError(
-                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
-                )
-            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
-                label_layers, cluster_colormap, 5
-            )
-            colormap_metadata[0:0] = layer_color_metadata
-            colormap_rawdata[0:0] = layer_color_data
-        color_metadata, color_data = build_colormap_data(
-            colormap_rawdata, colormap_metadata, cluster_colors
-        )
-        enable_colormap_selector = True
     else:
-        color_metadata = None
-        color_data = None
-        enable_colormap_selector = False
+        bin_data, index_data = None, None
 
+    # Prepare colormap data
+    color_metadata, color_data, enable_colormap_selector = prepare_colormap_data(
+        point_dataframe,
+        colormap_rawdata,
+        colormap_metadata,
+        colormaps,
+        cluster_layer_colormaps,
+        label_layers,
+        cluster_colormap,
+        noise_color,
+    )
+
+    # Encode data for inline HTML or write to offline files
     if inline_data:
-        buffer = io.BytesIO()
-        point_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
-        arrow_bytes = buffer.read()
-        gzipped_bytes = gzip.compress(arrow_bytes)
-        base64_point_data = base64.b64encode(gzipped_bytes).decode()
-        json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
-        gzipped_bytes = gzip.compress(json_bytes)
-        base64_hover_data = base64.b64encode(gzipped_bytes).decode()
-        label_data_json = label_dataframe.to_json(orient="records")
-        gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
-        base64_label_data = base64.b64encode(gzipped_label_data).decode()
-        if enable_histogram:
-            json_bytes = bin_data.to_json(
-                orient="records", date_format="iso", date_unit="s"
-            ).encode()
-            gzipped_bytes = gzip.compress(json_bytes)
-            base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
-            buffer = io.BytesIO()
-            index_data.to_frame().to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_histogram_index_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_histogram_bin_data = None
-            base64_histogram_index_data = None
-
-        if enable_colormap_selector:
-            buffer = io.BytesIO()
-            color_data.to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_color_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_color_data = None
-
-        if edge_bundle:
-            buffer = io.BytesIO()
-            edge_data.to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_edge_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_edge_data = None
-
-        file_prefix = None
-        html_file_prefix = None
-        n_chunks = 0
+        data_encoding = encode_inline_data(
+            point_data,
+            hover_data,
+            label_dataframe,
+            enable_histogram,
+            bin_data,
+            index_data,
+            enable_colormap_selector,
+            color_data,
+            edge_bundle,
+            edge_data,
+        )
     else:
-        base64_point_data = ""
-        base64_hover_data = ""
-        base64_label_data = ""
-        base64_histogram_bin_data = ""
-        base64_histogram_index_data = ""
-        base64_color_data = ""
-        base64_edge_data = ""
+        data_encoding = write_offline_data(
+            point_data,
+            hover_data,
+            label_dataframe,
+            enable_histogram,
+            bin_data,
+            index_data,
+            enable_colormap_selector,
+            color_data,
+            edge_bundle,
+            edge_data,
+            offline_data_path,
+            offline_data_prefix,
+            offline_data_chunk_size,
+        )
 
-        # Handle offline_data_path with backward compatibility
-        if offline_data_path is not None:
-            # Convert to Path object for easier handling
-            data_path = Path(offline_data_path)
+    base64_point_data = data_encoding["base64_point_data"]
+    base64_hover_data = data_encoding["base64_hover_data"]
+    base64_label_data = data_encoding["base64_label_data"]
+    base64_histogram_bin_data = data_encoding["base64_histogram_bin_data"]
+    base64_histogram_index_data = data_encoding["base64_histogram_index_data"]
+    base64_color_data = data_encoding["base64_color_data"]
+    base64_edge_data = data_encoding["base64_edge_data"]
+    file_prefix = data_encoding["file_prefix"]
+    html_file_prefix = data_encoding["html_file_prefix"]
+    n_chunks = data_encoding["n_chunks"]
 
-            # Create directory if it doesn't exist
-            if (
-                data_path.suffix
-            ):  # If user provided a file with extension, use parent dir
-                data_dir = data_path.parent
-                base_name = data_path.stem
-                file_prefix = str(data_path.with_suffix(""))
-            else:  # User provided directory/basename
-                data_dir = (
-                    data_path.parent if data_path.parent != Path(".") else Path(".")
-                )
-                base_name = data_path.name
-                file_prefix = str(data_path)
-
-            # Ensure directory exists
-            data_dir.mkdir(parents=True, exist_ok=True)
-
-            # For HTML references, we need just the basename
-            html_file_prefix = base_name
-        else:
-            # Backward compatibility: use offline_data_prefix
-            file_prefix = (
-                offline_data_prefix
-                if offline_data_prefix is not None
-                else "datamapplot"
-            )
-            html_file_prefix = file_prefix
-        n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
-        for i in range(n_chunks):
-            chunk_start = i * offline_data_chunk_size
-            chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
-            with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
-                point_data[chunk_start:chunk_end].to_feather(
-                    f, compression="uncompressed"
-                )
-            with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
-                f.write(
-                    json.dumps(
-                        hover_data[chunk_start:chunk_end].to_dict(orient="list")
-                    ).encode()
-                )
-            if enable_colormap_selector:
-                with gzip.open(f"{file_prefix}_color_data_{i}.zip", "wb") as f:
-                    color_data[chunk_start:chunk_end].to_feather(
-                        f, compression="uncompressed"
-                    )
-        label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
-        with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
-            f.write(bytes(label_data_json, "utf-8"))
-        if enable_histogram:
-            with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
-                f.write(
-                    bin_data.to_json(
-                        orient="records", date_format="iso", date_unit="s"
-                    ).encode()
-                )
-            with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
-                index_data.to_frame().to_feather(f, compression="uncompressed")
-
-        if edge_bundle:
-            edge_data_json = edge_data.to_json(path_or_buf=None, orient="records")
-            with gzip.open(f"{file_prefix}_edge_data.zip", "wb") as f:
-                f.write(bytes(edge_data_json, "utf-8"))
-
-    title_font_color = "#000000" if not darkmode else "#ffffff"
-    sub_title_font_color = "#777777"
-    title_background = "#ffffffaa" if not darkmode else "#000000aa"
-    shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
-    input_background = "#ffffffdd" if not darkmode else "#000000dd"
-    input_border = "#ddddddff" if not darkmode else "222222ff"
+    # Style configuration
+    title_font_color = style_config["title_font_color"]
+    sub_title_font_color = style_config["sub_title_font_color"]
+    title_background = style_config["title_background"]
+    shadow_color = style_config["shadow_color"]
+    input_background = style_config["input_background"]
+    input_border = style_config["input_border"]
+    page_background_color = background_color if background_color is not None else style_config["page_background_color"]
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
@@ -2091,25 +1819,14 @@ def render_html(
             shadow_color=shadow_color,
         )
 
-    if dynamic_tooltip is not None:
-        enable_dynamic_tooltip = True
-        tooltip_identifier_js = dynamic_tooltip.get("identifier_js", None)
-        tooltip_fetch_js = dynamic_tooltip["fetch_js"]
-        tooltip_format_js = dynamic_tooltip["format_js"]
-        tooltip_loading_js = dynamic_tooltip["loading_js"]
-        tooltip_error_js = dynamic_tooltip["error_js"]
-    else:
-        enable_dynamic_tooltip = False
-        tooltip_identifier_js = None
-        tooltip_fetch_js = None
-        tooltip_format_js = None
-        tooltip_loading_js = None
-        tooltip_error_js = None
-
-    if background_color is None:
-        page_background_color = "#ffffff" if not darkmode else "#000000"
-    else:
-        page_background_color = background_color
+    # Prepare dynamic tooltip configuration
+    dynamic_tooltip_config = prepare_dynamic_tooltip(dynamic_tooltip)
+    enable_dynamic_tooltip = dynamic_tooltip_config["enable_dynamic_tooltip"]
+    tooltip_identifier_js = dynamic_tooltip_config["tooltip_identifier_js"]
+    tooltip_fetch_js = dynamic_tooltip_config["tooltip_fetch_js"]
+    tooltip_format_js = dynamic_tooltip_config["tooltip_format_js"]
+    tooltip_loading_js = dynamic_tooltip_config["tooltip_loading_js"]
+    tooltip_error_js = dynamic_tooltip_config["tooltip_error_js"]
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
@@ -2196,42 +1913,10 @@ def render_html(
     else:
         api_tooltip_fontname = None
 
-    if selection_handler is not None:
-        if isinstance(selection_handler, Iterable):
-            for handler in selection_handler:
-                if custom_html is None:
-                    custom_html = handler.html
-                else:
-                    custom_html += handler.html
-
-                if custom_js is None:
-                    custom_js = handler.javascript
-                else:
-                    custom_js += handler.javascript
-
-                if custom_css is None:
-                    custom_css = handler.css
-                else:
-                    custom_css += handler.css
-        elif isinstance(selection_handler, SelectionHandlerBase):
-            if custom_html is None:
-                custom_html = selection_handler.html
-            else:
-                custom_html += selection_handler.html
-
-            if custom_js is None:
-                custom_js = selection_handler.javascript
-            else:
-                custom_js += selection_handler.javascript
-
-            if custom_css is None:
-                custom_css = selection_handler.css
-            else:
-                custom_css += selection_handler.css
-        else:
-            raise ValueError(
-                "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
-            )
+    # Process selection handler(s)
+    custom_html, custom_js, custom_css = prepare_selection_handler(
+        selection_handler, custom_html, custom_js, custom_css
+    )
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",
