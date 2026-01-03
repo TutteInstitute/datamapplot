@@ -913,10 +913,21 @@ def _compute_label_bounds(cluster_points):
 
 def _find_parent_id(cluster_mask, parents):
     """Find the parent ID for a cluster based on overlap with previous layers."""
+    # Handle empty or uninitialized parents list
+    if not parents or len(parents) == 0:
+        return None
+    
+    # Check if first element is empty (initial state from create_plots.py)
+    if len(parents[0]) == 0:
+        return None
+        
     best_match = None
     best_overlap = 0
     
     for j, parent_mask in enumerate(parents):
+        # Skip empty masks
+        if len(parent_mask) == 0:
+            continue
         overlap = np.sum(cluster_mask & parent_mask)
         if overlap > best_overlap:
             best_overlap = overlap
@@ -1861,4 +1872,154 @@ def url_to_base64_img(url):
 
     # Create the complete data URI.
     return f"data:{content_type};base64,{image_data}"
+
+
+# =============================================================================
+# Offline Mode and Font Handling
+# =============================================================================
+
+def prepare_offline_mode_data(
+    offline_mode,
+    offline_mode_js_data_file,
+    offline_mode_font_data_file,
+):
+    """
+    Prepare offline mode data by loading cached JS and font files.
+    
+    Parameters
+    ----------
+    offline_mode : bool
+        Whether offline mode is enabled.
+    offline_mode_js_data_file : str or Path or None
+        Path to the cached JS data file.
+    offline_mode_font_data_file : str or Path or None
+        Path to the cached font data file.
+        
+    Returns
+    -------
+    dict
+        Dictionary with 'offline_mode_data' and 'offline_mode_font_data_file' keys.
+    """
+    import platformdirs
+    from datamapplot import offline_mode_caching
+    
+    if not offline_mode:
+        return {
+            "offline_mode_data": None,
+            "offline_mode_font_data_file": None,
+        }
+    
+    if offline_mode_js_data_file is None:
+        data_directory = platformdirs.user_data_dir("datamapplot")
+        offline_mode_js_data_file = (
+            Path(data_directory) / "datamapplot_js_encoded.json"
+        )
+        if not offline_mode_js_data_file.is_file():
+            offline_mode_caching.cache_js_files()
+        offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
+    else:
+        offline_mode_data = json.load(open(offline_mode_js_data_file, "r"))
+
+    if offline_mode_font_data_file is None:
+        data_directory = platformdirs.user_data_dir("datamapplot")
+        offline_mode_font_data_file = (
+            Path(data_directory) / "datamapplot_fonts_encoded.json"
+        )
+        if not offline_mode_font_data_file.is_file():
+            offline_mode_caching.cache_fonts()
+    
+    return {
+        "offline_mode_data": offline_mode_data,
+        "offline_mode_font_data_file": offline_mode_font_data_file,
+    }
+
+
+def prepare_fonts(
+    font_family,
+    tooltip_font_family,
+    offline_mode,
+    offline_mode_font_data_file,
+):
+    """
+    Prepare font data for embedding in HTML.
+    
+    Parameters
+    ----------
+    font_family : str
+        The main font family name.
+    tooltip_font_family : str or None
+        The tooltip font family name.
+    offline_mode : bool
+        Whether offline mode is enabled.
+    offline_mode_font_data_file : str or Path or None
+        Path to the cached font data file.
+        
+    Returns
+    -------
+    dict
+        Dictionary with 'api_fontname', 'font_data', and 'api_tooltip_fontname' keys.
+    """
+    import requests
+    
+    api_fontname = font_family.replace(" ", "+")
+    font_data = get_google_font_for_embedding(
+        font_family,
+        offline_mode=offline_mode,
+        offline_font_file=offline_mode_font_data_file if offline_mode else None,
+    )
+    if font_data == "":
+        api_fontname = None
+        
+    if tooltip_font_family is not None:
+        api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
+        resp = requests.get(
+            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
+            timeout=30,
+        )
+        if not resp.ok:
+            api_tooltip_fontname = None
+    else:
+        api_tooltip_fontname = None
+    
+    return {
+        "api_fontname": api_fontname,
+        "font_data": font_data,
+        "api_tooltip_fontname": api_tooltip_fontname,
+    }
+
+
+def prepare_logo(logo, offline_mode):
+    """
+    Prepare logo for embedding in HTML.
+    
+    Parameters
+    ----------
+    logo : str or None
+        URL of the logo image.
+    offline_mode : bool
+        Whether offline mode is enabled.
+        
+    Returns
+    -------
+    str or None
+        Processed logo URL or base64 data URI.
+        
+    Raises
+    ------
+    ValueError
+        If logo URL has no scheme.
+    """
+    if logo is None:
+        return None
+    
+    scheme = urlparse(logo).scheme
+    if not scheme:
+        raise ValueError(
+            f"No scheme supplied for logo URL. Perhaps you meant https://{logo}?"
+        )
+    elif offline_mode or scheme == "file":
+        # Store the image inline as a base64 URI.
+        return url_to_base64_img(logo)
+    
+    return logo
 
