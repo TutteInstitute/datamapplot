@@ -1,4 +1,8 @@
 {# External dependencies - fonts, CSS, JS #}
+{%- if custom_header %}
+{{ custom_header }}
+{%- endif %}
+
 {%- if google_font %}
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

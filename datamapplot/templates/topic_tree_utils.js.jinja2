@@ -1,0 +1,19 @@
+{# Topic tree utility functions #}
+{% if enable_topic_tree %}
+function isBoundsVisible({bounds, viewState}) {
+  const {width, height, longitude, latitude, zoom} = viewState;
+  const Viewport = new deck.WebMercatorViewport({width, height, longitude, latitude, zoom});
+  const minBounds = Viewport.project([bounds[0], bounds[2]]);
+  const maxBounds = Viewport.project([bounds[1], bounds[3]]);
+  return (
+    ((minBounds[0] >= 0 && minBounds[0] <= width) || (maxBounds[0] >= 0 && maxBounds[0] <= width)) &&
+    ((minBounds[1] >= 0 && minBounds[1] <= height) || (maxBounds[1] >= 0 && maxBounds[1] <= height))
+  );
+}
+
+function getVisibleTextData(viewState, labelData) {
+  if (labelData) {
+    return labelData.filter((d) => isBoundsVisible({bounds: d.bounds, viewState: viewState}));
+  }
+}
+{% endif %}
