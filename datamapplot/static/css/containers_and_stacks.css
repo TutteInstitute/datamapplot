@@ -1,87 +1,177 @@
 .content-wrapper {
-    /* position: relative; */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 1;
-    padding: 0;
-    /* Use grid to create the basic layout */
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    min-height: calc(100vh - 16px); /* Account for padding */
-    pointer-events: none; /* pass pointer events through */
+  /* position: relative; */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  padding: 0;
+  /* Use grid to create the basic layout */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  min-height: calc(100vh - 16px);
+  /* Account for padding */
+  pointer-events: none;
+  /* pass pointer events through */
+  /* Transitions for drawer push effect */
+  transition: transform 0.3s ease-in-out;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  pointer-events: none;
+  max-height: 50vh;
+  overflow-y: visible;
+}
+
+.top-left {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  align-self: start;
+  align-items: start;
+}
+
+.bottom-left {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  align-self: end;
+  align-items: start;
+  display: flex;
+  flex-direction: column-reverse;
+  transform: scaleY(-1);
+  z-index: 2;
+}
+
+.top-right {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  justify-items: end;
+  align-self: start;
+  align-items: end;
+}
+
+.bottom-right {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  justify-items: end;
+  align-self: end;
+  align-items: end;
+  display: flex;
+  flex-direction: column-reverse;
+  transform: scaleY(-1);
+}
+
+.stack.bottom-left .stack-box {
+  transform: scaleY(-1);
+}
+
+.stack.bottom-right .stack-box {
+  transform: scaleY(-1);
+}
+
+#loading {
+  width: 100%;
+  height: 100%;
+  top: 0px;
+  left: 0px;
+  position: absolute;
+  display: block;
+  z-index: 99
+}
+
+#loading-image {
+  position: absolute;
+  top: 45%;
+  left: 47.5%;
+  z-index: 100
+}
+
+#title-container {
+  top: 0;
+  left: 0;
+}
+
+/* Responsive design for different screen sizes */
+
+/* Medium screens (768px - 1200px): Reduce to 2 main corners */
+@media screen and (max-width: 1200px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
-  .stack {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: 0;
-    pointer-events: none;
-    max-height: 50vh;
-    overflow-y: visible;
-  }
+
   .top-left {
     grid-column: 1;
     grid-row: 1;
-    justify-self: start;
-    align-self: start;
-    align-items: start;
-  }
-  .bottom-left {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: start;
-    align-self: end;
-    align-items: start;
-    display: flex;
-    flex-direction: column-reverse;
-    transform: scaleY(-1);
-    z-index: 2;
   }
 
   .top-right {
-    grid-column: 2;
+    grid-column: 1;
     grid-row: 1;
     justify-self: end;
-    justify-items: end;
-    align-self: start;
-    align-items: end;
   }
+
+  .bottom-left {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   .bottom-right {
-    grid-column: 2;
+    grid-column: 1;
     grid-row: 2;
     justify-self: end;
-    justify-items: end;
-    align-self: end;
-    align-items: end;
-    display: flex;
-    flex-direction: column-reverse;
-    transform: scaleY(-1);
   }
-  .stack.bottom-left .stack-box {
-    transform: scaleY(-1);
+
+  .stack {
+    max-height: 40vh;
   }
-  .stack.bottom-right .stack-box {
-    transform: scaleY(-1);
+}
+
+/* Small screens (< 768px): Single stack at top, rest in drawer */
+@media screen and (max-width: 768px) {
+  .content-wrapper {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
   }
-  #loading {
-    width: 100%;
-    height: 100%;
-    top: 0px;
-    left: 0px;
-    position: absolute;
-    display: block;
-    z-index: 99
+
+  /* Keep only top-left visible, hide other stacks */
+  .top-right,
+  .bottom-left,
+  .bottom-right {
+    display: none;
   }
-  #loading-image {
-    position: absolute;
-    top: 45%;
-    left: 47.5%;
-    z-index: 100
+
+  .top-left {
+    max-height: 30vh;
+    overflow-y: auto;
   }
-  #title-container {
-    top: 0;
-    left: 0;
+
+  /* Container boxes should be more compact */
+  .container-box {
+    margin: 4px 8px;
+    padding: 8px;
+    font-size: 0.9em;
   }
+}
+
+/* Very small screens (< 480px): Further optimize spacing */
+@media screen and (max-width: 480px) {
+  .container-box {
+    margin: 2px 4px;
+    padding: 6px;
+    font-size: 0.85em;
+    border-radius: 12px;
+  }
+
+  .stack {
+    max-height: 25vh;
+  }
+}

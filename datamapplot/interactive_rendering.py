@@ -75,6 +75,18 @@ from datamapplot.interactive_helpers import (
     prepare_logo,
     label_text_and_polygon_dataframes,
 )
+from datamapplot.widget_helpers import (
+    WidgetConfig,
+    VALID_LOCATIONS,
+    load_widget_config_from_json,
+    validate_widget_layout,
+    merge_widget_configs,
+    widgets_from_legacy_params,
+    group_widgets_by_location,
+    get_drawer_enabled,
+    collect_widget_dependencies,
+)
+from datamapplot.widgets import WidgetBase
 
 try:
     import matplotlib
@@ -204,7 +216,7 @@ _TEMPLATE_DIRS = [
 
 def _get_jinja_env():
     """Get a Jinja2 Environment configured with template directories.
-    
+
     This enables using {% include %} directives in templates.
     """
     return jinja2.Environment(
@@ -215,13 +227,13 @@ def _get_jinja_env():
 
 def _get_template(use_modular=False):
     """Get the appropriate Jinja2 template.
-    
+
     Parameters
     ----------
     use_modular : bool
         If True, use the new modular template with includes.
         If False, use the legacy single-file template.
-    
+
     Returns
     -------
     jinja2.Template
@@ -232,6 +244,7 @@ def _get_template(use_modular=False):
         return env.get_template("deckgl_template.html.jinja2")
     else:
         return jinja2.Template(_DECKGL_TEMPLATE_STR)
+
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -470,6 +483,10 @@ def render_html(
     splash_warning=None,
     noise_color="#999999",
     noise_label="Unlabelled",
+    widgets=None,
+    widget_layout=None,
+    default_widget_config=None,
+    use_widgets=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -661,7 +678,7 @@ def render_html(
         ``extra_point_data`` (see below).
 
     dynamic_tooltip: dict[str, str] or None (optional, default=None)
-        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript 
+        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript
         functions that are passed to DynamicTooltipManager and define the behavior of the tooltip.
 
     extra_point_data: pandas.DataFrame or None (optional, default=None)
@@ -991,7 +1008,11 @@ def render_html(
     shadow_color = style_config["shadow_color"]
     input_background = style_config["input_background"]
     input_border = style_config["input_border"]
-    page_background_color = background_color if background_color is not None else style_config["page_background_color"]
+    page_background_color = (
+        background_color
+        if background_color is not None
+        else style_config["page_background_color"]
+    )
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
@@ -1013,6 +1034,91 @@ def render_html(
     tooltip_loading_js = dynamic_tooltip_config["tooltip_loading_js"]
     tooltip_error_js = dynamic_tooltip_config["tooltip_error_js"]
 
+    # ==========================================================================
+    # Widget System Processing
+    # ==========================================================================
+
+    # Determine if we should use the new widget system
+    # use_widgets=None means auto-detect: use widgets if widgets param is provided
+    # use_widgets=True forces widget system even with legacy params
+    # use_widgets=False forces legacy system
+    use_widget_system = use_widgets
+    if use_widget_system is None:
+        use_widget_system = widgets is not None
+
+    # Initialize widget containers
+    widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
+    drawer_enabled = {"left": False, "right": False}
+    widget_css = ""
+    widget_js = ""
+
+    if use_widget_system:
+        # Load default widget config from file if provided
+        default_config = None
+        if default_widget_config is not None:
+            if isinstance(default_widget_config, (str, Path)):
+                default_config = load_widget_config_from_json(default_widget_config)
+            elif isinstance(default_widget_config, dict):
+                default_config = validate_widget_layout(default_widget_config)
+
+        # Validate user widget layout if provided
+        user_layout = None
+        if widget_layout is not None:
+            user_layout = validate_widget_layout(widget_layout)
+
+        # Merge configurations
+        merged_layout = merge_widget_configs(default_config, user_layout)
+
+        # Collect widgets - either from explicit widgets param or from legacy params
+        all_widgets = []
+        if widgets is not None:
+            if isinstance(widgets, WidgetBase):
+                all_widgets = [widgets]
+            elif isinstance(widgets, Iterable):
+                all_widgets = list(widgets)
+        else:
+            # Convert legacy parameters to widgets
+            all_widgets = widgets_from_legacy_params(
+                title=title,
+                sub_title=sub_title,
+                font_family=font_family,
+                title_font_size=title_font_size,
+                sub_title_font_size=sub_title_font_size,
+                font_weight=font_weight,
+                title_font_color=title_font_color,
+                sub_title_font_color=sub_title_font_color,
+                enable_search=enable_search,
+                search_field=search_field,
+                enable_topic_tree=enable_topic_tree,
+                topic_tree_kwds=topic_tree_kwds,
+                histogram_data=histogram_data,
+                histogram_settings=histogram_settings,
+                histogram_n_bins=histogram_n_bins,
+                colormaps=colormaps,
+                colormap_rawdata=colormap_rawdata,
+                logo=logo,
+                logo_width=logo_width,
+            )
+
+        # Group widgets by location, applying layout overrides
+        widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
+
+        # Determine which drawers should be enabled
+        drawer_enabled = get_drawer_enabled(widgets_by_location)
+
+        # Collect widget CSS and JS
+        for widget in all_widgets:
+            if widget.css:
+                widget_css += widget.css + "\n"
+            if widget.javascript:
+                widget_js += widget.javascript + "\n"
+
+        # Collect widget dependencies
+        widget_deps = collect_widget_dependencies(all_widgets)
+
+    # Determine if drawers are enabled (for dependency loading)
+    enable_drawers = drawer_enabled["left"] or drawer_enabled["right"]
+
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": get_js_dependency_urls(
@@ -1030,6 +1136,7 @@ def render_html(
             enable_colormap_selector,
             enable_topic_tree,
             enable_dynamic_tooltip,
+            enable_drawers=enable_drawers,
         ),
         "css_dependency_srcs": get_css_dependency_sources(
             minify_deps,
@@ -1037,6 +1144,7 @@ def render_html(
             show_loading_progress,
             enable_colormap_selector,
             enable_topic_tree,
+            enable_drawers=enable_drawers,
         ),
     }
 
@@ -1094,7 +1202,7 @@ def render_html(
         shadow_color=shadow_color,
         input_background=input_background,
         input_border=input_border,
-        custom_css=custom_css,
+        custom_css=(custom_css or "") + "\n" + widget_css,
         use_title=title is not None,
         title_font_size=title_font_size,
         sub_title_font_size=sub_title_font_size,
@@ -1143,7 +1251,7 @@ def render_html(
         show_loading_progress=show_loading_progress,
         background_image=background_image,
         background_image_bounds=background_image_bounds,
-        custom_js=custom_js,
+        custom_js=(custom_js or "") + "\n" + widget_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
         splash_warning=splash_warning,
@@ -1153,6 +1261,11 @@ def render_html(
         tooltip_format_js=tooltip_format_js,
         tooltip_loading_js=tooltip_loading_js,
         tooltip_error_js=tooltip_error_js,
+        # Widget system context
+        use_widget_system=use_widget_system,
+        widgets_by_location=widgets_by_location,
+        drawer_enabled=drawer_enabled,
+        enable_drawers=enable_drawers,
         **dependencies_ctx,
     )
     return html_str

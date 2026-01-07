@@ -1,0 +1,477 @@
+"""
+Helper functions for widget configuration and management.
+
+This module provides utilities for creating, configuring, and managing widgets
+in the DataMapPlot interactive visualization system.
+"""
+
+import json
+from dataclasses import dataclass, field, asdict
+from typing import List, Dict, Any, Optional, Union
+from pathlib import Path
+
+from datamapplot.widgets import (
+    WidgetBase,
+    TitleWidget,
+    SearchWidget,
+    TopicTreeWidget,
+    HistogramWidget,
+    ColormapSelectorWidget,
+    LegendWidget,
+    LogoWidget,
+)
+
+
+# Valid widget locations
+VALID_LOCATIONS = [
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "drawer-left",
+    "drawer-right",
+]
+
+
+@dataclass
+class WidgetConfig:
+    """Configuration for widget placement and behavior.
+
+    Attributes
+    ----------
+    widget_id : str
+        Unique identifier for the widget
+
+    location : str
+        Location where widget should be placed. One of VALID_LOCATIONS.
+
+    order : int
+        Stacking order within location (lower = first)
+
+    visible : bool
+        Whether widget is visible by default
+
+    collapsible : bool
+        Whether widget can be collapsed by user
+
+    custom_params : dict
+        Additional custom parameters for the widget
+    """
+
+    widget_id: str
+    location: str = "top-left"
+    order: int = 0
+    visible: bool = True
+    collapsible: bool = False
+    custom_params: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.location not in VALID_LOCATIONS:
+            raise ValueError(
+                f"Invalid location '{self.location}'. "
+                f"Must be one of: {', '.join(VALID_LOCATIONS)}"
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return asdict(self)
+
+
+def load_widget_config_from_json(path: Union[str, Path]) -> Dict[str, WidgetConfig]:
+    """Load widget configuration from a JSON file.
+
+    The JSON file should have widget IDs as keys and configuration dicts as values:
+
+    .. code-block:: json
+
+        {
+            "title": {
+                "location": "top-left",
+                "order": 0,
+                "visible": true
+            },
+            "histogram": {
+                "location": "drawer-left",
+                "order": 0,
+                "collapsible": true
+            }
+        }
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the JSON configuration file
+
+    Returns
+    -------
+    dict
+        Dictionary mapping widget_id to WidgetConfig objects
+
+    Raises
+    ------
+    FileNotFoundError
+        If the configuration file doesn't exist
+    ValueError
+        If the JSON is invalid or contains invalid configurations
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Widget configuration file not found: {path}")
+
+    with open(path, "r") as f:
+        config_dict = json.load(f)
+
+    configs = {}
+    for widget_id, config in config_dict.items():
+        if isinstance(config, dict):
+            config["widget_id"] = widget_id
+            configs[widget_id] = WidgetConfig(**config)
+        else:
+            raise ValueError(
+                f"Invalid configuration for widget '{widget_id}': "
+                f"expected dict, got {type(config)}"
+            )
+
+    return configs
+
+
+def validate_widget_layout(
+    layout: Dict[str, Union[WidgetConfig, Dict[str, Any]]],
+) -> Dict[str, WidgetConfig]:
+    """Validate and normalize a widget layout configuration.
+
+    Parameters
+    ----------
+    layout : dict
+        Dictionary mapping widget IDs to WidgetConfig objects or config dicts
+
+    Returns
+    -------
+    dict
+        Validated dictionary mapping widget_id to WidgetConfig objects
+
+    Raises
+    ------
+    ValueError
+        If the layout configuration is invalid
+    """
+    if not isinstance(layout, dict):
+        raise ValueError(f"Widget layout must be a dict, got {type(layout)}")
+
+    validated = {}
+    for widget_id, config in layout.items():
+        if isinstance(config, WidgetConfig):
+            validated[widget_id] = config
+        elif isinstance(config, dict):
+            config["widget_id"] = widget_id
+            validated[widget_id] = WidgetConfig(**config)
+        else:
+            raise ValueError(
+                f"Invalid configuration for widget '{widget_id}': "
+                f"expected WidgetConfig or dict, got {type(config)}"
+            )
+
+    return validated
+
+
+def merge_widget_configs(
+    default: Optional[Dict[str, WidgetConfig]], user: Optional[Dict[str, WidgetConfig]]
+) -> Dict[str, WidgetConfig]:
+    """Merge user widget configuration with default configuration.
+
+    User configuration takes precedence over default configuration.
+
+    Parameters
+    ----------
+    default : dict or None
+        Default widget configuration
+
+    user : dict or None
+        User-provided widget configuration
+
+    Returns
+    -------
+    dict
+        Merged configuration dictionary
+    """
+    if default is None:
+        default = {}
+    if user is None:
+        user = {}
+
+    # Start with default config
+    merged = dict(default)
+
+    # Override with user config
+    merged.update(user)
+
+    return merged
+
+
+def create_widget_from_config(
+    widget_type: str,
+    config: Optional[Union[WidgetConfig, Dict[str, Any]]] = None,
+    **kwargs,
+) -> WidgetBase:
+    """Factory function to create a widget from configuration.
+
+    Parameters
+    ----------
+    widget_type : str
+        Type of widget to create. One of: "title", "search", "topic_tree",
+        "histogram", "colormap_selector", "legend", "logo"
+
+    config : WidgetConfig or dict, optional
+        Configuration for the widget
+
+    **kwargs
+        Additional parameters to pass to the widget constructor
+
+    Returns
+    -------
+    WidgetBase
+        Instantiated widget
+
+    Raises
+    ------
+    ValueError
+        If widget_type is not recognized
+    """
+    widget_classes = {
+        "title": TitleWidget,
+        "search": SearchWidget,
+        "topic_tree": TopicTreeWidget,
+        "histogram": HistogramWidget,
+        "colormap_selector": ColormapSelectorWidget,
+        "legend": LegendWidget,
+        "logo": LogoWidget,
+    }
+
+    if widget_type not in widget_classes:
+        raise ValueError(
+            f"Unknown widget type '{widget_type}'. "
+            f"Must be one of: {', '.join(widget_classes.keys())}"
+        )
+
+    widget_class = widget_classes[widget_type]
+
+    # Merge config with kwargs
+    if config is not None:
+        if isinstance(config, WidgetConfig):
+            config_dict = config.to_dict()
+        else:
+            config_dict = config
+
+        # Extract widget placement parameters
+        kwargs.setdefault("location", config_dict.get("location"))
+        kwargs.setdefault("order", config_dict.get("order"))
+        kwargs.setdefault("visible", config_dict.get("visible"))
+        kwargs.setdefault("collapsible", config_dict.get("collapsible"))
+
+        # Merge custom params
+        if "custom_params" in config_dict:
+            kwargs.update(config_dict["custom_params"])
+
+    return widget_class(**kwargs)
+
+
+def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
+    """Convert legacy render_html parameters to widget instances.
+
+    This function maintains backward compatibility by converting the old-style
+    boolean flags and data parameters into the new widget system.
+
+    Parameters
+    ----------
+    **kwargs
+        Legacy parameters from render_html function
+
+    Returns
+    -------
+    list
+        List of WidgetBase instances
+    """
+    widgets = []
+
+    # Title widget
+    if kwargs.get("title") is not None:
+        widgets.append(
+            TitleWidget(
+                title=kwargs["title"],
+                sub_title=kwargs.get("sub_title", ""),
+                title_font_family=kwargs.get("font_family", "Roboto"),
+                title_font_size=kwargs.get("title_font_size", 36),
+                sub_title_font_size=kwargs.get("sub_title_font_size", 18),
+                title_font_weight=kwargs.get("font_weight", 600),
+                title_font_color=kwargs.get("title_font_color", "#000000"),
+                sub_title_font_color=kwargs.get("sub_title_font_color", "#666666"),
+            )
+        )
+
+    # Search widget
+    if kwargs.get("enable_search", False):
+        widgets.append(
+            SearchWidget(
+                search_field=kwargs.get("search_field", "hover_text"),
+            )
+        )
+
+    # Topic tree widget
+    if kwargs.get("enable_topic_tree", False):
+        topic_tree_kwds = kwargs.get("topic_tree_kwds", {})
+        widgets.append(
+            TopicTreeWidget(
+                title=topic_tree_kwds.get("title", "Topic Tree"),
+                font_size=topic_tree_kwds.get("font_size", "12pt"),
+                max_width=topic_tree_kwds.get("max_width", "30vw"),
+                max_height=topic_tree_kwds.get("max_height", "42vh"),
+                color_bullets=topic_tree_kwds.get("color_bullets", False),
+                button_on_click=topic_tree_kwds.get("button_on_click"),
+                button_icon=topic_tree_kwds.get("button_icon", "&#128194;"),
+            )
+        )
+
+    # Histogram widget
+    if kwargs.get("histogram_data") is not None:
+        histogram_settings = kwargs.get("histogram_settings", {})
+        widgets.append(
+            HistogramWidget(
+                histogram_data=kwargs["histogram_data"],
+                histogram_width=histogram_settings.get("histogram_width", 300),
+                histogram_height=histogram_settings.get("histogram_height", 70),
+                histogram_title=histogram_settings.get("histogram_title", ""),
+                histogram_bin_count=kwargs.get("histogram_n_bins", 20),
+                histogram_bin_fill_color=histogram_settings.get(
+                    "histogram_bin_fill_color", "#6290C3"
+                ),
+                histogram_bin_selected_fill_color=histogram_settings.get(
+                    "histogram_bin_selected_fill_color", "#2EBFA5"
+                ),
+                histogram_bin_unselected_fill_color=histogram_settings.get(
+                    "histogram_bin_unselected_fill_color", "#9E9E9E"
+                ),
+                histogram_bin_context_fill_color=histogram_settings.get(
+                    "histogram_bin_context_fill_color", "#E6E6E6"
+                ),
+                histogram_log_scale=histogram_settings.get(
+                    "histogram_log_scale", False
+                ),
+            )
+        )
+
+    # Colormap selector widget (if colormaps are provided)
+    if (
+        kwargs.get("colormaps") is not None
+        or kwargs.get("colormap_rawdata") is not None
+    ):
+        widgets.append(ColormapSelectorWidget())
+
+    # Logo widget
+    if kwargs.get("logo") is not None:
+        widgets.append(
+            LogoWidget(
+                logo=kwargs["logo"],
+                logo_width=kwargs.get("logo_width", 256),
+            )
+        )
+
+    return widgets
+
+
+def group_widgets_by_location(
+    widgets: List[WidgetBase], widget_layout: Optional[Dict[str, WidgetConfig]] = None
+) -> Dict[str, List[WidgetBase]]:
+    """Group widgets by their target location.
+
+    Parameters
+    ----------
+    widgets : list
+        List of widget instances
+
+    widget_layout : dict, optional
+        Optional layout configuration to override widget default locations
+
+    Returns
+    -------
+    dict
+        Dictionary mapping location strings to lists of widgets,
+        sorted by order within each location
+    """
+    if widget_layout is None:
+        widget_layout = {}
+
+    # Initialize location groups
+    grouped = {loc: [] for loc in VALID_LOCATIONS}
+
+    for widget in widgets:
+        # Check if there's a layout override for this widget
+        if widget.widget_id in widget_layout:
+            config = widget_layout[widget.widget_id]
+            location = config.location
+            order = config.order
+            widget.location = location
+            widget.order = order
+        else:
+            location = widget.location
+            order = widget.order
+
+        grouped[location].append(widget)
+
+    # Sort widgets within each location by order
+    for location in grouped:
+        grouped[location].sort(key=lambda w: w.order)
+
+    return grouped
+
+
+def get_drawer_enabled(grouped_widgets: Dict[str, List[WidgetBase]]) -> Dict[str, bool]:
+    """Determine which drawers should be enabled based on widget placement.
+
+    Parameters
+    ----------
+    grouped_widgets : dict
+        Dictionary mapping locations to lists of widgets
+
+    Returns
+    -------
+    dict
+        Dictionary with keys "left" and "right" indicating drawer enablement
+    """
+    return {
+        "left": len(grouped_widgets.get("drawer-left", [])) > 0,
+        "right": len(grouped_widgets.get("drawer-right", [])) > 0,
+    }
+
+
+def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, List[str]]:
+    """Collect all external dependencies from widgets.
+
+    Parameters
+    ----------
+    widgets : list
+        List of widget instances
+
+    Returns
+    -------
+    dict
+        Dictionary with keys "js" and "css" containing lists of dependency URLs
+    """
+    dependencies = {
+        "js": [],
+        "css": [],
+    }
+
+    for widget in widgets:
+        if widget.dependencies:
+            for dep in widget.dependencies:
+                # Simple heuristic: check file extension
+                if dep.endswith(".css"):
+                    if dep not in dependencies["css"]:
+                        dependencies["css"].append(dep)
+                else:
+                    # Default to JS
+                    if dep not in dependencies["js"]:
+                        dependencies["js"].append(dep)
+
+    return dependencies

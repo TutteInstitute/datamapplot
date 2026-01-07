@@ -1,0 +1,28 @@
+{
+    "_description": "Presentation layout - clean design for demos with minimal UI",
+    "title": {
+        "location": "top-left",
+        "order": 0,
+        "visible": true
+    },
+    "search": {
+        "location": "drawer-right",
+        "order": 0,
+        "visible": true
+    },
+    "colormap-selector": {
+        "location": "drawer-right",
+        "order": 1,
+        "visible": true
+    },
+    "legend": {
+        "location": "drawer-right",
+        "order": 2,
+        "visible": true
+    },
+    "logo": {
+        "location": "bottom-right",
+        "order": 0,
+        "visible": true
+    }
+}

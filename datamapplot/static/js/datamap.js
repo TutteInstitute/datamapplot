@@ -5,6 +5,150 @@ function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
 }
 
+/**
+ * WidgetRegistry - A simple pub/sub system for widget communication
+ * 
+ * This registry allows widgets to:
+ * - Register themselves with the datamap
+ * - Subscribe to events from other widgets
+ * - Publish events for other widgets to consume
+ * - Access other registered widgets
+ */
+class WidgetRegistry {
+  constructor() {
+    this.widgets = new Map();
+    this.eventHandlers = new Map();
+  }
+
+  /**
+   * Register a widget with the registry
+   * @param {string} widgetId - Unique identifier for the widget
+   * @param {Object} widget - The widget instance or object
+   */
+  register(widgetId, widget) {
+    this.widgets.set(widgetId, widget);
+    this.emit('widget-registered', { widgetId, widget });
+  }
+
+  /**
+   * Unregister a widget from the registry
+   * @param {string} widgetId - The widget ID to remove
+   */
+  unregister(widgetId) {
+    const widget = this.widgets.get(widgetId);
+    if (widget) {
+      this.widgets.delete(widgetId);
+      this.emit('widget-unregistered', { widgetId, widget });
+    }
+  }
+
+  /**
+   * Get a registered widget by ID
+   * @param {string} widgetId - The widget ID to retrieve
+   * @returns {Object|undefined} The widget instance or undefined
+   */
+  get(widgetId) {
+    return this.widgets.get(widgetId);
+  }
+
+  /**
+   * Check if a widget is registered
+   * @param {string} widgetId - The widget ID to check
+   * @returns {boolean} True if the widget is registered
+   */
+  has(widgetId) {
+    return this.widgets.has(widgetId);
+  }
+
+  /**
+   * Get all registered widget IDs
+   * @returns {Array<string>} Array of widget IDs
+   */
+  getWidgetIds() {
+    return Array.from(this.widgets.keys());
+  }
+
+  /**
+   * Subscribe to an event
+   * @param {string} eventName - Name of the event to subscribe to
+   * @param {Function} handler - Handler function to call when event occurs
+   * @returns {Function} Unsubscribe function
+   */
+  on(eventName, handler) {
+    if (!this.eventHandlers.has(eventName)) {
+      this.eventHandlers.set(eventName, new Set());
+    }
+    this.eventHandlers.get(eventName).add(handler);
+
+    // Return unsubscribe function
+    return () => {
+      const handlers = this.eventHandlers.get(eventName);
+      if (handlers) {
+        handlers.delete(handler);
+      }
+    };
+  }
+
+  /**
+   * Subscribe to an event once
+   * @param {string} eventName - Name of the event to subscribe to
+   * @param {Function} handler - Handler function to call when event occurs
+   */
+  once(eventName, handler) {
+    const wrappedHandler = (data) => {
+      this.off(eventName, wrappedHandler);
+      handler(data);
+    };
+    this.on(eventName, wrappedHandler);
+  }
+
+  /**
+   * Unsubscribe from an event
+   * @param {string} eventName - Name of the event
+   * @param {Function} handler - Handler function to remove
+   */
+  off(eventName, handler) {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  }
+
+  /**
+   * Emit an event to all subscribers
+   * @param {string} eventName - Name of the event to emit
+   * @param {Object} data - Data to pass to event handlers
+   */
+  emit(eventName, data = {}) {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(data);
+        } catch (error) {
+          console.error(`Error in widget event handler for "${eventName}":`, error);
+        }
+      });
+    }
+  }
+
+  /**
+   * Clear all event handlers for a specific event
+   * @param {string} eventName - Name of the event to clear
+   */
+  clearEvent(eventName) {
+    this.eventHandlers.delete(eventName);
+  }
+
+  /**
+   * Clear all registered widgets and events
+   */
+  clear() {
+    this.widgets.clear();
+    this.eventHandlers.clear();
+  }
+}
+
 function isFontLoaded(fontName) {
   return document.fonts.check(`12px "${fontName}"`);
 }
@@ -12,27 +156,27 @@ function isFontLoaded(fontName) {
 // Function to wait for a font to load
 function waitForFont(fontName, maxWait = 500) {
   return new Promise((resolve, reject) => {
-      if (isFontLoaded(fontName)) {
+    if (isFontLoaded(fontName)) {
+      resolve();
+    } else {
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        if (isFontLoaded(fontName)) {
+          clearInterval(interval);
           resolve();
-      } else {
-          const startTime = Date.now();
-          const interval = setInterval(() => {
-              if (isFontLoaded(fontName)) {
-                  clearInterval(interval);
-                  resolve();
-              } else if (Date.now() - startTime > maxWait) {
-                  clearInterval(interval);
-                  reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
-              }
-          }, 50);
-      }
+        } else if (Date.now() - startTime > maxWait) {
+          clearInterval(interval);
+          reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));
+        }
+      }, 50);
+    }
   });
 }
 
 function getInitialViewportSize() {
   const width = document.documentElement.clientWidth;
   const height = document.documentElement.clientHeight;
-  
+
   return { viewportWidth: width, viewportHeight: height };
 }
 
@@ -81,6 +225,9 @@ class DataMap {
     });
     this.updateTriggerCounter = 0;
     this.dataSelectionManager = new DataSelectionManager(lassoSelectionItemId);
+
+    // Widget registry for inter-widget communication
+    this.widgetRegistry = new WidgetRegistry();
   }
 
   addPoints(pointData, {
@@ -233,7 +380,7 @@ class DataMap {
     noiseLabel = "Unlabelled",
     pickable = false,
   }) {
-    
+
     const numLabels = labelData.length;
     this.labelTextColor = labelTextColor;
     this.textMinPixelSize = textMinPixelSize;
@@ -294,7 +441,7 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
-  addBoundaries(boundaryData, {clusterBoundaryLineWidth = 0.5}) {
+  addBoundaries(boundaryData, { clusterBoundaryLineWidth = 0.5 }) {
     const numBoundaries = boundaryData.length;
     this.clusterBoundaryLineWidth = clusterBoundaryLineWidth;
 
@@ -323,7 +470,7 @@ class DataMap {
   }
 
   addMetaData(metaData, {
-    tooltipFunction = ({index}) => this.metaData.hover_text[index],
+    tooltipFunction = ({ index }) => this.metaData.hover_text[index],
     onClickFunction = null,
     searchField = null,
 
@@ -331,7 +478,7 @@ class DataMap {
     this.metaData = metaData;
     this.tooltipFunction = tooltipFunction;
     this.onClickFunction = onClickFunction;
-    this.searchField = searchField;    
+    this.searchField = searchField;
 
     // If hover_text is present, add a tooltip
     if (this.metaData.hasOwnProperty('hover_text')) {
@@ -433,7 +580,7 @@ class DataMap {
     // Increment update trigger
     this.updateTriggerCounter++;
 
-    const sizeAdjust = 1/(1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
+    const sizeAdjust = 1 / (1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
 
     const updatedPointLayer = this.pointLayer.clone({
       data: {
@@ -545,7 +692,7 @@ class DataMap {
         }
       }
     });
-    
+
     // Increment update trigger
     this.updateTriggerCounter++;
 
@@ -573,7 +720,7 @@ class DataMap {
         }
       }
     });
-    
+
     // Increment update trigger
     this.updateTriggerCounter++;
 

@@ -1,10 +1,36 @@
-{# Main content layout with stacks - matches original deckgl_template.html structure #}
+{# Main content layout with stacks and drawers - widget-based system #}
 <div style="isolation: isolate; position: relative;">
   <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  
+  {# Left drawer #}
+  {% if drawer_enabled.left %}
+  <div class="drawer-container drawer-left">
+    {%- for widget in widgets_by_location.get('drawer-left', []) %}
+    {{ widget.html | safe }}
+    {%- endfor %}
+  </div>
+  <div class="drawer-handle left">
+    <span class="icon">◀</span>
+  </div>
+  {% endif %}
+  
+  {# Right drawer #}
+  {% if drawer_enabled.right %}
+  <div class="drawer-container drawer-right">
+    {%- for widget in widgets_by_location.get('drawer-right', []) %}
+    {{ widget.html | safe }}
+    {%- endfor %}
+  </div>
+  <div class="drawer-handle right">
+    <span class="icon">▶</span>
+  </div>
+  {% endif %}
+  
   <div class="content-wrapper" style="position: relative; z-index: 1;">
-    {# Top-left stack: title, search, topic tree #}
+    {# Top-left stack #}
     <div class="stack top-left">
-      {% if title %}
+      {# Legacy support: old-style title, search, topic tree #}
+      {% if title and not use_widget_system %}
       <div id="title-container" class="container-box">
         <span
           id="main-title"
@@ -21,42 +47,64 @@
       </div>
       {% endif %}
 
-      {% if search %}
+      {% if search and not use_widget_system %}
       <div id="search-container" class="container-box">
         <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
-      {% if enable_topic_tree %}
+      
+      {% if enable_topic_tree and not use_widget_system %}
       <div id="topic-tree" class="container-box">
       </div>
       {% endif %}
+      
+      {# Widget-based rendering #}
+      {%- for widget in widgets_by_location.get('top-left', []) %}
+      {{ widget.html | safe }}
+      {%- endfor %}
     </div>
     
-    {# Top-right stack: legend #}
+    {# Top-right stack #}
     <div class="stack top-right">
-      {% if enable_colormap_selector %}
+      {# Legacy support: legend #}
+      {% if enable_colormap_selector and not use_widget_system %}
       <div id="legend-container" class="container-box stack-box" style="display:none;">
       </div>
       {% endif %}
+      
+      {# Widget-based rendering #}
+      {%- for widget in widgets_by_location.get('top-right', []) %}
+      {{ widget.html | safe }}
+      {%- endfor %}
     </div>
     
     {# Bottom-right stack #}
     <div class="stack bottom-right">
+      {# Widget-based rendering #}
+      {%- for widget in widgets_by_location.get('bottom-right', []) %}
+      {{ widget.html | safe }}
+      {%- endfor %}
     </div>
     
-    {# Bottom-left stack: colormap selector, histogram #}
+    {# Bottom-left stack #}
     <div class="stack bottom-left">
-      {%- if enable_colormap_selector %}
+      {# Legacy support: colormap selector, histogram #}
+      {%- if enable_colormap_selector and not use_widget_system %}
       <div id="colormap-selector-container" class="container-box stack-box"></div>
       {%- endif -%}
-      {%- if enable_histogram %}
+      {%- if enable_histogram and not use_widget_system %}
       <div id="d3histogram-container" class="container-box stack-box"></div>
       {%- endif -%}
+      
+      {# Widget-based rendering #}
+      {%- for widget in widgets_by_location.get('bottom-left', []) %}
+      {{ widget.html | safe }}
+      {%- endfor %}
     </div>
   </div>
   
-  {# Logo container #}
-  {% if logo %}
+  {# Legacy logo support #}
+  {% if logo and not use_widget_system %}
   <div id="logo-container" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
     <img src="{{ logo }}" style="width:{{ logo_width }}px" />
   </div>

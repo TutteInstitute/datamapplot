@@ -84,6 +84,20 @@
     loadHistogramData();
     {%- endif %}
     
+    {%- if enable_drawers %}
+    // =========================================================================
+    // Drawer Initialization
+    // =========================================================================
+    const drawerManager = new DrawerManager({
+      leftEnabled: {{ drawer_enabled.left | tojson }},
+      rightEnabled: {{ drawer_enabled.right | tojson }},
+      persistState: true,
+    });
+    
+    // Make drawer manager accessible for widgets
+    window.drawerManager = drawerManager;
+    {%- endif %}
+    
     {%- if enable_api_tooltip %}
     const tooltip = new DynamicTooltipManager(
       datamap,

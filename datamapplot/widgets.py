@@ -1,0 +1,505 @@
+"""
+Widget system for DataMapPlot interactive visualizations.
+
+This module provides a base class and pre-defined widget implementations for
+adding modular UI components to interactive data map plots. Widgets can be
+placed in corner quadrants or slide-out drawers.
+"""
+
+from datamapplot.config import ConfigManager
+
+cfg = ConfigManager()
+
+
+class WidgetBase:
+    """Base class for widgets. Widgets are modular UI components that can be added
+    to the interactive plot in various locations (corners or drawers).
+
+    Widgets encapsulate HTML structure, CSS styling, and JavaScript behavior, similar
+    to SelectionHandlers but focused on UI components rather than interaction handling.
+
+    Parameters
+    ----------
+    widget_id : str
+        Unique identifier for this widget instance
+
+    title : str or None, optional
+        Display title for the widget. Default is None.
+
+    location : str, optional
+        Default location for the widget. One of: "top-left", "top-right",
+        "bottom-left", "bottom-right", "drawer-left", "drawer-right".
+        Default is "top-left".
+
+    order : int, optional
+        Stacking order within the location (lower numbers appear first).
+        Default is 0.
+
+    collapsible : bool, optional
+        Whether the widget can be collapsed/expanded by the user.
+        Default is False.
+
+    visible : bool, optional
+        Whether the widget is visible by default. Default is True.
+
+    dependencies : list, optional
+        A list of URLs for external dependencies required by the widget.
+        Default is an empty list.
+
+    **kwargs
+        Additional keyword arguments for subclass customization.
+    """
+
+    def __init__(
+        self,
+        widget_id,
+        title=None,
+        location="top-left",
+        order=0,
+        collapsible=False,
+        visible=True,
+        dependencies=None,
+        **kwargs,
+    ):
+        self.widget_id = widget_id
+        self.title = title
+        self.location = location
+        self.order = order
+        self.collapsible = collapsible
+        self.visible = visible
+        self.dependencies = dependencies or []
+        self.kwargs = kwargs
+
+    @property
+    def html(self):
+        """Return the HTML content for the widget.
+
+        Returns
+        -------
+        str
+            HTML string to be rendered in the widget container
+        """
+        return ""
+
+    @property
+    def css(self):
+        """Return the CSS styling for the widget.
+
+        Returns
+        -------
+        str
+            CSS string for widget-specific styles
+        """
+        return ""
+
+    @property
+    def javascript(self):
+        """Return the JavaScript code for the widget.
+
+        Returns
+        -------
+        str
+            JavaScript string for widget behavior and interactions
+        """
+        return ""
+
+    def get_container_id(self):
+        """Get the HTML container ID for this widget.
+
+        Returns
+        -------
+        str
+            The container element ID
+        """
+        return f"{self.widget_id}-container"
+
+    def get_config(self):
+        """Get the configuration dictionary for this widget.
+
+        Returns
+        -------
+        dict
+            Configuration dictionary containing widget metadata
+        """
+        return {
+            "widget_id": self.widget_id,
+            "title": self.title,
+            "location": self.location,
+            "order": self.order,
+            "collapsible": self.collapsible,
+            "visible": self.visible,
+        }
+
+    def render(self, **context):
+        """Render the widget with the given context.
+
+        This method can be overridden to provide dynamic rendering based on
+        context values passed from the rendering pipeline.
+
+        Parameters
+        ----------
+        **context
+            Context variables for rendering
+
+        Returns
+        -------
+        dict
+            Dictionary with keys 'html', 'css', 'javascript'
+        """
+        return {
+            "html": self.html,
+            "css": self.css,
+            "javascript": self.javascript,
+        }
+
+
+class TitleWidget(WidgetBase):
+    """Widget for displaying plot title and subtitle.
+
+    Parameters
+    ----------
+    title : str
+        Main title text
+
+    sub_title : str, optional
+        Subtitle text. Default is "".
+
+    title_font_family : str, optional
+        Font family for title. Default is "Roboto".
+
+    title_font_size : int, optional
+        Font size for title in points. Default is 36.
+
+    sub_title_font_size : int, optional
+        Font size for subtitle in points. Default is 18.
+
+    title_font_weight : int, optional
+        Font weight for title. Default is 600.
+
+    title_font_color : str, optional
+        Color for title text. Default is "#000000".
+
+    sub_title_font_color : str, optional
+        Color for subtitle text. Default is "#666666".
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        title,
+        sub_title="",
+        title_font_family="Roboto",
+        title_font_size=36,
+        sub_title_font_size=18,
+        title_font_weight=600,
+        title_font_color="#000000",
+        sub_title_font_color="#666666",
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "title")
+        kwargs.setdefault("location", "top-left")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        self.title_text = title
+        self.sub_title = sub_title
+        self.title_font_family = title_font_family
+        self.title_font_size = title_font_size
+        self.sub_title_font_size = sub_title_font_size
+        self.title_font_weight = title_font_weight
+        self.title_font_color = title_font_color
+        self.sub_title_font_color = sub_title_font_color
+
+    @property
+    def html(self):
+        html = f"""
+<div id="{self.get_container_id()}" class="container-box">
+  <span
+    id="main-title"
+    style="font-family:{self.title_font_family};font-size:{self.title_font_size}pt;font-weight:{self.title_font_weight};color:{self.title_font_color}"
+  >
+    {self.title_text}
+  </span>
+"""
+        if self.sub_title:
+            html += f"""
+  <br />
+  <span
+    style="font-family:{self.title_font_family};font-size:{self.sub_title_font_size}pt;color:{self.sub_title_font_color}"
+  >
+    {self.sub_title}
+  </span>
+"""
+        html += "</div>"
+        return html
+
+
+class SearchWidget(WidgetBase):
+    """Widget for text search functionality.
+
+    Parameters
+    ----------
+    placeholder : str, optional
+        Placeholder text for search input. Default is "🔍".
+
+    search_field : str, optional
+        Field name to search in the data. Default is "hover_text".
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(self, placeholder="🔍", search_field="hover_text", **kwargs):
+        kwargs.setdefault("widget_id", "search")
+        kwargs.setdefault("location", "top-left")
+        kwargs.setdefault("order", 1)
+        super().__init__(**kwargs)
+
+        self.placeholder = placeholder
+        self.search_field = search_field
+
+    @property
+    def html(self):
+        return f"""
+<div id="{self.get_container_id()}" class="container-box">
+  <input autocomplete="off" type="search" id="text-search" placeholder="{self.placeholder}" />
+</div>
+"""
+
+    @property
+    def css(self):
+        return f"""
+#{self.get_container_id()} {{
+  width: fit-content;
+}}
+"""
+
+
+class TopicTreeWidget(WidgetBase):
+    """Widget for displaying hierarchical topic tree.
+
+    Parameters
+    ----------
+    title : str, optional
+        Title for the topic tree. Default is "Topic Tree".
+
+    font_size : str, optional
+        Font size for tree text. Default is "12pt".
+
+    max_width : str, optional
+        Maximum width of the tree. Default is "30vw".
+
+    max_height : str, optional
+        Maximum height of the tree. Default is "42vh".
+
+    color_bullets : bool, optional
+        Whether to color bullets by cluster color. Default is False.
+
+    button_on_click : str or None, optional
+        JavaScript code for button click handling. Default is None.
+
+    button_icon : str, optional
+        Icon/text for tree buttons. Default is "&#128194;".
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        title="Topic Tree",
+        font_size="12pt",
+        max_width="30vw",
+        max_height="42vh",
+        color_bullets=False,
+        button_on_click=None,
+        button_icon="&#128194;",
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "topic-tree")
+        kwargs.setdefault("location", "top-left")
+        kwargs.setdefault("order", 2)
+        super().__init__(**kwargs)
+
+        self.tree_title = title
+        self.font_size = font_size
+        self.max_width = max_width
+        self.max_height = max_height
+        self.color_bullets = color_bullets
+        self.button_on_click = button_on_click
+        self.button_icon = button_icon
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+
+class HistogramWidget(WidgetBase):
+    """Widget for displaying interactive histogram.
+
+    Parameters
+    ----------
+    histogram_data : array-like
+        Data for histogram bins
+
+    histogram_width : int, optional
+        Width of histogram in pixels. Default is 300.
+
+    histogram_height : int, optional
+        Height of histogram in pixels. Default is 70.
+
+    histogram_title : str, optional
+        Title for the histogram. Default is "".
+
+    histogram_bin_count : int, optional
+        Number of bins. Default is 20.
+
+    histogram_bin_fill_color : str, optional
+        Fill color for bins. Default is "#6290C3".
+
+    histogram_bin_selected_fill_color : str, optional
+        Fill color for selected bins. Default is "#2EBFA5".
+
+    histogram_bin_unselected_fill_color : str, optional
+        Fill color for unselected bins. Default is "#9E9E9E".
+
+    histogram_bin_context_fill_color : str, optional
+        Fill color for context bins. Default is "#E6E6E6".
+
+    histogram_log_scale : bool, optional
+        Use log scale for y-axis. Default is False.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        histogram_data=None,
+        histogram_width=300,
+        histogram_height=70,
+        histogram_title="",
+        histogram_bin_count=20,
+        histogram_bin_fill_color="#6290C3",
+        histogram_bin_selected_fill_color="#2EBFA5",
+        histogram_bin_unselected_fill_color="#9E9E9E",
+        histogram_bin_context_fill_color="#E6E6E6",
+        histogram_log_scale=False,
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "d3histogram")
+        kwargs.setdefault("location", "bottom-left")
+        kwargs.setdefault("order", 1)
+        super().__init__(**kwargs)
+
+        self.histogram_data = histogram_data
+        self.histogram_width = histogram_width
+        self.histogram_height = histogram_height
+        self.histogram_title = histogram_title
+        self.histogram_bin_count = histogram_bin_count
+        self.histogram_bin_fill_color = histogram_bin_fill_color
+        self.histogram_bin_selected_fill_color = histogram_bin_selected_fill_color
+        self.histogram_bin_unselected_fill_color = histogram_bin_unselected_fill_color
+        self.histogram_bin_context_fill_color = histogram_bin_context_fill_color
+        self.histogram_log_scale = histogram_log_scale
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box stack-box"></div>'
+
+
+class ColormapSelectorWidget(WidgetBase):
+    """Widget for colormap selection and legend display.
+
+    Parameters
+    ----------
+    colormap_metadata : list of dict, optional
+        Metadata for available colormaps. Default is None.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(self, colormap_metadata=None, **kwargs):
+        kwargs.setdefault("widget_id", "colormap-selector")
+        kwargs.setdefault("location", "bottom-left")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        self.colormap_metadata = colormap_metadata
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box stack-box"></div>'
+
+
+class LegendWidget(WidgetBase):
+    """Widget for displaying color legend.
+
+    Parameters
+    ----------
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(self, **kwargs):
+        kwargs.setdefault("widget_id", "legend")
+        kwargs.setdefault("location", "top-right")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box stack-box" style="display:none;"></div>'
+
+
+class LogoWidget(WidgetBase):
+    """Widget for displaying a logo image.
+
+    Parameters
+    ----------
+    logo : str
+        Path or base64 encoded image data for the logo
+
+    logo_width : int, optional
+        Width of the logo in pixels. Default is 256.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(self, logo, logo_width=256, **kwargs):
+        kwargs.setdefault("widget_id", "logo")
+        kwargs.setdefault("location", "bottom-right")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        self.logo = logo
+        self.logo_width = logo_width
+
+    @property
+    def html(self):
+        return f"""
+<div id="{self.get_container_id()}" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
+  <img src="{self.logo}" style="width:{self.logo_width}px" />
+</div>
+"""
+
+    @property
+    def css(self):
+        return """
+img {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+"""

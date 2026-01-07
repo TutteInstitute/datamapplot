@@ -1,0 +1,259 @@
+/* Drawer container styles for slide-out panels */
+
+.drawer-container {
+    position: fixed;
+    top: 0;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 16px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+/* Left drawer positioning */
+.drawer-left {
+    left: 0;
+    transform: translateX(-100%);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.drawer-left.open {
+    transform: translateX(0);
+}
+
+/* Right drawer positioning */
+.drawer-right {
+    right: 0;
+    transform: translateX(100%);
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.drawer-right.open {
+    transform: translateX(0);
+}
+
+/* Default drawer width */
+.drawer-container {
+    width: 400px;
+    max-width: 90vw;
+}
+
+/* Drawer handle/toggle button */
+.drawer-handle {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    z-index: 101;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, transform 0.3s ease-in-out;
+    font-size: 18px;
+    color: #333;
+    user-select: none;
+    pointer-events: auto;
+}
+
+.drawer-handle:hover {
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.drawer-handle:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+/* Left drawer handle */
+.drawer-handle.left {
+    left: 0;
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+}
+
+.drawer-handle.left.drawer-open {
+    left: 400px;
+    transform: translateY(-50%) translateX(-100%);
+}
+
+/* Right drawer handle */
+.drawer-handle.right {
+    right: 0;
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+}
+
+.drawer-handle.right.drawer-open {
+    right: 400px;
+    transform: translateY(-50%) translateX(100%);
+}
+
+/* Handle icon rotation for open/closed states */
+.drawer-handle .icon {
+    transition: transform 0.3s ease;
+}
+
+.drawer-handle.left.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
+.drawer-handle.right.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
+/* Content wrapper transition when drawer opens */
+.content-wrapper {
+    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+}
+
+.content-wrapper.drawer-left-open {
+    transform: translateX(400px);
+}
+
+.content-wrapper.drawer-right-open {
+    transform: translateX(-400px);
+}
+
+/* Widgets inside drawers */
+.drawer-container .container-box {
+    margin: 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Scrollbar styling for drawers */
+.drawer-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.drawer-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+.drawer-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.drawer-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .drawer-container {
+        background: rgba(30, 30, 30, 0.95);
+        border-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .drawer-handle {
+        background: rgba(40, 40, 40, 0.9);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #ddd;
+    }
+
+    .drawer-handle:hover {
+        background: rgba(50, 50, 50, 1);
+    }
+
+    .drawer-container::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .drawer-container::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .drawer-container::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.3);
+    }
+}
+
+/* Responsive adjustments for smaller screens */
+@media screen and (max-width: 768px) {
+    .drawer-container {
+        width: 320px;
+    }
+
+    .drawer-handle.left.drawer-open {
+        left: 320px;
+    }
+
+    .drawer-handle.right.drawer-open {
+        right: 320px;
+    }
+
+    .content-wrapper.drawer-left-open {
+        transform: translateX(320px);
+    }
+
+    .content-wrapper.drawer-right-open {
+        transform: translateX(-320px);
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .drawer-container {
+        width: 280px;
+    }
+
+    .drawer-handle.left.drawer-open {
+        left: 280px;
+    }
+
+    .drawer-handle.right.drawer-open {
+        right: 280px;
+    }
+
+    .content-wrapper.drawer-left-open {
+        transform: translateX(280px);
+    }
+
+    .content-wrapper.drawer-right-open {
+        transform: translateX(-280px);
+    }
+
+    /* Reduce handle size on very small screens */
+    .drawer-handle {
+        width: 24px;
+        height: 60px;
+        font-size: 14px;
+    }
+}
+
+/* Animation for drawer content appearing */
+.drawer-container .container-box {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Hide drawer handle when drawer is disabled */
+.drawer-handle.disabled {
+    display: none;
+}
