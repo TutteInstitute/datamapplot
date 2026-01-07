@@ -1916,9 +1916,11 @@ def prepare_offline_mode_data(
         )
         if not offline_mode_js_data_file.is_file():
             offline_mode_caching.cache_js_files()
-        offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
+        with offline_mode_js_data_file.open("r") as f:
+            offline_mode_data = json.load(f)
     else:
-        offline_mode_data = json.load(open(offline_mode_js_data_file, "r"))
+        with open(offline_mode_js_data_file, "r") as f:
+            offline_mode_data = json.load(f)
 
     if offline_mode_font_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
