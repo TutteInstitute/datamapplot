@@ -13,7 +13,6 @@ import base64
 import gzip
 import io
 import json
-import os
 from collections.abc import Iterable
 from pathlib import Path
 from urllib.error import HTTPError, URLError
