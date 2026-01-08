@@ -160,8 +160,11 @@ class TestOfflineFontFileHandling(unittest.TestCase):
         """Test that online mode ignores the offline font file parameter."""
         # Need to patch at the correct import location
         with (
-            patch("datamapplot.fonts.can_reach_google_fonts", return_value=True),
-            patch("datamapplot.fonts.query_google_fonts") as mock_query,
+            patch(
+                "datamapplot.interactive_helpers.can_reach_google_fonts",
+                return_value=True,
+            ),
+            patch("datamapplot.interactive_helpers.query_google_fonts") as mock_query,
         ):
 
             # Set up mock
