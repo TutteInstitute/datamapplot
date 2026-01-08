@@ -190,19 +190,23 @@ stages:
             $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html" -PassThru -NoNewWindow
             Start-Sleep -Seconds 5
             $retry = 0
+            $success = $false
             do {
                 try {
-                    $response = Invoke-WebRequest -Uri "http://localhost:8000" -Method Head
-                    Write-Host "Server started successfully"
-                    break
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000" -Method Head -UseBasicParsing
+                    if ($response.StatusCode -eq 200) {
+                        Write-Host "Server started successfully"
+                        $success = $true
+                        break
+                    }
                 } catch {
                     Write-Host "Waiting for server to start... Attempt $retry"
-                    Start-Sleep -Seconds 2
-                    $retry++
                 }
+                Start-Sleep -Seconds 2
+                $retry++
             } while ($retry -lt 5)
 
-            if ($retry -eq 5) {
+            if (-not $success) {
                 Write-Error "Server failed to start after multiple attempts"
                 exit 1
             }
