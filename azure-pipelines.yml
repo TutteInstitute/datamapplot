@@ -247,7 +247,7 @@ stages:
 
         - powershell: |
             if ("$(Build.Reason)" -eq "PullRequest") {
-              npx playwright test $(browserProjects) --grep-invert @slow
+              npx playwright test $(browserProjects) --grep-invert '@slow'
             } else {
               npx playwright test $(browserProjects)
             }
