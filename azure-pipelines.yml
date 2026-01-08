@@ -235,12 +235,29 @@ stages:
 
         - script: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
+              echo "PR build: Running fast tests only (excluding @slow)"
               npx playwright test $(browserProjects) --grep-invert @slow
             else
+              echo "Non-PR build: Running all tests"
               npx playwright test $(browserProjects)
             fi
-          displayName: 'Run Playwright tests'
+          displayName: 'Run Playwright tests (Unix)'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+          env:
+            CI: 'true'
+
+        - powershell: |
+            if ("$(Build.Reason)" -eq "PullRequest") {
+              Write-Host "PR build: Running fast tests only (excluding @slow)"
+              npx playwright test $(browserProjects) --grep-invert @slow
+            } else {
+              Write-Host "Non-PR build: Running all tests"
+              npx playwright test $(browserProjects)
+            }
+          displayName: 'Run Playwright tests (Windows)'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
           env:
             CI: 'true'
 
