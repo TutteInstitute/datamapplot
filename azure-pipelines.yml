@@ -142,14 +142,25 @@ stages:
         #     python -c "import datashader; print('Datashader version:', datashader.__version__)"
         #   displayName: 'Debug dependency versions'
 
-        - script: |
+        - bash: |
             export CI=true
             mkdir -p $(Build.ArtifactStagingDirectory)/mpl
             pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
-          displayName: 'Run python tests'
+          displayName: 'Run python tests (Unix)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - powershell: |
+            $env:CI = "true"
+            New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)\mpl"
+            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings `
+                --cov=datamapplot/ --cov-report=html `
+                --mpl-generate-summary=html `
+                --mpl-results-path="$(Build.ArtifactStagingDirectory)\mpl"
+          displayName: 'Run python tests (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
 
         - script: |
             echo "Listing contents of $(Build.ArtifactStagingDirectory)/mpl:"
