@@ -233,14 +233,27 @@ stages:
           displayName: 'Install extra browsers'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
-        - script: |
+        - bash: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
               npx playwright test $(browserProjects) --grep-invert @slow
             else
               npx playwright test $(browserProjects)
             fi
-          displayName: 'Run Playwright tests'
+          displayName: 'Run Playwright tests (Unix)'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+          env:
+            CI: 'true'
+
+        - powershell: |
+            if ("$(Build.Reason)" -eq "PullRequest") {
+              npx playwright test $(browserProjects) --grep-invert @slow
+            } else {
+              npx playwright test $(browserProjects)
+            }
+          displayName: 'Run Playwright tests (Windows)'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
           env:
             CI: 'true'
 
