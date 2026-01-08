@@ -176,11 +176,16 @@ class TitleWidget(WidgetBase):
     title_font_weight : int, optional
         Font weight for title. Default is 600.
 
-    title_font_color : str, optional
-        Color for title text. Default is "#000000".
+    title_font_color : str or None, optional
+        Color for title text. If None, will be set based on darkmode.
+        Default is None.
 
-    sub_title_font_color : str, optional
-        Color for subtitle text. Default is "#666666".
+    sub_title_font_color : str or None, optional
+        Color for subtitle text. If None, will be set based on darkmode.
+        Default is None.
+
+    darkmode : bool, optional
+        Whether darkmode is enabled. Affects default colors. Default is False.
 
     **kwargs
         Additional keyword arguments passed to WidgetBase
@@ -195,8 +200,9 @@ class TitleWidget(WidgetBase):
         title_font_size=36,
         sub_title_font_size=18,
         title_font_weight=600,
-        title_font_color="#000000",
-        sub_title_font_color="#666666",
+        title_font_color=None,
+        sub_title_font_color=None,
+        darkmode=False,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "title")
@@ -210,8 +216,18 @@ class TitleWidget(WidgetBase):
         self.title_font_size = title_font_size
         self.sub_title_font_size = sub_title_font_size
         self.title_font_weight = title_font_weight
-        self.title_font_color = title_font_color
-        self.sub_title_font_color = sub_title_font_color
+        self.darkmode = darkmode
+
+        # Set colors based on darkmode if not explicitly provided
+        if title_font_color is None:
+            self.title_font_color = "#ffffff" if darkmode else "#000000"
+        else:
+            self.title_font_color = title_font_color
+
+        if sub_title_font_color is None:
+            self.sub_title_font_color = "#aaaaaa" if darkmode else "#666666"
+        else:
+            self.sub_title_font_color = sub_title_font_color
 
     @property
     def html(self):

@@ -11,7 +11,7 @@
     {% include 'styles.html.jinja2' %}
   </head>
   
-  <body>
+  <body{% if darkmode %} class="darkmode"{% endif %}>
     {#- Loading indicator -#}
     {% include 'loading_indicator.html.jinja2' %}
     

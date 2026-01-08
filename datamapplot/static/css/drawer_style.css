@@ -62,7 +62,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s ease, transform 0.3s ease-in-out;
+    transition: background 0.2s ease, left 0.3s ease-in-out, right 0.3s ease-in-out;
     font-size: 18px;
     color: #333;
     user-select: none;
@@ -78,37 +78,48 @@
     transform: translateY(-50%) scale(0.95);
 }
 
-/* Left drawer handle */
+/* Left drawer handle - starts at left edge, curves right */
 .drawer-handle.left {
     left: 0;
     border-radius: 0 8px 8px 0;
     border-left: none;
 }
 
+/* When left drawer is open, handle moves with drawer */
 .drawer-handle.left.drawer-open {
     left: 400px;
-    transform: translateY(-50%) translateX(-100%);
 }
 
-/* Right drawer handle */
+/* Right drawer handle - starts at right edge, curves left */
 .drawer-handle.right {
     right: 0;
     border-radius: 8px 0 0 8px;
     border-right: none;
 }
 
+/* When right drawer is open, handle moves with drawer */
 .drawer-handle.right.drawer-open {
     right: 400px;
-    transform: translateY(-50%) translateX(100%);
 }
 
-/* Handle icon rotation for open/closed states */
+/* Handle icon - arrow pointing inward when closed, outward when open */
 .drawer-handle .icon {
     transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+/* Left handle: > when closed (pointing right/inward), < when open (pointing left/outward) */
+.drawer-handle.left .icon {
+    /* Default: pointing right (into drawer) */
 }
 
 .drawer-handle.left.drawer-open .icon {
     transform: rotate(180deg);
+}
+
+/* Right handle: < when closed (pointing left/inward), > when open (pointing right/outward) */
+.drawer-handle.right .icon {
+    /* Default: pointing left (into drawer) */
 }
 
 .drawer-handle.right.drawer-open .icon {
@@ -154,34 +165,49 @@
     background: rgba(0, 0, 0, 0.3);
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-    .drawer-container {
-        background: rgba(30, 30, 30, 0.95);
-        border-color: rgba(255, 255, 255, 0.1);
-    }
+/* Dark mode support - using explicit class instead of media query */
+/* Applied via body.darkmode or .darkmode parent class */
+.darkmode .drawer-container,
+body.darkmode .drawer-container {
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+}
 
-    .drawer-handle {
-        background: rgba(40, 40, 40, 0.9);
-        border-color: rgba(255, 255, 255, 0.1);
-        color: #ddd;
-    }
+.darkmode .drawer-left,
+body.darkmode .drawer-left {
+    border-right-color: rgba(255, 255, 255, 0.1);
+}
 
-    .drawer-handle:hover {
-        background: rgba(50, 50, 50, 1);
-    }
+.darkmode .drawer-right,
+body.darkmode .drawer-right {
+    border-left-color: rgba(255, 255, 255, 0.1);
+}
 
-    .drawer-container::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
-    }
+.darkmode .drawer-handle,
+body.darkmode .drawer-handle {
+    background: rgba(40, 40, 40, 0.9);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #ddd;
+}
 
-    .drawer-container::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-    }
+.darkmode .drawer-handle:hover,
+body.darkmode .drawer-handle:hover {
+    background: rgba(50, 50, 50, 1);
+}
 
-    .drawer-container::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.3);
-    }
+.darkmode .drawer-container::-webkit-scrollbar-track,
+body.darkmode .drawer-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.darkmode .drawer-container::-webkit-scrollbar-thumb,
+body.darkmode .drawer-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.darkmode .drawer-container::-webkit-scrollbar-thumb:hover,
+body.darkmode .drawer-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 /* Responsive adjustments for smaller screens */

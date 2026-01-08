@@ -364,3 +364,328 @@ class TestCollectWidgetDependencies:
         )
         deps = collect_widget_dependencies([widget1, widget2])
         assert len(deps["js"]) == 1
+
+
+class TestTitleWidgetDarkmode:
+    """Tests for TitleWidget darkmode support."""
+
+    def test_title_widget_lightmode_default_colors(self):
+        """Test that lightmode uses dark text colors."""
+        widget = TitleWidget(title="Test", darkmode=False)
+        assert widget.title_font_color == "#000000"
+        assert widget.sub_title_font_color == "#666666"
+
+    def test_title_widget_darkmode_default_colors(self):
+        """Test that darkmode uses light text colors."""
+        widget = TitleWidget(title="Test", darkmode=True)
+        assert widget.title_font_color == "#ffffff"
+        assert widget.sub_title_font_color == "#aaaaaa"
+
+    def test_title_widget_explicit_colors_override_darkmode(self):
+        """Test that explicit colors override darkmode defaults."""
+        widget = TitleWidget(
+            title="Test",
+            darkmode=True,
+            title_font_color="#ff0000",
+            sub_title_font_color="#00ff00",
+        )
+        assert widget.title_font_color == "#ff0000"
+        assert widget.sub_title_font_color == "#00ff00"
+
+    def test_title_widget_html_uses_correct_colors(self):
+        """Test that HTML output contains the correct color values."""
+        widget = TitleWidget(title="Test", sub_title="Sub", darkmode=True)
+        html = widget.html
+        assert "color:#ffffff" in html
+        assert "color:#aaaaaa" in html
+
+
+class TestLogoWidget:
+    """Tests for the LogoWidget class."""
+
+    def test_logo_widget_creation(self):
+        """Test basic logo widget creation."""
+        widget = LogoWidget(logo="https://example.com/logo.png")
+        assert widget.widget_id == "logo"
+        assert widget.logo == "https://example.com/logo.png"
+
+    def test_logo_widget_default_location(self):
+        """Test logo widget default location is bottom-right."""
+        widget = LogoWidget(logo="https://example.com/logo.png")
+        assert widget.location == "bottom-right"
+
+    def test_logo_widget_custom_dimensions(self):
+        """Test logo widget with custom dimensions."""
+        widget = LogoWidget(
+            logo="https://example.com/logo.png",
+            logo_width=200,
+        )
+        assert widget.logo_width == 200
+
+    def test_logo_widget_html_contains_image(self):
+        """Test that HTML contains the logo image."""
+        widget = LogoWidget(logo="https://example.com/logo.png")
+        assert "https://example.com/logo.png" in widget.html
+        assert "<img" in widget.html
+
+
+class TestWidgetLocationValidation:
+    """Tests for widget location validation."""
+
+    def test_all_valid_locations(self):
+        """Test that all expected locations are valid."""
+        expected_locations = [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "drawer-left",
+            "drawer-right",
+        ]
+        for loc in expected_locations:
+            config = WidgetConfig(widget_id="test", location=loc)
+            assert config.location == loc
+
+    def test_drawer_locations_detected(self):
+        """Test that drawer locations are properly detected."""
+        grouped = {loc: [] for loc in VALID_LOCATIONS}
+        grouped["drawer-left"] = [SearchWidget(location="drawer-left")]
+        grouped["drawer-right"] = [TitleWidget(title="Test", location="drawer-right")]
+
+        enabled = get_drawer_enabled(grouped)
+        assert enabled["left"] is True
+        assert enabled["right"] is True
+
+    def test_corner_locations_dont_enable_drawers(self):
+        """Test that corner locations don't enable drawers."""
+        grouped = {loc: [] for loc in VALID_LOCATIONS}
+        grouped["top-left"] = [TitleWidget(title="Test")]
+        grouped["bottom-right"] = [LogoWidget(logo="test.png")]
+
+        enabled = get_drawer_enabled(grouped)
+        assert enabled["left"] is False
+        assert enabled["right"] is False
+
+
+@pytest.mark.interactive
+class TestWidgetHtmlRendering:
+    """Integration tests for widget HTML rendering in interactive plots."""
+
+    @pytest.fixture
+    def simple_point_data(self):
+        """Create simple point data for testing."""
+        import numpy as np
+        import pandas as pd
+
+        n_points = 50
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "x": np.random.randn(n_points),
+                "y": np.random.randn(n_points),
+                "r": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "g": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "b": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "a": np.full(n_points, 255, dtype=np.uint8),
+                "hover_text": [f"Point {i}" for i in range(n_points)],
+            }
+        )
+
+    @pytest.fixture
+    def simple_label_data(self):
+        """Create simple label data for testing."""
+        import numpy as np
+        import pandas as pd
+
+        n_labels = 3
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "x": np.random.randn(n_labels),
+                "y": np.random.randn(n_labels),
+                "r": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "g": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "b": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "a": np.full(n_labels, 255, dtype=np.uint8),
+                "label": [f"Cluster {i}" for i in range(n_labels)],
+                "size": np.random.uniform(10, 100, n_labels),
+            }
+        )
+
+    def test_darkmode_body_class(self, simple_point_data, simple_label_data):
+        """Test that darkmode adds class to body element."""
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            darkmode=True,
+        )
+
+        assert '<body class="darkmode">' in html_content
+
+    def test_lightmode_no_body_class(self, simple_point_data, simple_label_data):
+        """Test that lightmode doesn't add darkmode class to body."""
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            darkmode=False,
+        )
+
+        # Should have body tag but not with darkmode class
+        assert "<body>" in html_content or "<body " in html_content
+        assert '<body class="darkmode">' not in html_content
+
+    def test_widget_in_corner_location(self, simple_point_data, simple_label_data):
+        """Test that widgets render in corner locations."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            TitleWidget(title="Test Title", location="top-left"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            widgets=widgets,
+        )
+
+        assert "Test Title" in html_content
+        assert "top-left" in html_content
+
+    def test_widget_in_drawer_location(self, simple_point_data, simple_label_data):
+        """Test that widgets in drawer locations enable drawer CSS."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            SearchWidget(location="drawer-left"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            widgets=widgets,
+        )
+
+        # Should have drawer container and handle
+        assert "drawer-container" in html_content
+        assert "drawer-handle" in html_content
+        assert "drawer-left" in html_content
+
+    def test_drawer_handle_arrows(self, simple_point_data, simple_label_data):
+        """Test that drawer handles have correct arrow icons."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            SearchWidget(location="drawer-left"),
+            TitleWidget(title="Test", location="drawer-right"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            widgets=widgets,
+        )
+
+        # Left drawer handle should have right-pointing arrow (▶)
+        # Right drawer handle should have left-pointing arrow (◀)
+        assert "▶" in html_content  # Left drawer arrow
+        assert "◀" in html_content  # Right drawer arrow
+
+    def test_title_widget_darkmode_colors_in_html(
+        self, simple_point_data, simple_label_data
+    ):
+        """Test that TitleWidget uses correct colors in darkmode."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            TitleWidget(title="Dark Title", darkmode=True, location="top-left"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            darkmode=True,
+            widgets=widgets,
+        )
+
+        # Title should have white color in darkmode
+        assert "color:#ffffff" in html_content
+        assert "Dark Title" in html_content
+
+    def test_title_widget_lightmode_colors_in_html(
+        self, simple_point_data, simple_label_data
+    ):
+        """Test that TitleWidget uses correct colors in lightmode."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            TitleWidget(title="Light Title", darkmode=False, location="top-left"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            darkmode=False,
+            widgets=widgets,
+        )
+
+        # Title should have black color in lightmode
+        assert "color:#000000" in html_content
+        assert "Light Title" in html_content
+
+    def test_drawer_darkmode_css_present(self, simple_point_data, simple_label_data):
+        """Test that drawer darkmode CSS rules are included."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            SearchWidget(location="drawer-left"),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            darkmode=True,
+            widgets=widgets,
+        )
+
+        # Should include darkmode CSS rules for drawer
+        assert "body.darkmode .drawer-container" in html_content
+
+    def test_multiple_widgets_different_locations(
+        self, simple_point_data, simple_label_data
+    ):
+        """Test multiple widgets in different locations."""
+        from datamapplot.interactive_rendering import render_html
+
+        widgets = [
+            TitleWidget(title="Top Title", location="top-left", order=0),
+            SearchWidget(location="drawer-left", order=0),
+            LogoWidget(
+                logo="https://example.com/logo.png", location="bottom-right", order=0
+            ),
+        ]
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            widgets=widgets,
+        )
+
+        assert "Top Title" in html_content
+        assert "text-search" in html_content or "search" in html_content.lower()
+        assert "https://example.com/logo.png" in html_content
+        assert "top-left" in html_content
+        assert "drawer-left" in html_content
+        assert "bottom-right" in html_content

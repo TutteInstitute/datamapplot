@@ -1266,6 +1266,7 @@ def render_html(
         widgets_by_location=widgets_by_location,
         drawer_enabled=drawer_enabled,
         enable_drawers=enable_drawers,
+        darkmode=darkmode,
         **dependencies_ctx,
     )
     return html_str
