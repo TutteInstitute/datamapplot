@@ -47,21 +47,20 @@ stages:
         pool:
           vmImage: $(imageName)
 
+        variables:
+          PIP_CACHE_DIR: $(Pipeline.Workspace)/.pip
+
         steps:
         - task: UsePythonVersion@0
           inputs:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
-        - script: |
-            echo "#vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-          displayName: 'Set PIP_CACHE_DIR'
-
         - task: Cache@2
           inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            key: 'pip | "$(Agent.OS)" | "$(Build.SourcesDirectory)/test-requirements.txt"'
             restoreKeys: |
-              pip |
+              pip | "$(Agent.OS)"
             path: $(PIP_CACHE_DIR)
           displayName: 'Cache pip dependencies'
 
