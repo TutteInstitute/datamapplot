@@ -16,6 +16,11 @@ parameters:
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
+    windows_py312:
+      imageName: 'windows-latest'
+      python.version: '3.12'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
 
 - name: runUpdates
   displayName: Select which baseline images to update
