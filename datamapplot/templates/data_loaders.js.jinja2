@@ -1,0 +1,376 @@
+{# Data loading functions for each data layer #}
+
+{# Helper to parse data based on inline vs file mode #}
+{% macro parse_arrow_data(inline_data) %}
+{% if inline_data %}
+  const parsedData = await simpleArrowParser(data);
+{% else %}
+  const chunkArray = data.map(async ({ chunkIndex, chunkData }) => {
+    return {chunkIndex: chunkIndex, chunkData: await simpleArrowParser(chunkData)};
+  });
+  const parsedData = await Promise.all(chunkArray).then(combineTypedTableChunks);
+{% endif %}
+{% endmacro %}
+
+{% macro parse_json_data(inline_data) %}
+{% if inline_data %}
+  const parsedData = data;
+{% else %}
+  const parsedData = data[0].chunkData;
+{% endif %}
+{% endmacro %}
+
+{% macro parse_json_chunks(inline_data) %}
+{% if inline_data %}
+  const parsedData = data;
+{% else %}
+  const parsedData = combineTableChunks(data);
+{% endif %}
+{% endmacro %}
+
+// =============================================================================
+// Point Data Loading
+// =============================================================================
+
+function loadPointDataLayer() {
+  const pointDataWorker = new Worker(workerUrl);
+  pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+  pointDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('point-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      {{ parse_arrow_data(inline_data) }}
+      const pointData = parsedData;
+      
+      datamap.addPoints(pointData, {
+        pointSize: {{ point_size }},
+        pointOutlineColor: {{ point_outline_color }},
+        pointLineWidth: {{ point_line_width }},
+        pointHoverColor: {{ point_hover_color }},
+        pointLineWidthMaxPixels: {{ point_line_width_max_pixels }},
+        pointLineWidthMinPixels: {{ point_line_width_min_pixels }},
+        pointRadiusMaxPixels: {{ point_radius_max_pixels }},
+        pointRadiusMinPixels: {{ point_radius_min_pixels }},
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('point-data-progress', 100);
+      checkAllDataLoaded();
+      
+      {% if enable_lasso_selection %}
+      const lassoSelector = new LassoSelectionTool(datamap);
+      datamap.lassoSelector = lassoSelector;
+      {% endif %}
+    }
+  };
+
+  {% if enable_colormap_selector %}
+  loadColorData();
+  {% endif %}
+  
+  {% if edge_bundle %}
+  loadEdgeData();
+  {% endif %}
+}
+
+{% if enable_colormap_selector %}
+// =============================================================================
+// Color Data Loading
+// =============================================================================
+
+function loadColorData() {
+  const colorDataWorker = new Worker(workerUrl);
+  colorDataWorker.postMessage({encodedData: colorDataEncoded, JSONParse: false});
+
+  colorDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('color-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      {{ parse_arrow_data(inline_data) }}
+      const colorData = parsedData;
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('color-data-progress', 100);
+      checkAllDataLoaded();
+
+      const colorMapContainer = document.getElementById("colormap-selector-container");
+      const legendContainer = document.getElementById("legend-container");
+      
+      const colorMaps = {{ colormap_metadata }};
+      const colorSelector = new ColormapSelectorTool(
+        colorMaps,
+        colorMapContainer,
+        colorData,
+        legendContainer,
+        datamap,
+      );
+      datamap.colorSelector = colorSelector;
+    }
+  };
+}
+{% endif %}
+
+{% if edge_bundle %}
+// =============================================================================
+// Edge Data Loading
+// =============================================================================
+
+function loadEdgeData() {
+  const edgeDataWorker = new Worker(workerUrl);
+  edgeDataWorker.postMessage({encodedData: edgeDataEncoded, JSONParse: false});
+
+  edgeDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('edge-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      {{ parse_arrow_data(inline_data) }}
+      const edgeData = parsedData;
+
+      datamap.addEdges(edgeData, {
+        edgeWidth: {{ edge_width }},
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('edge-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+{% endif %}
+
+// =============================================================================
+// Label Data Loading
+// =============================================================================
+
+function loadLabelDataLayer() {
+  const labelDataWorker = new Worker(workerUrl);
+  labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+  labelDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('label-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      {{ parse_json_data(inline_data) }}
+      const labelData = parsedData;
+      
+      datamap.labelData = labelData;
+      
+      datamap.addLabels(
+        {% if enable_topic_tree %}
+        labelData.filter((d) => !(d.id && d.id.endsWith('-1')))
+        {% else %}
+        labelData
+        {% endif %},
+        {
+          labelTextColor: {{ label_text_color }},
+          textMinPixelSize: {{ text_min_pixel_size }},
+          textMaxPixelSize: {{ text_max_pixel_size }},
+          textOutlineWidth: {{ text_outline_width }},
+          textOutlineColor: {{ text_outline_color }},
+          textBackgroundColor: {{ text_background_color }},
+          fontFamily: "{{ font_family }}",
+          fontWeight: {{ font_weight }},
+          lineSpacing: {{ line_spacing }},
+          textCollisionSizeScale: {{ text_collision_size_scale }},
+          noiseLabel: "{{ noise_label }}",
+          pickable: false,
+        }
+      );
+
+      {% if enable_topic_tree %}
+      setupTopicTree(labelData);
+      {% endif %}
+      
+      {% if cluster_boundary_polygons %}
+      datamap.addBoundaries(labelData.filter(d => d.polygon), {
+        clusterBoundaryLineWidth: {{ cluster_boundary_line_width }},
+      });
+      {% endif %}
+      
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('label-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+{% if enable_topic_tree %}
+// =============================================================================
+// Topic Tree Setup
+// =============================================================================
+
+function setupTopicTree(labelData) {
+  const topicTreeContainer = document.querySelector('#topic-tree');
+  
+  {% if topic_tree_button_on_click != 'null' %}
+  const topicTree = new TopicTree(
+    topicTreeContainer,
+    datamap,
+    true,
+    {{ topic_tree_button_icon }},
+    {
+      title: {{ topic_tree_title }},
+      maxWidth: {{ topic_tree_max_width }},
+      maxHeight: {{ topic_tree_max_height }},
+      fontSize: {{ topic_tree_font_size }},
+      colorBullets: {{ topic_tree_color_bullets }},
+    }             
+  );
+  
+  topicTree.container.querySelectorAll('.topic-tree-btn').forEach(button => {
+    button.addEventListener('click', function() {
+      var label = datamap.labelData.find(l => l.id === this.dataset.labelId);
+      {{ topic_tree_button_on_click[1:-1] }}
+    });
+  });
+  {% else %}
+  const topicTree = new TopicTree(
+    topicTreeContainer,
+    datamap,
+    false,
+    null,
+    {
+      title: {{ topic_tree_title }},
+      maxWidth: {{ topic_tree_max_width }},
+      maxHeight: {{ topic_tree_max_height }},
+      fontSize: {{ topic_tree_font_size }},
+      colorBullets: {{ topic_tree_color_bullets }},
+    }           
+  );
+  {% endif %}
+  
+  const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
+    const userIsInteracting = Object.values(interactionState).every(Boolean);
+    if (!userIsInteracting) {
+      const visible = getVisibleTextData(viewState, datamap.labelData);
+      if (visible) {
+        topicTree.highlightElements(visible);
+      }
+    }
+  }, 150);
+  
+  datamap.deckgl.setProps({
+    onViewStateChange: debouncedViewStateChange,
+  });
+}
+{% endif %}
+
+// =============================================================================
+// Meta Data Loading
+// =============================================================================
+
+function loadMetaData() {
+  const metaDataWorker = new Worker(workerUrl);
+  metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+  metaDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('meta-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      {{ parse_json_chunks(inline_data) }}
+      const hoverData = parsedData;
+      
+      datamap.addMetaData(hoverData, {
+        tooltipFunction: {{ get_tooltip }},
+        onClickFunction: {{ on_click if on_click else "null" }},
+        searchField: "{{ search_field }}",
+      });
+
+      {% if search %}
+      const searchItem = document.getElementById(searchItemId);
+      if (searchItem) {
+        searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
+      }
+      {% endif %}
+      
+      updateProgressBar('meta-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+{% if enable_histogram %}
+// =============================================================================
+// Histogram Data Loading
+// =============================================================================
+
+function loadHistogramBinData() {
+  return new Promise((resolve, reject) => {
+    const histogramBinDataWorker = new Worker(workerUrl);
+    histogramBinDataWorker.postMessage({encodedData: histogramBinDataEncoded, JSONParse: true});
+
+    histogramBinDataWorker.onmessage = async function(event) {
+      if (event.data.type === "progress") {
+        updateProgressBar('histogram-bin-data-progress', event.data.progress);
+      } else {
+        const { data } = event.data;
+        {{ parse_json_data(inline_data) }}
+        const histogramBinData = parsedData;
+        resolve(histogramBinData);
+        updateProgressBar('histogram-bin-data-progress', 100);
+        checkAllDataLoaded();
+      }
+    };
+  });
+}
+
+function loadHistogramIndexData() {
+  return new Promise((resolve, reject) => {
+    const histogramIndexDataWorker = new Worker(workerUrl);
+    histogramIndexDataWorker.postMessage({encodedData: histogramIndexDataEncoded, JSONParse: false});
+
+    histogramIndexDataWorker.onmessage = async function(event) {
+      if (event.data.type === "progress") {
+        updateProgressBar('histogram-index-data-progress', event.data.progress);
+      } else {
+        const { data } = event.data;
+        {% if inline_data %}
+        const histogramIndexData = await simpleArrowParser(data);
+        {% else %}
+        const histogramIndexData = await simpleArrowParser(data[0].chunkData);
+        {% endif %}
+        resolve(histogramIndexData);
+        updateProgressBar('histogram-index-data-progress', 100);
+        checkAllDataLoaded();
+      }
+    };
+  });
+}
+
+function loadHistogramData() {
+  const chartSelectionCallback = chartSelectedIndices => {
+    if (chartSelectedIndices === null) {
+      datamap.removeSelection(histogramItemId);
+    } else {
+      datamap.addSelection(chartSelectedIndices, histogramItemId);
+    }
+  };
+
+  Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {
+    const histogramData = { rawBinData: histogramBinData, rawIndexData: histogramIndexData };
+    histogramItem = D3Histogram.create({
+      data: histogramData, 
+      chartContainerId: histogramItemId,
+      {% if histogram_width %}chartWidth: {{ histogram_width }},{% endif %}
+      {% if histogram_height %}chartHeight: {{ histogram_height }},{% endif %}
+      {% if histogram_bin_count %}binCount: {{ histogram_bin_count }},{% endif %}
+      {% if histogram_title %}title: "{{ histogram_title }}",{% endif %}
+      enableClickPersistence: {{ histogram_enable_click_persistence|lower }},
+      {% if histogram_bin_fill_color %}binDefaultFillColor: "{{ histogram_bin_fill_color }}",{% endif %}
+      {% if histogram_bin_selected_fill_color %}binSelectedFillColor: "{{ histogram_bin_selected_fill_color }}",{% endif %}
+      {% if histogram_bin_unselected_fill_color %}binUnselectedFillColor: "{{ histogram_bin_unselected_fill_color }}",{% endif %}
+      {% if histogram_bin_context_fill_color %}binContextFillColor: "{{ histogram_bin_context_fill_color }}",{% endif %}
+      {% if histogram_log_scale %}logScale: {{ histogram_log_scale|lower }},{% endif %}
+      chartSelectionCallback: chartSelectionCallback,
+    });
+
+    datamap.connectHistogram(histogramItem);
+  });
+}
+{% endif %}

@@ -45,6 +45,36 @@ from datamapplot.medoids import medoid
 from datamapplot.config import ConfigManager
 from datamapplot import offline_mode_caching
 from datamapplot.selection_handlers import SelectionHandlerBase
+from datamapplot.interactive_helpers import (
+    get_google_font_for_embedding,
+    url_to_base64_img,
+    build_colormap_data,
+    default_colormap_options,
+    per_layer_cluster_colormaps,
+    compute_point_scaling,
+    compute_label_scaling,
+    get_style_config,
+    get_label_text_color,
+    prepare_hover_data,
+    prepare_edge_bundle_data,
+    prepare_histogram_data,
+    prepare_colormap_data,
+    encode_inline_data,
+    write_offline_data,
+    prepare_selection_handler,
+    prepare_dynamic_tooltip,
+    get_js_dependency_sources,
+    get_css_dependency_sources,
+    get_js_dependency_urls,
+    compute_percentile_bounds,
+    cmap_name_to_color_list,
+    array_to_colors,
+    color_sample_from_colors,
+    prepare_offline_mode_data,
+    prepare_fonts,
+    prepare_logo,
+    label_text_and_polygon_dataframes,
+)
 
 try:
     import matplotlib
@@ -160,9 +190,48 @@ _TOPIC_TREE_DEFAULT_KWDS = {
     "button_icon": "&#128194",
 }
 
+# Legacy template - loaded directly as a string
 _DECKGL_TEMPLATE_STR = (files("datamapplot") / "deckgl_template.html").read_text(
     encoding="utf-8"
 )
+
+# Template directories for modular template support
+_TEMPLATE_DIRS = [
+    str(files("datamapplot") / "templates"),  # New modular templates
+    str(files("datamapplot")),  # Legacy template location
+]
+
+
+def _get_jinja_env():
+    """Get a Jinja2 Environment configured with template directories.
+    
+    This enables using {% include %} directives in templates.
+    """
+    return jinja2.Environment(
+        loader=jinja2.FileSystemLoader(_TEMPLATE_DIRS),
+        autoescape=False,
+    )
+
+
+def _get_template(use_modular=False):
+    """Get the appropriate Jinja2 template.
+    
+    Parameters
+    ----------
+    use_modular : bool
+        If True, use the new modular template with includes.
+        If False, use the legacy single-file template.
+    
+    Returns
+    -------
+    jinja2.Template
+        The configured template object.
+    """
+    if use_modular:
+        env = _get_jinja_env()
+        return env.get_template("deckgl_template.html.jinja2")
+    else:
+        return jinja2.Template(_DECKGL_TEMPLATE_STR)
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -317,832 +386,6 @@ class InteractiveFigure:
             for filename in re.findall(r"/(.*?_data(?:_\d+)?\.zip)", self._html_str):
                 print(f"Adding {filename} to bundle")
                 zf.write(filename)
-
-
-def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_file=None):
-    if offline_mode:
-        all_encoded_fonts = offline_mode_caching.load_fonts(file_path=offline_font_file)
-        encoded_fonts = all_encoded_fonts.get(fontname, None)
-        if encoded_fonts is not None:
-            font_descriptions = [
-                (
-                    f"""
-    @font-face {{ 
-        font-family: '{fontname}'; 
-        font-style: {font_data["style"]};
-        font-weight: {font_data["weight"]};
-        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
-        unicode-range: {font_data["unicode_range"]};
-    }}"""
-                    if len(font_data["unicode_range"]) > 0
-                    else f"""
-    @font-face {{ 
-        font-family: '{fontname}'; 
-        font-style: {font_data["style"]};
-        font-weight: {font_data["weight"]};
-        src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');
-    }}"""
-                )
-                for font_data in encoded_fonts
-            ]
-            return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
-        else:
-            return ""
-
-    if can_reach_google_fonts(timeout=10.0):
-        font_links = []
-        collection = query_google_fonts(fontname)
-        for font in collection:
-            if font.url.endswith(".ttf"):
-                font_links.append(
-                    f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/ttf" />'
-                )
-            elif font.url.endswith(".woff2"):
-                font_links.append(
-                    f'<link rel="preload" href="{font.url}" as="font" crossorigin="anonymous" type="font/woff2" />'
-                )
-        return "\n".join(font_links) + f"\n<style>\n{collection.content}\n</style>\n"
-    else:
-        return ""
-
-
-def _get_js_dependency_sources(
-    minify,
-    enable_search,
-    enable_histogram,
-    enable_lasso_selection,
-    colormap_selector,
-    enable_topic_tree,
-    enable_dynamic_tooltip,
-):
-    """
-    Gather the necessary JavaScript dependency files for embedding in the HTML template.
-
-    Parameters
-    ----------
-    minify : bool
-        Whether to minify the JS files.
-
-    enable_search : bool
-        Whether to include JS dependencies for the search functionality.
-
-    enable_histogram: bool
-        Whether to include JS dependencies for the histogram functionality.
-
-    enable_lasso_selection: bool
-        Whether to include JS dependencies for the lasso selection functionality.
-
-    enable_topic_tree: bool
-        Whether to include JS dependencies for the topic tree functionality.
-
-    enable_dynamic_tooltip: bool
-        Whether to include JS dependencies for the API tooltip functionality.
-
-    Returns
-    -------
-    dict
-        A dictionary where keys are the names of JS files and values are their
-        source content.
-    """
-    static_dir = Path(__file__).resolve().parent / "static" / "js"
-    js_dependencies = ["datamap.js", "data_selection_manager.js"]
-    js_dependencies_src = {}
-
-    if enable_histogram:
-        js_dependencies.append("d3_histogram.js")
-
-    if enable_lasso_selection:
-        js_dependencies.append("lasso_selection.js")
-        js_dependencies.append("quad_tree.js")
-
-    if colormap_selector:
-        js_dependencies.append("colormap_selector.js")
-
-    if enable_topic_tree:
-        js_dependencies.append("topic_tree.js")
-
-    if enable_dynamic_tooltip:
-        js_dependencies.append("dynamic_tooltip.js")
-
-    for js_file in js_dependencies:
-        with open(static_dir / js_file, "r", encoding="utf-8") as file:
-            js_src = file.read()
-            js_dependencies_src[js_file] = jsmin(js_src) if minify else js_src
-
-    return js_dependencies_src
-
-
-def _get_css_dependency_sources(
-    minify,
-    enable_histogram,
-    show_loading_progress,
-    enable_colormap_selector,
-    enable_topic_tree,
-):
-    """
-    Gather the necessary CSS dependency files for embedding in the HTML template.
-
-    Parameters
-    ----------
-    minify : bool
-        Whether to minify the CSS files.
-
-    enable_histogram: bool
-        Whether to include CSS dependencies for the histogram functionality.
-
-    show_loading_progress: bool
-        Whether to have progress bars for data loading.
-
-    enable_topic_tree: bool
-        Whether to include CSS dependencies for the table of contents functionality.
-
-    Returns
-    -------
-    dict
-        A dictionary where keys are the names of CSS files and values are their
-        source content.
-    """
-    static_dir = Path(__file__).resolve().parent / "static" / "css"
-    css_dependencies = ["containers_and_stacks.css"]
-    css_dependencies_src = {}
-
-    if enable_histogram:
-        css_dependencies.append("d3_histogram_style.css")
-
-    if show_loading_progress:
-        css_dependencies.append("progress_bar_style.css")
-
-    if enable_colormap_selector:
-        css_dependencies.append("colormap_selector_style.css")
-
-    if enable_topic_tree:
-        css_dependencies.append("topic_tree_style.css")
-
-    for css_file in css_dependencies:
-        with open(static_dir / css_file, "r", encoding="utf-8") as file:
-            css_src = file.read()
-            css_dependencies_src[css_file] = cssmin(css_src) if minify else css_src
-
-    return css_dependencies_src
-
-
-def _get_js_dependency_urls(
-    enable_histogram,
-    enable_topic_tree,
-    enable_colormaps,
-    selection_handler=None,
-    cdn_url="unpkg.com",
-):
-    """
-    Gather the necessary JavaScript dependency URLs for embedding in the HTML template.
-
-    Parameters
-    ----------
-    enable_histogram: bool
-        Whether to include JS URLs for the histogram functionality.
-
-    enable_topic_tree: bool
-        Whether to include JS URLs for the topic tree functionality.
-
-    enable_colormaps: bool
-        Whether to include JS URLs for the colormap functionality.
-
-    selection_handler: SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
-        The selection handler(s) to use for managing data selection.
-
-    cdn_url: str, optional
-        The CDN URL to use for loading external JavaScript libraries.
-
-    Returns
-    -------
-    list
-        A list of URLs that point to the required JavaScript dependencies.
-    """
-    js_dependency_urls = []
-
-    # Add common dependencies (if any)
-    common_js_urls = [
-        f"https://{cdn_url}/deck.gl@latest/dist.min.js",
-        f"https://{cdn_url}/apache-arrow@latest/Arrow.es2015.min.js",
-    ]
-    js_dependency_urls.extend(common_js_urls)
-
-    # Conditionally add dependencies based on functionality
-    if enable_histogram or enable_colormaps:
-        js_dependency_urls.append(f"https://{cdn_url}/d3@latest/dist/d3.min.js")
-
-    if enable_topic_tree:
-        js_dependency_urls.append(f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js")
-
-    if selection_handler is not None:
-        if isinstance(selection_handler, Iterable):
-            for handler in selection_handler:
-                js_dependency_urls.extend(handler.dependencies)
-        elif isinstance(selection_handler, SelectionHandlerBase):
-            js_dependency_urls.extend(selection_handler.dependencies)
-        else:
-            raise ValueError(
-                "The selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances."
-            )
-
-    js_dependency_urls = list(set(js_dependency_urls))
-
-    return js_dependency_urls
-
-
-def default_colormap_options(values_dict):
-
-    colormap_metadata_list = []
-    continuous_cmap_counter = 0
-    existing_fields = set([])
-    used_colormaps = set([])
-
-    for name, values in values_dict.items():
-        colormap_metadata = {}
-        candidate_field = name.split()[0]
-        n = 0
-        while candidate_field in existing_fields:
-            n += 1
-            candidate_field = f"{name.split()[0]}_{n}"
-        colormap_metadata["field"] = candidate_field
-        colormap_metadata["description"] = name
-
-        if values.dtype.kind in ["U", "S", "O", "b"]:
-            colormap_metadata["kind"] = "categorical"
-            n_categories = len(np.unique(values))
-            n = 0
-            cmap = _DEFAULT_DICRETE_COLORMAPS[n]
-            while cmap in used_colormaps or n_categories > len(get_cmap(cmap).colors):
-                n += 1
-                if n >= len(_DEFAULT_DICRETE_COLORMAPS):
-                    n = 0
-                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
-                    while cmap in used_colormaps:
-                        n += 1
-                        cmap = _DEFAULT_DICRETE_COLORMAPS[n]
-                    break
-                else:
-                    cmap = _DEFAULT_DICRETE_COLORMAPS[n]
-            colormap_metadata["cmap"] = cmap
-            used_colormaps.add(cmap)
-        elif is_datetime64_any_dtype(values):
-            colormap_metadata["kind"] = "datetime"
-            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[
-                continuous_cmap_counter
-            ]
-            continuous_cmap_counter += 1
-        else:
-            colormap_metadata["kind"] = "continuous"
-            colormap_metadata["cmap"] = _DEFAULT_CONTINUOUS_COLORMAPS[
-                continuous_cmap_counter
-            ]
-            continuous_cmap_counter += 1
-
-        colormap_metadata_list.append(colormap_metadata)
-
-    return colormap_metadata_list
-
-
-def cmap_name_to_color_list(cmap_name):
-    cmap = get_cmap(cmap_name)
-    if hasattr(cmap, "colors"):
-        result = [rgb2hex(c) for c in cmap.colors]
-    else:
-        result = [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
-    return result
-
-
-def array_to_colors(values, cmap_name, metadata, color_list=None):
-    values = np.asarray(values)
-
-    # Handle colormap setup
-    if cmap_name is None:
-        cmap = None
-        assert color_list is not None
-        color_list = [to_rgba(color) for color in color_list]
-    else:
-        cmap = get_cmap(cmap_name)
-
-    vmin = metadata.pop("vmin", None)
-    vmax = metadata.pop("vmax", None)
-
-    # Function to get finite/non-null mask
-    def get_valid_mask(arr):
-        if is_datetime64_any_dtype(arr):
-            return ~pd.isna(arr)
-        elif arr.dtype.kind in ["f", "i"]:
-            return np.isfinite(arr)
-        else:
-            return ~pd.isna(arr)
-
-    # Handle datetime values
-    if is_datetime64_any_dtype(values):
-        if cmap is None:
-            raise ValueError("cmap must be provided for datetime data")
-
-        valid_mask = get_valid_mask(values)
-        if not np.any(valid_mask):
-            raise ValueError("No valid datetime values found")
-
-        valid_values = values[valid_mask]
-
-        if not isinstance(vmin, (pd.Timestamp, np.datetime64, dt.datetime)):
-            vmin = valid_values.min()
-        if not isinstance(vmax, (pd.Timestamp, np.datetime64, dt.datetime)):
-            vmax = valid_values.max()
-
-        # Convert to float for normalization
-        normalized_values = np.zeros_like(values, dtype=float)
-        normalized_values[valid_mask] = (
-            (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
-        )
-
-        colors_array = np.zeros((len(values), 4))
-        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
-        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
-
-        # Store datetime range as ISO format strings
-        metadata["valueRange"] = [
-            pd.Timestamp(vmin).isoformat(),
-            pd.Timestamp(vmax).isoformat(),
-        ]
-        metadata["kind"] = "datetime"
-
-    elif values.dtype.kind in ["U", "S", "O", "b"]:
-        # String, object, or boolean type.
-        valid_mask = get_valid_mask(values)
-        if not np.any(valid_mask):
-            raise ValueError("No valid string, object, or boolean values found")
-
-        # Get unique valid values
-        unique_values = np.unique(values[valid_mask])
-
-        if cmap:
-            n_colors = len(cmap.colors) if hasattr(cmap, "colors") else 256
-        else:
-            n_colors = len(color_list)
-
-        if n_colors <= 20 or metadata.get("kind") == "categorical":
-            # Handle categorical data
-            if cmap is None and color_list:
-                value_to_color = {
-                    val: color_list[i % n_colors] for i, val in enumerate(unique_values)
-                }
-            else:
-                value_to_color = {
-                    val: cmap(
-                        i / (len(unique_values) - 1) if len(unique_values) > 1 else 0.5
-                    )
-                    for i, val in enumerate(unique_values)
-                }
-
-            colors_array = np.zeros((len(values), 4))
-            colors_array[valid_mask] = [
-                value_to_color[val] for val in values[valid_mask]
-            ]
-            colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
-
-            metadata["colorMapping"] = {
-                str(key): rgb2hex(color) for key, color in value_to_color.items()
-            }
-            metadata["kind"] = "categorical"
-
-        else:
-            # Handle non-categorical string data
-            if cmap:
-                value_to_num = {val: i for i, val in enumerate(unique_values)}
-                normalized_values = np.zeros(len(values))
-                normalized_values[valid_mask] = [
-                    value_to_num[val] for val in values[valid_mask]
-                ]
-                if len(unique_values) > 1:
-                    normalized_values = normalized_values / (len(unique_values) - 1)
-
-                colors_array = np.zeros((len(values), 4))
-                colors_array[valid_mask] = cmap(normalized_values[valid_mask])
-                colors_array[~valid_mask] = [0, 0, 0, 0]
-            else:
-                value_to_num = {
-                    val: i % len(color_list) for i, val in enumerate(unique_values)
-                }
-                colors_array = np.zeros((len(values), 4))
-                colors_array[valid_mask] = [
-                    color_list[value_to_num[val]] for val in values[valid_mask]
-                ]
-                colors_array[~valid_mask] = [0, 0, 0, 0]
-
-            metadata["colorMapping"] = {}
-
-    else:  # Numeric data
-        if cmap is None:
-            raise ValueError("cmap must be provided for continuous data")
-
-        valid_mask = get_valid_mask(values)
-        if not np.any(valid_mask):
-            raise ValueError("No valid numeric values found")
-
-        valid_values = values[valid_mask]
-
-        if not np.issubdtype(type(vmin), np.number):
-            vmin = valid_values.min()
-        if not np.issubdtype(type(vmax), np.number):
-            vmax = valid_values.max()
-
-        normalized_values = np.zeros_like(values, dtype=float)
-        normalized_values[valid_mask] = (
-            (valid_values - vmin) / (vmax - vmin) if vmin != vmax else 0.5
-        )
-
-        colors_array = np.zeros((len(values), 4))
-        colors_array[valid_mask] = cmap(normalized_values[valid_mask])
-        colors_array[~valid_mask] = [0, 0, 0, 0]  # Transparent for invalid values
-
-        metadata["valueRange"] = [float(vmin), float(vmax)]
-        metadata["kind"] = "continuous"
-
-    return (colors_array * 255).astype(np.uint8)
-
-
-def color_sample_from_colors(color_array, n_swatches=5):
-    jch_colors = cspace_convert(color_array[:, :3], "sRGB1", "JCh")
-    cielab_colors = cspace_convert(jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS")
-    quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
-        cielab_colors
-    )
-    result = [
-        rgb2hex(c)
-        for c in np.clip(
-            cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
-        )
-    ]
-    return result
-
-
-def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
-    metadata = []
-    colordata = []
-    for i, layer in enumerate(label_layers[::-1]):
-        color_list = pd.Series(layer).map(label_color_map).to_list()
-        color_array = np.asarray(
-            [
-                (
-                    to_rgba(color)
-                    if type(color) == str
-                    else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
-                )
-                for color in color_list
-            ]
-        )
-        color_sample = color_sample_from_colors(color_array, n_swatches)
-        unique_labels = np.unique(layer)
-        colormap_subset = {
-            label: (
-                rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
-                if type(color) != str
-                else color
-            )
-            for label, color in label_color_map.items()
-            if label in unique_labels
-        }
-        descriptors = _CLUSTER_LAYER_DESCRIPTORS.get(
-            len(label_layers), [f"Layer-{n}" for n in range(len(label_layers))]
-        )
-        colormap_metadata = {
-            "field": f"layer_{i}",
-            "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample
-            + [
-                color for color in colormap_subset.values() if color not in color_sample
-            ],
-            "kind": "categorical",
-            "color_mapping": colormap_subset,
-        }
-        if len(unique_labels) <= 25:
-            colormap_metadata["show_legend"] = True
-        else:
-            colormap_metadata["show_legend"] = False
-        colordata.append(layer)
-        metadata.append(colormap_metadata)
-
-    return metadata, colordata
-
-
-def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
-    base_colors_sample = base_colors
-    colormaps = [
-        {
-            "field": "none",
-            "description": "Clusters",
-            "colors": base_colors_sample,
-            "kind": "categorical",
-        }
-    ]
-    color_data = []
-
-    for rawdata, metadata in zip(colormap_rawdata, colormap_metadata):
-        if "colors" in metadata:
-            cmap_colors = metadata["colors"]
-        elif "cmap" in metadata:
-            cmap_name = metadata["cmap"]
-            cmap_colors = cmap_name_to_color_list(cmap_name)
-        elif "palette" in metadata:
-            cmap_colors = metadata["palette"]
-            cmap_name = None
-        elif "color_mapping" in metadata:
-            cmap_colors = list(metadata["color_mapping"].values())
-            cmap_name = None
-        else:
-            cmap_colors = []
-        colormap = {
-            "field": metadata["field"],
-            "description": metadata["description"],
-            "colors": cmap_colors,
-            "kind": metadata.get("kind", "continuous"),
-            "nColors": metadata.get("n_colors", 5),
-            "vmin": metadata.get("vmin", None),
-            "vmax": metadata.get("vmax", None),
-        }
-        if "show_legend" in metadata:
-            colormap["showLegend"] = metadata["show_legend"]
-        colormaps.append(colormap)
-        if "color_mapping" in metadata:
-            colormap["colorMapping"] = metadata["color_mapping"]
-            colormap["kind"] = "categorical"
-            colors_array = (
-                np.array([to_rgba(metadata["color_mapping"][val]) for val in rawdata])
-                * 255
-            ).astype(np.uint8)
-        else:
-            colors_array = array_to_colors(rawdata, cmap_name, colormap, cmap_colors)
-        color_data.append(
-            pd.DataFrame(
-                colors_array,
-                columns=[
-                    f"{metadata['field']}_r",
-                    f"{metadata['field']}_g",
-                    f"{metadata['field']}_b",
-                    f"{metadata['field']}_a",
-                ],
-            )
-        )
-
-    return colormaps, pd.concat(color_data, axis=1)
-
-
-def compute_percentile_bounds(points, percentage=99.9):
-    n_points = points.shape[0]
-    n_to_select = np.int32(n_points * (percentage / 100))
-    centroid = np.mean(points, axis=0)
-
-    # Sort points by distance from centroid
-    vectors = points - centroid
-    distances = np.linalg.norm(vectors**2, axis=1)
-    sorted_indices = np.argsort(distances)
-    selected_points = points[sorted_indices[:n_to_select]]
-
-    # Compute bounds
-    xmin, ymin = np.min(selected_points, axis=0)
-    xmax, ymax = np.max(selected_points, axis=0)
-
-    x_padding = 0.01 * (xmax - xmin)
-    y_padding = 0.01 * (ymax - ymin)
-
-    return [
-        float(xmin - x_padding),
-        float(xmax + x_padding),
-        float(ymin - y_padding),
-        float(ymax + y_padding),
-    ]
-
-
-def label_text_and_polygon_dataframes(
-    labels,
-    data_map_coords,
-    noise_label="Unlabelled",
-    use_medoids=False,
-    cluster_polygons=False,
-    include_zoom_bounds=False,
-    include_related_points=False,
-    alpha=0.05,
-    parents=None,
-):
-    """
-    Build the necessary label data, including cluster polygon bounds.
-
-    Parameters
-    ----------
-    labels: np.array
-        Label text for each point
-
-    data_map_coords: np.array
-        Data map xy coordinates for each point
-
-    noise_label: str="Unlabelled"
-        The label to represent noise as used in labels.
-
-    use_medoids: bool (optional, default=False)
-        Whether to use cluster medoids to position labels.
-        Otherwise, the mean position of the cluster points is used.
-
-    cluster_polygons: bool (optional, default=False)
-        Whether to build polygon cluster boundaries.
-
-    include_zoom_bounds: bool (optional, default=False)
-        Whether to include the zoom boundary of a cluster associated with a label.
-        Normally used when displaying a topic tree.
-
-    include_related_points: bool (optional, default=False)
-        Whether to include indexes of related points to each label.
-        Normally used when displaying a topic tree with on_click functionality.
-
-    alpha: float (optional, default=0.05)
-        Display transparency for cluster polygons.
-
-    parents: list or None (optional, default=None)
-        A record of the cluster heirarchy. This will be edited to include this layer's values.
-
-    Returns
-    -------
-    dataframe
-        A dataframe containing relevant information for each label.
-    """
-    cluster_label_vector = np.asarray(labels)
-    unique_non_noise_labels = [
-        label for label in np.unique(cluster_label_vector) if label != noise_label
-    ]
-    label_map = {n: i for i, n in enumerate(unique_non_noise_labels)}
-    label_map[noise_label] = -1
-    cluster_idx_vector = np.asarray(pd.Series(cluster_label_vector).map(label_map))
-
-    label_locations = []
-    cluster_sizes = []
-    polygons = []
-    related_points = []
-    points_bounds = []
-    label_ids = []
-    parent_ids = []
-
-    for i, l in enumerate(unique_non_noise_labels):
-        cluster_mask = cluster_idx_vector == i
-        cluster_points = data_map_coords[cluster_mask]
-
-        if use_medoids:
-            label_locations.append(medoid(cluster_points))
-        else:
-            label_locations.append(cluster_points.mean(axis=0))
-
-        cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
-        if cluster_polygons:
-            simplices = Delaunay(
-                cluster_points, qhull_options="Qbb Qc Qz Q12 Q7"
-            ).simplices
-            polygons.append(
-                [
-                    smooth_polygon(x).tolist()
-                    for x in create_boundary_polygons(
-                        cluster_points, simplices, alpha=alpha
-                    )
-                ]
-            )
-        if include_related_points:
-            related_points.append(np.where(cluster_mask))
-        if include_zoom_bounds:
-            points_bounds.append(compute_percentile_bounds(cluster_points))
-        if parents is not None:
-            if len(parents[0]):
-                # Get the provenance (cluster membership at different heirarchical layers).
-                # This should be consistent.(?? could break with different topic naming ??)
-                p = (
-                    ["base"]
-                    + list(
-                        np.median(parents[0][:, cluster_mask], axis=1)
-                        .astype(int)
-                        .astype(str)
-                    )
-                    + [str(i)]
-                )
-                label_ids.append("_".join(p))
-                parent_ids.append("_".join(p[:-1]))
-            else:
-                label_ids.append(f"base_{i}")
-                parent_ids.append("base")
-
-    if parents is not None:
-        # do the same for unlabeled points, noting that not all unlabeled
-        # points at this level have the same parent.
-        unlabeled_mask = cluster_idx_vector == -1
-
-        # At the top level, we don't need to wory about unlabeled points having
-        # different parents.
-        if len(parents[0]):
-            parent_masks = [
-                (parents[0][-1] == parent) for parent in np.unique(parents[0][-1])
-            ]
-        else:
-            parent_masks = [unlabeled_mask]
-
-        # Iterate over possible parents
-        for parent_mask in parent_masks:
-            cluster_mask = unlabeled_mask & parent_mask
-
-            if np.sum(cluster_mask) > 2:
-                cluster_points = data_map_coords[cluster_mask]
-                label_locations.append(cluster_points.mean(axis=0))
-                cluster_sizes.append(None)
-                polygons.append(None)
-                unique_non_noise_labels.append(noise_label)
-                if include_related_points:
-                    related_points.append(np.where(cluster_mask))
-                if include_zoom_bounds:
-                    points_bounds.append(compute_percentile_bounds(cluster_points))
-                if len(parents[0]):
-                    # Get the provenance.
-                    # This should be consistent.(??)
-                    p = (
-                        ["base"]
-                        + list(
-                            np.median(parents[0][:, cluster_mask], axis=1)
-                            .astype(int)
-                            .astype(str)
-                        )
-                        + ["-1"]
-                    )
-                    label_ids.append("_".join(p))
-                    parent_ids.append("_".join(p[:-1]))
-                else:
-                    label_ids.append("base_-1")
-                    parent_ids.append("base")
-
-    if parents is not None:
-        # parents is mutable, add on the currend cluster idx_vector.
-        #
-        if len(parents[0]):
-            parents[0] = np.vstack((parents[0], cluster_idx_vector))
-        else:
-            parents[0] = np.vstack((cluster_idx_vector,))
-
-    if len(label_locations) == 0:
-        # No labels, return empty dataframe
-        return pd.DataFrame(
-            {
-                "x": [],
-                "y": [],
-                "label": [],
-                "size": [],
-                "polygon": [],
-                "points": [],
-                "id": [],
-                "parent": [],
-            }
-        )
-
-    label_locations = np.asarray(label_locations)
-
-    data = {
-        "x": label_locations.T[0],
-        "y": label_locations.T[1],
-        "label": unique_non_noise_labels,
-        "size": cluster_sizes,
-    }
-    if cluster_polygons:
-        data["polygon"] = polygons
-    # Points are far too heavyweight for large datasets
-    # We can use a different more efficient data-structure later
-    # if we require this information for selection etc.
-    if include_related_points:
-        data["points"] = related_points
-    if parents is not None:
-        data["id"] = label_ids
-        data["parent"] = parent_ids
-        if include_zoom_bounds:
-            data["bounds"] = points_bounds
-    return pd.DataFrame(data)
-
-
-def url_to_base64_img(url):
-    try:
-        # Download the image.
-        # The requests library doesn't support the file scheme so use urllib.
-        with urlopen(url, timeout=10) as response:
-            data = response.read()
-            content_type = response.info().get_content_type()
-    except HTTPError as e:
-        print(f"Error downloading image: HTTP error {e.code} {e.reason}")
-        return None
-    except URLError as e:
-        print(f"Error downloading image: Network error {e.reason}")
-        return None
-
-    # Determine the image type from the response content type.
-    if not content_type.startswith("image/"):
-        print(f"URL {url} has content type {content_type} not image")
-        return None
-
-    # Convert the image data to base64.
-    image_data = base64.b64encode(data).decode("utf-8")
-
-    # Create the complete data URI.
-    return f"data:{content_type};base64,{image_data}"
 
 
 @cfg.complete(unconfigurable={"point_dataframe", "label_dataframe"})
@@ -1608,27 +851,17 @@ def render_html(
     )
 
     # Compute point scaling
-    n_points = point_dataframe.shape[0]
-    if point_size_scale is not None:
-        magic_number = point_size_scale / 100.0
-    else:
-        width = bounds[1] - bounds[0]
-        height = bounds[3] - bounds[2]
-        size_scale = np.sqrt(width * height)
-        scaling = size_scale / 25.0
-        magic_number = scaling * np.clip(32 * 4 ** (-np.log10(n_points)), 0.005, 0.1)
+    magic_number, point_size, point_dataframe = compute_point_scaling(
+        point_dataframe, bounds, point_size_scale
+    )
 
-    if "size" not in point_dataframe.columns:
-        point_size = magic_number
-    else:
-        point_dataframe["size"] = magic_number * (
-            point_dataframe["size"] / point_dataframe["size"].mean()
-        )
-        point_size = -1
+    # Get style configuration
+    style_config = get_style_config(darkmode, text_outline_color)
+    text_outline_color = style_config["text_outline_color"]
+    point_outline_color = style_config["point_outline_color"]
+    text_background_color = style_config["text_background_color"]
 
-    if darkmode and text_outline_color == "#eeeeeedd":
-        text_outline_color = "#111111dd"
-
+    # Handle background image bounds
     if background_image is not None:
         if background_image_bounds is None:
             background_image_bounds = [
@@ -1638,21 +871,11 @@ def render_html(
                 point_dataframe["y"].max(),
             ]
 
-    point_outline_color = [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128]
-    text_background_color = [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64]
-    if color_label_text:
-        label_text_color = "d => [d.r, d.g, d.b]"
-    else:
-        label_text_color = [0, 0, 0, 255] if not darkmode else [255, 255, 255, 255]
+    # Get label text color
+    label_text_color = get_label_text_color(color_label_text, darkmode)
 
-    # Compute text scaling
-    size_range = label_dataframe["size"].max() - label_dataframe["size"].min()
-    if size_range > 0:
-        label_dataframe["size"] = (
-            label_dataframe["size"] - label_dataframe["size"].min()
-        ) * ((max_fontsize - min_fontsize) / size_range) + min_fontsize
-    else:
-        label_dataframe["size"] = (max_fontsize + min_fontsize) / 2.0
+    # Compute label text scaling
+    label_dataframe = compute_label_scaling(label_dataframe, min_fontsize, max_fontsize)
 
     # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
@@ -1677,369 +900,98 @@ def render_html(
     # Point data, hover text, and on click formatting
     point_data = point_dataframe[point_data_cols]
 
-    if "hover_text" in point_dataframe.columns:
-        if extra_point_data is not None:
-            assert extra_point_data.shape[0] == point_dataframe.shape[0], (
-                "If `extra_point_data` is provided, it must have the same number of rows as "
-                "`point_dataframe`."
-            )
-            hover_data = pd.concat(
-                [point_dataframe[["hover_text"]], extra_point_data],
-                axis=1,
-            )
-            replacements = FormattingDict(
-                **{
-                    str(name): f"${{hoverData.{name}[index]}}"
-                    for name in hover_data.columns
-                }
-            )
-            if hover_text_html_template is not None:
-                get_tooltip = (
-                    '({index, picked, layer}) => picked ? {"html": `'
-                    + hover_text_html_template.format_map(replacements)
-                    + "`} : null"
-                )
-            else:
-                get_tooltip = "({index}) => hoverData.hover_text[index]"
+    # Prepare hover data and tooltip/click handlers
+    hover_result = prepare_hover_data(
+        point_dataframe,
+        extra_point_data,
+        hover_text_html_template,
+        on_click,
+        topic_tree_kwds,
+    )
+    hover_data = hover_result["hover_data"]
+    get_tooltip = hover_result["get_tooltip"]
+    on_click = hover_result["on_click"]
+    topic_tree_kwds = hover_result["topic_tree_kwds"]
 
-            if on_click is not None:
-                on_click = (
-                    "({index, picked, layer}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
-                )
-
-            if (
-                "button_on_click" in topic_tree_kwds
-                and topic_tree_kwds["button_on_click"] is not None
-            ):
-                topic_tree_replacements = FormattingDict(
-                    **{
-                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                        for name in hover_data.columns
-                    }
-                )
-                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                    "button_on_click"
-                ].format_map(topic_tree_replacements)
-        else:
-            hover_data = point_dataframe[["hover_text"]].copy()
-            get_tooltip = "({index}) => hoverData.hover_text[index]"
-
-            replacements = FormattingDict(
-                **{
-                    str(name): f"${{hoverData.{name}[index]}}"
-                    for name in hover_data.columns
-                }
-            )
-
-            if on_click is not None:
-                on_click = (
-                    "({index, picked, layer}, event) => { if (picked) {"
-                    + on_click.format_map(replacements)
-                    + " } }"
-                )
-            if (
-                "button_on_click" in topic_tree_kwds
-                and topic_tree_kwds["button_on_click"] is not None
-            ):
-                topic_tree_replacements = FormattingDict(
-                    **{
-                        str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                        for name in hover_data.columns
-                    }
-                )
-                topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                    "button_on_click"
-                ].format_map(topic_tree_replacements)
-
-    elif extra_point_data is not None:
-        hover_data = extra_point_data.copy()
-        replacements = FormattingDict(
-            **{
-                str(name): f"${{hoverData.{name}[index]}}"
-                for name in hover_data.columns
-            }
-        )
-        if hover_text_html_template is not None:
-            get_tooltip = (
-                '({index, picked, layer}) => picked ? {"html": `'
-                + hover_text_html_template.format_map(replacements)
-                + "`} : null"
-            )
-        else:
-            get_tooltip = "null"
-
-        if on_click is not None:
-            on_click = (
-                "({index, picked, layer}, event) => { if (picked) {"
-                + on_click.format_map(replacements)
-                + " } }"
-            )
-        if (
-            "button_on_click" in topic_tree_kwds
-            and topic_tree_kwds["button_on_click"] is not None
-        ):
-            topic_tree_replacements = FormattingDict(
-                **{
-                    str(name): f"label.points[0].map(x=>datamap.metaData.{name}[x])"
-                    for name in hover_data.columns
-                }
-            )
-            topic_tree_kwds["button_on_click"] = topic_tree_kwds[
-                "button_on_click"
-            ].format_map(topic_tree_replacements)
-    else:
-        hover_data = pd.DataFrame(columns=("hover_text",))
-        get_tooltip = "null"
-
-    # lines
+    # Prepare edge bundle data
     if edge_bundle:
-        data_map_coords = point_dataframe[["x", "y"]].values
-        color_list = point_dataframe[["r", "g", "b"]].values
-        lines, colors = bundle_edges(
-            data_map_coords, color_list, rgb_colors=True, **edge_bundle_keywords
-        )
-        edge_data = pd.DataFrame({
-            'x1': lines[:, 0],
-            'y1': lines[:, 1],
-            'x2': lines[:, 2],
-            'y2': lines[:, 3],
-            'r': colors[:, 0].astype(np.uint8),
-            'g': colors[:, 1].astype(np.uint8),
-            'b': colors[:, 2].astype(np.uint8)
-        })
+        edge_data = prepare_edge_bundle_data(point_dataframe, edge_bundle_keywords)
+    else:
+        edge_data = None
 
-    # Histogram
+    # Prepare histogram data
     if enable_histogram:
-        if isinstance(histogram_data.dtype, pd.CategoricalDtype):
-            bin_data, index_data = generate_bins_from_categorical_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-        elif is_string_dtype(histogram_data.dtype):
-            bin_data, index_data = generate_bins_from_categorical_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-        elif is_datetime64_any_dtype(histogram_data.dtype):
-            if histogram_group_datetime_by is not None:
-                bin_data, index_data = generate_bins_from_temporal_data(
-                    histogram_data, histogram_group_datetime_by, histogram_range
-                )
-            else:
-                bin_data, index_data = generate_bins_from_numeric_data(
-                    histogram_data, histogram_n_bins, histogram_range
-                )
-        else:
-            bin_data, index_data = generate_bins_from_numeric_data(
-                histogram_data, histogram_n_bins, histogram_range
-            )
-
-    if colormap_rawdata is not None and colormap_metadata is not None:
-        jch_colors = cspace_convert(
-            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "JCh"
+        bin_data, index_data = prepare_histogram_data(
+            histogram_data,
+            histogram_n_bins,
+            histogram_group_datetime_by,
+            histogram_range,
         )
-        cielab_colors = cspace_convert(
-            jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS"
-        )
-        n_swatches = (
-            np.max([colormap.get("n_colors", 5) for colormap in colormap_metadata])
-            if len(colormap_metadata) > 0
-            else 5
-        )
-        if len(cielab_colors) > 0:
-            quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
-                cielab_colors
-            )
-            cluster_colors = [
-                rgb2hex(c)
-                for c in np.clip(
-                    cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
-                )
-            ]
-        else:
-            cluster_colors = [noise_color] * n_swatches
-        if cluster_layer_colormaps:
-            if label_layers is None or cluster_colormap is None:
-                raise ValueError(
-                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
-                )
-            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
-                label_layers, cluster_colormap, n_swatches
-            )
-            colormap_metadata[0:0] = layer_color_metadata
-            colormap_rawdata[0:0] = layer_color_data
-        color_metadata, color_data = build_colormap_data(
-            colormap_rawdata, colormap_metadata, cluster_colors
-        )
-        enable_colormap_selector = True
-    elif colormaps is not None:
-        colormap_metadata = default_colormap_options(colormaps)
-        colormap_rawdata = list(colormaps.values())
-        cielab_colors = cspace_convert(
-            point_dataframe[["r", "g", "b"]].values / 255, "sRGB1", "CAM02-UCS"
-        )
-        quantizer = KMeans(n_clusters=5, random_state=0, n_init=1).fit(cielab_colors)
-        cluster_colors = [
-            rgb2hex(c)
-            for c in np.clip(
-                cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
-            )
-        ]
-        if cluster_layer_colormaps:
-            if label_layers is None or cluster_colormap is None:
-                raise ValueError(
-                    "If using cluster_layer_colormaps label_layers and cluster_colormap must be provided"
-                )
-            layer_color_metadata, layer_color_data = per_layer_cluster_colormaps(
-                label_layers, cluster_colormap, 5
-            )
-            colormap_metadata[0:0] = layer_color_metadata
-            colormap_rawdata[0:0] = layer_color_data
-        color_metadata, color_data = build_colormap_data(
-            colormap_rawdata, colormap_metadata, cluster_colors
-        )
-        enable_colormap_selector = True
     else:
-        color_metadata = None
-        color_data = None
-        enable_colormap_selector = False
+        bin_data, index_data = None, None
 
+    # Prepare colormap data
+    color_metadata, color_data, enable_colormap_selector = prepare_colormap_data(
+        point_dataframe,
+        colormap_rawdata,
+        colormap_metadata,
+        colormaps,
+        cluster_layer_colormaps,
+        label_layers,
+        cluster_colormap,
+        noise_color,
+    )
+
+    # Encode data for inline HTML or write to offline files
     if inline_data:
-        buffer = io.BytesIO()
-        point_data.to_feather(buffer, compression="uncompressed")
-        buffer.seek(0)
-        arrow_bytes = buffer.read()
-        gzipped_bytes = gzip.compress(arrow_bytes)
-        base64_point_data = base64.b64encode(gzipped_bytes).decode()
-        json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
-        gzipped_bytes = gzip.compress(json_bytes)
-        base64_hover_data = base64.b64encode(gzipped_bytes).decode()
-        label_data_json = label_dataframe.to_json(orient="records")
-        gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
-        base64_label_data = base64.b64encode(gzipped_label_data).decode()
-        if enable_histogram:
-            json_bytes = bin_data.to_json(
-                orient="records", date_format="iso", date_unit="s"
-            ).encode()
-            gzipped_bytes = gzip.compress(json_bytes)
-            base64_histogram_bin_data = base64.b64encode(gzipped_bytes).decode()
-            buffer = io.BytesIO()
-            index_data.to_frame().to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_histogram_index_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_histogram_bin_data = None
-            base64_histogram_index_data = None
-
-        if enable_colormap_selector:
-            buffer = io.BytesIO()
-            color_data.to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_color_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_color_data = None
-
-        if edge_bundle:
-            buffer = io.BytesIO()
-            edge_data.to_feather(buffer, compression="uncompressed")
-            buffer.seek(0)
-            arrow_bytes = buffer.read()
-            gzipped_bytes = gzip.compress(arrow_bytes)
-            base64_edge_data = base64.b64encode(gzipped_bytes).decode()
-        else:
-            base64_edge_data = None
-
-        file_prefix = None
-        html_file_prefix = None
-        n_chunks = 0
+        data_encoding = encode_inline_data(
+            point_data,
+            hover_data,
+            label_dataframe,
+            enable_histogram,
+            bin_data,
+            index_data,
+            enable_colormap_selector,
+            color_data,
+            edge_bundle,
+            edge_data,
+        )
     else:
-        base64_point_data = ""
-        base64_hover_data = ""
-        base64_label_data = ""
-        base64_histogram_bin_data = ""
-        base64_histogram_index_data = ""
-        base64_color_data = ""
-        base64_edge_data = ""
+        data_encoding = write_offline_data(
+            point_data,
+            hover_data,
+            label_dataframe,
+            enable_histogram,
+            bin_data,
+            index_data,
+            enable_colormap_selector,
+            color_data,
+            edge_bundle,
+            edge_data,
+            offline_data_path,
+            offline_data_prefix,
+            offline_data_chunk_size,
+        )
 
-        # Handle offline_data_path with backward compatibility
-        if offline_data_path is not None:
-            # Convert to Path object for easier handling
-            data_path = Path(offline_data_path)
+    base64_point_data = data_encoding["base64_point_data"]
+    base64_hover_data = data_encoding["base64_hover_data"]
+    base64_label_data = data_encoding["base64_label_data"]
+    base64_histogram_bin_data = data_encoding["base64_histogram_bin_data"]
+    base64_histogram_index_data = data_encoding["base64_histogram_index_data"]
+    base64_color_data = data_encoding["base64_color_data"]
+    base64_edge_data = data_encoding["base64_edge_data"]
+    file_prefix = data_encoding["file_prefix"]
+    html_file_prefix = data_encoding["html_file_prefix"]
+    n_chunks = data_encoding["n_chunks"]
 
-            # Create directory if it doesn't exist
-            if (
-                data_path.suffix
-            ):  # If user provided a file with extension, use parent dir
-                data_dir = data_path.parent
-                base_name = data_path.stem
-                file_prefix = str(data_path.with_suffix(""))
-            else:  # User provided directory/basename
-                data_dir = (
-                    data_path.parent if data_path.parent != Path(".") else Path(".")
-                )
-                base_name = data_path.name
-                file_prefix = str(data_path)
-
-            # Ensure directory exists
-            data_dir.mkdir(parents=True, exist_ok=True)
-
-            # For HTML references, we need just the basename
-            html_file_prefix = base_name
-        else:
-            # Backward compatibility: use offline_data_prefix
-            file_prefix = (
-                offline_data_prefix
-                if offline_data_prefix is not None
-                else "datamapplot"
-            )
-            html_file_prefix = file_prefix
-        n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
-        for i in range(n_chunks):
-            chunk_start = i * offline_data_chunk_size
-            chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
-            with gzip.open(f"{file_prefix}_point_data_{i}.zip", "wb") as f:
-                point_data[chunk_start:chunk_end].to_feather(
-                    f, compression="uncompressed"
-                )
-            with gzip.open(f"{file_prefix}_meta_data_{i}.zip", "wb") as f:
-                f.write(
-                    json.dumps(
-                        hover_data[chunk_start:chunk_end].to_dict(orient="list")
-                    ).encode()
-                )
-            if enable_colormap_selector:
-                with gzip.open(f"{file_prefix}_color_data_{i}.zip", "wb") as f:
-                    color_data[chunk_start:chunk_end].to_feather(
-                        f, compression="uncompressed"
-                    )
-        label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
-        with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
-            f.write(bytes(label_data_json, "utf-8"))
-        if enable_histogram:
-            with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
-                f.write(
-                    bin_data.to_json(
-                        orient="records", date_format="iso", date_unit="s"
-                    ).encode()
-                )
-            with gzip.open(f"{file_prefix}_histogram_index_data.zip", "wb") as f:
-                index_data.to_frame().to_feather(f, compression="uncompressed")
-
-        if edge_bundle:
-            edge_data_json = edge_data.to_json(path_or_buf=None, orient="records")
-            with gzip.open(f"{file_prefix}_edge_data.zip", "wb") as f:
-                f.write(bytes(edge_data_json, "utf-8"))
-
-    title_font_color = "#000000" if not darkmode else "#ffffff"
-    sub_title_font_color = "#777777"
-    title_background = "#ffffffaa" if not darkmode else "#000000aa"
-    shadow_color = "#aaaaaa44" if not darkmode else "#00000044"
-    input_background = "#ffffffdd" if not darkmode else "#000000dd"
-    input_border = "#ddddddff" if not darkmode else "222222ff"
+    # Style configuration
+    title_font_color = style_config["title_font_color"]
+    sub_title_font_color = style_config["sub_title_font_color"]
+    title_background = style_config["title_background"]
+    shadow_color = style_config["shadow_color"]
+    input_background = style_config["input_background"]
+    input_border = style_config["input_border"]
+    page_background_color = background_color if background_color is not None else style_config["page_background_color"]
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
@@ -2052,36 +1004,25 @@ def render_html(
             shadow_color=shadow_color,
         )
 
-    if dynamic_tooltip is not None:
-        enable_dynamic_tooltip = True
-        tooltip_identifier_js = dynamic_tooltip.get("identifier_js", None)
-        tooltip_fetch_js = dynamic_tooltip["fetch_js"]
-        tooltip_format_js = dynamic_tooltip["format_js"]
-        tooltip_loading_js = dynamic_tooltip["loading_js"]
-        tooltip_error_js = dynamic_tooltip["error_js"]
-    else:
-        enable_dynamic_tooltip = False
-        tooltip_identifier_js = None
-        tooltip_fetch_js = None
-        tooltip_format_js = None
-        tooltip_loading_js = None
-        tooltip_error_js = None
-
-    if background_color is None:
-        page_background_color = "#ffffff" if not darkmode else "#000000"
-    else:
-        page_background_color = background_color
+    # Prepare dynamic tooltip configuration
+    dynamic_tooltip_config = prepare_dynamic_tooltip(dynamic_tooltip)
+    enable_dynamic_tooltip = dynamic_tooltip_config["enable_dynamic_tooltip"]
+    tooltip_identifier_js = dynamic_tooltip_config["tooltip_identifier_js"]
+    tooltip_fetch_js = dynamic_tooltip_config["tooltip_fetch_js"]
+    tooltip_format_js = dynamic_tooltip_config["tooltip_format_js"]
+    tooltip_loading_js = dynamic_tooltip_config["tooltip_loading_js"]
+    tooltip_error_js = dynamic_tooltip_config["tooltip_error_js"]
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
-        "js_dependency_urls": _get_js_dependency_urls(
+        "js_dependency_urls": get_js_dependency_urls(
             enable_histogram,
             enable_topic_tree,
             enable_colormap_selector,
             selection_handler,
             cdn_url=cdn_url,
         ),
-        "js_dependency_srcs": _get_js_dependency_sources(
+        "js_dependency_srcs": get_js_dependency_sources(
             minify_deps,
             enable_search,
             enable_histogram,
@@ -2090,7 +1031,7 @@ def render_html(
             enable_topic_tree,
             enable_dynamic_tooltip,
         ),
-        "css_dependency_srcs": _get_css_dependency_sources(
+        "css_dependency_srcs": get_css_dependency_sources(
             minify_deps,
             enable_histogram,
             show_loading_progress,
@@ -2099,99 +1040,36 @@ def render_html(
         ),
     }
 
-    template = jinja2.Template(_DECKGL_TEMPLATE_STR)
+    # Use modular template with includes
+    template = _get_template(use_modular=True)
 
-    if logo is not None:
-        scheme = urlparse(logo).scheme
-        if not scheme:
-            # HTML will think logo is a relative path and fail to load it.
-            raise ValueError(
-                (
-                    "No scheme supplied for logo URL. "
-                    f"Perhaps you meant https://{logo}?"
-                )
-            )
-        elif offline_mode or scheme == "file":
-            # Store the image inline as a base64 URI.
-            logo = url_to_base64_img(logo)
+    # Prepare logo
+    logo = prepare_logo(logo, offline_mode)
 
-    if offline_mode:
-        if offline_mode_js_data_file is None:
-            data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_js_data_file = (
-                Path(data_directory) / "datamapplot_js_encoded.json"
-            )
-            if not offline_mode_js_data_file.is_file():
-                offline_mode_caching.cache_js_files()
-            offline_mode_data = json.load(offline_mode_js_data_file.open("r"))
-        else:
-            offline_mode_data = json.load(open(offline_mode_js_data_file, "r"))
-
-        if offline_mode_font_data_file is None:
-            data_directory = platformdirs.user_data_dir("datamapplot")
-            offline_mode_font_data_file = (
-                Path(data_directory) / "datamapplot_fonts_encoded.json"
-            )
-            if not offline_mode_font_data_file.is_file():
-                offline_mode_caching.cache_fonts()
-    else:
-        offline_mode_data = None
-
-    api_fontname = font_family.replace(" ", "+")
-    font_data = get_google_font_for_embedding(
-        font_family,
-        offline_mode=offline_mode,
-        offline_font_file=offline_mode_font_data_file if offline_mode else None,
+    # Prepare offline mode data
+    offline_result = prepare_offline_mode_data(
+        offline_mode,
+        offline_mode_js_data_file,
+        offline_mode_font_data_file,
     )
-    if font_data == "":
-        api_fontname = None
-    if tooltip_font_family is not None:
-        api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
-        resp = requests.get(
-            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
-            timeout=30,
-        )
-        if not resp.ok:
-            api_tooltip_fontname = None
-    else:
-        api_tooltip_fontname = None
+    offline_mode_data = offline_result["offline_mode_data"]
+    offline_mode_font_data_file = offline_result["offline_mode_font_data_file"]
 
-    if selection_handler is not None:
-        if isinstance(selection_handler, Iterable):
-            for handler in selection_handler:
-                if custom_html is None:
-                    custom_html = handler.html
-                else:
-                    custom_html += handler.html
+    # Prepare fonts
+    font_result = prepare_fonts(
+        font_family,
+        tooltip_font_family,
+        offline_mode,
+        offline_mode_font_data_file,
+    )
+    api_fontname = font_result["api_fontname"]
+    font_data = font_result["font_data"]
+    api_tooltip_fontname = font_result["api_tooltip_fontname"]
 
-                if custom_js is None:
-                    custom_js = handler.javascript
-                else:
-                    custom_js += handler.javascript
-
-                if custom_css is None:
-                    custom_css = handler.css
-                else:
-                    custom_css += handler.css
-        elif isinstance(selection_handler, SelectionHandlerBase):
-            if custom_html is None:
-                custom_html = selection_handler.html
-            else:
-                custom_html += selection_handler.html
-
-            if custom_js is None:
-                custom_js = selection_handler.javascript
-            else:
-                custom_js += selection_handler.javascript
-
-            if custom_css is None:
-                custom_css = selection_handler.css
-            else:
-                custom_css += selection_handler.css
-        else:
-            raise ValueError(
-                "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
-            )
+    # Process selection handler(s)
+    custom_html, custom_js, custom_css = prepare_selection_handler(
+        selection_handler, custom_html, custom_js, custom_css
+    )
 
     html_str = template.render(
         title=title if title is not None else "Interactive Data Map",

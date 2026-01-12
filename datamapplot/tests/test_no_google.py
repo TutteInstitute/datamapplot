@@ -9,7 +9,7 @@ from warnings import catch_warnings
 
 import datamapplot as dmp
 from datamapplot.interactive_rendering import InteractiveFigure
-from datamapplot.plot_rendering import GoogleAPIUnreachable
+from datamapplot.fonts import GoogleAPIUnreachable
 
 
 @pytest.fixture

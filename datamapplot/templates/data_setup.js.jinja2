@@ -1,0 +1,87 @@
+{# Data encoding setup - defines encoded data variables and creates worker #}
+{# This partial handles the data sources for both inline and file-based modes #}
+
+{% if inline_data %}
+{# Inline data mode - data is base64 encoded in the HTML #}
+const pointDataEncoded = "{{ base64_point_data }}";
+const hoverDataEncoded = "{{ base64_hover_data }}";
+const labelDataEncoded = "{{ base64_label_data }}";
+{% if enable_histogram %}
+const histogramBinDataEncoded = "{{ base64_histogram_bin_data }}";
+const histogramIndexDataEncoded = "{{ base64_histogram_index_data }}";
+{% endif %}
+{% if enable_colormap_selector %}
+const colorDataEncoded = "{{ base64_color_data }}";
+{% endif %}
+{% if edge_bundle %}
+const edgeDataEncoded = "{{ base64_edge_data }}";
+{% endif %}
+
+{% include 'worker_inline.js.jinja2' %}
+
+{% else %}
+{# File-based data mode - data is loaded from separate files #}
+
+{% if splash_warning %}
+var loadData = false;
+const overlay = document.createElement('div');
+overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000';
+const splashWarning = document.createElement('div');
+splashWarning.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;padding:20px;max-width:480px';
+splashWarning.className = 'container-box';
+function dismissSplash() {
+  document.body.removeChild(overlay);
+  loadData = true;
+}
+splashWarning.innerHTML = `
+  {% if title %}<h2>{{ title }}</h2>{% endif %}
+  <p>{{ splash_warning }}</p>
+`;
+overlay.appendChild(splashWarning);
+const dismissSplashButton = document.createElement('button');
+dismissSplashButton.textContent = 'Proceed';
+dismissSplashButton.addEventListener('click', dismissSplash);
+dismissSplashButton.style.cssText = 'margin-top:10px;padding:8px 12px;background:green;font-family:{{ title_font_family }};color:white;border:none;cursor:pointer;border-radius:8px';
+splashWarning.appendChild(dismissSplashButton);
+document.body.appendChild(overlay);
+
+while (!loadData) {
+  await new Promise(resolve => setTimeout(resolve, 1000));
+}
+{% endif %}
+
+const currentURL = self.location.pathname;
+const directoryPath = currentURL.substring(0, currentURL.lastIndexOf('/') + 1);
+const originURL = self.location.origin + directoryPath;
+
+const pointDataEncoded = [
+  {% for chunk_index in range(n_data_chunks) -%}
+  `${originURL}/{{ file_prefix }}_point_data_{{ chunk_index }}.zip`,
+  {% endfor -%}
+];
+const hoverDataEncoded = [
+  {% for chunk_index in range(n_data_chunks) -%}
+  `${originURL}/{{ file_prefix }}_meta_data_{{ chunk_index }}.zip`,
+  {% endfor -%}
+];
+const labelDataEncoded = [`${originURL}/{{ file_prefix }}_label_data.zip`];
+{% if enable_histogram %}
+const histogramBinDataEncoded = [`${originURL}/{{ file_prefix }}_histogram_bin_data.zip`];
+const histogramIndexDataEncoded = [`${originURL}/{{ file_prefix }}_histogram_index_data.zip`];
+{% endif %}
+{% if enable_colormap_selector %}
+const colorDataEncoded = [
+  {% for chunk_index in range(n_data_chunks) -%}
+  `${originURL}/{{ file_prefix }}_color_data_{{ chunk_index }}.zip`,
+  {% endfor -%}
+];
+{% endif %}
+{% if edge_bundle %}
+const edgeDataEncoded = [`${originURL}/{{ file_prefix }}_edge_data.zip`];
+{% endif %}
+
+{% include 'worker_file.js.jinja2' %}
+
+{% endif %}
+
+const workerUrl = URL.createObjectURL(parsingWorkerBlob);

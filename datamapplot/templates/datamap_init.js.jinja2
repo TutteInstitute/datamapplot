@@ -1,0 +1,14 @@
+{# DataMap initialization and final setup #}
+const searchItemId = "text-search";
+const histogramItemId = "d3histogram-container";
+const selectionItemId = "lasso-select";
+let histogramItem = null;
+
+const container = document.getElementById('deck-container');
+
+const datamap = new DataMap({
+  container: container,
+  bounds: {{ data_bounds }},
+  searchItemId: searchItemId,
+  lassoSelectionItemId: selectionItemId,      
+});

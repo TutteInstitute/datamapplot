@@ -1,0 +1,70 @@
+{# JavaScript utility functions #}
+function debounce(func, timeout = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+  };
+}
+
+async function simpleArrowParser(arrow_bytes) {
+  const table = await Arrow.tableFromIPC(arrow_bytes);
+  const result = {};
+  table.schema.fields.forEach((field) => {
+    result[field.name] = table.getChild(field.name).toArray();
+  });
+  return result;
+}
+
+function mergeTypedArrays(arrays) {
+  let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  let result = new arrays[0].constructor(totalLength);
+  let currentLength = 0;
+  for (let arr of arrays) {
+    result.set(arr, currentLength);
+    currentLength += arr.length;
+  }
+  return result;
+}
+
+{% if not inline_data %}
+function combineTypedTableChunks(tableChunks) {
+  tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+  const combinedTable = {};
+  Object.keys(tableChunks[0].chunkData).forEach((key) => {
+    const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+    combinedTable[key] = mergeTypedArrays(arrays);
+  });
+  return combinedTable;
+}
+
+function combineTableChunks(tableChunks) {
+  tableChunks.sort((a, b) => a.chunkIndex - b.chunkIndex);
+  const combinedTable = {};
+  Object.keys(tableChunks[0].chunkData).forEach((key) => {
+    const arrays = tableChunks.map((chunk) => chunk.chunkData[key]);
+    combinedTable[key] = arrays.flat();
+  });
+  return combinedTable;
+}
+{% endif %}
+
+function updateProgressBar(id, progress) {
+  const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+  const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+  if (progressBar && progressText) {
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+  }
+}
+
+function checkAllDataLoaded() {
+  const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+  const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+  if (allLoaded) {
+    const loadingEl = document.getElementById("loading");
+    const progressEl = document.getElementById("progress-container");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (progressEl) progressEl.style.display = "none";
+  }
+}

@@ -32,58 +32,70 @@ parameters:
   displayName: Pool Image and Python Version Matrix
   type: object
   default:
-    mac_py310:
-      imageName: 'macOS-latest'
-      python.version: '3.10'
-      browsers: 'chromium firefox'
-      browserProjects: '--project=chromium --project=firefox'
+    # mac_py310:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.10'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox'
     linux_py310:
       imageName: 'ubuntu-latest'
       python.version: '3.10'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py310:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.10'
-    mac_py311:
-      imageName: 'macOS-latest'
-      python.version: '3.11'
+    windows_py310:
+      imageName: 'windows-latest'
+      python.version: '3.10'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
+    # mac_py311:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.11'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox'
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py311:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.11'
-    mac_py312:
-      imageName: 'macOS-latest'
-      python.version: '3.12'
+    windows_py311:
+      imageName: 'windows-latest'
+      python.version: '3.11'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
+    # mac_py312:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.12'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox'
     linux_py312:
       imageName: 'ubuntu-latest'
       python.version: '3.12'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py312:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.12'
-    mac_py313:
-      imageName: 'macOS-latest'
-      python.version: '3.13'
+    windows_py312:
+      imageName: 'windows-latest'
+      python.version: '3.12'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
+    # mac_py313:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.13'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox'
     linux_py313:
       imageName: 'ubuntu-latest'
       python.version: '3.13'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
+    windows_py313:
+      imageName: 'windows-latest'
+      python.version: '3.13'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
 
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
+  PIP_CACHE_DIR: $(Pipeline.Workspace)/.pip
 
 stages:
   - stage: RunAllTests
@@ -101,10 +113,6 @@ stages:
           inputs:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
-
-        - script: |
-            echo "##vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-          displayName: 'Set PIP_CACHE_DIR'
 
         - task: Cache@2
           inputs:
@@ -143,14 +151,25 @@ stages:
         #     python -c "import datashader; print('Datashader version:', datashader.__version__)"
         #   displayName: 'Debug dependency versions'
 
-        - script: |
+        - bash: |
             export CI=true
             mkdir -p $(Build.ArtifactStagingDirectory)/mpl
             pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
-          displayName: 'Run python tests'
+          displayName: 'Run python tests (Unix)'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+
+        - powershell: |
+            $env:CI = "true"
+            New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)\mpl"
+            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings `
+                --cov=datamapplot/ --cov-report=html `
+                --mpl-generate-summary=html `
+                --mpl-results-path="$(Build.ArtifactStagingDirectory)\mpl"
+          displayName: 'Run python tests (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
 
         - script: |
             echo "Listing contents of $(Build.ArtifactStagingDirectory)/mpl:"
@@ -180,19 +199,23 @@ stages:
             $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html" -PassThru -NoNewWindow
             Start-Sleep -Seconds 5
             $retry = 0
+            $success = $false
             do {
                 try {
-                    $response = Invoke-WebRequest -Uri "http://localhost:8000" -Method Head
-                    Write-Host "Server started successfully"
-                    break
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000" -Method Head -UseBasicParsing
+                    if ($response.StatusCode -eq 200) {
+                        Write-Host "Server started successfully"
+                        $success = $true
+                        break
+                    }
                 } catch {
                     Write-Host "Waiting for server to start... Attempt $retry"
-                    Start-Sleep -Seconds 2
-                    $retry++
                 }
+                Start-Sleep -Seconds 2
+                $retry++
             } while ($retry -lt 5)
 
-            if ($retry -eq 5) {
+            if (-not $success) {
                 Write-Error "Server failed to start after multiple attempts"
                 exit 1
             }
@@ -219,14 +242,27 @@ stages:
           displayName: 'Install extra browsers'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
-        - script: |
+        - bash: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
               npx playwright test $(browserProjects) --grep-invert @slow
             else
               npx playwright test $(browserProjects)
             fi
-          displayName: 'Run Playwright tests'
+          displayName: 'Run Playwright tests (Unix)'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: ne(variables['Agent.OS'], 'Windows_NT')
+          env:
+            CI: 'true'
+
+        - powershell: |
+            if ("$(Build.Reason)" -eq "PullRequest") {
+              npx playwright test $(browserProjects) --grep-invert '@slow'
+            } else {
+              npx playwright test $(browserProjects)
+            }
+          displayName: 'Run Playwright tests (Windows)'
+          workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
           env:
             CI: 'true'
 

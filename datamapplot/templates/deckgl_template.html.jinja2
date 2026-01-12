@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>{{ title }}</title>
+    
+    {#- External dependencies (fonts, Bootstrap, Font Awesome, JS libraries) -#}
+    {% include 'head_dependencies.html.jinja2' %}
+    
+    {#- CSS styles (component CSS, page styles, custom CSS) -#}
+    {% include 'styles.html.jinja2' %}
+  </head>
+  
+  <body>
+    {#- Loading indicator -#}
+    {% include 'loading_indicator.html.jinja2' %}
+    
+    {#- Main content layout (deck container, stacks, logo) -#}
+    {% include 'content_layout.html.jinja2' %}
+    
+    {#- Progress bars for data loading -#}
+    {% include 'progress_bars.html.jinja2' %}
+  </body>
+  
+  {#- JavaScript component libraries -#}
+  {%- for _, js_src in js_dependency_srcs.items() %}
+  <script>
+    {{ js_src | safe }}
+  </script>
+  {%- endfor %}
+  
+  {#- Main application script -#}
+  <script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    {% include 'utilities.js.jinja2' %}
+    
+    {% include 'topic_tree_utils.js.jinja2' %}
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    {% include 'data_setup.js.jinja2' %}
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    {% include 'datamap_init.js.jinja2' %}
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    {% include 'data_loaders.js.jinja2' %}
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+    
+    {%- if background_image %}
+    datamap.addBackgroundImage("{{ background_image }}", {{ background_image_bounds }});
+    {%- endif %}
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+    
+    {%- if enable_histogram %}
+    loadHistogramData();
+    {%- endif %}
+    
+    {%- if enable_api_tooltip %}
+    const tooltip = new DynamicTooltipManager(
+      datamap,
+      {
+        {%- if tooltip_identifier_js %}getIdentifier: {{ tooltip_identifier_js }},{% endif %}
+        fetchData: {{ tooltip_fetch_js }},
+        formatContent: {{ tooltip_format_js }},
+        formatLoading: {{ tooltip_loading_js }},
+        formatError: {{ tooltip_error_js }},
+      }
+    );
+    {%- endif %}
+    
+    {%- if custom_js %}
+    {{ custom_js }}
+    {%- endif %}
+  </script>
+</html>
