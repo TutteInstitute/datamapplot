@@ -16,6 +16,11 @@ parameters:
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
+    windows_py312:
+      imageName: 'windows-latest'
+      python.version: '3.12'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
 
 - name: runUpdates
   displayName: Select which baseline images to update
@@ -42,21 +47,20 @@ stages:
         pool:
           vmImage: $(imageName)
 
+        variables:
+          PIP_CACHE_DIR: $(Pipeline.Workspace)/.pip
+
         steps:
         - task: UsePythonVersion@0
           inputs:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
-        - script: |
-            echo "#vso[task.setvariable variable=PIP_CACHE_DIR]$(pip cache dir)"
-          displayName: 'Set PIP_CACHE_DIR'
-
         - task: Cache@2
           inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
+            key: 'pip | "$(Agent.OS)" | "$(Build.SourcesDirectory)/test-requirements.txt"'
             restoreKeys: |
-              pip |
+              pip | "$(Agent.OS)"
             path: $(PIP_CACHE_DIR)
           displayName: 'Cache pip dependencies'
 
@@ -98,12 +102,19 @@ stages:
           displayName: 'Run python tests to generate interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
 
-        # Interactive tests only (linux)
-        - script: |
+        # Interactive tests only (Linux)
+        - bash: |
             export CI=true
             pytest datamapplot/tests -m interactive
-          displayName: 'Run python tests to generate interactive html'
-          condition: ne(variables['Agent.OS'], 'Darwin')
+          displayName: 'Run python tests to generate interactive html (Linux)'
+          condition: eq(variables['Agent.OS'], 'Linux')
+
+        # Interactive tests only (Windows)
+        - powershell: |
+            $env:CI = "true"
+            pytest datamapplot/tests -m interactive
+          displayName: 'Run python tests to generate interactive html (Windows)'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
 
 
         - task: CopyFiles@2
@@ -155,8 +166,14 @@ stages:
         - script: |
             echo "Listing contents of $(Build.SourcesDirectory)/datamapplot/tests/html:"
             ls -l $(Build.SourcesDirectory)/datamapplot/tests/html
-          displayName: 'List contents of HTML directory'
-          condition: always()
+          displayName: 'List contents of HTML directory (Unix)'
+          condition: and(always(), ne(variables['Agent.OS'], 'Windows_NT'))
+
+        - powershell: |
+            Write-Host "Listing contents of $env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html:"
+            Get-ChildItem -Path "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html"
+          displayName: 'List contents of HTML directory (Windows)'
+          condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
 
         - script: |
             python -m http.server 8000 -d $(Build.SourcesDirectory)/datamapplot/tests/html &
@@ -167,19 +184,23 @@ stages:
             $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:BUILD_SOURCESDIRECTORY\datamapplot\tests\html" -PassThru -NoNewWindow
             Start-Sleep -Seconds 5
             $retry = 0
+            $success = $false
             do {
                 try {
-                    $response = Invoke-WebRequest -Uri "http://localhost:8000" -Method Head
-                    Write-Host "Server started successfully"
-                    break
+                    $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000" -UseBasicParsing -TimeoutSec 5
+                    if ($response.StatusCode -eq 200) {
+                        Write-Host "Server started successfully"
+                        $success = $true
+                        break
+                    }
                 } catch {
-                    Write-Host "Waiting for server to start... Attempt $retry"
-                    Start-Sleep -Seconds 2
-                    $retry++
+                    Write-Host "Waiting for server to start... Attempt $retry - $_"
                 }
+                Start-Sleep -Seconds 2
+                $retry++
             } while ($retry -lt 5)
 
-            if ($retry -eq 5) {
+            if (-not $success) {
                 Write-Error "Server failed to start after multiple attempts"
                 exit 1
             }
@@ -226,6 +247,19 @@ stages:
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           env:
             CI: 'true'
+
+        # Debug: List generated snapshot files
+        - bash: |
+            echo "Listing all snapshot files:"
+            find "$(Build.SourcesDirectory)/datamapplot/interactive_tests/tests" -name "*.png" -type f
+          displayName: 'List generated snapshots (Unix)'
+          condition: and(always(), ne(variables['Agent.OS'], 'Windows_NT'))
+
+        - powershell: |
+            Write-Host "Listing all snapshot files:"
+            Get-ChildItem -Path "$env:BUILD_SOURCESDIRECTORY\datamapplot\interactive_tests\tests" -Recurse -Filter "*.png"
+          displayName: 'List generated snapshots (Windows)'
+          condition: and(always(), eq(variables['Agent.OS'], 'Windows_NT'))
 
         - powershell: |
             $targetFolder = '$(Build.ArtifactStagingDirectory)/filtered-screenshots'

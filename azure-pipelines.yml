@@ -42,9 +42,11 @@ parameters:
       python.version: '3.10'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py310:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.10'
+    windows_py310:
+      imageName: 'windows-latest'
+      python.version: '3.10'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
     # mac_py311:
     #   imageName: 'macOS-latest'
     #   python.version: '3.11'
@@ -55,9 +57,11 @@ parameters:
       python.version: '3.11'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
-    # windows_py311:
-    #   imageName: 'windows-latest'
-    #   python.version: '3.11'
+    windows_py311:
+      imageName: 'windows-latest'
+      python.version: '3.11'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
     # mac_py312:
     #   imageName: 'macOS-latest'
     #   python.version: '3.12'
@@ -83,6 +87,11 @@ parameters:
       python.version: '3.13'
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
+    windows_py313:
+      imageName: 'windows-latest'
+      python.version: '3.13'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
 
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
@@ -233,7 +242,7 @@ stages:
           displayName: 'Install extra browsers'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
 
-        - script: |
+        - bash: |
             if [[ "$(Build.Reason)" == "PullRequest" ]]; then
               echo "PR build: Running fast tests only (excluding @slow)"
               npx playwright test $(browserProjects) --grep-invert @slow
@@ -257,6 +266,7 @@ stages:
             }
           displayName: 'Run Playwright tests (Windows)'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
+          condition: eq(variables['Agent.OS'], 'Windows_NT')
           condition: eq(variables['Agent.OS'], 'Windows_NT')
           env:
             CI: 'true'
