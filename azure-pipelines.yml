@@ -267,7 +267,6 @@ stages:
           displayName: 'Run Playwright tests (Windows)'
           workingDirectory: '$(Build.SourcesDirectory)/datamapplot/interactive_tests'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
-          condition: eq(variables['Agent.OS'], 'Windows_NT')
           env:
             CI: 'true'
 
