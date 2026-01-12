@@ -22,7 +22,6 @@ from urllib.request import urlopen
 import numpy as np
 import pandas as pd
 from colorspacious import cspace_convert
-from importlib_resources import files
 from matplotlib.colors import rgb2hex, to_rgba
 from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from rcssmin import cssmin
