@@ -443,13 +443,23 @@ class ColormapSelectorWidget(WidgetBase):
     """
 
     @cfg.complete(unconfigurable={"self"})
-    def __init__(self, colormap_metadata=None, **kwargs):
+    def __init__(
+        self,
+        colormaps=None,
+        colormap_metadata=None,
+        colormap_rawdata=None,
+        cluster_layer_colormaps=None,
+        **kwargs,
+    ):
         kwargs.setdefault("widget_id", "colormap-selector")
         kwargs.setdefault("location", "bottom-left")
         kwargs.setdefault("order", 0)
         super().__init__(**kwargs)
 
+        self.colormaps = colormaps
         self.colormap_metadata = colormap_metadata
+        self.colormap_rawdata = colormap_rawdata
+        self.cluster_layer_colormaps = cluster_layer_colormaps
 
     @property
     def html(self):

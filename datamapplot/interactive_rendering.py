@@ -85,8 +85,15 @@ from datamapplot.widget_helpers import (
     group_widgets_by_location,
     get_drawer_enabled,
     collect_widget_dependencies,
+    legacy_widget_flags_from_widgets,
 )
-from datamapplot.widgets import WidgetBase
+from datamapplot.widgets import (
+    WidgetBase,
+    SearchWidget,
+    HistogramWidget,
+    TopicTreeWidget,
+    LegendWidget,
+)
 
 try:
     import matplotlib
@@ -1096,6 +1103,8 @@ def render_html(
                 histogram_n_bins=histogram_n_bins,
                 colormaps=colormaps,
                 colormap_rawdata=colormap_rawdata,
+                colormap_metadata=color_metadata,
+                cluster_layer_colormaps=cluster_layer_colormaps,
                 logo=logo,
                 logo_width=logo_width,
             )
@@ -1115,6 +1124,16 @@ def render_html(
 
         # Collect widget dependencies
         widget_deps = collect_widget_dependencies(all_widgets)
+
+        # Legacy widget flags
+        (
+            enable_search,
+            enable_histogram,
+            enable_topic_tree,
+            search_field,
+            histogram_ctx,
+            topic_tree_kwds,
+        ) = legacy_widget_flags_from_widgets(all_widgets)
 
     # Determine if drawers are enabled (for dependency loading)
     enable_drawers = drawer_enabled["left"] or drawer_enabled["right"]

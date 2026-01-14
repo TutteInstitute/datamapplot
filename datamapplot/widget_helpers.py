@@ -365,7 +365,19 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
         kwargs.get("colormaps") is not None
         or kwargs.get("colormap_rawdata") is not None
     ):
-        widgets.append(ColormapSelectorWidget())
+        if kwargs.get("colormap_metadata") is not None:
+            colormap_metadata = kwargs["color_metadata"]
+            colormap_rawdata = kwargs.get("colormap_rawdata")
+            cluster_layer_colormaps = kwargs.get("cluster_layer_colormaps", {})
+            widgets.append(
+                ColormapSelectorWidget(
+                    colormap_metadata=colormap_metadata,
+                    colormap_rawdata=colormap_rawdata,
+                    cluster_layer_colormaps=cluster_layer_colormaps,
+                )
+            )
+        else:
+            widgets.append(ColormapSelectorWidget(colormaps=kwargs["colormaps"]))
 
     # Logo widget
     if kwargs.get("logo") is not None:
@@ -475,3 +487,51 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, List[str
                         dependencies["js"].append(dep)
 
     return dependencies
+
+
+def legacy_widget_flags_from_widgets(widgets):
+
+    enable_search = any(isinstance(w, SearchWidget) for w in widgets)
+    enable_histogram = any(isinstance(w, HistogramWidget) for w in widgets)
+    enable_topic_tree = any(isinstance(w, TopicTreeWidget) for w in widgets)
+
+    histogram_ctx = {}
+    topic_tree_kwds = {}
+    search_field = "hover_text"
+    for w in widgets:
+        if isinstance(w, SearchWidget):
+            search_field = w.search_field
+        if isinstance(w, HistogramWidget):
+            histogram_ctx = {
+                "histogram_data": w.histogram_data,
+                "histogram_settings": {
+                    "histogram_width": w.histogram_width,
+                    "histogram_height": w.histogram_height,
+                    "histogram_title": w.histogram_title,
+                    "histogram_bin_fill_color": w.histogram_bin_fill_color,
+                    "histogram_bin_selected_fill_color": w.histogram_bin_selected_fill_color,
+                    "histogram_bin_unselected_fill_color": w.histogram_bin_unselected_fill_color,
+                    "histogram_bin_context_fill_color": w.histogram_bin_context_fill_color,
+                    "histogram_log_scale": w.histogram_log_scale,
+                },
+            }
+        if isinstance(w, TopicTreeWidget):
+            topic_tree_kwds = {
+                "title": w.title,
+                "font_size": w.font_size,
+                "max_width": w.max_width,
+                "max_height": w.max_height,
+                "color_bullets": w.color_bullets,
+                "button_on_click": w.button_on_click,
+                "button_icon": w.button_icon,
+            }
+            break
+
+    return (
+        enable_search,
+        enable_histogram,
+        enable_topic_tree,
+        search_field,
+        histogram_ctx,
+        topic_tree_kwds,
+    )

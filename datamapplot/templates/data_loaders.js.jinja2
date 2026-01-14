@@ -282,12 +282,10 @@ function loadMetaData() {
         searchField: "{{ search_field }}",
       });
 
-      {% if search %}
       const searchItem = document.getElementById(searchItemId);
       if (searchItem) {
         searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
       }
-      {% endif %}
       
       updateProgressBar('meta-data-progress', 100);
       checkAllDataLoaded();
