@@ -16,7 +16,7 @@ arxivml_data_map = np.load("arxiv_ml_data_map.npz")["arr_0"]
 arxivml_labels = np.load("arxiv_ml_cluster_labels.npz", allow_pickle=True)["arr_0"]
 
 arxiv_logo_response = requests.get(
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png",
+    "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
     stream=True,
     headers={'User-Agent': 'My User Agent 1.0'}
 )
