@@ -21,6 +21,7 @@ from datamapplot.interactive_rendering import (
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
+from datamapplot.interactive_helpers import remove_duplicate_chains
 from datamapplot.config import ConfigManager
 
 
@@ -562,8 +563,9 @@ def create_interactive_plot(
             ]
         )
 
+    # remove_duplicate_chains(label_dataframe)
+
     # Split out the noise labels (placeholders for topic tree) so we can make color palettes.
-    #
     noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]
     label_dataframe = label_dataframe[label_dataframe["label"] != noise_label]
 

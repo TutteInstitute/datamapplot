@@ -145,33 +145,33 @@ class LassoSelectionTool {
         // Find the bounds of the lasso
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const point of lassoPolygon) {
-          minX = Math.min(minX, point.x);
-          maxX = Math.max(maxX, point.x);
-          minY = Math.min(minY, point.y);
-          maxY = Math.max(maxY, point.y);
+            minX = Math.min(minX, point.x);
+            maxX = Math.max(maxX, point.x);
+            minY = Math.min(minY, point.y);
+            maxY = Math.max(maxY, point.y);
         }
-    
+
         // Query the QuadTree for points within the lasso bounds
         let potentialIndices = this.quadTree.query({
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY
         }, this.points);
-    
+
         let selectedPoints = [];
         const currentSelectedIndices = this.datamap.dataSelectionManager.getBasicSelectedIndices();
         const selectFromAllPoints = currentSelectedIndices.size === 0;
 
         // Check which points are actually inside the lasso
         if (selectFromAllPoints) {
-            selectedPoints = potentialIndices.filter(index => 
-                this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
+            selectedPoints = potentialIndices.filter(index =>
+                this.isPointInPolygon({ x: this.points[index * 2], y: this.points[index * 2 + 1] }, lassoPolygon)
             );
         } else {
             selectedPoints = potentialIndices.filter(index =>
                 currentSelectedIndices.has(index) &&
-                this.isPointInPolygon({x: this.points[index * 2], y: this.points[index * 2 + 1]}, lassoPolygon)
+                this.isPointInPolygon({ x: this.points[index * 2], y: this.points[index * 2 + 1] }, lassoPolygon)
             );
         }
 
@@ -223,7 +223,7 @@ class LassoSelectionTool {
                 dragPan: !this.selectionMode,
                 dragRotate: !this.selectionMode,
             },
-            getCursor: ({isDragging}) => this.selectionMode ? "crosshair" : (isDragging ? "grabbing" : "grab"),
+            getCursor: ({ isDragging }) => this.selectionMode ? "crosshair" : (isDragging ? "grabbing" : "grab"),
         });
 
         if (!enabled) {
@@ -252,27 +252,32 @@ class LassoSelectionTool {
                 this.setSelectionMode(true);
             }
         });
-    
+
         document.addEventListener('keyup', (e) => {
             if (e.key === 'Shift' && this.selectionMode) {
                 this.setSelectionMode(false);
             }
         });
-    
+
         // Track if we're currently drawing
         this.isDrawing = false;
-    
+
         // Attach listeners to the canvas instead of the container
         window.addEventListener('mousedown', (e) => {
             if (this.selectionMode) {
-                this.isDrawing = true;
-                const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
-                this.lassoPolygon = [{ x, y }];
-                // Capture mouse events globally when drawing starts
-                this.canvas.style.pointerEvents = 'all';
+                // Check if clicking on interactive elements that should handle their own events
+                const isInteractive = e.target.closest('.interactive-element, svg, input, button, select');
+
+                if (!isInteractive) {
+                    this.isDrawing = true;
+                    const [x, y] = this.getSpatialCoordinates(e.clientX, e.clientY);
+                    this.lassoPolygon = [{ x, y }];
+                    // Capture mouse events globally when drawing starts
+                    this.canvas.style.pointerEvents = 'all';
+                }
             }
         });
-    
+
         // Use window for mousemove to ensure we catch all movement
         window.addEventListener('mousemove', (e) => {
             if (this.selectionMode && this.isDrawing) {
@@ -281,7 +286,7 @@ class LassoSelectionTool {
                 this.drawLasso(this.lassoPolygon);
             }
         });
-    
+
         // Use window for mouseup to ensure we catch the end of drawing
         window.addEventListener('mouseup', (e) => {
             if (this.selectionMode && this.isDrawing) {

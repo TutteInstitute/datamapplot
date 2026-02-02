@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "datamapplot"
-version = "0.6.4"
+version = "0.7.0"
 authors = [{name = "Leland McInnes", email = "leland.mcinnes@gmail.com"}]
 maintainers = [{name = "Leland McInnes", email = "leland.mcinnes@gmail.com"}]
 description = "A library for presentation and publication ready plots of data maps"

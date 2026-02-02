@@ -56,7 +56,9 @@ def test_plot_arxiv_ml(
     return fig
 
 
-@pytest.mark.skip(reason="Edge bundling test requires too much memory for some machines")
+@pytest.mark.skip(
+    reason="Edge bundling test requires too much memory for some machines"
+)
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default", tolerance=30)
 def test_plot_arxiv_ml_edge_bundle(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
@@ -75,6 +77,7 @@ def test_plot_arxiv_ml_edge_bundle(
     return fig
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Test has glitches on Windows CI")
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default", tolerance=20)
 def test_plot_arxiv_ml_word_cloud(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path

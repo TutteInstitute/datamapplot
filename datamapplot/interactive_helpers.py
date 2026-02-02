@@ -13,8 +13,6 @@ import base64
 import gzip
 import io
 import json
-import os
-import re
 from collections.abc import Iterable
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -24,7 +22,6 @@ from urllib.request import urlopen
 import numpy as np
 import pandas as pd
 from colorspacious import cspace_convert
-from importlib_resources import files
 from matplotlib.colors import rgb2hex, to_rgba
 from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from rcssmin import cssmin
@@ -924,14 +921,55 @@ def label_text_and_polygon_dataframes(
 
         # Handle label IDs and parent tracking
         if parents is not None:
-            label_id = f"{len(parents)}-{i}"
-            parent_id = _find_parent_id(cluster_mask, parents)
+            label_id, parent_id = _find_parent_id(cluster_mask, parents, i)
             label_ids.append(label_id)
             parent_ids.append(parent_id)
             parents.append(cluster_mask)
         else:
             label_ids.append(None)
             parent_ids.append(None)
+
+    if parents is not None:
+        unlabelled_mask = cluster_idx_vector == -1
+        parent_masks = (
+            [parents[0][-1] == parent for parent in np.unique(parents[0][-1])]
+            if len(parents[0])
+            else [unlabelled_mask]
+        )
+
+        for parent_mask in parent_masks:
+            cluster_mask = unlabelled_mask & parent_mask
+
+            if np.sum(cluster_mask) > 2:
+                cluster_points = data_map_coords[cluster_mask]
+                if use_medoids:
+                    label_locations.append(medoid(cluster_points))
+                else:
+                    label_locations.append(cluster_points.mean(axis=0))
+
+                cluster_sizes.append(None)
+                polygons.append(None)
+                unique_non_noise_labels.append("Minor subtopics")
+
+                if include_zoom_bounds:
+                    points_bounds.append(_compute_label_bounds(cluster_points))
+                else:
+                    points_bounds.append(None)
+
+                if include_related_points:
+                    related_points.append(np.where(cluster_mask)[0].tolist())
+                else:
+                    related_points.append(None)
+
+                label_id, parent_id = _find_parent_id(cluster_mask, parents, -1)
+                label_ids.append(label_id)
+                parent_ids.append(parent_id)
+
+        # parents is mutable, add on the currend cluster idx_vector.
+        if len(parents[0]):
+            parents[0] = np.vstack((parents[0], cluster_idx_vector))
+        else:
+            parents[0] = np.vstack((cluster_idx_vector,))
 
     label_locations = np.asarray(label_locations)
 
@@ -976,38 +1014,64 @@ def _compute_label_bounds(cluster_points):
     return [float(xmin), float(xmax), float(ymin), float(ymax)]
 
 
-def _find_parent_id(cluster_mask, parents):
-    """Find the parent ID for a cluster based on overlap with previous layers."""
-    # Handle empty or uninitialized parents list
-    if not parents or len(parents) == 0:
-        return None
-
-    # Check if first element is empty (initial state from create_plots.py)
+def _find_parent_id(cluster_mask, parents, label_num):
     if len(parents[0]) == 0:
-        return None
+        return f"base_{label_num}", "base"
+    else:
+        provenance = (
+            ["base"]
+            + list(
+                np.median(parents[0][:, cluster_mask], axis=1).astype(int).astype(str)
+            )
+            + [str(label_num)]
+        )
+        label_id = "_".join(provenance)
+        parent_id = "_".join(provenance[:-1])
 
-    best_match = None
-    best_overlap = 0
+        return label_id, parent_id
 
-    for j, parent_mask in enumerate(parents):
-        # Skip empty masks
-        if len(parent_mask) == 0:
+
+def remove_duplicate_chains(df):
+    grouped = df.groupby(["x", "y"])
+    id_to_chain_root = {}
+
+    for (x, y), group in grouped:
+        if len(group) == 1:
             continue
-        overlap = np.sum(cluster_mask & parent_mask)
-        if overlap > best_overlap:
-            best_overlap = overlap
-            best_match = j
 
-    if best_match is not None:
-        layer_idx = 0
-        count = 0
-        for k, p in enumerate(parents):
-            if k == best_match:
-                return f"{layer_idx}-{count}"
-            count += 1
-            # Detect layer boundaries (simplified heuristic)
+        duplicate_ids = set(group["id"].values)
+        id_to_parent = dict(zip(group["id"], group["parent"]))
 
-    return None
+        # Find the root of the chain (the one whose parent is not in the duplicate set)
+        chain_root = None
+        for node_id in duplicate_ids:
+            parent_id = id_to_parent[node_id]
+            if pd.isna(parent_id) or parent_id not in duplicate_ids:
+                chain_root = node_id
+                break
+
+        if chain_root is None:
+            chain_root = group["id"].iloc[0]
+
+        for node_id in duplicate_ids:
+            id_to_chain_root[node_id] = chain_root
+
+    # Rewrite parent references
+    def get_new_parent(row):
+        old_parent = row["parent"]
+        current_id = row["id"]
+        if (
+            current_id in id_to_chain_root
+            and id_to_chain_root[current_id] != current_id
+        ):
+            return None
+        if pd.notna(old_parent) and old_parent in id_to_chain_root:
+            return id_to_chain_root[old_parent]
+        return old_parent
+
+    df["parent"] = df.apply(get_new_parent, axis=1)
+
+    return df
 
 
 # =============================================================================

@@ -48,7 +48,7 @@
       {% endif %}
 
       {% if search and not use_widget_system %}
-      <div id="search-container" class="container-box">
+      <div id="search-container" class="container-box interactive-element">
         <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
@@ -90,10 +90,10 @@
     <div class="stack bottom-left">
       {# Legacy support: colormap selector, histogram #}
       {%- if enable_colormap_selector and not use_widget_system %}
-      <div id="colormap-selector-container" class="container-box stack-box"></div>
+      <div id="colormap-selector-container" class="container-box stack-box interactive-element"></div>
       {%- endif -%}
       {%- if enable_histogram and not use_widget_system %}
-      <div id="d3histogram-container" class="container-box stack-box"></div>
+      <div id="d3histogram-container" class="container-box stack-box interactive-element"></div>
       {%- endif -%}
       
       {# Widget-based rendering #}

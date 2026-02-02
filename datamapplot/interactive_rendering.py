@@ -1199,7 +1199,7 @@ def render_html(
     )
 
     html_str = template.render(
-        title=title if title is not None else "Interactive Data Map",
+        title=title,  # if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
         google_font_data=font_data,

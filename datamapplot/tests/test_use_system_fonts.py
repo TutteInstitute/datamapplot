@@ -3,7 +3,6 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 import datamapplot
 from datamapplot.plot_rendering import render_plot
-from datamapplot.rendering_helpers import download_google_font
 from datamapplot.create_plots import create_plot
 
 
