@@ -22,7 +22,7 @@ arxiv_logo_response = requests.get(
     stream=True,
     headers={"User-Agent": "My User Agent 1.0"},
 )
-arxiv_logo = np.asarray(PIL.Image.open(arxiv_logo_response.raw))
+arxiv_logo = np.asarray(PIL.Image.open(arxiv_logo_response.raw).convert("RGBA"))
 
 fig, ax = datamapplot.create_plot(
     arxivml_data_map,

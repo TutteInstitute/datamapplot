@@ -19,7 +19,7 @@ cohere_logo_response = requests.get(
     "https://asset.brandfetch.io/idfDTLvPCK/idyv4d98RT.png",
     stream=True,
 )
-cohere_logo = np.asarray(PIL.Image.open(cohere_logo_response.raw))
+cohere_logo = np.asarray(PIL.Image.open(cohere_logo_response.raw).convert("RGBA"))
 
 fig, ax = datamapplot.create_plot(
     wikipedia_data_map,
