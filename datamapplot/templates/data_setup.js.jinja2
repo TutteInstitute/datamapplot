@@ -84,4 +84,15 @@ const edgeDataEncoded = [`${originURL}/{{ file_prefix }}_edge_data.zip`];
 
 {% endif %}
 
+{# Widget data exposure - makes widget configuration data available to widget JavaScript #}
+{% if widget_data %}
+const widgetData = {{ widget_data|tojson|safe }};
+{% if widget_data.histograms %}
+window.widgetHistogramData = widgetData.histograms;
+{% endif %}
+{% if widget_data.colormaps %}
+window.widgetColormapData = widgetData.colormaps;
+{% endif %}
+{% endif %}
+
 const workerUrl = URL.createObjectURL(parsingWorkerBlob);

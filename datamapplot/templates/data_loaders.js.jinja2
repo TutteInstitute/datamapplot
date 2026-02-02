@@ -91,11 +91,19 @@ function loadColorData() {
       const { data } = event.data;
       {{ parse_arrow_data(inline_data) }}
       const colorData = parsedData;
+      
+      // Store colorData on datamap for widget access
+      datamap.colorData = colorData;
+      
+      // Dispatch event for widget initialization
+      document.dispatchEvent(new CustomEvent('datamapColorDataLoaded', { detail: { colorData } }));
 
       document.getElementById("loading").style.display = "none";
       updateProgressBar('color-data-progress', 100);
       checkAllDataLoaded();
 
+      {% if not use_widget_system %}
+      // Legacy colormap selector (only when not using widgets)
       const colorMapContainer = document.getElementById("colormap-selector-container");
       const legendContainer = document.getElementById("legend-container");
       
@@ -108,6 +116,7 @@ function loadColorData() {
         datamap,
       );
       datamap.colorSelector = colorSelector;
+      {% endif %}
     }
   };
 }
@@ -191,6 +200,9 @@ function loadLabelDataLayer() {
         clusterBoundaryLineWidth: {{ cluster_boundary_line_width }},
       });
       {% endif %}
+      
+      // Dispatch event for widget initialization
+      document.dispatchEvent(new CustomEvent('datamapLabelsLoaded', { detail: { labelData } }));
       
       document.getElementById("loading").style.display = "none";
       updateProgressBar('label-data-progress', 100);

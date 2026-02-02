@@ -191,6 +191,8 @@ class TitleWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
+    dependencies = []  # Pure HTML widget
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
@@ -268,6 +270,8 @@ class SearchWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
+    dependencies = []  # Uses core datamap.js
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(self, placeholder="🔍", search_field="hover_text", **kwargs):
         kwargs.setdefault("widget_id", "search")
@@ -292,6 +296,31 @@ class SearchWidget(WidgetBase):
 #{self.get_container_id()} {{
   width: fit-content;
 }}
+"""
+
+    @property
+    def javascript(self):
+        """Configure search functionality in DataMap."""
+        import json
+
+        return f"""
+(function() {{
+    const searchInput = document.querySelector('#text-search');
+    if (!searchInput) return;
+    
+    function initSearch() {{
+        if (window.datamap) {{
+            window.datamap.searchField = {json.dumps(self.search_field)};
+            console.log('Search widget configured for field:', window.datamap.searchField);
+        }}
+    }}
+    
+    if (window.datamap) {{
+        initSearch();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', initSearch);
+    }}
+}})();
 """
 
 
@@ -325,6 +354,8 @@ class TopicTreeWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
+    dependencies = ["js:topic_tree", "css:topic_tree"]
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
@@ -353,6 +384,83 @@ class TopicTreeWidget(WidgetBase):
     @property
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+    @property
+    def javascript(self):
+        """Generate JS to instantiate TopicTree component."""
+        import json
+
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        # Handle button click code
+        button_handlers = ""
+        if self.button_on_click:
+            # Extract the code between quotes if it's a string literal
+            click_code = self.button_on_click
+            if click_code.startswith(('"', "'")) and click_code.endswith(('"', "'")):
+                click_code = click_code[1:-1]
+            button_handlers = f"""
+    topicTree.container.querySelectorAll('.topic-tree-btn').forEach(button => {{
+        button.addEventListener('click', function() {{
+            var label = window.datamap.labelData.find(l => l.id === this.dataset.labelId);
+            {click_code}
+        }});
+    }});
+"""
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        if (!window.datamap || !window.datamap.labelData) {{
+            console.warn('DataMap or label data not available for topic tree');
+            return;
+        }}
+        
+        const topicTree = new TopicTree(
+            container,
+            window.datamap,
+            {str(self.button_on_click is not None).lower()},
+            {json.dumps(self.button_icon) if self.button_on_click else 'null'},
+            {{
+                title: {json.dumps(self.tree_title)},
+                maxWidth: {json.dumps(self.max_width)},
+                maxHeight: {json.dumps(self.max_height)},
+                fontSize: {json.dumps(self.font_size)},
+                colorBullets: {str(self.color_bullets).lower()},
+            }}
+        );
+        {button_handlers}
+        // Set up viewport highlighting
+        const debounced = debounce(({{viewState, interactionState}}) => {{
+            const userIsInteracting = Object.values(interactionState).every(Boolean);
+            if (!userIsInteracting) {{
+                const visible = getVisibleTextData(viewState, window.datamap.labelData);
+                if (visible) {{
+                    topicTree.highlightElements(visible);
+                }}
+            }}
+        }}, 150);
+        
+        window.datamap.deckgl.setProps({{
+            onViewStateChange: debounced,
+        }});
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = topicTree;
+    }}
+    
+    if (window.datamap && window.datamap.labelData) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
 
 
 class HistogramWidget(WidgetBase):
@@ -394,6 +502,8 @@ class HistogramWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
+    dependencies = ["js:d3", "js:histogram", "css:histogram"]
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
@@ -429,6 +539,73 @@ class HistogramWidget(WidgetBase):
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box stack-box"></div>'
 
+    @property
+    def javascript(self):
+        """Generate JS to instantiate D3Histogram with data."""
+        import json
+
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+        
+    function setup() {{
+        // Get data for THIS widget instance
+        const histData = window.widgetHistogramData?.['{widget_id}'];
+        if (!histData) {{
+            console.warn('No histogram data for widget {widget_id}');
+            return;
+        }}
+        
+        if (!window.datamap) {{
+            console.warn('DataMap not available for histogram');
+            return;
+        }}
+        
+        // Selection callback for histogram interaction
+        const chartSelectionCallback = chartSelectedIndices => {{
+            if (chartSelectedIndices === null) {{
+                window.datamap.removeSelection('{container_id}');
+            }} else {{
+                window.datamap.addSelection(chartSelectedIndices, '{container_id}');
+            }}
+        }};
+        
+        // Use D3Histogram factory method with proper parameters
+        const histogram = D3Histogram.create({{
+            data: histData,
+            chartContainerId: '{container_id}',
+            chartWidth: {self.histogram_width},
+            chartHeight: {self.histogram_height},
+            title: {json.dumps(self.histogram_title)},
+            binCount: {self.histogram_bin_count},
+            binDefaultFillColor: {json.dumps(self.histogram_bin_fill_color)},
+            binSelectedFillColor: {json.dumps(self.histogram_bin_selected_fill_color)},
+            binUnselectedFillColor: {json.dumps(self.histogram_bin_unselected_fill_color)},
+            binContextFillColor: {json.dumps(self.histogram_bin_context_fill_color)},
+            logScale: {str(self.histogram_log_scale).lower()},
+            chartSelectionCallback: chartSelectionCallback,
+        }});
+        
+        if (histogram) {{
+            window.datamap.connectHistogram(histogram);
+            
+            // Store reference
+            window.datamap.widgets = window.datamap.widgets || {{}};
+            window.datamap.widgets['{widget_id}'] = histogram;
+        }}
+    }}
+        
+    if (window.datamap) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
+
 
 class ColormapSelectorWidget(WidgetBase):
     """Widget for colormap selection and legend display.
@@ -441,6 +618,8 @@ class ColormapSelectorWidget(WidgetBase):
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
+
+    dependencies = ["js:colormap_selector", "css:colormap_selector"]
 
     @cfg.complete(unconfigurable={"self"})
     def __init__(
@@ -465,6 +644,65 @@ class ColormapSelectorWidget(WidgetBase):
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box stack-box"></div>'
 
+    @property
+    def javascript(self):
+        """Generate JS to instantiate ColormapSelector."""
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        const colorMaps = window.widgetColormapData?.['{widget_id}'];
+        if (!colorMaps || colorMaps.length === 0) {{
+            console.warn('No colormaps provided for widget {widget_id}');
+            return;
+        }}
+        
+        if (!window.datamap) {{
+            console.warn('DataMap not available for colormap selector');
+            return;
+        }}
+        
+        // Get legendContainer from datamap (set by LegendWidget)
+        const legendContainer = window.datamap.legendContainer;
+        if (!legendContainer) {{
+            console.warn('Legend container not available for colormap selector');
+        }}
+        
+        // Get color data from datamap (loaded by data loading pipeline)
+        const colorData = window.datamap.colorData;
+        if (!colorData) {{
+            console.warn('Color data not available yet for colormap selector');
+            return;
+        }}
+        
+        // Use correct class name and parameter order
+        const selector = new ColormapSelectorTool(
+            colorMaps,
+            container,
+            colorData,
+            legendContainer,
+            window.datamap
+        );
+        
+        // Store reference
+        window.datamap.colorSelector = selector;
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = selector;
+    }}
+    
+    if (window.datamap && window.datamap.colorData) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapColorDataLoaded', setup);
+    }}
+}})();
+"""
+
 
 class LegendWidget(WidgetBase):
     """Widget for displaying color legend.
@@ -474,6 +712,8 @@ class LegendWidget(WidgetBase):
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
+
+    dependencies = []  # Uses core datamap.js
 
     @cfg.complete(unconfigurable={"self"})
     def __init__(self, **kwargs):
@@ -485,6 +725,45 @@ class LegendWidget(WidgetBase):
     @property
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box stack-box" style="display:none;"></div>'
+
+    @property
+    def javascript(self):
+        """Register legend container with DataMap."""
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        if (!window.datamap) return;
+        
+        // Register container with datamap for dynamic updates
+        window.datamap.legendContainer = container;
+        
+        // Initial setup if colormap already set
+        if (window.datamap.currentColormap && window.datamap.updateLegend) {{
+            window.datamap.updateLegend();
+        }}
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = {{
+            container: container,
+            show: () => container.style.display = 'block',
+            hide: () => container.style.display = 'none',
+        }};
+    }}
+    
+    if (window.datamap) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
 
 
 class LogoWidget(WidgetBase):
@@ -502,6 +781,8 @@ class LogoWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
+    dependencies = []  # Pure HTML widget
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(self, logo, logo_width=256, **kwargs):
         kwargs.setdefault("widget_id", "logo")
@@ -515,7 +796,7 @@ class LogoWidget(WidgetBase):
     @property
     def html(self):
         return f"""
-<div id="{self.get_container_id()}" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
+<div id="{self.get_container_id()}" class="container-box stack-box">
   <img src="{self.logo}" style="width:{self.logo_width}px" />
 </div>
 """

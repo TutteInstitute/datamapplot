@@ -80,9 +80,11 @@
     
     {# Bottom-right stack #}
     <div class="stack bottom-right">
-      {# Widget-based rendering #}
+      {# Widget-based rendering (excluding logos which are rendered separately) #}
       {%- for widget in widgets_by_location.get('bottom-right', []) %}
+      {%- if 'LogoWidget' not in widget.__class__.__name__ %}
       {{ widget.html | safe }}
+      {%- endif %}
       {%- endfor %}
     </div>
     
@@ -108,6 +110,17 @@
   <div id="logo-container" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
     <img src="{{ logo }}" style="width:{{ logo_width }}px" />
   </div>
+  {% endif %}
+  
+  {# Widget-based logo rendering - outside grid to avoid transform issues #}
+  {% if use_widget_system %}
+  {%- for widget in widgets_by_location.get('bottom-right', []) %}
+  {%- if 'LogoWidget' in widget.__class__.__name__ %}
+  <div id="{{ widget.get_container_id() }}" class="container-box" style="position: fixed; z-index: 0; bottom: 0; right: 0;">
+    <img src="{{ widget.logo }}" style="width:{{ widget.logo_width }}px" />
+  </div>
+  {%- endif %}
+  {%- endfor %}
   {% endif %}
 </div>
 

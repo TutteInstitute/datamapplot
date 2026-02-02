@@ -365,8 +365,11 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
         kwargs.get("colormaps") is not None
         or kwargs.get("colormap_rawdata") is not None
     ):
+        # Add legend widget first so it's available when colormap selector initializes
+        widgets.append(LegendWidget())
+
         if kwargs.get("colormap_metadata") is not None:
-            colormap_metadata = kwargs["color_metadata"]
+            colormap_metadata = kwargs["colormap_metadata"]
             colormap_rawdata = kwargs.get("colormap_rawdata")
             cluster_layer_colormaps = kwargs.get("cluster_layer_colormaps", {})
             widgets.append(
@@ -535,3 +538,133 @@ def legacy_widget_flags_from_widgets(widgets):
         histogram_ctx,
         topic_tree_kwds,
     )
+
+
+def collect_widget_data(widgets):
+    """Extract data that needs to be encoded/embedded from widgets.
+
+    Parameters
+    ----------
+    widgets : list
+        List of widget instances
+
+    Returns
+    -------
+    dict
+        Dictionary with keys 'histograms', 'colormaps', 'search_fields'
+        containing data from respective widget types
+    """
+    widget_data = {
+        "histograms": [],
+        "colormaps": [],
+        "search_fields": [],
+    }
+
+    for widget in widgets:
+        # HistogramWidget: needs external data array
+        if isinstance(widget, HistogramWidget) and widget.histogram_data is not None:
+            widget_data["histograms"].append(
+                {
+                    "widget_id": widget.widget_id,
+                    "data": widget.histogram_data,
+                    "settings": {
+                        "width": widget.histogram_width,
+                        "height": widget.histogram_height,
+                        "title": widget.histogram_title,
+                        "bin_count": widget.histogram_bin_count,
+                        "bin_fill_color": widget.histogram_bin_fill_color,
+                        "bin_selected_fill_color": widget.histogram_bin_selected_fill_color,
+                        "bin_unselected_fill_color": widget.histogram_bin_unselected_fill_color,
+                        "bin_context_fill_color": widget.histogram_bin_context_fill_color,
+                        "log_scale": widget.histogram_log_scale,
+                    },
+                }
+            )
+
+        # ColormapSelectorWidget: needs colormap list
+        elif isinstance(widget, ColormapSelectorWidget):
+            if hasattr(widget, "colormap_metadata") and widget.colormap_metadata:
+                widget_data["colormaps"].append(
+                    {
+                        "widget_id": widget.widget_id,
+                        "available_colormaps": widget.colormap_metadata,
+                    }
+                )
+
+        # SearchWidget: needs to configure search field
+        elif isinstance(widget, SearchWidget):
+            widget_data["search_fields"].append(
+                {
+                    "widget_id": widget.widget_id,
+                    "search_field": widget.search_field,
+                }
+            )
+
+    return widget_data
+
+
+def encode_widget_data(widget_data, point_data_length):
+    """Encode widget data for embedding in HTML.
+
+    Parameters
+    ----------
+    widget_data : dict
+        Raw widget data from collect_widget_data()
+    point_data_length : int
+        Number of points in the dataset (for validation)
+
+    Returns
+    -------
+    dict
+        Encoded widget data ready for template context
+    """
+    import pandas as pd
+    from datamapplot.interactive_helpers import prepare_histogram_data
+
+    encoded = {}
+
+    # Encode histogram data - needs to be processed into bin/index format
+    if widget_data["histograms"]:
+        encoded["histograms"] = {}
+        for hist in widget_data["histograms"]:
+            # Validate data length matches point data
+            if len(hist["data"]) != point_data_length:
+                raise ValueError(
+                    f"Histogram data for widget '{hist['widget_id']}' has "
+                    f"{len(hist['data'])} elements but point data has "
+                    f"{point_data_length} points"
+                )
+
+            # Convert to pandas Series if needed
+            if not isinstance(hist["data"], pd.Series):
+                histogram_series = pd.Series(hist["data"])
+            else:
+                histogram_series = hist["data"]
+
+            # Process histogram data into bin and index data
+            # Use settings from widget for n_bins, etc.
+            bin_count = hist["settings"].get("bin_count", 20)
+            bin_data, index_data = prepare_histogram_data(
+                histogram_series,
+                histogram_n_bins=bin_count,
+                histogram_group_datetime_by=None,  # Could be added to widget params
+                histogram_range=None,  # Could be added to widget params
+            )
+
+            # Format for D3Histogram - it expects {rawBinData, rawIndexData}
+            encoded["histograms"][hist["widget_id"]] = {
+                "rawBinData": bin_data.to_dict(orient="records"),
+                "rawIndexData": index_data.tolist(),  # Series.tolist() returns list of bin IDs
+            }
+    if widget_data["colormaps"]:
+        encoded["colormaps"] = {
+            cm["widget_id"]: cm["available_colormaps"]
+            for cm in widget_data["colormaps"]
+        }
+
+    # Search fields are simple strings
+    if widget_data["search_fields"]:
+        # Use the first search field found (typically only one)
+        encoded["search_field"] = widget_data["search_fields"][0]["search_field"]
+
+    return encoded

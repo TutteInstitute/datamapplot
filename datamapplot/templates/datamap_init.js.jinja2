@@ -12,3 +12,6 @@ const datamap = new DataMap({
   searchItemId: searchItemId,
   lassoSelectionItemId: selectionItemId,      
 });
+
+// Expose datamap globally for widget access
+window.datamap = datamap;

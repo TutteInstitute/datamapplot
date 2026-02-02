@@ -86,6 +86,8 @@ from datamapplot.widget_helpers import (
     get_drawer_enabled,
     collect_widget_dependencies,
     legacy_widget_flags_from_widgets,
+    collect_widget_data,
+    encode_widget_data,
 )
 from datamapplot.widgets import (
     WidgetBase,
@@ -1058,6 +1060,7 @@ def render_html(
     drawer_enabled = {"left": False, "right": False}
     widget_css = ""
     widget_js = ""
+    encoded_widget_data = {}  # Initialize for both paths
 
     if use_widget_system:
         # Load default widget config from file if provided
@@ -1134,6 +1137,10 @@ def render_html(
             histogram_ctx,
             topic_tree_kwds,
         ) = legacy_widget_flags_from_widgets(all_widgets)
+
+        # Collect and encode widget data for template
+        raw_widget_data = collect_widget_data(all_widgets)
+        encoded_widget_data = encode_widget_data(raw_widget_data, len(point_data))
 
     # Determine if drawers are enabled (for dependency loading)
     enable_drawers = drawer_enabled["left"] or drawer_enabled["right"]
@@ -1286,6 +1293,7 @@ def render_html(
         drawer_enabled=drawer_enabled,
         enable_drawers=enable_drawers,
         darkmode=darkmode,
+        widget_data=encoded_widget_data,
         **dependencies_ctx,
     )
     return html_str
