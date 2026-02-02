@@ -204,7 +204,7 @@ _TEMPLATE_DIRS = [
 
 def _get_jinja_env():
     """Get a Jinja2 Environment configured with template directories.
-    
+
     This enables using {% include %} directives in templates.
     """
     return jinja2.Environment(
@@ -215,13 +215,13 @@ def _get_jinja_env():
 
 def _get_template(use_modular=False):
     """Get the appropriate Jinja2 template.
-    
+
     Parameters
     ----------
     use_modular : bool
         If True, use the new modular template with includes.
         If False, use the legacy single-file template.
-    
+
     Returns
     -------
     jinja2.Template
@@ -232,6 +232,7 @@ def _get_template(use_modular=False):
         return env.get_template("deckgl_template.html.jinja2")
     else:
         return jinja2.Template(_DECKGL_TEMPLATE_STR)
+
 
 _TOOL_TIP_CSS = """
             font-size: 0.8em;
@@ -661,7 +662,7 @@ def render_html(
         ``extra_point_data`` (see below).
 
     dynamic_tooltip: dict[str, str] or None (optional, default=None)
-        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript 
+        A dictionary with keys: fetch_js, format_js, loading_js, error_js mapping to JavaScript
         functions that are passed to DynamicTooltipManager and define the behavior of the tooltip.
 
     extra_point_data: pandas.DataFrame or None (optional, default=None)
@@ -991,7 +992,11 @@ def render_html(
     shadow_color = style_config["shadow_color"]
     input_background = style_config["input_background"]
     input_border = style_config["input_border"]
-    page_background_color = background_color if background_color is not None else style_config["page_background_color"]
+    page_background_color = (
+        background_color
+        if background_color is not None
+        else style_config["page_background_color"]
+    )
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
 
     if tooltip_css is None:
@@ -1072,7 +1077,7 @@ def render_html(
     )
 
     html_str = template.render(
-        title=title if title is not None else "Interactive Data Map",
+        title=title,  # if title is not None else "Interactive Data Map",
         sub_title=sub_title if sub_title is not None else "",
         google_font=api_fontname,
         google_font_data=font_data,

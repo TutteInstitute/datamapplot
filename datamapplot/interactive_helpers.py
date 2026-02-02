@@ -949,7 +949,7 @@ def label_text_and_polygon_dataframes(
                 else:
                     related_points.append(None)
 
-                label_id, parent_id = _find_parent_id(cluster_mask, parents, i)
+                label_id, parent_id = _find_parent_id(cluster_mask, parents, -1)
                 label_ids.append(label_id)
                 parent_ids.append(parent_id)
 
