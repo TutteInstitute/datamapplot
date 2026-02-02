@@ -937,7 +937,7 @@ def label_text_and_polygon_dataframes(
 
                 cluster_sizes.append(None)
                 polygons.append(None)
-                unique_non_noise_labels.append(noise_label)
+                unique_non_noise_labels.append("Minor subtopics")
 
                 if include_zoom_bounds:
                     points_bounds.append(_compute_label_bounds(cluster_points))
@@ -1019,38 +1019,47 @@ def _find_parent_id(cluster_mask, parents, label_num):
         return label_id, parent_id
 
 
-# def _find_parent_id(cluster_mask, parents):
-#     """Find the parent ID for a cluster based on overlap with previous layers."""
-#     # Handle empty or uninitialized parents list
-#     if not parents or len(parents) == 0:
-#         return None
+def remove_duplicate_chains(df):
+    grouped = df.groupby(["x", "y"])
+    id_to_chain_root = {}
 
-#     # Check if first element is empty (initial state from create_plots.py)
-#     if len(parents[0]) == 0:
-#         return None
+    for (x, y), group in grouped:
+        if len(group) == 1:
+            continue
 
-#     best_match = None
-#     best_overlap = 0
+        duplicate_ids = set(group["id"].values)
+        id_to_parent = dict(zip(group["id"], group["parent"]))
 
-#     for j, parent_mask in enumerate(parents):
-#         # Skip empty masks
-#         if len(parent_mask) == 0:
-#             continue
-#         overlap = np.sum(cluster_mask & parent_mask)
-#         if overlap > best_overlap:
-#             best_overlap = overlap
-#             best_match = j
+        # Find the root of the chain (the one whose parent is not in the duplicate set)
+        chain_root = None
+        for node_id in duplicate_ids:
+            parent_id = id_to_parent[node_id]
+            if pd.isna(parent_id) or parent_id not in duplicate_ids:
+                chain_root = node_id
+                break
 
-#     if best_match is not None:
-#         layer_idx = 0
-#         count = 0
-#         for k, p in enumerate(parents):
-#             if k == best_match:
-#                 return f"{layer_idx}-{count}"
-#             count += 1
-#             # Detect layer boundaries (simplified heuristic)
+        if chain_root is None:
+            chain_root = group["id"].iloc[0]
 
-#     return None
+        for node_id in duplicate_ids:
+            id_to_chain_root[node_id] = chain_root
+
+    # Rewrite parent references
+    def get_new_parent(row):
+        old_parent = row["parent"]
+        current_id = row["id"]
+        if (
+            current_id in id_to_chain_root
+            and id_to_chain_root[current_id] != current_id
+        ):
+            return None
+        if pd.notna(old_parent) and old_parent in id_to_chain_root:
+            return id_to_chain_root[old_parent]
+        return old_parent
+
+    df["parent"] = df.apply(get_new_parent, axis=1)
+
+    return df
 
 
 # =============================================================================
