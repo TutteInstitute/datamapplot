@@ -126,17 +126,19 @@
     transform: rotate(180deg);
 }
 
-/* Content wrapper transition when drawer opens */
+/* Content wrapper resizing when drawer opens */
 .content-wrapper {
-    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+    transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out, width 0.3s ease-in-out;
 }
 
 .content-wrapper.drawer-left-open {
-    transform: translateX(400px);
+    margin-left: 400px;
+    width: calc(100% - 400px);
 }
 
 .content-wrapper.drawer-right-open {
-    transform: translateX(-400px);
+    margin-right: 400px;
+    width: calc(100% - 400px);
 }
 
 /* Widgets inside drawers */

@@ -459,6 +459,52 @@ def get_drawer_enabled(grouped_widgets: Dict[str, List[WidgetBase]]) -> Dict[str
     }
 
 
+def update_drawer_enabled_for_handlers(
+    drawer_enabled: Dict[str, bool], selection_handlers
+) -> Dict[str, bool]:
+    """Update drawer enablement based on selection handler locations.
+
+    Parameters
+    ----------
+    drawer_enabled : dict
+        Current drawer enablement state from widgets
+    selection_handlers : SelectionHandlerBase or list or None
+        Selection handler(s) to check for drawer usage
+
+    Returns
+    -------
+    dict
+        Updated dictionary with keys "left" and "right" indicating drawer enablement
+    """
+    from datamapplot.selection_handlers import SelectionHandlerBase
+    from collections.abc import Iterable
+
+    if selection_handlers is None:
+        return drawer_enabled
+
+    # Make a copy to avoid mutating the input
+    result = dict(drawer_enabled)
+
+    # Handle both single handler and list of handlers
+    handlers = []
+    if isinstance(selection_handlers, Iterable) and not isinstance(
+        selection_handlers, SelectionHandlerBase
+    ):
+        handlers = list(selection_handlers)
+    elif isinstance(selection_handlers, SelectionHandlerBase):
+        handlers = [selection_handlers]
+
+    # Check each handler's location
+    for handler in handlers:
+        if hasattr(handler, "location") and handler.location:
+            if handler.location == "left-drawer":
+                result["left"] = True
+            elif handler.location == "right-drawer":
+                result["right"] = True
+
+    return result
+
+
 def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, List[str]]:
     """Collect all external dependencies from widgets.
 

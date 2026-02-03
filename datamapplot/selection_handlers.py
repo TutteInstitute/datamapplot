@@ -7,22 +7,134 @@ from datamapplot.config import ConfigManager
 cfg = ConfigManager()
 
 _DEFAULT_TAG_COLORS = [
-    "#1f77b4", "#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f",
-    "#bcbd22","#17becf","#a6008a","#656100","#8aa6ff","#007155","#ce968a","#6139f3",
-    "#82b692","#ae8210","#ae9ebe","#5d5d79","#ce86ff","#398e92","#b65504","#ce31d7",
-    "#758a55","#9204c6","#187100","#965982","#ef6959","#5d79ff","#7986b2","#b2a66d",
-    "#5d614d","#009e71","#00a2e7","#8ea6ae","#8a9a0c","#9e7d5d","#00c66d","#246979",
-    "#65c210","#865510","#a23118","#9e7dff","#9239fb","#00c2a6","#ae7d9e","#6165b2",
-    "#aaa69e","#005def","#754d8e","#ce7d49","#ba5549","#f35dff","#df9600","#be4dff",
-    "#55716d","#8ab65d","#6d9686","#e75500","#75616d","#4d713d","#5d8200","#9e45a6",
-    "#7daed7","#867596","#5d798e","#ba75c6","#be55a2","#827135","#008641","#5d96b2",
-    "#ae9ae7","#61a261","#b6756d","#5daaa6","#eb41c6","#8e9e7d","#9e8e96","#b69e10",
-    "#6d49b6","#867d00","#a66d2d","#ca92c6","#6592df","#4d8265","#7d6d5d","#7d65ef",
-    "#45658a","#8a8e9e","#d29a55","#b220df","#9a8e4d","#0086eb","#00829e","#969eca",
-    "#c614aa","#007975","#9a86be","#5d6165","#c67100","#755939","#9a4d24","#8e3d7d",
-    "#c23900","#6d7961","#eb8a69","#35baeb","#b29679","#718a8e","#9e69a2","#ae75e3",
-    "#008a00","#3561ae","#8e9692","#a66549","#7d82db","#00a2b6","#24b682","#9e00aa",
-    "#08ba39","#8a49ba","#75659e","#008e79","#5579c6","#927186","#558a41","#755171",
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf",
+    "#a6008a",
+    "#656100",
+    "#8aa6ff",
+    "#007155",
+    "#ce968a",
+    "#6139f3",
+    "#82b692",
+    "#ae8210",
+    "#ae9ebe",
+    "#5d5d79",
+    "#ce86ff",
+    "#398e92",
+    "#b65504",
+    "#ce31d7",
+    "#758a55",
+    "#9204c6",
+    "#187100",
+    "#965982",
+    "#ef6959",
+    "#5d79ff",
+    "#7986b2",
+    "#b2a66d",
+    "#5d614d",
+    "#009e71",
+    "#00a2e7",
+    "#8ea6ae",
+    "#8a9a0c",
+    "#9e7d5d",
+    "#00c66d",
+    "#246979",
+    "#65c210",
+    "#865510",
+    "#a23118",
+    "#9e7dff",
+    "#9239fb",
+    "#00c2a6",
+    "#ae7d9e",
+    "#6165b2",
+    "#aaa69e",
+    "#005def",
+    "#754d8e",
+    "#ce7d49",
+    "#ba5549",
+    "#f35dff",
+    "#df9600",
+    "#be4dff",
+    "#55716d",
+    "#8ab65d",
+    "#6d9686",
+    "#e75500",
+    "#75616d",
+    "#4d713d",
+    "#5d8200",
+    "#9e45a6",
+    "#7daed7",
+    "#867596",
+    "#5d798e",
+    "#ba75c6",
+    "#be55a2",
+    "#827135",
+    "#008641",
+    "#5d96b2",
+    "#ae9ae7",
+    "#61a261",
+    "#b6756d",
+    "#5daaa6",
+    "#eb41c6",
+    "#8e9e7d",
+    "#9e8e96",
+    "#b69e10",
+    "#6d49b6",
+    "#867d00",
+    "#a66d2d",
+    "#ca92c6",
+    "#6592df",
+    "#4d8265",
+    "#7d6d5d",
+    "#7d65ef",
+    "#45658a",
+    "#8a8e9e",
+    "#d29a55",
+    "#b220df",
+    "#9a8e4d",
+    "#0086eb",
+    "#00829e",
+    "#969eca",
+    "#c614aa",
+    "#007975",
+    "#9a86be",
+    "#5d6165",
+    "#c67100",
+    "#755939",
+    "#9a4d24",
+    "#8e3d7d",
+    "#c23900",
+    "#6d7961",
+    "#eb8a69",
+    "#35baeb",
+    "#b29679",
+    "#718a8e",
+    "#9e69a2",
+    "#ae75e3",
+    "#008a00",
+    "#3561ae",
+    "#8e9692",
+    "#a66549",
+    "#7d82db",
+    "#00a2b6",
+    "#24b682",
+    "#9e00aa",
+    "#08ba39",
+    "#8a49ba",
+    "#75659e",
+    "#008e79",
+    "#5579c6",
+    "#927186",
+    "#558a41",
+    "#755171",
 ]
 
 
@@ -34,12 +146,24 @@ class SelectionHandlerBase:
 
     Parameters
     ----------
+    location : str, optional
+        The location for the handler's display element. Should be one of:
+        "top-left", "top-right", "bottom-left", "bottom-right",
+        "left-drawer", "right-drawer", "bottom-drawer".
+        Default is None.
+
+    order : int, optional
+        The stacking order within the location (0-100, lower values appear first).
+        Default is 50.
+
     dependencies : list, optional
         A list of URLs for external dependencies required by the selection handler. Default is an empty list.
 
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, location=None, order=50, **kwargs):
+        self.location = location
+        self.order = order if order is not None else 50
         if "dependencies" in kwargs:
             self.dependencies = kwargs["dependencies"]
         else:
@@ -79,11 +203,20 @@ class DisplaySample(SelectionHandlerBase):
     """
 
     @cfg.complete(unconfigurable={"self", "n_samples"})
-    def __init__(self, n_samples=256, font_family=None, cdn_url="unpkg.com", other_triggers=None, **kwargs):
+    def __init__(
+        self,
+        n_samples=256,
+        font_family=None,
+        location="right-drawer",
+        order=10,
+        cdn_url="unpkg.com",
+        other_triggers=None,
+        **kwargs,
+    ):
         super().__init__(
-            dependencies=[
-                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"
-            ],
+            location=location,
+            order=order,
+            dependencies=[f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js"],
             **kwargs,
         )
         self.n_samples = n_samples
@@ -93,10 +226,61 @@ class DisplaySample(SelectionHandlerBase):
     @property
     def javascript(self):
         result = f"""
-const resampleButton = document.getElementsByClassName("resample-button")[0]
-const clearSelectionButton = document.getElementsByClassName("clear-selection-button")[0]
-resampleButton.onclick = resampleSelection
-clearSelectionButton.onclick = clearSelection
+// Find or create container in stack
+function findStackContainer(location) {{
+    let stack = document.getElementsByClassName("stack " + location)[0];
+    if (!stack && location.includes("drawer")) {{
+        // Extract drawer direction (e.g., "right" from "right-drawer")
+        const drawerDirection = location.replace("-drawer", "");
+        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+        if (drawer) {{
+            stack = drawer;
+        }}
+    }}
+    return stack;
+}}
+
+function ensureSelectionContainer() {{
+    let selectionContainer = document.getElementById("selection-container");
+    
+    if (!selectionContainer) {{
+        const stackContainer = findStackContainer("{self.location}");
+        if (!stackContainer) {{
+            console.warn("Stack container for {self.location} not found yet");
+            return null;
+        }}
+        
+        selectionContainer = document.createElement("div");
+        selectionContainer.id = "selection-container";
+        selectionContainer.className = "container-box more-opaque stack-box";
+        selectionContainer.style.display = "none";
+        selectionContainer.dataset.order = "{self.order}";
+        
+        // Create buttons and display div
+        const resampleButton = document.createElement("button");
+        resampleButton.className = "button resample-button";
+        resampleButton.textContent = "Resample";
+        resampleButton.onclick = resampleSelection;
+        
+        const clearSelectionButton = document.createElement("button");
+        clearSelectionButton.className = "button clear-selection-button";
+        clearSelectionButton.onclick = clearSelection;
+        
+        const selectionDisplayDiv = document.createElement("div");
+        selectionDisplayDiv.id = "selection-display";
+        
+        selectionContainer.appendChild(resampleButton);
+        selectionContainer.appendChild(clearSelectionButton);
+        selectionContainer.appendChild(selectionDisplayDiv);
+        
+        stackContainer.appendChild(selectionContainer);
+    }}
+    
+    return selectionContainer;
+}}
+
+// Ensure container exists (will be created on first selection if not ready now)
+ensureSelectionContainer();
 
 const shuffle = ([...arr]) => {{
   let m = arr.length;
@@ -110,15 +294,22 @@ const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
 
 function samplerCallback(selectedPoints) {{
     const n_samples = {self.n_samples};
+    const selectionContainer = ensureSelectionContainer();
+    
+    if (!selectionContainer) {{
+        console.warn("Selection container not available yet");
+        return;
+    }}
+    
     if (selectedPoints.length == 0) {{
-        const selectionContainer = document.getElementById('selection-container');
         selectionContainer.style.display = 'none';
         return;       
     }}
+    
     if (selectedPoints.length > n_samples) {{
         selectedPoints = sampleSize(selectedPoints, n_samples);
     }}
-    const selectionContainer = document.getElementById('selection-container');
+    
     const selectionDisplayDiv = document.getElementById('selection-display');
     var listItems = document.createElement('ul');
     while (selectionDisplayDiv.firstChild) {{
@@ -132,7 +323,13 @@ function samplerCallback(selectedPoints) {{
         listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
     }}
     selectionDisplayDiv.appendChild(listItems);
-    $(selectionContainer).animate({{width:'show'}}, 500);
+    selectionContainer.style.display = 'block';
+    
+    // Open drawer if in drawer location
+    if ("{self.location}".includes("drawer") && window.drawerManager) {{
+        const drawerDirection = "{self.location}".replace("-drawer", "");
+        window.drawerManager.openDrawer(drawerDirection);
+    }}
 }}
 
 function resampleSelection() {{
@@ -141,7 +338,9 @@ function resampleSelection() {{
     if (selectedPoints.length > n_samples) {{
         selectedPoints = sampleSize(selectedPoints, n_samples);
     }}
-    const selectionContainer = document.getElementById('selection-container');
+    const selectionContainer = ensureSelectionContainer();
+    if (!selectionContainer) return;
+    
     const selectionDisplayDiv = document.getElementById('selection-display');
     var listItems = document.createElement('ul');
     while (selectionDisplayDiv.firstChild) {{
@@ -158,8 +357,16 @@ function resampleSelection() {{
 }}
 
 function clearSelection() {{
-    const selectionContainer = document.getElementById('selection-container');
-    $(selectionContainer).animate({{width:'hide'}}, 500);
+    const selectionContainer = ensureSelectionContainer();
+    if (!selectionContainer) return;
+    
+    selectionContainer.style.display = 'none';
+    
+    // Close drawer if in drawer location
+    if ("{self.location}".includes("drawer") && window.drawerManager) {{
+        const drawerDirection = "{self.location}".replace("-drawer", "");
+        window.drawerManager.closeDrawer(drawerDirection);
+    }}
 
     datamap.removeSelection(datamap.lassoSelectionItemId);
 }}
@@ -170,7 +377,7 @@ await datamap.addSelectionHandler(samplerCallback);
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(samplerCallback, "{trigger}");\n"""
         return result
-    
+
     @property
     def css(self):
         if self.font_family:
@@ -180,17 +387,11 @@ await datamap.addSelectionHandler(samplerCallback);
         return f"""
     #selection-container {{
         display: none;
-        position: absolute;
-        top: 0;
-        right: 0;
-        height: 95%;
-        max-width: 33%;
-        z-index: 10;
         {font_family_str}
     }}
     #selection-display {{
         overflow-y: auto;
-        max-height: 95%;
+        max-height: 80vh;
         margin: 8px;
     }}
     .button {{
@@ -223,13 +424,7 @@ await datamap.addSelectionHandler(samplerCallback);
 
     @property
     def html(self):
-        return f"""
-    <div id="selection-container" class="container-box more-opaque">
-        <button class="button resample-button">Resample</button>
-        <button class="button clear-selection-button"></button>
-        <div id="selection-display"></div>
-    </div>
-        """
+        return ""  # Container created dynamically in JavaScript
 
 
 class WordCloud(SelectionHandlerBase):
@@ -287,11 +482,14 @@ class WordCloud(SelectionHandlerBase):
         use_idf=False,
         color_scale="YlGnBu",
         location="bottom-right",
+        order=50,
         cdn_url="unpkg.com",
         other_triggers=None,
         **kwargs,
     ):
         super().__init__(
+            location=location,
+            order=order,
             dependencies=[
                 f"https://{cdn_url}/d3@latest/dist/d3.min.js",
                 f"https://{cdn_url}/d3-cloud@1.2.7/build/d3.layout.cloud.js",
@@ -306,7 +504,6 @@ class WordCloud(SelectionHandlerBase):
         self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
         self.n_rotations = min(22, n_rotations)
         self.use_idf = str(use_idf).lower()
-        self.location = location
         if color_scale.endswith("_r"):
             self.color_scale = string.capwords(color_scale[:1]) + color_scale[1:-2]
             self.color_scale_reversed = True
@@ -324,6 +521,7 @@ let wordCloudStackContainer = document.getElementsByClassName("stack {self.locat
 const wordCloudItem = document.createElement("div");
 wordCloudItem.id = "word-cloud";
 wordCloudItem.className = "container-box more-opaque stack-box";
+wordCloudItem.dataset.order = "{self.order}";
 wordCloudStackContainer.appendChild(wordCloudItem);
 
 const wordCloudSvg = d3.select("#word-cloud").append("svg")
@@ -480,7 +678,7 @@ await datamap.addSelectionHandler(debounce(wordCloudCallback, 100));
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(debounce(wordCloudCallback, 100), "{trigger}");\n"""
         return result
- 
+
     @property
     def html(self):
         # return """<div id="word-cloud" class="container-box more-opaque"></div>"""
@@ -547,11 +745,14 @@ class CohereSummary(SelectionHandlerBase):
         n_samples=64,
         width=500,
         location="top-right",
+        order=50,
         cdn_url="unpkg.com",
         other_triggers=None,
         **kwargs,
     ):
         super().__init__(
+            location=location,
+            order=order,
             dependencies=[
                 f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
             ],
@@ -562,7 +763,6 @@ class CohereSummary(SelectionHandlerBase):
         self.n_keywords = n_keywords
         self.n_samples = n_samples
         self.width = width
-        self.location = location
         self.other_triggers = other_triggers
 
     @property
@@ -573,6 +773,7 @@ const _STOPWORDS = new Set({self.stop_words});
 const cohereStackContainer = document.getElementsByClassName("stack {self.location}")[0];
 const summaryLayout = document.createElement("div");
 summaryLayout.id = "layout-container";
+summaryLayout.dataset.order = "{self.order}";
 const apiContainer = document.createElement("div");
 apiContainer.id = "api-key-container";
 apiContainer.className = "container-box more-opaque stack-box";
@@ -684,7 +885,7 @@ await datamap.addSelectionHandler(cohereSummaryCallback);
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(cohereSummaryCallback, "{trigger}");\n"""
         return result
-    
+
     @property
     def html(self):
         return ""
@@ -731,20 +932,28 @@ class TagSelection(SelectionHandlerBase):
         A list of colors to use for the tags. Default is a set of default colors extending the tab10 palette.
 
     location : str, optional
-        The location of the tag container on the page. Default is "top-right".  
+        The location of the tag container on the page. Default is "top-right".
         Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
 
     max_height : str, optional
-        The maximum height of the tag container as a CSS descriptor string. Default is "95%".      
+        The maximum height of the tag container as a CSS descriptor string. Default is "95%".
     """
 
-    def __init__(self, tag_colors=None, location="top-right", width=308, max_height="80vh", other_triggers=None, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        tag_colors=None,
+        location="top-right",
+        order=50,
+        width=308,
+        max_height="80vh",
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(location=location, order=order, **kwargs)
         if tag_colors is None:
             self.tag_colors = _DEFAULT_TAG_COLORS
         else:
             self.tag_colors = tag_colors
-        self.location = location
         self.width = width
         self.max_height = max_height
         self.other_triggers = other_triggers
@@ -761,6 +970,7 @@ class TagSelection(SelectionHandlerBase):
     const tagContainer = document.createElement("div");
     tagContainer.id = "tag-container";
     tagContainer.className = "container-box more-opaque stack-box";
+    tagContainer.dataset.order = "{self.order}";
     const newTagSpan = document.createElement("span");
     const tagButton = document.createElement("button");
     tagButton.id = "new-tag-button";

@@ -84,6 +84,7 @@ from datamapplot.widget_helpers import (
     widgets_from_legacy_params,
     group_widgets_by_location,
     get_drawer_enabled,
+    update_drawer_enabled_for_handlers,
     collect_widget_dependencies,
     legacy_widget_flags_from_widgets,
     collect_widget_data,
@@ -1117,6 +1118,11 @@ def render_html(
 
         # Determine which drawers should be enabled
         drawer_enabled = get_drawer_enabled(widgets_by_location)
+
+        # Update drawer enablement for selection handlers
+        drawer_enabled = update_drawer_enabled_for_handlers(
+            drawer_enabled, selection_handler
+        )
 
         # Collect widget CSS and JS
         for widget in all_widgets:

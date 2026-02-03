@@ -14,8 +14,6 @@
   /* Account for padding */
   pointer-events: none;
   /* pass pointer events through */
-  /* Transitions for drawer push effect */
-  transition: transform 0.3s ease-in-out;
 }
 
 .stack {
