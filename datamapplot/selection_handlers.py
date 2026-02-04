@@ -2477,7 +2477,15 @@ histogramContainer.appendChild(warningContainer);
 // Append container to DOM BEFORE creating D3 SVG
 histogramStackContainer.appendChild(histogramContainer);
 
-const histogramSvg = d3.select("#histogram-container").append("svg")
+// Create SVG wrapper for animated resizing
+const svgWrapper = document.createElement("div");
+svgWrapper.id = "histogram-svg-wrapper";
+svgWrapper.className = "histogram-svg-wrapper";
+svgWrapper.style.height = "0px"; // Start collapsed
+svgWrapper.style.overflow = "hidden";
+histogramContainer.appendChild(svgWrapper);
+
+const histogramSvg = d3.select("#histogram-svg-wrapper").append("svg")
     .attr("width", {self.width})
     .attr("height", {self.height})
     .attr("class", "histogram-svg");
@@ -2495,6 +2503,38 @@ const chartWidth = {self.width} - margin.left - margin.right;
 const chartHeight = {self.height} - margin.top - margin.bottom;
 
 // ============ Utility Functions ============
+
+// Calculate required SVG height based on mode and field count
+function calculateSvgHeight(mode, numFields) {{
+    if (numFields === 0) return 0;
+    
+    const baseHeight = {self.height};
+    const marginVertical = margin.top + margin.bottom;
+    
+    switch(mode) {{
+        case 'small-multiples':
+        case 'separate':
+            // Stack vertically - each chart needs minimum height
+            const minHeightPerChart = 100; // Minimum pixels per chart (more compact)
+            const gapBetween = 10;
+            const totalGaps = Math.max(0, numFields - 1) * gapBetween;
+            const requiredHeight = (minHeightPerChart * numFields) + totalGaps + marginVertical;
+            // Use at least baseHeight, but expand if needed
+            return Math.max(baseHeight - 20, requiredHeight); // -20px buffer
+        case 'faceted':
+            // Side by side - standard height with buffer
+            return baseHeight - 20;
+        default:
+            // Overlaid, normalized, grouped - standard height with buffer
+            return baseHeight - 20;
+    }}
+}}
+
+// Update SVG wrapper height with animation
+function updateSvgHeight(height) {{
+    svgWrapper.style.height = height + "px";
+    histogramSvg.attr("height", height);
+}}
 
 // Get consistent color for a field
 function getFieldColor(field) {{
@@ -2534,10 +2574,11 @@ function removeField(field) {{
         renderChips();
         updateFieldSelector();  // Update dropdown to include this field again
         updateModeOptions();
-        if (currentSelection.length > 0) {{
-            renderHistogram(currentSelection);
-        }} else {{
+        if (selectedFields.length === 0 || currentSelection.length === 0) {{
             histogramSvg.selectAll("*").remove();
+            updateSvgHeight(0);  // Collapse container
+        }} else if (currentSelection.length > 0) {{
+            renderHistogram(currentSelection);
         }}
     }}
 }}
@@ -2732,12 +2773,17 @@ function updateFieldSelector() {{
 
 // Render histogram
 function renderHistogram(selectedPoints) {{
-    if (selectedFields.length === 0) {{
+    if (selectedFields.length === 0 || selectedPoints.length === 0) {{
         histogramSvg.selectAll("*").remove();
+        updateSvgHeight(0);  // Collapse container
         return;
     }}
     
     currentSelection = selectedPoints;
+    
+    // Calculate and set appropriate height
+    const requiredHeight = calculateSvgHeight(currentMode, selectedFields.length);
+    updateSvgHeight(requiredHeight);
     
     // Clear previous render
     histogramSvg.selectAll("*").remove();
@@ -2911,7 +2957,10 @@ function renderOverlaidCategorical(g, fieldsData) {{
 // Separate mode: Individual charts stacked vertically
 function renderSeparate(selectedPoints) {{
     const numFields = selectedFields.length;
-    const chartHeightEach = (chartHeight - (numFields - 1) * 10) / numFields;  // 10px gap
+    // Use actual SVG height minus margins
+    const currentSvgHeight = parseInt(histogramSvg.attr("height"));
+    const availableHeight = currentSvgHeight - margin.top - margin.bottom;
+    const chartHeightEach = (availableHeight - (numFields - 1) * 10) / numFields;  // 10px gap
     
     selectedFields.forEach((field, i) => {{
         const values = selectedPoints.map(idx => datamap.metaData[field][idx]).filter(v => v !== null);
@@ -3408,6 +3457,7 @@ function histogramCallback(selectedPoints) {{
     
     if (selectedPoints.length === 0) {{
         histogramSvg.selectAll("*").remove();
+        updateSvgHeight(0);  // Collapse container when no selection
         return;
     }}
     
@@ -3416,15 +3466,9 @@ function histogramCallback(selectedPoints) {{
 
 await datamap.addSelectionHandler(histogramCallback);
 
-// Initialize fields on load
+// Initialize fields on load (container starts collapsed)
 if (datamap.metaData) {{
     initializeFields();
-    // Optionally render histogram with all points on initial load
-    if ({str(self.show_comparison).lower()}) {{
-        // Show global distribution if comparison is enabled
-        const allPoints = Array.from({{length: datamap.metaData[currentField].length}}, (_, i) => i);
-        renderHistogram(allPoints);
-    }}
 }}
 """
         if self.other_triggers:
@@ -3438,8 +3482,7 @@ if (datamap.metaData) {{
 #histogram-container {{
     width: {self.width}px;
     padding: 12px;
-    max-height: 100%;
-    overflow-y: auto;
+    overflow: visible;
 }}
 
 .histogram-title {{
@@ -3523,6 +3566,11 @@ if (datamap.metaData) {{
     font-size: 11px;
     margin-bottom: 8px;
     color: #856404;
+}}
+
+.histogram-svg-wrapper {{
+    transition: height 0.3s ease-in-out;
+    overflow: hidden;
 }}
 
 .histogram-svg {{
