@@ -2409,12 +2409,13 @@ fieldSelector.id = "histogram-field-select";
 fieldSelector.className = "histogram-select";
 histogramContainer.appendChild(fieldSelector);
 
+// Append container to DOM BEFORE creating D3 SVG
+histogramStackContainer.appendChild(histogramContainer);
+
 const histogramSvg = d3.select("#histogram-container").append("svg")
     .attr("width", {self.width})
     .attr("height", {self.height})
     .attr("class", "histogram-svg");
-
-histogramStackContainer.appendChild(histogramContainer);
 
 let currentField = {field_js};
 let availableFields = [];
@@ -2711,6 +2712,17 @@ function histogramCallback(selectedPoints) {{
 }}
 
 await datamap.addSelectionHandler(histogramCallback);
+
+// Initialize fields on load
+if (datamap.metaData) {{
+    initializeFields();
+    // Optionally render histogram with all points on initial load
+    if ({str(self.show_comparison).lower()}) {{
+        // Show global distribution if comparison is enabled
+        const allPoints = Array.from({{length: datamap.metaData[currentField].length}}, (_, i) => i);
+        renderHistogram(allPoints);
+    }}
+}}
 """
         if self.other_triggers:
             for trigger in self.other_triggers:
