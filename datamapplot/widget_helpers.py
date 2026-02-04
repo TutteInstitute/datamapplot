@@ -30,6 +30,7 @@ VALID_LOCATIONS = [
     "bottom-right",
     "drawer-left",
     "drawer-right",
+    "drawer-bottom",
 ]
 
 
@@ -451,11 +452,12 @@ def get_drawer_enabled(grouped_widgets: Dict[str, List[WidgetBase]]) -> Dict[str
     Returns
     -------
     dict
-        Dictionary with keys "left" and "right" indicating drawer enablement
+        Dictionary with keys "left", "right", and "bottom" indicating drawer enablement
     """
     return {
         "left": len(grouped_widgets.get("drawer-left", [])) > 0,
         "right": len(grouped_widgets.get("drawer-right", [])) > 0,
+        "bottom": len(grouped_widgets.get("drawer-bottom", [])) > 0,
     }
 
 
@@ -474,7 +476,7 @@ def update_drawer_enabled_for_handlers(
     Returns
     -------
     dict
-        Updated dictionary with keys "left" and "right" indicating drawer enablement
+        Updated dictionary with keys "left", "right", and "bottom" indicating drawer enablement
     """
     from datamapplot.selection_handlers import SelectionHandlerBase
     from collections.abc import Iterable
@@ -501,6 +503,8 @@ def update_drawer_enabled_for_handlers(
                 result["left"] = True
             elif handler.location == "right-drawer":
                 result["right"] = True
+            elif handler.location == "bottom-drawer":
+                result["bottom"] = True
 
     return result
 

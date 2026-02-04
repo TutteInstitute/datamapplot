@@ -25,6 +25,18 @@
     <span class="icon">◀</span>
   </div>
   {% endif %}
+
+  {# Bottom drawer #}
+  {% if drawer_enabled.bottom %}
+  <div class="drawer-container drawer-bottom">
+    {%- for widget in widgets_by_location.get('drawer-bottom', []) %}
+    {{ widget.html | safe }}
+    {%- endfor %}
+  </div>
+  <div class="drawer-handle bottom">
+    <span class="icon">▲</span>
+  </div>
+  {% endif %}
   
   <div class="content-wrapper" style="position: relative; z-index: 1;">
     {# Top-left stack #}

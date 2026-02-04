@@ -66,6 +66,7 @@ from datamapplot.interactive_helpers import (
     get_js_dependency_sources,
     get_css_dependency_sources,
     get_js_dependency_urls,
+    get_css_dependency_urls,
     compute_percentile_bounds,
     cmap_name_to_color_list,
     array_to_colors,
@@ -1149,7 +1150,9 @@ def render_html(
         encoded_widget_data = encode_widget_data(raw_widget_data, len(point_data))
 
     # Determine if drawers are enabled (for dependency loading)
-    enable_drawers = drawer_enabled["left"] or drawer_enabled["right"]
+    enable_drawers = (
+        drawer_enabled["left"] or drawer_enabled["right"] or drawer_enabled["bottom"]
+    )
 
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
@@ -1159,6 +1162,9 @@ def render_html(
             enable_colormap_selector,
             selection_handler,
             cdn_url=cdn_url,
+        ),
+        "css_dependency_urls": get_css_dependency_urls(
+            selection_handler,
         ),
         "js_dependency_srcs": get_js_dependency_sources(
             minify_deps,

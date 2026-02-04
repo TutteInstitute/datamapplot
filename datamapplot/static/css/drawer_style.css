@@ -10,7 +10,7 @@
     z-index: 100;
     overflow-y: auto;
     overflow-x: hidden;
-    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out;
+    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
     display: flex;
     flex-direction: column;
     gap: 0;
@@ -41,8 +41,29 @@
     transform: translateX(0);
 }
 
-/* Default drawer width */
-.drawer-container {
+/* Bottom drawer positioning */
+.drawer-bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 350px !important;
+    max-height: 50vh !important;
+    transform: translateY(100%);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    top: auto !important;
+    border-right: none;
+    border-left: none;
+}
+
+.drawer-bottom.open {
+    transform: translateY(0);
+}
+
+/* Default drawer width (only for left/right) */
+.drawer-left,
+.drawer-right {
     width: 400px;
     max-width: 90vw;
 }
@@ -102,6 +123,24 @@
     right: 400px;
 }
 
+/* Bottom drawer handle - starts at bottom edge, curves up */
+.drawer-handle.bottom {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 32px;
+    border-radius: 8px 8px 0 0;
+    border-bottom: none;
+    top: auto;
+}
+
+/* When bottom drawer is open, handle moves with drawer */
+.drawer-handle.bottom.drawer-open {
+    bottom: 350px;
+    transform: translateX(-50%);
+}
+
 /* Handle icon - arrow pointing inward when closed, outward when open */
 .drawer-handle .icon {
     transition: transform 0.3s ease;
@@ -126,9 +165,18 @@
     transform: rotate(180deg);
 }
 
+/* Bottom handle: ▲ when closed (pointing up/inward), ▼ when open (pointing down/outward) */
+.drawer-handle.bottom .icon {
+    /* Default: pointing up (into drawer) */
+}
+
+.drawer-handle.bottom.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
 /* Content wrapper resizing when drawer opens */
 .content-wrapper {
-    transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out, width 0.3s ease-in-out;
+    transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out, margin-bottom 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
 }
 
 .content-wrapper.drawer-left-open {
@@ -139,6 +187,11 @@
 .content-wrapper.drawer-right-open {
     margin-right: 400px;
     width: calc(100% - 400px);
+}
+
+.content-wrapper.drawer-bottom-open {
+    margin-bottom: 350px;
+    height: calc(100% - 350px);
 }
 
 /* Widgets inside drawers */
@@ -183,6 +236,11 @@ body.darkmode .drawer-left {
 .darkmode .drawer-right,
 body.darkmode .drawer-right {
     border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkmode .drawer-bottom,
+body.darkmode .drawer-bottom {
+    border-top-color: rgba(255, 255, 255, 0.1);
 }
 
 .darkmode .drawer-handle,

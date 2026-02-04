@@ -11,27 +11,34 @@ class DrawerManager {
      * @param {Object} options - Configuration options
      * @param {boolean} options.leftEnabled - Whether left drawer is enabled
      * @param {boolean} options.rightEnabled - Whether right drawer is enabled
+     * @param {boolean} options.bottomEnabled - Whether bottom drawer is enabled
      * @param {boolean} options.persistState - Whether to save drawer state to localStorage
      * @param {number} options.drawerWidth - Width of drawer in pixels (default: 400)
+     * @param {number} options.drawerHeight - Height of bottom drawer in pixels (default: 350)
      */
     constructor(options = {}) {
         this.options = {
             leftEnabled: options.leftEnabled || false,
             rightEnabled: options.rightEnabled || false,
+            bottomEnabled: options.bottomEnabled || false,
             persistState: options.persistState !== undefined ? options.persistState : true,
             drawerWidth: options.drawerWidth || 400,
+            drawerHeight: options.drawerHeight || 350,
         };
 
         this.state = {
             leftOpen: false,
             rightOpen: false,
+            bottomOpen: false,
         };
 
         this.elements = {
             leftDrawer: null,
             rightDrawer: null,
+            bottomDrawer: null,
             leftHandle: null,
             rightHandle: null,
+            bottomHandle: null,
             contentWrapper: null,
         };
 
@@ -45,8 +52,10 @@ class DrawerManager {
         // Get DOM elements
         this.elements.leftDrawer = document.querySelector('.drawer-container.drawer-left');
         this.elements.rightDrawer = document.querySelector('.drawer-container.drawer-right');
+        this.elements.bottomDrawer = document.querySelector('.drawer-container.drawer-bottom');
         this.elements.leftHandle = document.querySelector('.drawer-handle.left');
         this.elements.rightHandle = document.querySelector('.drawer-handle.right');
+        this.elements.bottomHandle = document.querySelector('.drawer-handle.bottom');
         this.elements.contentWrapper = document.querySelector('.content-wrapper');
 
         // Setup event listeners
@@ -76,6 +85,12 @@ class DrawerManager {
                 this.toggleDrawer('right');
             });
         }
+
+        if (this.options.bottomEnabled && this.elements.bottomHandle) {
+            this.elements.bottomHandle.addEventListener('click', () => {
+                this.toggleDrawer('bottom');
+            });
+        }
     }
 
     /**
@@ -85,7 +100,7 @@ class DrawerManager {
         document.addEventListener('keydown', (e) => {
             // Escape key closes all drawers
             if (e.key === 'Escape') {
-                if (this.state.leftOpen || this.state.rightOpen) {
+                if (this.state.leftOpen || this.state.rightOpen || this.state.bottomOpen) {
                     this.closeAll();
                     e.preventDefault();
                 }
@@ -106,13 +121,21 @@ class DrawerManager {
                     e.preventDefault();
                 }
             }
+
+            // Ctrl/Cmd + \\ toggles bottom drawer
+            if ((e.ctrlKey || e.metaKey) && e.key === '\\\\') {
+                if (this.options.bottomEnabled) {
+                    this.toggleDrawer('bottom');
+                    e.preventDefault();
+                }
+            }
         });
     }
 
     /**
      * Toggle a drawer open/closed
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      */
     toggleDrawer(side) {
         if (side === 'left' && this.options.leftEnabled) {
@@ -121,6 +144,9 @@ class DrawerManager {
         } else if (side === 'right' && this.options.rightEnabled) {
             this.state.rightOpen = !this.state.rightOpen;
             this.updateDrawer('right');
+        } else if (side === 'bottom' && this.options.bottomEnabled) {
+            this.state.bottomOpen = !this.state.bottomOpen;
+            this.updateDrawer('bottom');
         }
 
         this.updateContentWrapper();
@@ -136,11 +162,12 @@ class DrawerManager {
     /**
      * Open a specific drawer
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      */
     openDrawer(side) {
         if ((side === 'left' && this.options.leftEnabled) ||
-            (side === 'right' && this.options.rightEnabled)) {
+            (side === 'right' && this.options.rightEnabled) ||
+            (side === 'bottom' && this.options.bottomEnabled)) {
             if (!this.state[`${side}Open`]) {
                 this.toggleDrawer(side);
             }
@@ -150,11 +177,12 @@ class DrawerManager {
     /**
      * Close a specific drawer
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      */
     closeDrawer(side) {
         if ((side === 'left' && this.options.leftEnabled) ||
-            (side === 'right' && this.options.rightEnabled)) {
+            (side === 'right' && this.options.rightEnabled) ||
+            (side === 'bottom' && this.options.bottomEnabled)) {
             if (this.state[`${side}Open`]) {
                 this.toggleDrawer(side);
             }
@@ -171,12 +199,15 @@ class DrawerManager {
         if (this.state.rightOpen) {
             this.closeDrawer('right');
         }
+        if (this.state.bottomOpen) {
+            this.closeDrawer('bottom');
+        }
     }
 
     /**
      * Update drawer and handle visual state
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      */
     updateDrawer(side) {
         const drawer = this.elements[`${side}Drawer`];
@@ -207,7 +238,7 @@ class DrawerManager {
         if (!this.elements.contentWrapper) return;
 
         // Remove all drawer-open classes
-        this.elements.contentWrapper.classList.remove('drawer-left-open', 'drawer-right-open');
+        this.elements.contentWrapper.classList.remove('drawer-left-open', 'drawer-right-open', 'drawer-bottom-open');
 
         // Add appropriate class based on state
         if (this.state.leftOpen) {
@@ -215,6 +246,9 @@ class DrawerManager {
         }
         if (this.state.rightOpen) {
             this.elements.contentWrapper.classList.add('drawer-right-open');
+        }
+        if (this.state.bottomOpen) {
+            this.elements.contentWrapper.classList.add('drawer-bottom-open');
         }
     }
 
@@ -226,6 +260,7 @@ class DrawerManager {
             const state = {
                 leftOpen: this.state.leftOpen,
                 rightOpen: this.state.rightOpen,
+                bottomOpen: this.state.bottomOpen,
             };
             localStorage.setItem('datamapplot-drawer-state', JSON.stringify(state));
         } catch (e) {
@@ -252,6 +287,11 @@ class DrawerManager {
                     this.updateDrawer('right');
                 }
 
+                if (state.bottomOpen && this.options.bottomEnabled) {
+                    this.state.bottomOpen = true;
+                    this.updateDrawer('bottom');
+                }
+
                 this.updateContentWrapper();
             }
         } catch (e) {
@@ -262,7 +302,7 @@ class DrawerManager {
     /**
      * Fire a custom event when drawer state changes
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      * @param {boolean} isOpen - Whether drawer is now open
      */
     fireDrawerEvent(side, isOpen) {
@@ -288,7 +328,7 @@ class DrawerManager {
     /**
      * Check if a specific drawer is open
      * 
-     * @param {string} side - 'left' or 'right'
+     * @param {string} side - 'left', 'right', or 'bottom'
      * @returns {boolean} Whether the drawer is open
      */
     isOpen(side) {

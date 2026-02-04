@@ -350,9 +350,15 @@ def get_js_dependency_urls(
     if selection_handler is not None:
         if isinstance(selection_handler, Iterable):
             for handler in selection_handler:
-                js_dependency_urls.extend(handler.dependencies)
+                # Only include JS files, filter out CSS
+                for dep in handler.dependencies:
+                    if not dep.endswith(".css"):
+                        js_dependency_urls.append(dep)
         elif isinstance(selection_handler, SelectionHandlerBase):
-            js_dependency_urls.extend(selection_handler.dependencies)
+            # Only include JS files, filter out CSS
+            for dep in selection_handler.dependencies:
+                if not dep.endswith(".css"):
+                    js_dependency_urls.append(dep)
         else:
             raise ValueError(
                 "The selection_handler must be an instance of SelectionHandlerBase "
@@ -360,6 +366,45 @@ def get_js_dependency_urls(
             )
 
     return list(set(js_dependency_urls))
+
+
+def get_css_dependency_urls(selection_handler=None):
+    """
+    Gather the necessary CSS dependency URLs from selection handlers.
+
+    Parameters
+    ----------
+    selection_handler : SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
+        The selection handler(s) to use for managing data selection.
+
+    Returns
+    -------
+    list
+        A list of URLs that point to the required CSS dependencies.
+    """
+    from datamapplot.selection_handlers import SelectionHandlerBase
+
+    css_dependency_urls = []
+
+    if selection_handler is not None:
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                # Only include CSS files
+                for dep in handler.dependencies:
+                    if dep.endswith(".css"):
+                        css_dependency_urls.append(dep)
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            # Only include CSS files
+            for dep in selection_handler.dependencies:
+                if dep.endswith(".css"):
+                    css_dependency_urls.append(dep)
+        else:
+            raise ValueError(
+                "The selection_handler must be an instance of SelectionHandlerBase "
+                "or an iterable of SelectionHandlerBase instances."
+            )
+
+    return list(set(css_dependency_urls))
 
 
 # =============================================================================

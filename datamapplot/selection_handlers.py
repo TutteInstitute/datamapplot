@@ -1209,6 +1209,10 @@ class DataTable(SelectionHandlerBase):
     in a tabular format, allowing users to sort by any column, paginate through results, and
     export the data to CSV or JSON formats.
 
+    The table is fully responsive and will adapt to the available space, with horizontal
+    scrolling for wide tables. The "bottom-drawer" location is particularly well-suited for
+    tables as it provides maximum width for viewing many columns.
+
     Parameters
     ----------
     columns : list of str or None, optional
@@ -1221,7 +1225,8 @@ class DataTable(SelectionHandlerBase):
     location : str, optional
         The location of the table container on the page. Default is "right-drawer".
         Should be one of "top-left", "top-right", "bottom-left", "bottom-right",
-        "left-drawer", "right-drawer", or "bottom-drawer".
+        "left-drawer", "right-drawer", or "bottom-drawer". Note: "bottom-drawer" is
+        recommended for tables with many columns as it provides the most horizontal space.
 
     order : int, optional
         The stacking order within the location. Default is 20.
@@ -1262,10 +1267,13 @@ class DataTable(SelectionHandlerBase):
             order=order,
             dependencies=[
                 f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
-                "https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js",
+                # DataTables JS loaded dynamically after jQuery - see javascript property
                 "https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css",
             ],
             **kwargs,
+        )
+        self.datatables_js_url = (
+            "https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
         )
         self.columns = columns
         self.max_rows_per_page = max_rows_per_page
@@ -1412,16 +1420,21 @@ async function dataTableCallback(selectedPoints) {{
         }});
     }}
     
-    // Wait for DataTables to be loaded
+    // Dynamically load DataTables library after jQuery is ready
     if (typeof $.fn.DataTable === 'undefined') {{
-        console.log('Waiting for DataTables to load...');
-        await new Promise(resolve => {{
-            const checkDataTables = setInterval(() => {{
-                if (typeof $.fn.DataTable !== 'undefined') {{
-                    clearInterval(checkDataTables);
-                    resolve();
-                }}
-            }}, 100);
+        console.log('Loading DataTables library...');
+        await new Promise((resolve, reject) => {{
+            const script = document.createElement('script');
+            script.src = '{self.datatables_js_url}';
+            script.onload = () => {{
+                console.log('DataTables loaded successfully');
+                resolve();
+            }};
+            script.onerror = () => {{
+                console.error('Failed to load DataTables');
+                reject(new Error('Failed to load DataTables'));
+            }};
+            document.head.appendChild(script);
         }});
     }}
     
@@ -1459,6 +1472,16 @@ async function dataTableCallback(selectedPoints) {{
         return row;
     }});
     
+    // Calculate responsive scroll height based on location
+    let scrollHeight = '60vh';
+    if ("{self.location}".includes("bottom")) {{
+        // For bottom drawer (350px), account for controls, padding, and pagination
+        // Drawer height 350px - padding 32px - controls ~40px - pagination ~50px = ~228px
+        scrollHeight = '200px';
+    }} else if ("{self.location}".includes("drawer")) {{
+        scrollHeight = '50vh';
+    }}
+    
     // Initialize DataTables
     dataTable = $('#selection-table').DataTable({{
         data: tableData,
@@ -1470,8 +1493,9 @@ async function dataTableCallback(selectedPoints) {{
         info: true,
         autoWidth: false,
         scrollX: true,
-        scrollY: '60vh',
+        scrollY: scrollHeight,
         scrollCollapse: true,
+        responsive: true,
         columnDefs: [
             {{
                 targets: '_all',
@@ -1503,15 +1527,18 @@ await datamap.addSelectionHandler(dataTableCallback);
     def css(self):
         return f"""
 #data-table-container {{
-    width: {self.width}px;
-    max-width: 95vw;
+    width: 100%;
+    max-width: 100%;
     padding: 12px;
+    box-sizing: border-box;
+    overflow: hidden;
 }}
 
 .table-controls {{
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
+    flex-wrap: wrap;
 }}
 
 .table-button {{
@@ -1530,11 +1557,18 @@ await datamap.addSelectionHandler(dataTableCallback);
 
 .table-wrapper {{
     width: 100%;
+    overflow-x: auto;
 }}
 
 /* DataTables overrides for better integration */
 #selection-table {{
     font-size: 12px;
+    width: 100% !important;
+}}
+
+.dataTables_wrapper {{
+    width: 100%;
+    overflow-x: auto;
 }}
 
 .dataTables_wrapper .dataTables_length,
@@ -1543,6 +1577,23 @@ await datamap.addSelectionHandler(dataTableCallback);
 .dataTables_wrapper .dataTables_paginate {{
     font-size: 12px;
     margin-top: 8px;
+}}
+
+/* Responsive adjustments for different drawer locations */
+.drawer-bottom #data-table-container {{
+    max-height: 300px;
+    height: auto;
+}}
+
+.drawer-right #data-table-container,
+.drawer-left #data-table-container {{
+    min-width: 400px;
+}}
+
+/* Stack containers */
+.stack #data-table-container {{
+    min-width: 350px;
+    max-width: min(800px, 95vw);
 }}
 """
 

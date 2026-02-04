@@ -26,6 +26,10 @@
   href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
   rel="stylesheet"
 />
+{# External CSS dependencies from selection handlers #}
+{% for url in css_dependency_urls -%}
+<link rel="stylesheet" href="{{ url }}" />
+{% endfor -%}
 {% if offline_mode %}
 <script>
   // Function to decode and evaluate base64 encoded scripts
