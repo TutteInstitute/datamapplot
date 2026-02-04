@@ -2306,22 +2306,41 @@ body.darkmode .stats-item strong {{
 
 
 class Histogram(SelectionHandlerBase):
-    """A selection handler that displays a histogram or bar chart showing the distribution
-    of selected data across a specified field. For categorical fields, displays a bar chart
-    of category frequencies. For numeric fields, displays a histogram with configurable bins.
-    Optionally compares the selection distribution to the overall dataset distribution.
+    """A selection handler that displays histograms or bar charts showing the distribution
+    of selected data across one or more fields. Supports multiple visualization modes for
+    comparing distributions across fields.
+
+    For categorical fields, displays bar charts of category frequencies. For numeric fields,
+    displays histograms with configurable bins. Supports up to 5 fields simultaneously with
+    various display modes:
+
+    - **Small Multiples**: Separate stacked subplots for each field
+    - **Overlaid**: Semi-transparent overlapping histograms on shared axes
+    - **Normalized**: All histograms scaled to 0-1 range for comparison
+    - **Grouped Bars**: Side-by-side bars (for categorical data)
+    - **Separate Charts**: Individual bar charts stacked vertically (categorical)
+    - **Faceted**: Side-by-side small bar charts (categorical)
 
     Parameters
     ----------
-    field : str or None, optional
-        The metadata field to create the histogram for. If None, will use the first
-        available non-hover_text field. Default is None.
+    field : str, list of str, or None, optional
+        The metadata field(s) to create histograms for. Can be a single field name,
+        a list of field names, or None. If None, starts with first available non-hover_text
+        field. Default is None.
 
     bins : int, optional
         Number of bins for numeric field histograms. Default is 20.
 
+    max_fields : int, optional
+        Maximum number of fields that can be displayed simultaneously. Default is 5.
+
+    default_mode : str, optional
+        Default visualization mode. Options: "overlaid", "small-multiples", "normalized",
+        "grouped", "separate", "faceted". Default is "overlaid".
+
     show_comparison : bool, optional
-        Whether to show the overall dataset distribution for comparison. Default is True.
+        Whether to show the overall dataset distribution for comparison (deprecated in
+        multi-field mode). Default is False.
 
     max_categories : int, optional
         Maximum number of categories to show in categorical bar charts. Default is 10.
@@ -2337,7 +2356,7 @@ class Histogram(SelectionHandlerBase):
         The width of the histogram container in pixels. Default is 500.
 
     height : int, optional
-        The height of the histogram chart in pixels. Default is 300.
+        The height of the histogram chart in pixels. Default is 400.
 
     **kwargs
         Additional keyword arguments to pass to the SelectionHandlerBase constructor.
@@ -2348,12 +2367,14 @@ class Histogram(SelectionHandlerBase):
         self,
         field=None,
         bins=20,
-        show_comparison=True,
+        max_fields=5,
+        default_mode="overlaid",
+        show_comparison=False,
         max_categories=10,
         location="bottom-right",
         order=40,
         width=500,
-        height=300,
+        height=400,
         cdn_url="unpkg.com",
         other_triggers=None,
         **kwargs,
@@ -2366,8 +2387,17 @@ class Histogram(SelectionHandlerBase):
             ],
             **kwargs,
         )
-        self.field = field
+        # Support both single field and list of fields
+        if isinstance(field, list):
+            self.initial_fields = field
+        elif field is not None:
+            self.initial_fields = [field]
+        else:
+            self.initial_fields = []
+
         self.bins = bins
+        self.max_fields = max_fields
+        self.default_mode = default_mode
         self.show_comparison = show_comparison
         self.max_categories = max_categories
         self.width = width
@@ -2376,10 +2406,16 @@ class Histogram(SelectionHandlerBase):
 
     @property
     def javascript(self):
-        field_js = "null" if self.field is None else f'"{self.field}"'
+        initial_fields_js = str(self.initial_fields)  # Python list becomes JS array
 
         result = f"""
-// Histogram handler
+// Histogram handler - Multi-field visualization
+// Tableau 10 color palette
+const TABLEAU_COLORS = [
+    '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
+    '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'
+];
+
 // Helper to find stack container or drawer
 function findStackContainer(location) {{
     let stack = document.getElementsByClassName("stack " + location)[0];
@@ -2404,10 +2440,39 @@ histogramTitle.className = "histogram-title";
 histogramTitle.textContent = "Distribution";
 histogramContainer.appendChild(histogramTitle);
 
+// Field selector controls wrapper
+const controlsWrapper = document.createElement("div");
+controlsWrapper.className = "histogram-controls";
+histogramContainer.appendChild(controlsWrapper);
+
+// Add field dropdown
 const fieldSelector = document.createElement("select");
 fieldSelector.id = "histogram-field-select";
 fieldSelector.className = "histogram-select";
-histogramContainer.appendChild(fieldSelector);
+const defaultOption = document.createElement("option");
+defaultOption.value = "";
+defaultOption.textContent = "➕ Add field...";
+fieldSelector.appendChild(defaultOption);
+controlsWrapper.appendChild(fieldSelector);
+
+// Mode selector dropdown
+const modeSelector = document.createElement("select");
+modeSelector.id = "histogram-mode-select";
+modeSelector.className = "histogram-mode-select";
+controlsWrapper.appendChild(modeSelector);
+
+// Chip container
+const chipContainer = document.createElement("div");
+chipContainer.id = "histogram-chips";
+chipContainer.className = "histogram-chips";
+histogramContainer.appendChild(chipContainer);
+
+// Warning message area
+const warningContainer = document.createElement("div");
+warningContainer.id = "histogram-warning";
+warningContainer.className = "histogram-warning";
+warningContainer.style.display = "none";
+histogramContainer.appendChild(warningContainer);
 
 // Append container to DOM BEFORE creating D3 SVG
 histogramStackContainer.appendChild(histogramContainer);
@@ -2417,14 +2482,150 @@ const histogramSvg = d3.select("#histogram-container").append("svg")
     .attr("height", {self.height})
     .attr("class", "histogram-svg");
 
-let currentField = {field_js};
+// State variables
+let selectedFields = {initial_fields_js};
 let availableFields = [];
-let globalDistribution = {{}};
+let fieldColors = {{}};
+let currentMode = "{self.default_mode}";
 let currentSelection = [];
+const MAX_FIELDS = {self.max_fields};
 
 const margin = {{top: 20, right: 20, bottom: 40, left: 50}};
 const chartWidth = {self.width} - margin.left - margin.right;
 const chartHeight = {self.height} - margin.top - margin.bottom;
+
+// ============ Utility Functions ============
+
+// Get consistent color for a field
+function getFieldColor(field) {{
+    if (!fieldColors[field]) {{
+        const colorIndex = Object.keys(fieldColors).length % TABLEAU_COLORS.length;
+        fieldColors[field] = TABLEAU_COLORS[colorIndex];
+    }}
+    return fieldColors[field];
+}}
+
+// Add a field to selection
+function addField(field) {{
+    if (!field || selectedFields.includes(field)) return;
+    if (selectedFields.length >= MAX_FIELDS) {{
+        warningContainer.textContent = `Maximum ${{MAX_FIELDS}} fields allowed`;
+        warningContainer.style.display = "block";
+        setTimeout(() => {{ warningContainer.style.display = "none"; }}, 3000);
+        return;
+    }}
+    selectedFields.push(field);
+    getFieldColor(field); // Assign color
+    renderChips();
+    updateFieldSelector();  // Update dropdown to exclude this field
+    updateModeOptions();
+    if (currentSelection.length > 0) {{
+        renderHistogram(currentSelection);
+    }}
+    // Reset dropdown
+    fieldSelector.value = "";
+}}
+
+// Remove a field from selection
+function removeField(field) {{
+    const index = selectedFields.indexOf(field);
+    if (index > -1) {{
+        selectedFields.splice(index, 1);
+        renderChips();
+        updateFieldSelector();  // Update dropdown to include this field again
+        updateModeOptions();
+        if (currentSelection.length > 0) {{
+            renderHistogram(currentSelection);
+        }} else {{
+            histogramSvg.selectAll("*").remove();
+        }}
+    }}
+}}
+
+// Render chip/tag elements
+function renderChips() {{
+    chipContainer.innerHTML = "";
+    if (selectedFields.length === 0) {{
+        chipContainer.style.display = "none";
+        return;
+    }}
+    chipContainer.style.display = "flex";
+    
+    selectedFields.forEach(field => {{
+        const chip = document.createElement("div");
+        chip.className = "histogram-chip";
+        chip.style.backgroundColor = getFieldColor(field);
+        chip.style.color = "#fff";
+        
+        const label = document.createElement("span");
+        label.textContent = field;
+        chip.appendChild(label);
+        
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "chip-remove";
+        removeBtn.innerHTML = "×";
+        removeBtn.onclick = (e) => {{
+            e.stopPropagation();
+            removeField(field);
+        }};
+        chip.appendChild(removeBtn);
+        
+        chipContainer.appendChild(chip);
+    }});
+}}
+
+// Update available visualization modes based on selected field types
+function updateModeOptions() {{
+    if (selectedFields.length === 0) {{
+        modeSelector.style.display = "none";
+        return;
+    }}
+    modeSelector.style.display = "inline-block";
+    
+    // Detect field types
+    let allNumeric = true;
+    let allCategorical = true;
+    
+    selectedFields.forEach(field => {{
+        if (!datamap.metaData || !datamap.metaData[field]) return;
+        const values = datamap.metaData[field].slice(0, 100);
+        const numericCount = values.filter(v => !isNaN(Number(v)) && v !== null && v !== '').length;
+        const isNumeric = numericCount / values.length > 0.8;
+        
+        if (isNumeric) allCategorical = false;
+        else allNumeric = false;
+    }});
+    
+    // Build mode options
+    modeSelector.innerHTML = "";
+    
+    if (allNumeric) {{
+        addModeOption("overlaid", "Overlaid");
+        addModeOption("small-multiples", "Small Multiples");
+        addModeOption("normalized", "Normalized");
+    }} else if (allCategorical) {{
+        addModeOption("grouped", "Grouped Bars");
+        addModeOption("separate", "Separate Charts");
+        addModeOption("faceted", "Faceted");
+    }} else {{
+        // Mixed types - show generic options
+        addModeOption("small-multiples", "Small Multiples");
+        addModeOption("separate", "Separate");
+    }}
+    
+    // Set current mode if valid, otherwise first option
+    if (!Array.from(modeSelector.options).some(opt => opt.value === currentMode)) {{
+        currentMode = modeSelector.options[0].value;
+    }}
+    modeSelector.value = currentMode;
+}}
+
+function addModeOption(value, label) {{
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    modeSelector.appendChild(option);
+}}
 
 // Detect field type
 function isNumericField(values) {{
@@ -2479,63 +2680,565 @@ function initializeFields() {{
     
     if (availableFields.length === 0) return;
     
-    // Set current field if not specified
-    if (currentField === null && availableFields.length > 0) {{
-        currentField = availableFields[0];
-    }}
+    // Populate field selector dropdown (excluding already selected)
+    updateFieldSelector();
     
-    // Populate field selector
-    fieldSelector.innerHTML = availableFields
-        .map(field => `<option value="${{field}}" ${{field === currentField ? 'selected' : ''}}>${{field}}</option>`)
-        .join('');
-    
+    // Set up event handlers
     fieldSelector.onchange = (e) => {{
-        currentField = e.target.value;
+        if (e.target.value) {{
+            addField(e.target.value);
+        }}
+    }};
+    
+    modeSelector.onchange = (e) => {{
+        currentMode = e.target.value;
         if (currentSelection.length > 0) {{
             renderHistogram(currentSelection);
         }}
     }};
     
-    // Compute global distributions
-    if ({str(self.show_comparison).lower()}) {{
-        availableFields.forEach(field => {{
-            const values = datamap.metaData[field];
-            if (isNumericField(values)) {{
-                globalDistribution[field] = {{
-                    type: 'numeric',
-                    bins: createHistogramBins(values, {self.bins})
-                }};
-            }} else {{
-                globalDistribution[field] = {{
-                    type: 'categorical',
-                    distribution: createCategoricalDistribution(values, {self.max_categories})
-                }};
-            }}
-        }});
+    // Initialize with specified fields or first available
+    if (selectedFields.length === 0 && availableFields.length > 0) {{
+        selectedFields = [availableFields[0]];
+        getFieldColor(selectedFields[0]);
     }}
+    
+    renderChips();
+    updateModeOptions();
 }}
+
+// Update field selector to exclude already selected fields
+function updateFieldSelector() {{
+    // Keep the default "Add field..." option
+    const currentValue = fieldSelector.value;
+    const defaultOption = fieldSelector.options[0];
+    fieldSelector.innerHTML = "";
+    fieldSelector.appendChild(defaultOption);
+    
+    // Add available fields that aren't already selected
+    availableFields
+        .filter(field => !selectedFields.includes(field))
+        .forEach(field => {{
+            const option = document.createElement("option");
+            option.value = field;
+            option.textContent = field;
+            fieldSelector.appendChild(option);
+        }});
+    
+    fieldSelector.value = "";  // Reset to default
+}}
+
+// ============ Main Rendering Functions ============
 
 // Render histogram
 function renderHistogram(selectedPoints) {{
-    if (!currentField || !datamap.metaData[currentField]) {{
+    if (selectedFields.length === 0) {{
         histogramSvg.selectAll("*").remove();
         return;
     }}
     
-    const selectedValues = selectedPoints.map(i => datamap.metaData[currentField][i]);
-    const isNumeric = isNumericField(selectedValues);
+    currentSelection = selectedPoints;
     
+    // Clear previous render
     histogramSvg.selectAll("*").remove();
     
+    // Check for range warnings (numeric fields only)
+    checkRangeWarnings(selectedPoints);
+    
+    // Route to appropriate renderer based on mode
+    switch(currentMode) {{
+        case 'overlaid':
+            renderOverlaid(selectedPoints);
+            break;
+        case 'small-multiples':
+            renderSmallMultiples(selectedPoints);
+            break;
+        case 'normalized':
+            renderNormalized(selectedPoints);
+            break;
+        case 'grouped':
+            renderGroupedBars(selectedPoints);
+            break;
+        case 'separate':
+            renderSeparate(selectedPoints);
+            break;
+        case 'faceted':
+            renderFaceted(selectedPoints);
+            break;
+        default:
+            renderOverlaid(selectedPoints);
+    }}
+}}
+
+// Check if numeric ranges differ significantly
+function checkRangeWarnings(selectedPoints) {{
+    const numericFields = selectedFields.filter(field => {{
+        if (!datamap.metaData || !datamap.metaData[field]) return false;
+        const values = selectedPoints.map(i => datamap.metaData[field][i]).filter(v => v !== null);
+        return isNumericField(values);
+    }});
+    
+    if (numericFields.length < 2) {{
+        warningContainer.style.display = "none";
+        return;
+    }}
+    
+    // Calculate range ratios
+    const ranges = numericFields.map(field => {{
+        const values = selectedPoints
+            .map(i => datamap.metaData[field][i])
+            .map(Number)
+            .filter(v => !isNaN(v));
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        return max - min;
+    }});
+    
+    const maxRange = Math.max(...ranges);
+    const minRange = Math.min(...ranges.filter(r => r > 0));
+    
+    if (maxRange / minRange > 100 && currentMode === 'overlaid') {{
+        warningContainer.textContent = "⚠ Field ranges differ significantly. Consider 'Normalized' or 'Small Multiples' mode.";
+        warningContainer.style.display = "block";
+    }} else {{
+        warningContainer.style.display = "none";
+    }}
+}}
+
+// ============ Rendering Mode Implementations ============
+
+// Overlaid mode: Semi-transparent overlapping histograms
+function renderOverlaid(selectedPoints) {{
     const g = histogramSvg.append("g")
         .attr("transform", `translate(${{margin.left}},${{margin.top}})`);
     
-    if (isNumeric) {{
-        renderNumericHistogram(g, selectedValues);
+    // Collect data for all fields
+    const fieldsData = selectedFields.map(field => {{
+        const values = selectedPoints.map(i => datamap.metaData[field][i]).filter(v => v !== null);
+        const isNumeric = isNumericField(values);
+        
+        if (isNumeric) {{
+            return {{
+                field,
+                type: 'numeric',
+                values,
+                bins: createHistogramBins(values, {self.bins}),
+                color: getFieldColor(field)
+            }};
+        }} else {{
+            return {{
+                field,
+                type: 'categorical',
+                values,
+                distribution: createCategoricalDistribution(values, {self.max_categories}),
+                color: getFieldColor(field)
+            }};
+        }}
+    }});
+    
+    // Check if all numeric or all categorical
+    const allNumeric = fieldsData.every(d => d.type === 'numeric');
+    const allCategorical = fieldsData.every(d => d.type === 'categorical');
+    
+    if (allNumeric) {{
+        renderOverlaidNumeric(g, fieldsData);
+    }} else if (allCategorical) {{
+        renderOverlaidCategorical(g, fieldsData);
     }} else {{
-        renderCategoricalChart(g, selectedValues);
+        // Mixed types - fall back to separate
+        renderSeparate(selectedPoints);
     }}
 }}
+
+// Overlaid numeric histograms
+function renderOverlaidNumeric(g, fieldsData) {{
+    // Find global min/max across all fields
+    const allBins = fieldsData.flatMap(d => d.bins);
+    const globalMin = Math.min(...allBins.map(b => b.x0));
+    const globalMax = Math.max(...allBins.map(b => b.x1));
+    
+    const x = d3.scaleLinear()
+        .domain([globalMin, globalMax])
+        .range([0, chartWidth]);
+    
+    const maxCount = Math.max(...allBins.map(b => b.count));
+    const y = d3.scaleLinear()
+        .domain([0, maxCount])
+        .range([chartHeight, 0]);
+    
+    // Draw each field's histogram
+    fieldsData.forEach(fieldData => {{
+        g.selectAll(`.bar-${{fieldData.field.replace(/[^a-zA-Z0-9]/g, '_')}}`)
+            .data(fieldData.bins)
+            .enter().append("rect")
+            .attr("class", `bar-${{fieldData.field.replace(/[^a-zA-Z0-9]/g, '_')}}`)
+            .attr("x", d => x(d.x0))
+            .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+            .attr("y", d => y(d.count))
+            .attr("height", d => chartHeight - y(d.count))
+            .attr("fill", fieldData.color)
+            .attr("opacity", 0.6);
+    }});
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{chartHeight}})`)
+        .call(d3.axisBottom(x).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    // Y-axis label
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text("Count");
+}}
+
+// Overlaid categorical (grouped bars)
+function renderOverlaidCategorical(g, fieldsData) {{
+    // For categorical, overlaid mode shows grouped bars
+    renderGroupedBarsInternal(g, fieldsData);
+}}
+
+// Separate mode: Individual charts stacked vertically
+function renderSeparate(selectedPoints) {{
+    const numFields = selectedFields.length;
+    const chartHeightEach = (chartHeight - (numFields - 1) * 10) / numFields;  // 10px gap
+    
+    selectedFields.forEach((field, i) => {{
+        const values = selectedPoints.map(idx => datamap.metaData[field][idx]).filter(v => v !== null);
+        const isNumeric = isNumericField(values);
+        
+        const g = histogramSvg.append("g")
+            .attr("transform", `translate(${{margin.left}},${{margin.top + i * (chartHeightEach + 10)}})`);
+        
+        if (isNumeric) {{
+            renderSingleNumericHistogram(g, field, values, chartHeightEach);
+        }} else {{
+            renderSingleCategoricalChart(g, field, values, chartHeightEach);
+        }}
+    }});
+}}
+
+// Single numeric histogram for separate/small multiples mode
+function renderSingleNumericHistogram(g, field, values, height) {{
+    const bins = createHistogramBins(values, {self.bins});
+    
+    const x = d3.scaleLinear()
+        .domain([bins[0].x0, bins[bins.length - 1].x1])
+        .range([0, chartWidth]);
+    
+    const y = d3.scaleLinear()
+        .domain([0, Math.max(...bins.map(b => b.count))])
+        .range([height, 0]);
+    
+    // Bars
+    g.selectAll(".bar")
+        .data(bins)
+        .enter().append("rect")
+        .attr("class", "bar")
+        .attr("x", d => x(d.x0))
+        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+        .attr("y", d => y(d.count))
+        .attr("height", d => height - y(d.count))
+        .attr("fill", getFieldColor(field));
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{height}})`)
+        .call(d3.axisBottom(x).ticks(3))
+        .selectAll("text")
+        .style("font-size", "9px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(3))
+        .selectAll("text")
+        .style("font-size", "9px");
+    
+    // Field label
+    g.append("text")
+        .attr("x", chartWidth / 2)
+        .attr("y", -5)
+        .attr("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("font-weight", "bold")
+        .style("fill", getFieldColor(field))
+        .text(field);
+}}
+
+// Single categorical chart for separate mode
+function renderSingleCategoricalChart(g, field, values, height) {{
+    const distribution = createCategoricalDistribution(values, {self.max_categories});
+    
+    const x = d3.scaleBand()
+        .domain(distribution.map(d => d.category))
+        .range([0, chartWidth])
+        .padding(0.2);
+    
+    const y = d3.scaleLinear()
+        .domain([0, Math.max(...distribution.map(d => d.count))])
+        .range([height, 0]);
+    
+    // Bars
+    g.selectAll(".bar")
+        .data(distribution)
+        .enter().append("rect")
+        .attr("class", "bar")
+        .attr("x", d => x(d.category))
+        .attr("width", x.bandwidth())
+        .attr("y", d => y(d.count))
+        .attr("height", d => height - y(d.count))
+        .attr("fill", getFieldColor(field));
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{height}})`)
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end")
+        .style("font-size", "8px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(3))
+        .selectAll("text")
+        .style("font-size", "9px");
+    
+    // Field label
+    g.append("text")
+        .attr("x", chartWidth / 2)
+        .attr("y", -5)
+        .attr("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("font-weight", "bold")
+        .style("fill", getFieldColor(field))
+        .text(field);
+}}
+
+// Small Multiples mode (alias for separate with better spacing)
+function renderSmallMultiples(selectedPoints) {{
+    renderSeparate(selectedPoints);
+}}
+
+// Normalized mode: Scale all to 0-1
+function renderNormalized(selectedPoints) {{
+    const g = histogramSvg.append("g")
+        .attr("transform", `translate(${{margin.left}},${{margin.top}})`);
+    
+    // Collect and normalize data
+    const fieldsData = selectedFields.map(field => {{
+        const values = selectedPoints.map(i => datamap.metaData[field][i]).filter(v => v !== null);
+        const bins = createHistogramBins(values, {self.bins});
+        
+        // Normalize to 0-1
+        const maxCount = Math.max(...bins.map(b => b.count));
+        const normalizedBins = bins.map(b => ({{
+            ...b,
+            normalizedCount: maxCount > 0 ? b.count / maxCount : 0
+        }}));
+        
+        return {{
+            field,
+            bins: normalizedBins,
+            color: getFieldColor(field)
+        }};
+    }});
+    
+    // Common scale (0-1 for normalized data)
+    const y = d3.scaleLinear()
+        .domain([0, 1])
+        .range([chartHeight, 0]);
+    
+    // Each field gets its own x-scale based on its data range
+    fieldsData.forEach(fieldData => {{
+        const bins = fieldData.bins;
+        const x = d3.scaleLinear()
+            .domain([bins[0].x0, bins[bins.length - 1].x1])
+            .range([0, chartWidth]);
+        
+        g.selectAll(`.bar-${{fieldData.field.replace(/[^a-zA-Z0-9]/g, '_')}}`)
+            .data(bins)
+            .enter().append("rect")
+            .attr("x", d => x(d.x0))
+            .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+            .attr("y", d => y(d.normalizedCount))
+            .attr("height", d => chartHeight - y(d.normalizedCount))
+            .attr("fill", fieldData.color)
+            .attr("opacity", 0.6);
+    }});
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{chartHeight}})`)
+        .call(d3.axisBottom(d3.scaleLinear().domain([0, 1]).range([0, chartWidth])).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(5).tickFormat(d => `${{(d * 100).toFixed(0)}}%`))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    // Labels
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text("Normalized (%)");
+}}
+
+// Grouped Bars mode (for categorical)
+function renderGroupedBars(selectedPoints) {{
+    const g = histogramSvg.append("g")
+        .attr("transform", `translate(${{margin.left}},${{margin.top}})`);
+    
+    const fieldsData = selectedFields.map(field => {{
+        const values = selectedPoints.map(i => datamap.metaData[field][i]).filter(v => v !== null);
+        return {{
+            field,
+            distribution: createCategoricalDistribution(values, {self.max_categories}),
+            color: getFieldColor(field)
+        }};
+    }});
+    
+    renderGroupedBarsInternal(g, fieldsData);
+}}
+
+function renderGroupedBarsInternal(g, fieldsData) {{
+    // Get all unique categories across all fields
+    const allCategories = [...new Set(fieldsData.flatMap(d => d.distribution.map(item => item.category)))];
+    
+    // Create map of field -> category -> count
+    const dataMap = new Map();
+    fieldsData.forEach(fd => {{
+        const countMap = new Map(fd.distribution.map(d => [d.category, d.count]));
+        dataMap.set(fd.field, countMap);
+    }});
+    
+    // Scales
+    const x0 = d3.scaleBand()
+        .domain(allCategories)
+        .range([0, chartWidth])
+        .padding(0.2);
+    
+    const x1 = d3.scaleBand()
+        .domain(selectedFields)
+        .range([0, x0.bandwidth()])
+        .padding(0.05);
+    
+    const maxCount = Math.max(...fieldsData.flatMap(fd => fd.distribution.map(d => d.count)));
+    const y = d3.scaleLinear()
+        .domain([0, maxCount])
+        .range([chartHeight, 0]);
+    
+    // Draw grouped bars
+    allCategories.forEach(category => {{
+        const categoryGroup = g.append("g")
+            .attr("transform", `translate(${{x0(category)}}+0)`);
+        
+        selectedFields.forEach(field => {{
+            const count = dataMap.get(field).get(category) || 0;
+            categoryGroup.append("rect")
+                .attr("x", x1(field))
+                .attr("y", y(count))
+                .attr("width", x1.bandwidth())
+                .attr("height", chartHeight - y(count))
+                .attr("fill", getFieldColor(field));
+        }});
+    }});
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{chartHeight}})`)
+        .call(d3.axisBottom(x0))
+        .selectAll("text")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end")
+        .style("font-size", "9px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    // Y-axis label
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text("Count");
+}}
+
+// Faceted mode (side-by-side for categorical)
+function renderFaceted(selectedPoints) {{
+    const numFields = selectedFields.length;
+    const facetWidth = (chartWidth - (numFields - 1) * 10) / numFields;
+    
+    selectedFields.forEach((field, i) => {{
+        const values = selectedPoints.map(idx => datamap.metaData[field][idx]).filter(v => v !== null);
+        const distribution = createCategoricalDistribution(values, {self.max_categories});
+        
+        const g = histogramSvg.append("g")
+            .attr("transform", `translate(${{margin.left + i * (facetWidth + 10)}},${{margin.top}})`);
+        
+        const x = d3.scaleBand()
+            .domain(distribution.map(d => d.category))
+            .range([0, facetWidth])
+            .padding(0.2);
+        
+        const y = d3.scaleLinear()
+            .domain([0, Math.max(...distribution.map(d => d.count))])
+            .range([chartHeight, 0]);
+        
+        // Bars
+        g.selectAll(".bar")
+            .data(distribution)
+            .enter().append("rect")
+            .attr("x", d => x(d.category))
+            .attr("width", x.bandwidth())
+            .attr("y", d => y(d.count))
+            .attr("height", d => chartHeight - y(d.count))
+            .attr("fill", getFieldColor(field));
+        
+        // Axes
+        g.append("g")
+            .attr("transform", `translate(0,${{chartHeight}})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .attr("transform", "rotate(-45)")
+            .style("text-anchor", "end")
+            .style("font-size", "8px");
+        
+        g.append("g")
+            .call(d3.axisLeft(y).ticks(3))
+            .selectAll("text")
+            .style("font-size", "9px");
+        
+        // Field label
+        g.append("text")
+            .attr("x", facetWidth / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .style("font-size", "10px")
+            .style("font-weight", "bold")
+            .style("fill", getFieldColor(field))
+            .text(field);
+    }});
+}}
+
+// ============ Legacy Render Functions (now unused) ============
 
 // Render numeric histogram
 function renderNumericHistogram(g, values) {{
@@ -2735,6 +3438,8 @@ if (datamap.metaData) {{
 #histogram-container {{
     width: {self.width}px;
     padding: 12px;
+    max-height: 100%;
+    overflow-y: auto;
 }}
 
 .histogram-title {{
@@ -2743,14 +3448,81 @@ if (datamap.metaData) {{
     margin-bottom: 8px;
 }}
 
+.histogram-controls {{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}}
+
 .histogram-select {{
-    width: 100%;
+    flex: 1;
+    min-width: 120px;
     padding: 4px 8px;
-    margin-bottom: 12px;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: white;
     font-size: 12px;
+}}
+
+.histogram-mode-select {{
+    flex: 0 0 auto;
+    min-width: 130px;
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 12px;
+}}
+
+.histogram-chips {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}}
+
+.histogram-chip {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}}
+
+.histogram-chip span {{
+    color: inherit;
+}}
+
+.chip-remove {{
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    opacity: 0.8;
+}}
+
+.chip-remove:hover {{
+    opacity: 1;
+    transform: scale(1.2);
+}}
+
+.histogram-warning {{
+    padding: 6px 10px;
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    font-size: 11px;
+    margin-bottom: 8px;
+    color: #856404;
 }}
 
 .histogram-svg {{
@@ -2763,10 +3535,19 @@ if (datamap.metaData) {{
 
 /* Dark mode support */
 .darkmode .histogram-select,
-body.darkmode .histogram-select {{
+body.darkmode .histogram-select,
+.darkmode .histogram-mode-select,
+body.darkmode .histogram-mode-select {{
     background-color: #2d2d2d;
     color: #e0e0e0;
     border-color: #555;
+}}
+
+.darkmode .histogram-warning,
+body.darkmode .histogram-warning {{
+    background-color: #3d3520;
+    border-color: #8a6d3b;
+    color: #f0e68c;
 }}
 
 .darkmode .histogram-svg text,
