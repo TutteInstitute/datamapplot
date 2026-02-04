@@ -19,6 +19,17 @@ from datamapplot.widget_helpers import (
     merge_widget_configs,
     create_widget_from_config,
 )
+from datamapplot.selection_handlers import (
+    SelectionHandlerBase,
+    DisplaySample,
+    WordCloud,
+    CohereSummary,
+    TagSelection,
+    DataTable,
+    ExportSelection,
+    Statistics,
+    Histogram,
+)
 from importlib.metadata import version, PackageNotFoundError
 
 try:
@@ -47,4 +58,14 @@ __all__ = [
     "validate_widget_layout",
     "merge_widget_configs",
     "create_widget_from_config",
+    # Selection handlers
+    "SelectionHandlerBase",
+    "DisplaySample",
+    "WordCloud",
+    "CohereSummary",
+    "TagSelection",
+    "DataTable",
+    "ExportSelection",
+    "Statistics",
+    "Histogram",
 ]

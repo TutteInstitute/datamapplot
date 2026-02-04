@@ -1201,3 +1201,1524 @@ class TagSelection(SelectionHandlerBase):
   margin: 0px 16px;
 }}
     """
+
+
+class DataTable(SelectionHandlerBase):
+    """A selection handler that displays selected items in a sortable, filterable table with
+    pagination and download capabilities. This handler displays all available metadata columns
+    in a tabular format, allowing users to sort by any column, paginate through results, and
+    export the data to CSV or JSON formats.
+
+    Parameters
+    ----------
+    columns : list of str or None, optional
+        The list of metadata columns to display. If None, all available columns will be shown.
+        Default is None.
+
+    max_rows_per_page : int, optional
+        The maximum number of rows to display per page. Default is 50.
+
+    location : str, optional
+        The location of the table container on the page. Default is "right-drawer".
+        Should be one of "top-left", "top-right", "bottom-left", "bottom-right",
+        "left-drawer", "right-drawer", or "bottom-drawer".
+
+    order : int, optional
+        The stacking order within the location. Default is 20.
+
+    show_index : bool, optional
+        Whether to show the point index column. Default is True.
+
+    sortable : bool, optional
+        Whether columns should be sortable. Default is True.
+
+    download_formats : list of str, optional
+        The export formats to offer. Can include "csv" and/or "json". Default is ["csv", "json"].
+
+    width : int, optional
+        The width of the table container in pixels. Default is 700.
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+    """
+
+    @cfg.complete(unconfigurable={"self", "width", "max_rows_per_page"})
+    def __init__(
+        self,
+        columns=None,
+        max_rows_per_page=50,
+        location="right-drawer",
+        order=20,
+        show_index=True,
+        sortable=True,
+        download_formats=None,
+        width=700,
+        cdn_url="unpkg.com",
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(
+            location=location,
+            order=order,
+            dependencies=[
+                f"https://{cdn_url}/jquery@3.7.1/dist/jquery.min.js",
+                "https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js",
+                "https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css",
+            ],
+            **kwargs,
+        )
+        self.columns = columns
+        self.max_rows_per_page = max_rows_per_page
+        self.show_index = show_index
+        self.sortable = sortable
+        self.download_formats = download_formats or ["csv", "json"]
+        self.width = width
+        self.other_triggers = other_triggers
+
+    @property
+    def javascript(self):
+        columns_js = "null" if self.columns is None else str(self.columns)
+        result = f"""
+// DataTable selection handler using DataTables library
+// Helper to find stack container or drawer
+function findStackContainer(location) {{
+    let stack = document.getElementsByClassName("stack " + location)[0];
+    if (!stack && location.includes("drawer")) {{
+        const drawerDirection = location.replace("-drawer", "");
+        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+        if (drawer) {{
+            stack = drawer;
+        }}
+    }}
+    return stack;
+}}
+
+const dataTableStackContainer = findStackContainer("{self.location}");
+const dataTableContainer = document.createElement("div");
+dataTableContainer.id = "data-table-container";
+dataTableContainer.className = "container-box more-opaque stack-box";
+dataTableContainer.dataset.order = "{self.order}";
+
+// Download buttons
+const tableControls = document.createElement("div");
+tableControls.className = "table-controls";
+"""
+        if "csv" in self.download_formats:
+            result += """
+const csvButton = document.createElement("button");
+csvButton.className = "table-button";
+csvButton.textContent = "Download CSV";
+csvButton.onclick = () => downloadTableData('csv');
+tableControls.appendChild(csvButton);
+"""
+        if "json" in self.download_formats:
+            result += """
+const jsonButton = document.createElement("button");
+jsonButton.className = "table-button";
+jsonButton.textContent = "Download JSON";
+jsonButton.onclick = () => downloadTableData('json');
+tableControls.appendChild(jsonButton);
+"""
+        result += f"""
+
+dataTableContainer.appendChild(tableControls);
+
+// Table wrapper
+const tableWrapper = document.createElement("div");
+tableWrapper.className = "table-wrapper";
+const table = document.createElement("table");
+table.id = "selection-table";
+table.className = "display compact stripe";
+tableWrapper.appendChild(table);
+dataTableContainer.appendChild(tableWrapper);
+
+dataTableStackContainer.appendChild(dataTableContainer);
+
+// Table state
+let dataTable = null;
+let tableColumns = {columns_js};
+
+// Helper: Convert array of objects to CSV
+function arrayToCSV(data, columns) {{
+    if (data.length === 0) return '';
+    
+    const headers = columns.join(',');
+    const rows = data.map(row => 
+        columns.map(col => {{
+            const value = row[col];
+            if (value === null || value === undefined) return '';
+            const stringValue = String(value);
+            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\\n')) {{
+                return '"' + stringValue.replace(/"/g, '""') + '"';
+            }}
+            return stringValue;
+        }}).join(',')
+    );
+    return headers + '\\n' + rows.join('\\n');
+}}
+
+// Download table data
+function downloadTableData(format) {{
+    if (!dataTable) {{
+        alert('No data to download');
+        return;
+    }}
+    
+    const data = dataTable.rows().data().toArray();
+    if (data.length === 0) {{
+        alert('No data to download');
+        return;
+    }}
+    
+    let content, mimeType, filename;
+    
+    if (format === 'csv') {{
+        content = arrayToCSV(data, tableColumns);
+        mimeType = 'text/csv';
+        filename = 'selection_data.csv';
+    }} else if (format === 'json') {{
+        content = JSON.stringify(data, null, 2);
+        mimeType = 'application/json';
+        filename = 'selection_data.json';
+    }}
+    
+    const blob = new Blob([content], {{ type: mimeType }});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}}
+
+// DataTable callback
+async function dataTableCallback(selectedPoints) {{
+    if (!datamap.metaData) {{
+        return;
+    }}
+    
+    // Wait for jQuery to be loaded
+    if (typeof jQuery === 'undefined' || typeof $ === 'undefined') {{
+        console.log('Waiting for jQuery to load...');
+        await new Promise(resolve => {{
+            const checkJQuery = setInterval(() => {{
+                if (typeof jQuery !== 'undefined' && typeof $ !== 'undefined') {{
+                    clearInterval(checkJQuery);
+                    resolve();
+                }}
+            }}, 100);
+        }});
+    }}
+    
+    // Wait for DataTables to be loaded
+    if (typeof $.fn.DataTable === 'undefined') {{
+        console.log('Waiting for DataTables to load...');
+        await new Promise(resolve => {{
+            const checkDataTables = setInterval(() => {{
+                if (typeof $.fn.DataTable !== 'undefined') {{
+                    clearInterval(checkDataTables);
+                    resolve();
+                }}
+            }}, 100);
+        }});
+    }}
+    
+    // Destroy existing DataTable if it exists
+    if (dataTable) {{
+        dataTable.destroy();
+        $('#selection-table').empty();
+    }}
+    
+    if (selectedPoints.length === 0) {{
+        return;
+    }}
+    
+    // Determine columns if not specified
+    if (tableColumns === null) {{
+        tableColumns = Object.keys(datamap.metaData);
+        if ({str(self.show_index).lower()}) {{
+            tableColumns.unshift('index');
+        }}
+    }} else if ({str(self.show_index).lower()} && !tableColumns.includes('index')) {{
+        tableColumns = ['index', ...tableColumns];
+    }}
+    
+    // Build table data
+    const tableData = selectedPoints.map(index => {{
+        const row = {{}};
+        if ({str(self.show_index).lower()}) {{
+            row['index'] = index;
+        }}
+        tableColumns.forEach(col => {{
+            if (col !== 'index' && datamap.metaData[col]) {{
+                row[col] = datamap.metaData[col][index];
+            }}
+        }});
+        return row;
+    }});
+    
+    // Initialize DataTables
+    dataTable = $('#selection-table').DataTable({{
+        data: tableData,
+        columns: tableColumns.map(col => ({{ data: col, title: col }})),
+        pageLength: {self.max_rows_per_page},
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, \"All\"]],
+        ordering: {str(self.sortable).lower()},
+        searching: true,
+        info: true,
+        autoWidth: false,
+        scrollX: true,
+        scrollY: '60vh',
+        scrollCollapse: true,
+        columnDefs: [
+            {{
+                targets: '_all',
+                render: function(data, type, row) {{
+                    if (type === 'display' && data && String(data).length > 100) {{
+                        return '<span title=\"' + data + '\">' + String(data).substring(0, 97) + '...</span>';
+                    }}
+                    return data;
+                }}
+            }}
+        ]
+    }});
+    
+    // Open drawer if in drawer location
+    if ("{self.location}".includes("drawer") && window.drawerManager) {{
+        const drawerDirection = "{self.location}".replace("-drawer", "");
+        window.drawerManager.openDrawer(drawerDirection);
+    }}
+}}
+
+await datamap.addSelectionHandler(dataTableCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(dataTableCallback, "{trigger}");\n"""
+        return result
+
+    @property
+    def css(self):
+        return f"""
+#data-table-container {{
+    width: {self.width}px;
+    max-width: 95vw;
+    padding: 12px;
+}}
+
+.table-controls {{
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}}
+
+.table-button {{
+    padding: 4px 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}}
+
+.table-button:hover {{
+    background-color: #45a049;
+}}
+
+.table-wrapper {{
+    width: 100%;
+}}
+
+/* DataTables overrides for better integration */
+#selection-table {{
+    font-size: 12px;
+}}
+
+.dataTables_wrapper .dataTables_length,
+.dataTables_wrapper .dataTables_filter,
+.dataTables_wrapper .dataTables_info,
+.dataTables_wrapper .dataTables_paginate {{
+    font-size: 12px;
+    margin-top: 8px;
+}}
+"""
+
+    @property
+    def html(self):
+        return ""
+
+
+class ExportSelection(SelectionHandlerBase):
+    """A selection handler that provides simple export functionality for selected data.
+    Allows exporting selected point indices, hover text, or full metadata in various formats
+    including JSON, CSV, and TSV.
+
+    Parameters
+    ----------
+    export_format : str, optional
+        The default export format. One of "json", "csv", or "tsv". Default is "json".
+
+    include_metadata : bool, optional
+        Whether to include all metadata columns in the export. If False, only exports
+        indices and hover_text (if available). Default is True.
+
+    include_indices : bool, optional
+        Whether to include the point indices in the export. Default is True.
+
+    filename_prefix : str, optional
+        The prefix to use for downloaded filenames. Default is "selection".
+
+    location : str, optional
+        The location of the export button on the page. Default is "top-right".
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
+
+    order : int, optional
+        The stacking order within the location. Default is 10.
+
+    show_format_selector : bool, optional
+        Whether to show a dropdown to select export format. If False, uses export_format.
+        Default is True.
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+    """
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        export_format="json",
+        include_metadata=True,
+        include_indices=True,
+        filename_prefix="selection",
+        location="top-right",
+        order=10,
+        show_format_selector=True,
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(
+            location=location,
+            order=order,
+            **kwargs,
+        )
+        self.export_format = export_format
+        self.include_metadata = include_metadata
+        self.include_indices = include_indices
+        self.filename_prefix = filename_prefix
+        self.show_format_selector = show_format_selector
+        self.other_triggers = other_triggers
+
+    @property
+    def javascript(self):
+        result = f"""
+// ExportSelection handler
+// Helper to find stack container or drawer
+function findStackContainer(location) {{
+    let stack = document.getElementsByClassName("stack " + location)[0];
+    if (!stack && location.includes("drawer")) {{
+        const drawerDirection = location.replace("-drawer", "");
+        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+        if (drawer) {{
+            stack = drawer;
+        }}
+    }}
+    return stack;
+}}
+
+const exportStackContainer = findStackContainer("{self.location}");
+const exportContainer = document.createElement("div");
+exportContainer.id = "export-container";
+exportContainer.className = "container-box more-opaque stack-box";
+exportContainer.dataset.order = "{self.order}";
+
+const exportTitle = document.createElement("div");
+exportTitle.className = "export-title";
+exportTitle.textContent = "Export Selection";
+exportContainer.appendChild(exportTitle);
+
+const exportControls = document.createElement("div");
+exportControls.className = "export-controls";
+"""
+        if self.show_format_selector:
+            result += """
+const formatSelect = document.createElement("select");
+formatSelect.id = "export-format";
+formatSelect.className = "export-select";
+formatSelect.innerHTML = `
+    <option value="json">JSON</option>
+    <option value="csv">CSV</option>
+    <option value="tsv">TSV</option>
+`;
+"""
+            result += f"""formatSelect.value = "{self.export_format}";\nexportControls.appendChild(formatSelect);\n"""
+
+        result += """
+const exportButton = document.createElement("button");
+exportButton.id = "export-button";
+exportButton.className = "export-button";
+exportButton.textContent = "Export";
+exportButton.disabled = true;
+exportControls.appendChild(exportButton);
+
+exportContainer.appendChild(exportControls);
+
+const exportInfo = document.createElement("div");
+exportInfo.id = "export-info";
+exportInfo.className = "export-info";
+exportInfo.textContent = "No selection";
+exportContainer.appendChild(exportInfo);
+
+exportStackContainer.appendChild(exportContainer);
+
+let currentSelection = [];
+
+// Helper: Convert to CSV/TSV
+function arrayToDelimitedText(data, delimiter) {
+    if (data.length === 0) return '';
+    
+    const keys = Object.keys(data[0]);
+    const header = keys.join(delimiter);
+    const rows = data.map(row => 
+        keys.map(key => {
+            const value = row[key];
+            if (value === null || value === undefined) return '';
+            const stringValue = String(value);
+            // For CSV/TSV, escape if contains delimiter, quote, or newline
+            if (stringValue.includes(delimiter) || stringValue.includes('"') || stringValue.includes('\\n')) {
+                return '"' + stringValue.replace(/"/g, '""') + '"';
+            }
+            return stringValue;
+        }).join(delimiter)
+    );
+    return header + '\\n' + rows.join('\\n');
+}
+
+// Export function
+function exportSelectionData() {
+    if (currentSelection.length === 0) {
+        alert('No data to export');
+        return;
+    }
+    
+    if (!datamap.metaData) {
+        alert('Metadata not loaded yet');
+        return;
+    }
+    
+"""
+        format_expr = (
+            "formatSelect.value"
+            if self.show_format_selector
+            else f'"{self.export_format}"'
+        )
+        result += f"""    const format = {format_expr};
+    
+    // Build export data
+    const exportData = currentSelection.map(index => {{
+        const row = {{}};
+        """
+
+        if self.include_indices:
+            result += """
+        row['index'] = index;
+        """
+
+        if self.include_metadata:
+            result += """
+        // Include all metadata columns
+        Object.keys(datamap.metaData).forEach(col => {
+            row[col] = datamap.metaData[col][index];
+        });
+        """
+        else:
+            result += """
+        // Only include hover_text if available
+        if (datamap.metaData.hover_text) {
+            row['hover_text'] = datamap.metaData.hover_text[index];
+        }
+        """
+
+        result += f"""
+        return row;
+    }});
+    
+    let content, mimeType, extension;
+    
+    if (format === 'json') {{
+        content = JSON.stringify(exportData, null, 2);
+        mimeType = 'application/json';
+        extension = 'json';
+    }} else if (format === 'csv') {{
+        content = arrayToDelimitedText(exportData, ',');
+        mimeType = 'text/csv';
+        extension = 'csv';
+    }} else if (format === 'tsv') {{
+        content = arrayToDelimitedText(exportData, '\\t');
+        mimeType = 'text/tab-separated-values';
+        extension = 'tsv';
+    }}
+    
+    const blob = new Blob([content], {{ type: mimeType }});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '{self.filename_prefix}_' + currentSelection.length + '_items.' + extension;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}}
+
+exportButton.onclick = exportSelectionData;
+
+// Export callback
+function exportCallback(selectedPoints) {{
+    currentSelection = selectedPoints;
+    
+    if (selectedPoints.length === 0) {{
+        exportButton.disabled = true;
+        exportInfo.textContent = 'No selection';
+    }} else {{
+        exportButton.disabled = false;
+        exportInfo.textContent = `${{selectedPoints.length}} points selected`;
+    }}
+}}
+
+await datamap.addSelectionHandler(exportCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(exportCallback, "{trigger}");\n"""
+        return result
+
+    @property
+    def css(self):
+        return """
+#export-container {
+    padding: 12px;
+    width: fit-content;
+    min-width: 200px;
+}
+
+.export-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.export-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.export-select {
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 12px;
+}
+
+.export-button {
+    padding: 6px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.export-button:hover:not(:disabled) {
+    background-color: #45a049;
+}
+
+.export-button:disabled {
+    background-color: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+}
+
+.export-info {
+    font-size: 11px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Dark mode support */
+.darkmode .export-select,
+body.darkmode .export-select {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+.darkmode .export-info,
+body.darkmode .export-info {
+    color: #aaa;
+}
+"""
+
+    @property
+    def html(self):
+        return ""
+
+
+class Statistics(SelectionHandlerBase):
+    """A selection handler that displays statistical summaries of the selected data compared
+    to the overall dataset. Shows selection size, and if text data is available, provides
+    text statistics such as average word count and unique words. Can also compute statistics
+    for numeric columns if present in the metadata.
+
+    Parameters
+    ----------
+    numeric_columns : list of str or None, optional
+        List of numeric metadata columns to compute statistics for. If None, will attempt
+        to auto-detect numeric columns. Default is None.
+
+    categorical_columns : list of str or None, optional
+        List of categorical metadata columns to show distribution for. If None, no categorical
+        distributions are shown. Default is None.
+
+    show_text_stats : bool, optional
+        Whether to compute and show text statistics (word counts, unique words) from hover_text.
+        Default is True.
+
+    location : str, optional
+        The location of the statistics container on the page. Default is "top-right".
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
+
+    order : int, optional
+        The stacking order within the location. Default is 50.
+
+    width : int, optional
+        The width of the statistics container in pixels. Default is 350.
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+    """
+
+    @cfg.complete(unconfigurable={"self", "width"})
+    def __init__(
+        self,
+        numeric_columns=None,
+        categorical_columns=None,
+        show_text_stats=True,
+        location="top-right",
+        order=50,
+        width=350,
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(
+            location=location,
+            order=order,
+            **kwargs,
+        )
+        self.numeric_columns = numeric_columns
+        self.categorical_columns = categorical_columns
+        self.show_text_stats = show_text_stats
+        self.width = width
+        self.other_triggers = other_triggers
+
+    @property
+    def javascript(self):
+        numeric_cols_js = (
+            "null" if self.numeric_columns is None else str(self.numeric_columns)
+        )
+        categorical_cols_js = (
+            "null"
+            if self.categorical_columns is None
+            else str(self.categorical_columns)
+        )
+
+        result = f"""
+// Statistics handler
+// Helper to find stack container or drawer
+function findStackContainer(location) {{
+    let stack = document.getElementsByClassName("stack " + location)[0];
+    if (!stack && location.includes("drawer")) {{
+        const drawerDirection = location.replace("-drawer", "");
+        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+        if (drawer) {{
+            stack = drawer;
+        }}
+    }}
+    return stack;
+}}
+
+const statsStackContainer = findStackContainer("{self.location}");
+const statsContainer = document.createElement("div");
+statsContainer.id = "stats-container";
+statsContainer.className = "container-box more-opaque stack-box";
+statsContainer.dataset.order = "{self.order}";
+
+const statsTitle = document.createElement("div");
+statsTitle.className = "stats-title";
+statsTitle.textContent = "Selection Statistics";
+statsContainer.appendChild(statsTitle);
+
+const statsContent = document.createElement("div");
+statsContent.id = "stats-content";
+statsContent.className = "stats-content";
+statsContainer.appendChild(statsContent);
+
+statsStackContainer.appendChild(statsContainer);
+
+let globalStats = {{}};
+let numericColumns = {numeric_cols_js};
+let categoricalColumns = {categorical_cols_js};
+
+// Helper: Compute basic statistics
+function computeStats(values) {{
+    if (values.length === 0) return null;
+    
+    const numericValues = values.map(Number).filter(v => !isNaN(v));
+    if (numericValues.length === 0) return null;
+    
+    const sorted = numericValues.slice().sort((a, b) => a - b);
+    const sum = sorted.reduce((a, b) => a + b, 0);
+    const mean = sum / sorted.length;
+    
+    const variance = sorted.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / sorted.length;
+    const std = Math.sqrt(variance);
+    
+    const median = sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
+    
+    return {{
+        count: sorted.length,
+        mean: mean,
+        std: std,
+        min: sorted[0],
+        max: sorted[sorted.length - 1],
+        median: median
+    }};
+}}
+
+// Helper: Compute text statistics
+function computeTextStats(texts) {{
+    const wordCounts = texts.map(text => text.split(/\\s+/).filter(w => w.length > 0).length);
+    const totalWords = wordCounts.reduce((a, b) => a + b, 0);
+    const avgWords = totalWords / texts.length;
+    
+    const allWords = new Set();
+    texts.forEach(text => {{
+        text.toLowerCase().split(/\\s+/).forEach(word => {{
+            if (word.length > 0) allWords.add(word);
+        }});
+    }});
+    
+    return {{
+        avgWords: avgWords,
+        totalWords: totalWords,
+        uniqueWords: allWords.size
+    }};
+}}
+
+// Initialize global statistics
+function initGlobalStats() {{
+    if (!datamap.metaData) return;
+    
+    // Auto-detect numeric columns if not specified
+    if (numericColumns === null) {{
+        numericColumns = [];
+        Object.keys(datamap.metaData).forEach(col => {{
+            if (col === 'hover_text') return;
+            const sample = datamap.metaData[col].slice(0, 100);
+            const numericCount = sample.filter(v => !isNaN(Number(v))).length;
+            if (numericCount / sample.length > 0.8) {{
+                numericColumns.push(col);
+            }}
+        }});
+    }}
+    
+    // Compute global stats for numeric columns
+    if (numericColumns && numericColumns.length > 0) {{
+        numericColumns.forEach(col => {{
+            if (datamap.metaData[col]) {{
+                globalStats[col] = computeStats(datamap.metaData[col]);
+            }}
+        }});
+    }}
+    
+    // Compute global text stats
+    if ({str(self.show_text_stats).lower()} && datamap.metaData.hover_text) {{
+        globalStats['text'] = computeTextStats(datamap.metaData.hover_text);
+    }}
+}}
+
+// Render statistics
+function renderStats(selectedPoints) {{
+    if (selectedPoints.length === 0) {{
+        statsContent.innerHTML = '<div class="stats-item">No selection</div>';
+        return;
+    }}
+    
+    let html = '';
+    
+    // Basic counts
+    const totalPoints = datamap.metaData.hover_text ? datamap.metaData.hover_text.length : 0;
+    const percentage = totalPoints > 0 ? ((selectedPoints.length / totalPoints) * 100).toFixed(1) : 0;
+    html += `
+        <div class="stats-section">
+            <div class="stats-section-title">Selection Size</div>
+            <div class="stats-item"><strong>${{selectedPoints.length}}</strong> of ${{totalPoints}} points (${{percentage}}%)</div>
+        </div>
+    `;
+    
+    // Text statistics
+    if ({str(self.show_text_stats).lower()} && datamap.metaData.hover_text) {{
+        const selectedTexts = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+        const selectionTextStats = computeTextStats(selectedTexts);
+        
+        html += `
+            <div class="stats-section">
+                <div class="stats-section-title">Text Statistics</div>
+                <div class="stats-item">Avg words per item: <strong>${{selectionTextStats.avgWords.toFixed(1)}}</strong>`;
+        if (globalStats.text) {{
+            html += ` (global: ${{globalStats.text.avgWords.toFixed(1)}})`;
+        }}
+        html += `</div>
+                <div class="stats-item">Total words: <strong>${{selectionTextStats.totalWords}}</strong>`;
+        if (globalStats.text) {{
+            html += ` (global: ${{globalStats.text.totalWords}})`;
+        }}
+        html += `</div>
+                <div class="stats-item">Unique words: <strong>${{selectionTextStats.uniqueWords}}</strong>`;
+        if (globalStats.text) {{
+            html += ` (global: ${{globalStats.text.uniqueWords}})`;
+        }}
+        html += `</div>
+            </div>
+        `;
+    }}
+    
+    // Numeric column statistics
+    if (numericColumns && numericColumns.length > 0) {{
+        numericColumns.forEach(col => {{
+            if (!datamap.metaData[col]) return;
+            
+            const selectedValues = selectedPoints.map(i => datamap.metaData[col][i]);
+            const selectionStats = computeStats(selectedValues);
+            
+            if (selectionStats) {{
+                html += `
+                    <div class="stats-section">
+                        <div class="stats-section-title">${{col}}</div>
+                        <div class="stats-item">Mean: <strong>${{selectionStats.mean.toFixed(2)}}</strong>`;
+                if (globalStats[col]) {{
+                    html += ` (global: ${{globalStats[col].mean.toFixed(2)}})`;
+                }}
+                html += `</div>
+                        <div class="stats-item">Median: <strong>${{selectionStats.median.toFixed(2)}}</strong>`;
+                if (globalStats[col]) {{
+                    html += ` (global: ${{globalStats[col].median.toFixed(2)}})`;
+                }}
+                html += `</div>
+                        <div class="stats-item">Std: <strong>${{selectionStats.std.toFixed(2)}}</strong>`;
+                if (globalStats[col]) {{
+                    html += ` (global: ${{globalStats[col].std.toFixed(2)}})`;
+                }}
+                html += `</div>
+                        <div class="stats-item">Range: <strong>${{selectionStats.min.toFixed(2)}}</strong> to <strong>${{selectionStats.max.toFixed(2)}}</strong></div>
+                    </div>
+                `;
+            }}
+        }});
+    }}
+    
+    // Categorical distributions
+    if (categoricalColumns && categoricalColumns.length > 0) {{
+        categoricalColumns.forEach(col => {{
+            if (!datamap.metaData[col]) return;
+            
+            const selectedValues = selectedPoints.map(i => datamap.metaData[col][i]);
+            const counts = {{}};
+            selectedValues.forEach(val => {{
+                counts[val] = (counts[val] || 0) + 1;
+            }});
+            
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            
+            html += `
+                <div class="stats-section">
+                    <div class="stats-section-title">${{col}} (top 5)</div>
+            `;
+            sorted.forEach(([val, count]) => {{
+                const pct = ((count / selectedPoints.length) * 100).toFixed(1);
+                html += `<div class="stats-item">${{val}}: <strong>${{count}}</strong> (${{pct}}%)</div>`;
+            }});
+            html += `</div>`;
+        }});
+    }}
+    
+    statsContent.innerHTML = html;
+}}
+
+// Statistics callback
+function statsCallback(selectedPoints) {{
+    if (!datamap.metaData) {{
+        statsContent.innerHTML = '<div class="stats-item">Loading metadata...</div>';
+        return;
+    }}
+    
+    // Initialize global stats on first call
+    if (Object.keys(globalStats).length === 0) {{
+        initGlobalStats();
+    }}
+    
+    renderStats(selectedPoints);
+}}
+
+await datamap.addSelectionHandler(statsCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(statsCallback, "{trigger}");\n"""
+        return result
+
+    @property
+    def css(self):
+        return f"""
+#stats-container {{
+    width: {self.width}px;
+    padding: 12px;
+}}
+
+.stats-title {{
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #4CAF50;
+    padding-bottom: 4px;
+}}
+
+.stats-content {{
+    max-height: 50vh;
+    overflow-y: auto;
+}}
+
+.stats-section {{
+    margin-bottom: 16px;
+}}
+
+.stats-section-title {{
+    font-weight: bold;
+    font-size: 12px;
+    color: #4CAF50;
+    margin-bottom: 6px;
+}}
+
+.stats-item {{
+    font-size: 11px;
+    padding: 3px 0;
+    color: #444;
+}}
+
+.stats-item strong {{
+    color: #000;
+}}
+
+/* Dark mode support */
+.darkmode .stats-title,
+body.darkmode .stats-title {{
+    border-bottom-color: #45a049;
+}}
+
+.darkmode .stats-section-title,
+body.darkmode .stats-section-title {{
+    color: #5FD068;
+}}
+
+.darkmode .stats-item,
+body.darkmode .stats-item {{
+    color: #ccc;
+}}
+
+.darkmode .stats-item strong,
+body.darkmode .stats-item strong {{
+    color: #fff;
+}}
+"""
+
+    @property
+    def html(self):
+        return ""
+
+
+class Histogram(SelectionHandlerBase):
+    """A selection handler that displays a histogram or bar chart showing the distribution
+    of selected data across a specified field. For categorical fields, displays a bar chart
+    of category frequencies. For numeric fields, displays a histogram with configurable bins.
+    Optionally compares the selection distribution to the overall dataset distribution.
+
+    Parameters
+    ----------
+    field : str or None, optional
+        The metadata field to create the histogram for. If None, will use the first
+        available non-hover_text field. Default is None.
+
+    bins : int, optional
+        Number of bins for numeric field histograms. Default is 20.
+
+    show_comparison : bool, optional
+        Whether to show the overall dataset distribution for comparison. Default is True.
+
+    max_categories : int, optional
+        Maximum number of categories to show in categorical bar charts. Default is 10.
+
+    location : str, optional
+        The location of the histogram container on the page. Default is "bottom-right".
+        Should be one of "top-left", "top-right", "bottom-left", or "bottom-right".
+
+    order : int, optional
+        The stacking order within the location. Default is 40.
+
+    width : int, optional
+        The width of the histogram container in pixels. Default is 500.
+
+    height : int, optional
+        The height of the histogram chart in pixels. Default is 300.
+
+    **kwargs
+        Additional keyword arguments to pass to the SelectionHandlerBase constructor.
+    """
+
+    @cfg.complete(unconfigurable={"self", "width", "height", "bins"})
+    def __init__(
+        self,
+        field=None,
+        bins=20,
+        show_comparison=True,
+        max_categories=10,
+        location="bottom-right",
+        order=40,
+        width=500,
+        height=300,
+        cdn_url="unpkg.com",
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(
+            location=location,
+            order=order,
+            dependencies=[
+                f"https://{cdn_url}/d3@latest/dist/d3.min.js",
+            ],
+            **kwargs,
+        )
+        self.field = field
+        self.bins = bins
+        self.show_comparison = show_comparison
+        self.max_categories = max_categories
+        self.width = width
+        self.height = height
+        self.other_triggers = other_triggers
+
+    @property
+    def javascript(self):
+        field_js = "null" if self.field is None else f'"{self.field}"'
+
+        result = f"""
+// Histogram handler
+// Helper to find stack container or drawer
+function findStackContainer(location) {{
+    let stack = document.getElementsByClassName("stack " + location)[0];
+    if (!stack && location.includes("drawer")) {{
+        const drawerDirection = location.replace("-drawer", "");
+        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+        if (drawer) {{
+            stack = drawer;
+        }}
+    }}
+    return stack;
+}}
+
+const histogramStackContainer = findStackContainer("{self.location}");
+const histogramContainer = document.createElement("div");
+histogramContainer.id = "histogram-container";
+histogramContainer.className = "container-box more-opaque stack-box";
+histogramContainer.dataset.order = "{self.order}";
+
+const histogramTitle = document.createElement("div");
+histogramTitle.className = "histogram-title";
+histogramTitle.textContent = "Distribution";
+histogramContainer.appendChild(histogramTitle);
+
+const fieldSelector = document.createElement("select");
+fieldSelector.id = "histogram-field-select";
+fieldSelector.className = "histogram-select";
+histogramContainer.appendChild(fieldSelector);
+
+const histogramSvg = d3.select("#histogram-container").append("svg")
+    .attr("width", {self.width})
+    .attr("height", {self.height})
+    .attr("class", "histogram-svg");
+
+histogramStackContainer.appendChild(histogramContainer);
+
+let currentField = {field_js};
+let availableFields = [];
+let globalDistribution = {{}};
+let currentSelection = [];
+
+const margin = {{top: 20, right: 20, bottom: 40, left: 50}};
+const chartWidth = {self.width} - margin.left - margin.right;
+const chartHeight = {self.height} - margin.top - margin.bottom;
+
+// Detect field type
+function isNumericField(values) {{
+    const sample = values.slice(0, 100);
+    const numericCount = sample.filter(v => !isNaN(Number(v)) && v !== null && v !== '').length;
+    return numericCount / sample.length > 0.8;
+}}
+
+// Create histogram bins
+function createHistogramBins(values, nBins) {{
+    const numericValues = values.map(Number).filter(v => !isNaN(v));
+    if (numericValues.length === 0) return [];
+    
+    const min = Math.min(...numericValues);
+    const max = Math.max(...numericValues);
+    const binWidth = (max - min) / nBins;
+    
+    const bins = Array.from({{ length: nBins }}, (_, i) => ({{
+        x0: min + i * binWidth,
+        x1: min + (i + 1) * binWidth,
+        count: 0
+    }}));
+    
+    numericValues.forEach(val => {{
+        const binIndex = Math.min(Math.floor((val - min) / binWidth), nBins - 1);
+        if (binIndex >= 0) bins[binIndex].count++;
+    }});
+    
+    return bins;
+}}
+
+// Create categorical distribution
+function createCategoricalDistribution(values, maxCategories) {{
+    const counts = {{}};
+    values.forEach(val => {{
+        const key = val === null || val === undefined ? '(null)' : String(val);
+        counts[key] = (counts[key] || 0) + 1;
+    }});
+    
+    const sorted = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, maxCategories);
+    
+    return sorted.map(([category, count]) => ({{ category, count }}));
+}}
+
+// Initialize available fields
+function initializeFields() {{
+    if (!datamap.metaData) return;
+    
+    availableFields = Object.keys(datamap.metaData).filter(key => key !== 'hover_text');
+    
+    if (availableFields.length === 0) return;
+    
+    // Set current field if not specified
+    if (currentField === null && availableFields.length > 0) {{
+        currentField = availableFields[0];
+    }}
+    
+    // Populate field selector
+    fieldSelector.innerHTML = availableFields
+        .map(field => `<option value="${{field}}" ${{field === currentField ? 'selected' : ''}}>${{field}}</option>`)
+        .join('');
+    
+    fieldSelector.onchange = (e) => {{
+        currentField = e.target.value;
+        if (currentSelection.length > 0) {{
+            renderHistogram(currentSelection);
+        }}
+    }};
+    
+    // Compute global distributions
+    if ({str(self.show_comparison).lower()}) {{
+        availableFields.forEach(field => {{
+            const values = datamap.metaData[field];
+            if (isNumericField(values)) {{
+                globalDistribution[field] = {{
+                    type: 'numeric',
+                    bins: createHistogramBins(values, {self.bins})
+                }};
+            }} else {{
+                globalDistribution[field] = {{
+                    type: 'categorical',
+                    distribution: createCategoricalDistribution(values, {self.max_categories})
+                }};
+            }}
+        }});
+    }}
+}}
+
+// Render histogram
+function renderHistogram(selectedPoints) {{
+    if (!currentField || !datamap.metaData[currentField]) {{
+        histogramSvg.selectAll("*").remove();
+        return;
+    }}
+    
+    const selectedValues = selectedPoints.map(i => datamap.metaData[currentField][i]);
+    const isNumeric = isNumericField(selectedValues);
+    
+    histogramSvg.selectAll("*").remove();
+    
+    const g = histogramSvg.append("g")
+        .attr("transform", `translate(${{margin.left}},${{margin.top}})`);
+    
+    if (isNumeric) {{
+        renderNumericHistogram(g, selectedValues);
+    }} else {{
+        renderCategoricalChart(g, selectedValues);
+    }}
+}}
+
+// Render numeric histogram
+function renderNumericHistogram(g, values) {{
+    const selectionBins = createHistogramBins(values, {self.bins});
+    const globalBins = {str(self.show_comparison).lower()} && globalDistribution[currentField] 
+        ? globalDistribution[currentField].bins 
+        : null;
+    
+    // Scales
+    const x = d3.scaleLinear()
+        .domain([selectionBins[0].x0, selectionBins[selectionBins.length - 1].x1])
+        .range([0, chartWidth]);
+    
+    const maxCount = Math.max(
+        ...selectionBins.map(d => d.count),
+        ...(globalBins ? globalBins.map(d => d.count) : [0])
+    );
+    
+    const y = d3.scaleLinear()
+        .domain([0, maxCount])
+        .range([chartHeight, 0]);
+    
+    // Global distribution (background)
+    if (globalBins) {{
+        g.selectAll(".bar-global")
+            .data(globalBins)
+            .enter().append("rect")
+            .attr("class", "bar-global")
+            .attr("x", d => x(d.x0))
+            .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+            .attr("y", d => y(d.count))
+            .attr("height", d => chartHeight - y(d.count))
+            .attr("fill", "#ddd")
+            .attr("opacity", 0.5);
+    }}
+    
+    // Selection distribution
+    g.selectAll(".bar-selection")
+        .data(selectionBins)
+        .enter().append("rect")
+        .attr("class", "bar-selection")
+        .attr("x", d => x(d.x0))
+        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+        .attr("y", d => y(d.count))
+        .attr("height", d => chartHeight - y(d.count))
+        .attr("fill", "#4CAF50");
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{chartHeight}})`)
+        .call(d3.axisBottom(x).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    // Labels
+    g.append("text")
+        .attr("x", chartWidth / 2)
+        .attr("y", chartHeight + 35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text(currentField);
+    
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text("Count");
+}}
+
+// Render categorical bar chart
+function renderCategoricalChart(g, values) {{
+    const selectionDist = createCategoricalDistribution(values, {self.max_categories});
+    
+    // Get global distribution for comparison
+    let globalDist = null;
+    if ({str(self.show_comparison).lower()} && globalDistribution[currentField]) {{
+        globalDist = globalDistribution[currentField].distribution;
+        // Create map for quick lookup
+        const globalMap = new Map(globalDist.map(d => [d.category, d.count]));
+        selectionDist.forEach(d => {{
+            d.globalCount = globalMap.get(d.category) || 0;
+        }});
+    }}
+    
+    // Scales
+    const x = d3.scaleBand()
+        .domain(selectionDist.map(d => d.category))
+        .range([0, chartWidth])
+        .padding(0.2);
+    
+    const maxCount = Math.max(
+        ...selectionDist.map(d => d.count),
+        ...(globalDist ? selectionDist.map(d => d.globalCount || 0) : [0])
+    );
+    
+    const y = d3.scaleLinear()
+        .domain([0, maxCount])
+        .range([chartHeight, 0]);
+    
+    // Global bars (background)
+    if (globalDist) {{
+        g.selectAll(".bar-global")
+            .data(selectionDist)
+            .enter().append("rect")
+            .attr("class", "bar-global")
+            .attr("x", d => x(d.category))
+            .attr("width", x.bandwidth())
+            .attr("y", d => y(d.globalCount || 0))
+            .attr("height", d => chartHeight - y(d.globalCount || 0))
+            .attr("fill", "#ddd")
+            .attr("opacity", 0.5);
+    }}
+    
+    // Selection bars
+    g.selectAll(".bar-selection")
+        .data(selectionDist)
+        .enter().append("rect")
+        .attr("class", "bar-selection")
+        .attr("x", d => x(d.category))
+        .attr("width", x.bandwidth())
+        .attr("y", d => y(d.count))
+        .attr("height", d => chartHeight - y(d.count))
+        .attr("fill", "#4CAF50");
+    
+    // Axes
+    g.append("g")
+        .attr("transform", `translate(0,${{chartHeight}})`)
+        .call(d3.axisBottom(x))
+        .selectAll("text")
+        .style("font-size", "10px")
+        .attr("transform", "rotate(-45)")
+        .style("text-anchor", "end");
+    
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(5))
+        .selectAll("text")
+        .style("font-size", "10px");
+    
+    // Y-axis label
+    g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -chartHeight / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .text("Count");
+}}
+
+// Histogram callback
+function histogramCallback(selectedPoints) {{
+    if (!datamap.metaData) {{
+        return;
+    }}
+    
+    if (availableFields.length === 0) {{
+        initializeFields();
+    }}
+    
+    currentSelection = selectedPoints;
+    
+    if (selectedPoints.length === 0) {{
+        histogramSvg.selectAll("*").remove();
+        return;
+    }}
+    
+    renderHistogram(selectedPoints);
+}}
+
+await datamap.addSelectionHandler(histogramCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(histogramCallback, "{trigger}");\n"""
+        return result
+
+    @property
+    def css(self):
+        return f"""
+#histogram-container {{
+    width: {self.width}px;
+    padding: 12px;
+}}
+
+.histogram-title {{
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 8px;
+}}
+
+.histogram-select {{
+    width: 100%;
+    padding: 4px 8px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    font-size: 12px;
+}}
+
+.histogram-svg {{
+    display: block;
+}}
+
+.histogram-svg text {{
+    fill: #333;
+}}
+
+/* Dark mode support */
+.darkmode .histogram-select,
+body.darkmode .histogram-select {{
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #555;
+}}
+
+.darkmode .histogram-svg text,
+body.darkmode .histogram-svg text {{
+    fill: #e0e0e0;
+}}
+
+.darkmode .histogram-svg .domain,
+body.darkmode .histogram-svg .domain,
+.darkmode .histogram-svg line,
+body.darkmode .histogram-svg line {{
+    stroke: #666;
+}}
+"""
+
+    @property
+    def html(self):
+        return ""
