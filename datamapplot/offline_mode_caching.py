@@ -22,6 +22,11 @@ DEFAULT_URLS = [
     "https://unpkg.com/d3@latest/dist/d3.min.js",
     "https://unpkg.com/jquery@3.7.1/dist/jquery.min.js",
     "https://unpkg.com/d3-cloud@1.2.7/build/d3.layout.cloud.js",
+    "https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js",
+]
+
+DEFAULT_CSS_URLS = [
+    "https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css",
 ]
 
 BASE_FONTS = [
@@ -54,6 +59,7 @@ BASE_FONTS = [
 _DATA_DIRECTORY = platformdirs.user_data_dir("datamapplot")
 DEFAULT_CACHE_FILES = {
     "javascript": f"{_DATA_DIRECTORY}/datamapplot_js_encoded.json",
+    "css": f"{_DATA_DIRECTORY}/datamapplot_css_encoded.json",
     "fonts": f"{_DATA_DIRECTORY}/datamapplot_fonts_encoded.json",
 }
 
@@ -68,7 +74,21 @@ def fetch_js_content(url):
         )
 
 
+def fetch_css_content(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(
+            f"Failed to fetch content from {url}. Status code: {response.status_code}"
+        )
+
+
 def encode_js_content(content):
+    return base64.b64encode(content.encode("utf-8")).decode("utf-8")
+
+
+def encode_css_content(content):
     return base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
 
@@ -85,8 +105,10 @@ def generate_script_loader(url, encoded_content):
 def build_js_encoded_dictionary(urls):
     js_loader_dict = {}
 
+    print(f"\nCaching {len(urls)} JavaScript files...")
     for url in urls:
         try:
+            print(f"  Fetching: {url}")
             content = fetch_js_content(url)
             encoded_content = encode_js_content(content)
             js_loader_dict[url] = {}
@@ -95,10 +117,33 @@ def build_js_encoded_dictionary(urls):
             js_loader_dict[url][
                 "name"
             ] = f"{parsed_url.netloc.replace('.', '_')}_{parsed_url.path.split('/')[-1].replace('.', '_')}"
+            print(f"  ✓ Cached: {url} ({len(content)} bytes)")
         except Exception as e:
-            print(f"Error processing {url}: {str(e)}")
+            print(f"  ✗ Error processing {url}: {str(e)}")
 
     return js_loader_dict
+
+
+def build_css_encoded_dictionary(urls):
+    css_loader_dict = {}
+
+    print(f"\nCaching {len(urls)} CSS files...")
+    for url in urls:
+        try:
+            print(f"  Fetching: {url}")
+            content = fetch_css_content(url)
+            encoded_content = encode_css_content(content)
+            css_loader_dict[url] = {}
+            css_loader_dict[url]["encoded_content"] = encoded_content
+            parsed_url = urlparse(url)
+            css_loader_dict[url][
+                "name"
+            ] = f"{parsed_url.netloc.replace('.', '_')}_{parsed_url.path.split('/')[-1].replace('.', '_')}"
+            print(f"  ✓ Cached: {url} ({len(content)} bytes)")
+        except Exception as e:
+            print(f"  ✗ Error processing {url}: {str(e)}")
+
+    return css_loader_dict
 
 
 def _parse_font_face(css_block):
@@ -135,6 +180,7 @@ def _parse_font_face(css_block):
 
 def download_and_encode_font(fontname):
     api_fontname = fontname.replace(" ", "+")
+    print(f"  Fetching font: {fontname}")
     api_response = requests.get(
         f"https://fonts.googleapis.com/css?family={api_fontname}:black,extrabold,bold,demibold,semibold,medium,regular,light,thin,italic",
         timeout=10,
@@ -145,21 +191,46 @@ def download_and_encode_font(fontname):
             for css_block in re.findall(r"@font-face\s*{[^}]+}", api_response.text)
             if (font := _parse_font_face(css_block))
         ]
+        print(f"  ✓ Cached: {fontname} ({len(encoded_fonts)} font faces)")
         return encoded_fonts
     else:
+        print(f"  ✗ Failed to fetch font from Google Fonts API for {fontname}")
         warn(f"Failed to fetch font from Google Fonts API for {fontname}")
         return []
+
+
+def cache_css_files(urls=DEFAULT_CSS_URLS, file_path=None):
+    css_loader_dict = build_css_encoded_dictionary(urls)
+    if file_path:
+        json.dump(css_loader_dict, open(file_path, "w"))
+        print(f"\n✓ CSS cache saved to: {file_path}")
+    else:
+        data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
+        cache_file = f"{data_directory}/datamapplot_css_encoded.json"
+        json.dump(css_loader_dict, open(cache_file, "w"))
+        print(f"\n✓ CSS cache saved to: {cache_file}")
+    print(f"  Total CSS files cached: {len(css_loader_dict)}")
+
+
+def load_css_files(file_path=None):
+    if file_path:
+        return json.load(open(file_path, "r"))
+    else:
+        data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
+        return json.load(open(f"{data_directory}/datamapplot_css_encoded.json", "r"))
 
 
 def cache_js_files(urls=DEFAULT_URLS, file_path=None):
     js_loader_dict = build_js_encoded_dictionary(urls)
     if file_path:
         json.dump(js_loader_dict, open(file_path, "w"))
+        print(f"\n✓ JS cache saved to: {file_path}")
     else:
         data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
-        json.dump(
-            js_loader_dict, open(f"{data_directory}/datamapplot_js_encoded.json", "w")
-        )
+        cache_file = f"{data_directory}/datamapplot_js_encoded.json"
+        json.dump(js_loader_dict, open(cache_file, "w"))
+        print(f"\n✓ JS cache saved to: {cache_file}")
+    print(f"  Total JS files cached: {len(js_loader_dict)}")
 
 
 def load_js_files(file_path=None):
@@ -172,16 +243,19 @@ def load_js_files(file_path=None):
 
 def cache_fonts(fonts=BASE_FONTS, file_path=None):
     font_dict = {}
+    print(f"\nCaching {len(fonts)} fonts...")
     for font in fonts:
         font_dict[font] = download_and_encode_font(font)
 
     if file_path:
         json.dump(font_dict, open(file_path, "w"))
+        print(f"\n✓ Font cache saved to: {file_path}")
     else:
         data_directory = platformdirs.user_data_dir("datamapplot", ensure_exists=True)
-        json.dump(
-            font_dict, open(f"{data_directory}/datamapplot_fonts_encoded.json", "w")
-        )
+        cache_file = f"{data_directory}/datamapplot_fonts_encoded.json"
+        json.dump(font_dict, open(cache_file, "w"))
+        print(f"\n✓ Font cache saved to: {cache_file}")
+    print(f"  Total fonts cached: {len(font_dict)}")
 
 
 def load_fonts(file_path=None):
@@ -212,6 +286,7 @@ class Confirm(Protocol):
 @dataclass
 class Cache:
     js: dict[str, dict[str, str]]
+    css: dict[str, dict[str, str]]
     fonts: dict[str, list[dict[str, str]]]
     confirm: Confirm
     store: Store
@@ -221,7 +296,11 @@ class Cache:
         store = make_store(path)
         data = {}
         with store.reading() as reading:
-            for name in ["datamapplot_js_encoded.json", "datamapplot_fonts_encoded.json"]:
+            for name in [
+                "datamapplot_js_encoded.json",
+                "datamapplot_css_encoded.json",
+                "datamapplot_fonts_encoded.json",
+            ]:
                 try:
                     with reading.open(name) as file:
                         data[name] = json.load(file)
@@ -229,13 +308,18 @@ class Cache:
                     data[name] = {}
         return cls(
             js=data["datamapplot_js_encoded.json"],
+            css=data["datamapplot_css_encoded.json"],
             fonts=data["datamapplot_fonts_encoded.json"],
             confirm=confirm,
-            store=store
+            store=store,
         )
 
     def update(self, src_cache: "Cache") -> "Cache":
-        for attr, resource in [("js", "Javascript file"), ("fonts", "font")]:
+        for attr, resource in [
+            ("js", "Javascript file"),
+            ("css", "CSS file"),
+            ("fonts", "font"),
+        ]:
             src = getattr(src_cache, attr)
             dest = getattr(self, attr)
             entries_to_pull = []
@@ -258,7 +342,7 @@ class Cache:
                             f"\n{msg_resource} would be replaced in cache at "
                             f"{self.store.path}. Select to confirm:"
                         ),
-                        sorted(entries_to_confirm)
+                        sorted(entries_to_confirm),
                     )
                 )
             dest.update({k: src[k] for k in entries_to_pull})
@@ -268,6 +352,7 @@ class Cache:
         with self.store.writing() as writing:
             for name, obj in [
                 ("datamapplot_js_encoded.json", self.js),
+                ("datamapplot_css_encoded.json", self.css),
                 ("datamapplot_fonts_encoded.json", self.fonts),
             ]:
                 with writing.open(name) as file:
@@ -353,7 +438,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
 
     def confirm(self, header: str, entries: Sequence[str]) -> set[str]:
         w = 1 + int(np.log10(len(entries)))
-        confirmed = set()
+        confirmed: set[str] = set()
         try:
             is_finished = False
             while not is_finished:
@@ -364,8 +449,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     "NUMBER single item, FIRST-LAST interval, a all, ? help, . finish> "
                 ).strip()
                 for match in re.finditer(
-                    r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])",
-                    line
+                    r"(?P<indices>a|\d+(-(?P<to>\d+))?)|(?P<cmd>[.?])", line
                 ):
                     if (cmd := match.group("cmd")) is not None:
                         if cmd == "?":
@@ -393,9 +477,9 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     else:
                         # This condition can be ignored, but when debugging we should
                         # break on it so it gets fixed.
-                        assert False, (
-                             "Either one of the conditions above should be true."
-                         )
+                        assert (
+                            False
+                        ), "Either one of the conditions above should be true."
         except EOFError:
             print(
                 (
@@ -405,7 +489,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
                     "Cancelling this operation, lest entries to update were "
                     "misselected."
                 ),
-                file=sys.stderr
+                file=sys.stderr,
             )
             sys.exit(11)
         return confirmed
@@ -440,16 +524,15 @@ class ConfirmYes(EquivalenceClass):
         return set(entries)
 
 
-_MAP_CONFIRM = {
-    True: ConfirmYes,
-    False: ConfirmInteractiveStdio
-}
+_MAP_CONFIRM = {True: ConfirmYes, False: ConfirmInteractiveStdio}
 
 
 import argparse
 
 
 def main():
+    print("DataMapPlot Offline Mode Cache Builder")
+    print("=" * 50)
     parser = argparse.ArgumentParser(
         description="Cache JS and font files for offline mode",
         epilog="""
@@ -457,7 +540,7 @@ def main():
             a Zip file (with the Zip-standard DEFLATE compression). However, if the
             path given through --import or --export is an existing directory, the cache
             files are stored as is into this directory, without any compression.
-        """
+        """,
     )
     parser.add_argument(
         "--js_urls", nargs="+", help="CDN URLs to fetch and cache js from"
@@ -472,14 +555,13 @@ def main():
         help=(
             "Force refresh cached files from Internet repositories. "
             "This is the default."
-        )
+        ),
     )
     parser.add_argument(
         "--no-refresh",
         dest="refresh",
         action="store_false",
-        help="Omit refreshing cached files from Internet repositories."
-
+        help="Omit refreshing cached files from Internet repositories.",
     )
     parser.add_argument("--js_cache_file", help="Path to save JS cache file")
     parser.add_argument("--font_cache_file", help="Path to save font cache file")
@@ -491,7 +573,7 @@ def main():
             user's cache directory. This omits updating cache fonts and Javascript files
             from the Internet. If any font or Javascript entry from the given cache
             dump already exists, confirmation to replace it is requested first.
-        """
+        """,
     )
     parser.add_argument(
         "--export",
@@ -500,7 +582,7 @@ def main():
             updating it. If the cache archive or directory already exists, and a font
             or Javascript entry from the export would clobber it, confirmation is
             requested first (unless option --yes is also used).
-        """
+        """,
     )
     parser.add_argument(
         "-y",
@@ -509,7 +591,7 @@ def main():
         default=False,
         help="""
             Forgo confirmation of cache entry replacement; just go ahead and do it.
-        """
+        """,
     )
 
     args = parser.parse_args()
@@ -524,6 +606,7 @@ def main():
                 cache_js_files(urls=all_urls, file_path=args.js_cache_file)
             else:
                 cache_js_files(file_path=args.js_cache_file)
+            cache_css_files()
             if args.font_names:
                 cache_fonts(fonts=args.font_names, file_path=args.font_cache_file)
             else:
@@ -542,7 +625,7 @@ def main():
                         "export the cache to a directory, create it before running "
                         "this program."
                     ),
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
             cache_home = Cache.from_path(dir_cache_home, ConfirmYes())
             cache_dest = Cache.from_path(path_export, _MAP_CONFIRM[args.yes]())
@@ -554,3 +637,7 @@ def main():
         cache_src = Cache.from_path(Path(path_import), ConfirmYes())
         cache_home.update(cache_src)
         cache_home.save()
+
+
+if __name__ == "__main__":
+    main()

@@ -1199,6 +1199,7 @@ def render_html(
         offline_mode_font_data_file,
     )
     offline_mode_data = offline_result["offline_mode_data"]
+    offline_mode_css_data = offline_result["offline_mode_css_data"]
     offline_mode_font_data_file = offline_result["offline_mode_font_data_file"]
 
     # Prepare fonts
@@ -1292,6 +1293,7 @@ def render_html(
         custom_js=(custom_js or "") + "\n" + widget_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
+        offline_mode_css_data=offline_mode_css_data,
         splash_warning=splash_warning,
         enable_api_tooltip=enable_dynamic_tooltip,
         tooltip_identifier_js=tooltip_identifier_js,

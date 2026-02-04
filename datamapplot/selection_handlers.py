@@ -1423,19 +1423,29 @@ async function dataTableCallback(selectedPoints) {{
     // Dynamically load DataTables library after jQuery is ready
     if (typeof $.fn.DataTable === 'undefined') {{
         console.log('Loading DataTables library...');
-        await new Promise((resolve, reject) => {{
-            const script = document.createElement('script');
-            script.src = '{self.datatables_js_url}';
-            script.onload = () => {{
-                console.log('DataTables loaded successfully');
-                resolve();
-            }};
-            script.onerror = () => {{
-                console.error('Failed to load DataTables');
-                reject(new Error('Failed to load DataTables'));
-            }};
-            document.head.appendChild(script);
-        }});
+        
+        // Check if offline mode with cached script
+        if (typeof OFFLINE_MODE !== 'undefined' && OFFLINE_MODE && typeof window.offlineDataTablesScript !== 'undefined') {{
+            console.log('Using cached offline DataTables script');
+            loadBase64Script(window.offlineDataTablesScript);
+            // Wait a moment for script to execute
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }} else {{
+            // Online mode - fetch from CDN
+            await new Promise((resolve, reject) => {{
+                const script = document.createElement('script');
+                script.src = '{self.datatables_js_url}';
+                script.onload = () => {{
+                    console.log('DataTables loaded successfully');
+                    resolve();
+                }};
+                script.onerror = () => {{
+                    console.error('Failed to load DataTables');
+                    reject(new Error('Failed to load DataTables'));
+                }};
+                document.head.appendChild(script);
+            }});
+        }}
     }}
     
     // Destroy existing DataTable if it exists

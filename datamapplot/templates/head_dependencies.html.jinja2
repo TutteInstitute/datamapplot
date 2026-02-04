@@ -27,11 +27,27 @@
   rel="stylesheet"
 />
 {# External CSS dependencies from selection handlers #}
+{% if offline_mode and offline_mode_css_data %}
+<style>
+{% for url in css_dependency_urls -%}
+  {% if url in offline_mode_css_data -%}
+  /* Cached CSS from {{ url }} */
+  {{ offline_mode_css_data[url]['decoded_content'] }}
+  {% else -%}
+  /* Warning: CSS not found in cache: {{ url }} */
+  {% endif -%}
+{% endfor -%}
+</style>
+{% else %}
 {% for url in css_dependency_urls -%}
 <link rel="stylesheet" href="{{ url }}" />
 {% endfor -%}
+{% endif -%}
 {% if offline_mode %}
 <script>
+  // Offline mode enabled
+  const OFFLINE_MODE = true;
+  
   // Function to decode and evaluate base64 encoded scripts
   function loadBase64Script(base64Script) {
       const decodedScript = atob(base64Script);
@@ -40,12 +56,25 @@
       document.head.appendChild(script);
   }
   {% for url in js_dependency_urls -%}
+    {% if offline_mode_data and url in offline_mode_data -%}
     // Base64 encoded content from {{ url }}
     const {{ offline_mode_data[url]["name"] }} = "{{ offline_mode_data[url]['encoded_content'] }}";
+    {% if 'datatables' in url.lower() -%}
+    // Make DataTables script available for dynamic loading
+    window.offlineDataTablesScript = {{ offline_mode_data[url]["name"] }};
+    {% endif -%}
     loadBase64Script({{ offline_mode_data[url]["name"] }});
+    {% else -%}
+    console.error('Offline mode error: URL not found in cache: {{ url }}');
+    console.error('Please regenerate the offline cache by running: python -m datamapplot.offline_mode_caching');
+    {% endif -%}
   {% endfor -%}
 </script>
 {% else %}
+<script>
+  // Offline mode disabled
+  const OFFLINE_MODE = false;
+</script>
 {% for url in js_dependency_urls -%}
 <script src="{{ url }}"></script>
 {% endfor -%}

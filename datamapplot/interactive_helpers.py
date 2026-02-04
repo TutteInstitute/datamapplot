@@ -2043,10 +2043,10 @@ def url_to_base64_img(url):
             data = response.read()
             content_type = response.info().get_content_type()
     except HTTPError as e:
-        print(f"Error downloading image: HTTP error {e.code} {e.reason}")
+        print(f"Error downloading image {url}: HTTP error {e.code} {e.reason}")
         return None
     except URLError as e:
-        print(f"Error downloading image: Network error {e.reason}")
+        print(f"Error downloading image {url}: Network error {e.reason}")
         return None
 
     # Determine the image type from the response content type.
@@ -2072,7 +2072,7 @@ def prepare_offline_mode_data(
     offline_mode_font_data_file,
 ):
     """
-    Prepare offline mode data by loading cached JS and font files.
+    Prepare offline mode data by loading cached JS, CSS, and font files.
 
     Parameters
     ----------
@@ -2086,7 +2086,8 @@ def prepare_offline_mode_data(
     Returns
     -------
     dict
-        Dictionary with 'offline_mode_data' and 'offline_mode_font_data_file' keys.
+        Dictionary with 'offline_mode_data', 'offline_mode_css_data', and
+        'offline_mode_font_data_file' keys.
     """
     import platformdirs
     from datamapplot import offline_mode_caching
@@ -2094,9 +2095,11 @@ def prepare_offline_mode_data(
     if not offline_mode:
         return {
             "offline_mode_data": None,
+            "offline_mode_css_data": None,
             "offline_mode_font_data_file": None,
         }
 
+    # Load JS cache
     if offline_mode_js_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
         offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
@@ -2108,6 +2111,25 @@ def prepare_offline_mode_data(
         with open(offline_mode_js_data_file, "r") as f:
             offline_mode_data = json.load(f)
 
+    # Load CSS cache
+    data_directory = platformdirs.user_data_dir("datamapplot")
+    offline_mode_css_data_file = Path(data_directory) / "datamapplot_css_encoded.json"
+    if not offline_mode_css_data_file.is_file():
+        offline_mode_caching.cache_css_files()
+    with offline_mode_css_data_file.open("r") as f:
+        offline_mode_css_data_encoded = json.load(f)
+
+    # Decode the base64 CSS content for direct embedding in <style> tags
+    offline_mode_css_data = {}
+    for url, css_info in offline_mode_css_data_encoded.items():
+        offline_mode_css_data[url] = {
+            "name": css_info["name"],
+            "decoded_content": base64.b64decode(css_info["encoded_content"]).decode(
+                "utf-8"
+            ),
+        }
+
+    # Check for fonts
     if offline_mode_font_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
         offline_mode_font_data_file = (
@@ -2118,6 +2140,7 @@ def prepare_offline_mode_data(
 
     return {
         "offline_mode_data": offline_mode_data,
+        "offline_mode_css_data": offline_mode_css_data,
         "offline_mode_font_data_file": offline_mode_font_data_file,
     }
 
