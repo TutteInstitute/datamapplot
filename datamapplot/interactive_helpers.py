@@ -38,6 +38,7 @@ from datamapplot import offline_mode_caching
 
 try:
     import matplotlib
+
     get_cmap = matplotlib.colormaps.get_cmap
 except ImportError:
     from matplotlib.cm import get_cmap
@@ -73,10 +74,27 @@ DEFAULT_CONTINUOUS_COLORMAPS = [
 ]
 
 CLUSTER_LAYER_DESCRIPTORS = {
-    9: ["Top", "Upper", "Upper-mid", "Upper-central", "Mid", 
-        "Lower-central", "Lower-mid", "Lower", "Bottom"],
-    8: ["Top", "Upper", "Upper-mid", "Upper-central", 
-        "Lower-central", "Lower-mid", "Lower", "Bottom"],
+    9: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Mid",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
+    8: [
+        "Top",
+        "Upper",
+        "Upper-mid",
+        "Upper-central",
+        "Lower-central",
+        "Lower-mid",
+        "Lower",
+        "Bottom",
+    ],
     7: ["Top", "Upper", "Upper-mid", "Mid", "Lower-mid", "Lower", "Bottom"],
     6: ["Top", "Upper", "Upper-mid", "Lower-mid", "Lower", "Bottom"],
     5: ["Top", "Upper", "Mid", "Lower", "Bottom"],
@@ -91,10 +109,11 @@ CLUSTER_LAYER_DESCRIPTORS = {
 # Font Embedding Functions
 # =============================================================================
 
+
 def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_file=None):
     """
     Get Google Font CSS for embedding in HTML.
-    
+
     Parameters
     ----------
     fontname : str
@@ -103,7 +122,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
         Whether to use offline cached fonts. Default is False.
     offline_font_file : str or Path, optional
         Path to the offline font cache file.
-        
+
     Returns
     -------
     str
@@ -114,8 +133,7 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
         encoded_fonts = all_encoded_fonts.get(fontname, None)
         if encoded_fonts is not None:
             font_descriptions = [
-                _build_font_face_css(fontname, font_data)
-                for font_data in encoded_fonts
+                _build_font_face_css(fontname, font_data) for font_data in encoded_fonts
             ]
             return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
         return ""
@@ -146,17 +164,21 @@ def _build_font_face_css(fontname, font_data):
         font-style: {font_data["style"]};
         font-weight: {font_data["weight"]};
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');"""
-    
+
     if len(font_data["unicode_range"]) > 0:
-        return base_css + f"""
+        return (
+            base_css
+            + f"""
         unicode-range: {font_data["unicode_range"]};
     }}"""
+        )
     return base_css + "\n    }"
 
 
 # =============================================================================
 # JavaScript/CSS Dependency Management
 # =============================================================================
+
 
 def get_js_dependency_sources(
     minify,
@@ -332,15 +354,16 @@ def get_js_dependency_urls(
 # Colormap Processing Functions
 # =============================================================================
 
+
 def default_colormap_options(values_dict):
     """
     Generate default colormap metadata for a dictionary of value arrays.
-    
+
     Parameters
     ----------
     values_dict : dict
         Dictionary mapping names to numpy arrays of values.
-        
+
     Returns
     -------
     list
@@ -382,11 +405,15 @@ def default_colormap_options(values_dict):
             used_colormaps.add(cmap)
         elif is_datetime64_any_dtype(values):
             colormap_metadata["kind"] = "datetime"
-            colormap_metadata["cmap"] = DEFAULT_CONTINUOUS_COLORMAPS[continuous_cmap_counter]
+            colormap_metadata["cmap"] = DEFAULT_CONTINUOUS_COLORMAPS[
+                continuous_cmap_counter
+            ]
             continuous_cmap_counter += 1
         else:
             colormap_metadata["kind"] = "continuous"
-            colormap_metadata["cmap"] = DEFAULT_CONTINUOUS_COLORMAPS[continuous_cmap_counter]
+            colormap_metadata["cmap"] = DEFAULT_CONTINUOUS_COLORMAPS[
+                continuous_cmap_counter
+            ]
             continuous_cmap_counter += 1
 
         colormap_metadata_list.append(colormap_metadata)
@@ -405,7 +432,7 @@ def cmap_name_to_color_list(cmap_name):
 def array_to_colors(values, cmap_name, metadata, color_list=None):
     """
     Convert an array of values to RGBA color values.
-    
+
     Parameters
     ----------
     values : array-like
@@ -416,7 +443,7 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
         Dictionary to store colormap metadata (modified in place).
     color_list : list, optional
         List of colors to use instead of a colormap.
-        
+
     Returns
     -------
     np.ndarray
@@ -446,7 +473,9 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
     if is_datetime64_any_dtype(values):
         return _datetime_to_colors(values, cmap, vmin, vmax, metadata, get_valid_mask)
     elif values.dtype.kind in ["U", "S", "O", "b"]:
-        return _categorical_to_colors(values, cmap, metadata, color_list, get_valid_mask)
+        return _categorical_to_colors(
+            values, cmap, metadata, color_list, get_valid_mask
+        )
     else:
         return _numeric_to_colors(values, cmap, vmin, vmax, metadata, get_valid_mask)
 
@@ -506,7 +535,9 @@ def _categorical_to_colors(values, cmap, metadata, color_list, get_valid_mask):
             }
         else:
             value_to_color = {
-                val: cmap(i / (len(unique_values) - 1) if len(unique_values) > 1 else 0.5)
+                val: cmap(
+                    i / (len(unique_values) - 1) if len(unique_values) > 1 else 0.5
+                )
                 for i, val in enumerate(unique_values)
             }
 
@@ -523,7 +554,9 @@ def _categorical_to_colors(values, cmap, metadata, color_list, get_valid_mask):
         if cmap:
             value_to_num = {val: i for i, val in enumerate(unique_values)}
             normalized_values = np.zeros(len(values))
-            normalized_values[valid_mask] = [value_to_num[val] for val in values[valid_mask]]
+            normalized_values[valid_mask] = [
+                value_to_num[val] for val in values[valid_mask]
+            ]
             if len(unique_values) > 1:
                 normalized_values = normalized_values / (len(unique_values) - 1)
 
@@ -531,7 +564,9 @@ def _categorical_to_colors(values, cmap, metadata, color_list, get_valid_mask):
             colors_array[valid_mask] = cmap(normalized_values[valid_mask])
             colors_array[~valid_mask] = [0, 0, 0, 0]
         else:
-            value_to_num = {val: i % len(color_list) for i, val in enumerate(unique_values)}
+            value_to_num = {
+                val: i % len(color_list) for i, val in enumerate(unique_values)
+            }
             colors_array = np.zeros((len(values), 4))
             colors_array[valid_mask] = [
                 color_list[value_to_num[val]] for val in values[valid_mask]
@@ -578,7 +613,9 @@ def color_sample_from_colors(color_array, n_swatches=5):
     """Extract representative color swatches from a color array using KMeans clustering."""
     jch_colors = cspace_convert(color_array[:, :3], "sRGB1", "JCh")
     cielab_colors = cspace_convert(jch_colors[jch_colors.T[1] > 20], "JCh", "CAM02-UCS")
-    quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(cielab_colors)
+    quantizer = KMeans(n_clusters=n_swatches, random_state=0, n_init=1).fit(
+        cielab_colors
+    )
     result = [
         rgb2hex(c)
         for c in np.clip(
@@ -591,7 +628,7 @@ def color_sample_from_colors(color_array, n_swatches=5):
 def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
     """
     Generate colormap metadata and color data for hierarchical cluster layers.
-    
+
     Parameters
     ----------
     label_layers : list
@@ -600,7 +637,7 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
         Dictionary mapping labels to colors.
     n_swatches : int, optional
         Number of color swatches to extract.
-        
+
     Returns
     -------
     tuple
@@ -609,30 +646,39 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
     """
     metadata = []
     colordata = []
-    
+
     for i, layer in enumerate(label_layers[::-1]):
         color_list = pd.Series(layer).map(label_color_map).to_list()
-        color_array = np.asarray([
-            (to_rgba(color) if type(color) == str 
-             else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
-            for color in color_list
-        ])
+        color_array = np.asarray(
+            [
+                (
+                    to_rgba(color)
+                    if type(color) == str
+                    else (color[0] / 255, color[1] / 255, color[2] / 255, 1.0)
+                )
+                for color in color_list
+            ]
+        )
         color_sample = color_sample_from_colors(color_array, n_swatches)
         unique_labels = np.unique(layer)
         colormap_subset = {
-            label: (rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
-                    if type(color) != str else color)
+            label: (
+                rgb2hex((color[0] / 255, color[1] / 255, color[2] / 255, 1.0))
+                if type(color) != str
+                else color
+            )
             for label, color in label_color_map.items()
             if label in unique_labels
         }
-        
+
         descriptors = CLUSTER_LAYER_DESCRIPTORS.get(
             len(label_layers), [f"Layer-{n}" for n in range(len(label_layers))]
         )
         colormap_metadata = {
             "field": f"layer_{i}",
             "description": f"{descriptors[i]} Clusters",
-            "colors": color_sample + [
+            "colors": color_sample
+            + [
                 color for color in colormap_subset.values() if color not in color_sample
             ],
             "kind": "categorical",
@@ -642,7 +688,7 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
             colormap_metadata["show_legend"] = True
         else:
             colormap_metadata["show_legend"] = False
-            
+
         colordata.append(layer)
         metadata.append(colormap_metadata)
 
@@ -652,7 +698,7 @@ def per_layer_cluster_colormaps(label_layers, label_color_map, n_swatches=5):
 def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
     """
     Build colormap configuration and color data for the interactive viewer.
-    
+
     Parameters
     ----------
     colormap_rawdata : list
@@ -661,24 +707,26 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
         List of metadata dictionaries for each colormap.
     base_colors : list
         Base cluster colors.
-        
+
     Returns
     -------
     tuple
         (colormaps, color_df) where colormaps is a list of colormap configurations
         and color_df is a DataFrame of color values.
     """
-    colormaps = [{
-        "field": "none",
-        "description": "Clusters",
-        "colors": base_colors,
-        "kind": "categorical",
-    }]
+    colormaps = [
+        {
+            "field": "none",
+            "description": "Clusters",
+            "colors": base_colors,
+            "kind": "categorical",
+        }
+    ]
     color_data = []
 
     for rawdata, metadata in zip(colormap_rawdata, colormap_metadata):
         cmap_colors, cmap_name = _extract_colormap_colors(metadata)
-        
+
         colormap = {
             "field": metadata["field"],
             "description": metadata["description"],
@@ -688,12 +736,12 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "vmin": metadata.get("vmin", None),
             "vmax": metadata.get("vmax", None),
         }
-        
+
         if "show_legend" in metadata:
             colormap["showLegend"] = metadata["show_legend"]
-        
+
         colormaps.append(colormap)
-        
+
         if "color_mapping" in metadata:
             colormap["colorMapping"] = metadata["color_mapping"]
             colormap["kind"] = "categorical"
@@ -703,16 +751,18 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             ).astype(np.uint8)
         else:
             colors_array = array_to_colors(rawdata, cmap_name, colormap, cmap_colors)
-        
-        color_data.append(pd.DataFrame(
-            colors_array,
-            columns=[
-                f"{metadata['field']}_r",
-                f"{metadata['field']}_g",
-                f"{metadata['field']}_b",
-                f"{metadata['field']}_a",
-            ],
-        ))
+
+        color_data.append(
+            pd.DataFrame(
+                colors_array,
+                columns=[
+                    f"{metadata['field']}_r",
+                    f"{metadata['field']}_g",
+                    f"{metadata['field']}_b",
+                    f"{metadata['field']}_a",
+                ],
+            )
+        )
 
     return colormaps, pd.concat(color_data, axis=1)
 
@@ -735,17 +785,18 @@ def _extract_colormap_colors(metadata):
 # Data Bounds and Label Processing
 # =============================================================================
 
+
 def compute_percentile_bounds(points, percentage=99.9):
     """
     Compute bounding box that contains the specified percentage of points.
-    
+
     Parameters
     ----------
     points : np.ndarray
         Array of (x, y) coordinates.
     percentage : float, optional
         Percentage of points to include in bounds.
-        
+
     Returns
     -------
     list
@@ -840,17 +891,17 @@ def label_text_and_polygon_dataframes(
             label_locations.append(cluster_points.mean(axis=0))
 
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
-        
+
         if cluster_polygons:
             polygons.append(_compute_cluster_polygon(cluster_points, alpha))
         else:
             polygons.append(None)
-            
+
         if include_zoom_bounds:
             points_bounds.append(_compute_label_bounds(cluster_points))
         else:
             points_bounds.append(None)
-            
+
         if include_related_points:
             related_points.append(np.where(cluster_mask)[0].tolist())
         else:
@@ -858,8 +909,7 @@ def label_text_and_polygon_dataframes(
 
         # Handle label IDs and parent tracking
         if parents is not None:
-            label_id = f"{len(parents)}-{i}"
-            parent_id = _find_parent_id(cluster_mask, parents)
+            label_id, parent_id = _find_parent_id(cluster_mask, parents, i)
             label_ids.append(label_id)
             parent_ids.append(parent_id)
             parents.append(cluster_mask)
@@ -867,23 +917,67 @@ def label_text_and_polygon_dataframes(
             label_ids.append(None)
             parent_ids.append(None)
 
+    if parents is not None:
+        unlabelled_mask = cluster_idx_vector == -1
+        parent_masks = (
+            [parents[0][-1] == parent for parent in np.unique(parents[0][-1])]
+            if len(parents[0])
+            else [unlabelled_mask]
+        )
+
+        for parent_mask in parent_masks:
+            cluster_mask = unlabelled_mask & parent_mask
+
+            if np.sum(cluster_mask) > 2:
+                cluster_points = data_map_coords[cluster_mask]
+                if use_medoids:
+                    label_locations.append(medoid(cluster_points))
+                else:
+                    label_locations.append(cluster_points.mean(axis=0))
+
+                cluster_sizes.append(None)
+                polygons.append(None)
+                unique_non_noise_labels.append("Minor subtopics")
+
+                if include_zoom_bounds:
+                    points_bounds.append(_compute_label_bounds(cluster_points))
+                else:
+                    points_bounds.append(None)
+
+                if include_related_points:
+                    related_points.append(np.where(cluster_mask)[0].tolist())
+                else:
+                    related_points.append(None)
+
+                label_id, parent_id = _find_parent_id(cluster_mask, parents, -1)
+                label_ids.append(label_id)
+                parent_ids.append(parent_id)
+
+        # parents is mutable, add on the currend cluster idx_vector.
+        if len(parents[0]):
+            parents[0] = np.vstack((parents[0], cluster_idx_vector))
+        else:
+            parents[0] = np.vstack((cluster_idx_vector,))
+
     label_locations = np.asarray(label_locations)
-    
-    df = pd.DataFrame({
-        "label": unique_non_noise_labels,
-        "x": label_locations[:, 0],
-        "y": label_locations[:, 1],
-        "size": cluster_sizes,
-        "polygon": polygons,
-        "bounds": points_bounds,
-        "relatedPoints": related_points,
-        "id": label_ids,
-        "parent": parent_ids,
-    })
-    
+
+    df = pd.DataFrame(
+        {
+            "label": unique_non_noise_labels,
+            "x": label_locations[:, 0],
+            "y": label_locations[:, 1],
+            "size": cluster_sizes,
+            "polygon": polygons,
+            "bounds": points_bounds,
+            "relatedPoints": related_points,
+            "id": label_ids,
+            "parent": parent_ids,
+        }
+    )
+
     # Remove None columns
     df = df.dropna(axis=1, how="all")
-    
+
     return df
 
 
@@ -908,55 +1002,82 @@ def _compute_label_bounds(cluster_points):
     return [float(xmin), float(xmax), float(ymin), float(ymax)]
 
 
-def _find_parent_id(cluster_mask, parents):
-    """Find the parent ID for a cluster based on overlap with previous layers."""
-    # Handle empty or uninitialized parents list
-    if not parents or len(parents) == 0:
-        return None
-    
-    # Check if first element is empty (initial state from create_plots.py)
+def _find_parent_id(cluster_mask, parents, label_num):
     if len(parents[0]) == 0:
-        return None
-        
-    best_match = None
-    best_overlap = 0
-    
-    for j, parent_mask in enumerate(parents):
-        # Skip empty masks
-        if len(parent_mask) == 0:
+        return f"base_{label_num}", "base"
+    else:
+        provenance = (
+            ["base"]
+            + list(
+                np.median(parents[0][:, cluster_mask], axis=1).astype(int).astype(str)
+            )
+            + [str(label_num)]
+        )
+        label_id = "_".join(provenance)
+        parent_id = "_".join(provenance[:-1])
+
+        return label_id, parent_id
+
+
+def remove_duplicate_chains(df):
+    grouped = df.groupby(["x", "y"])
+    id_to_chain_root = {}
+
+    for (x, y), group in grouped:
+        if len(group) == 1:
             continue
-        overlap = np.sum(cluster_mask & parent_mask)
-        if overlap > best_overlap:
-            best_overlap = overlap
-            best_match = j
-            
-    if best_match is not None:
-        layer_idx = 0
-        count = 0
-        for k, p in enumerate(parents):
-            if k == best_match:
-                return f"{layer_idx}-{count}"
-            count += 1
-            # Detect layer boundaries (simplified heuristic)
-            
-    return None
+
+        duplicate_ids = set(group["id"].values)
+        id_to_parent = dict(zip(group["id"], group["parent"]))
+
+        # Find the root of the chain (the one whose parent is not in the duplicate set)
+        chain_root = None
+        for node_id in duplicate_ids:
+            parent_id = id_to_parent[node_id]
+            if pd.isna(parent_id) or parent_id not in duplicate_ids:
+                chain_root = node_id
+                break
+
+        if chain_root is None:
+            chain_root = group["id"].iloc[0]
+
+        for node_id in duplicate_ids:
+            id_to_chain_root[node_id] = chain_root
+
+    # Rewrite parent references
+    def get_new_parent(row):
+        old_parent = row["parent"]
+        current_id = row["id"]
+        if (
+            current_id in id_to_chain_root
+            and id_to_chain_root[current_id] != current_id
+        ):
+            return None
+        if pd.notna(old_parent) and old_parent in id_to_chain_root:
+            return id_to_chain_root[old_parent]
+        return old_parent
+
+    df["parent"] = df.apply(get_new_parent, axis=1)
+
+    return df
 
 
 # =============================================================================
 # Data Encoding Functions
 # =============================================================================
 
+
 def encode_data_for_html(data, compress=True):
     """
     Encode data as base64 for embedding in HTML.
-    
+
     Parameters
     ----------
     data : bytes or str
         Data to encode.
     compress : bool, optional
         Whether to gzip compress the data.
-        
+
     Returns
     -------
     str
@@ -964,47 +1085,47 @@ def encode_data_for_html(data, compress=True):
     """
     if isinstance(data, str):
         data = data.encode("utf-8")
-    
+
     if compress:
         data = gzip.compress(data)
-    
+
     return base64.b64encode(data).decode("ascii")
 
 
 def arrow_to_base64(df):
     """
     Convert a DataFrame to base64-encoded Arrow format.
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         DataFrame to encode.
-        
+
     Returns
     -------
     str
         Base64-encoded gzipped Arrow data.
     """
     import pyarrow as pa
-    
+
     buffer = io.BytesIO()
     table = pa.Table.from_pandas(df)
-    
+
     with pa.ipc.new_stream(buffer, table.schema) as writer:
         writer.write_table(table)
-    
+
     return encode_data_for_html(buffer.getvalue())
 
 
 def json_to_base64(data):
     """
     Convert data to base64-encoded JSON format.
-    
+
     Parameters
     ----------
     data : any
         JSON-serializable data.
-        
+
     Returns
     -------
     str
@@ -1018,9 +1139,10 @@ def json_to_base64(data):
 # Utility Classes
 # =============================================================================
 
+
 class FormattingDict(dict):
     """A dict subclass that returns the key wrapped in braces for missing keys."""
-    
+
     def __missing__(self, key):
         return f"{{{key}}}"
 
@@ -1029,10 +1151,11 @@ class FormattingDict(dict):
 # Render HTML Helper Functions
 # =============================================================================
 
+
 def compute_point_scaling(point_dataframe, bounds, point_size_scale=None):
     """
     Compute point size scaling for the visualization.
-    
+
     Parameters
     ----------
     point_dataframe : pd.DataFrame
@@ -1041,7 +1164,7 @@ def compute_point_scaling(point_dataframe, bounds, point_size_scale=None):
         Data bounds as (x_min, x_max, y_min, y_max).
     point_size_scale : float or None
         User-specified point size scale, or None for automatic.
-        
+
     Returns
     -------
     tuple
@@ -1072,7 +1195,7 @@ def compute_point_scaling(point_dataframe, bounds, point_size_scale=None):
 def compute_label_scaling(label_dataframe, min_fontsize, max_fontsize):
     """
     Compute label text size scaling.
-    
+
     Parameters
     ----------
     label_dataframe : pd.DataFrame
@@ -1081,7 +1204,7 @@ def compute_label_scaling(label_dataframe, min_fontsize, max_fontsize):
         Minimum font size.
     max_fontsize : float
         Maximum font size.
-        
+
     Returns
     -------
     pd.DataFrame
@@ -1101,14 +1224,14 @@ def compute_label_scaling(label_dataframe, min_fontsize, max_fontsize):
 def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
     """
     Get style configuration based on darkmode setting.
-    
+
     Parameters
     ----------
     darkmode : bool
         Whether darkmode is enabled.
     text_outline_color : str
         Text outline color (will be adjusted for darkmode).
-        
+
     Returns
     -------
     dict
@@ -1116,7 +1239,7 @@ def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
     """
     if darkmode and text_outline_color == "#eeeeeedd":
         text_outline_color = "#111111dd"
-    
+
     return {
         "point_outline_color": [250, 250, 250, 128] if not darkmode else [5, 5, 5, 128],
         "text_background_color": [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64],
@@ -1134,14 +1257,14 @@ def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
 def get_label_text_color(color_label_text, darkmode):
     """
     Get label text color configuration.
-    
+
     Parameters
     ----------
     color_label_text : bool
         Whether to color label text based on cluster color.
     darkmode : bool
         Whether darkmode is enabled.
-        
+
     Returns
     -------
     str or list
@@ -1162,7 +1285,7 @@ def prepare_hover_data(
 ):
     """
     Prepare hover data and tooltip/click handlers.
-    
+
     Parameters
     ----------
     point_dataframe : pd.DataFrame
@@ -1175,14 +1298,14 @@ def prepare_hover_data(
         JavaScript click handler.
     topic_tree_kwds : dict
         Topic tree keywords.
-        
+
     Returns
     -------
     dict
         Dictionary with hover_data, get_tooltip, on_click, and topic_tree_kwds.
     """
     topic_tree_kwds = topic_tree_kwds.copy()
-    
+
     if "hover_text" in point_dataframe.columns:
         if extra_point_data is not None:
             assert extra_point_data.shape[0] == point_dataframe.shape[0], (
@@ -1298,7 +1421,7 @@ def prepare_hover_data(
     else:
         hover_data = pd.DataFrame(columns=("hover_text",))
         get_tooltip = "null"
-    
+
     return {
         "hover_data": hover_data,
         "get_tooltip": get_tooltip,
@@ -1310,35 +1433,37 @@ def prepare_hover_data(
 def prepare_edge_bundle_data(point_dataframe, edge_bundle_keywords):
     """
     Prepare edge bundle data for visualization.
-    
+
     Parameters
     ----------
     point_dataframe : pd.DataFrame
         Point data with x, y, r, g, b columns.
     edge_bundle_keywords : dict
         Keywords for edge bundling algorithm.
-        
+
     Returns
     -------
     pd.DataFrame
         Edge data with x1, y1, x2, y2, r, g, b columns.
     """
     from datamapplot.edge_bundling import bundle_edges
-    
+
     data_map_coords = point_dataframe[["x", "y"]].values
     color_list = point_dataframe[["r", "g", "b"]].values
     lines, colors = bundle_edges(
         data_map_coords, color_list, rgb_colors=True, **edge_bundle_keywords
     )
-    return pd.DataFrame({
-        'x1': lines[:, 0],
-        'y1': lines[:, 1],
-        'x2': lines[:, 2],
-        'y2': lines[:, 3],
-        'r': colors[:, 0].astype(np.uint8),
-        'g': colors[:, 1].astype(np.uint8),
-        'b': colors[:, 2].astype(np.uint8)
-    })
+    return pd.DataFrame(
+        {
+            "x1": lines[:, 0],
+            "y1": lines[:, 1],
+            "x2": lines[:, 2],
+            "y2": lines[:, 3],
+            "r": colors[:, 0].astype(np.uint8),
+            "g": colors[:, 1].astype(np.uint8),
+            "b": colors[:, 2].astype(np.uint8),
+        }
+    )
 
 
 def prepare_histogram_data(
@@ -1349,7 +1474,7 @@ def prepare_histogram_data(
 ):
     """
     Prepare histogram bin and index data.
-    
+
     Parameters
     ----------
     histogram_data : pd.Series
@@ -1360,7 +1485,7 @@ def prepare_histogram_data(
         Datetime grouping unit.
     histogram_range : tuple or None
         Histogram range.
-        
+
     Returns
     -------
     tuple
@@ -1371,7 +1496,7 @@ def prepare_histogram_data(
         generate_bins_from_numeric_data,
         generate_bins_from_temporal_data,
     )
-    
+
     if isinstance(histogram_data.dtype, pd.CategoricalDtype):
         return generate_bins_from_categorical_data(
             histogram_data, histogram_n_bins, histogram_range
@@ -1407,7 +1532,7 @@ def prepare_colormap_data(
 ):
     """
     Prepare colormap data for the visualization.
-    
+
     Parameters
     ----------
     point_dataframe : pd.DataFrame
@@ -1426,7 +1551,7 @@ def prepare_colormap_data(
         Cluster colormap colors.
     noise_color : str
         Color for noise/unlabelled points.
-        
+
     Returns
     -------
     tuple
@@ -1451,7 +1576,9 @@ def prepare_colormap_data(
             cluster_colors = [
                 rgb2hex(c)
                 for c in np.clip(
-                    cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"), 0, 1
+                    cspace_convert(quantizer.cluster_centers_, "CAM02-UCS", "sRGB1"),
+                    0,
+                    1,
                 )
             ]
         else:
@@ -1515,7 +1642,7 @@ def encode_inline_data(
 ):
     """
     Encode data for inline HTML embedding.
-    
+
     Parameters
     ----------
     point_data : pd.DataFrame
@@ -1538,7 +1665,7 @@ def encode_inline_data(
         Whether edge bundling is enabled.
     edge_data : pd.DataFrame or None
         Edge data.
-        
+
     Returns
     -------
     dict
@@ -1550,15 +1677,15 @@ def encode_inline_data(
     arrow_bytes = buffer.read()
     gzipped_bytes = gzip.compress(arrow_bytes)
     base64_point_data = base64.b64encode(gzipped_bytes).decode()
-    
+
     json_bytes = json.dumps(hover_data.to_dict(orient="list")).encode()
     gzipped_bytes = gzip.compress(json_bytes)
     base64_hover_data = base64.b64encode(gzipped_bytes).decode()
-    
+
     label_data_json = label_dataframe.to_json(orient="records")
     gzipped_label_data = gzip.compress(bytes(label_data_json, "utf-8"))
     base64_label_data = base64.b64encode(gzipped_label_data).decode()
-    
+
     if enable_histogram:
         json_bytes = bin_data.to_json(
             orient="records", date_format="iso", date_unit="s"
@@ -1626,7 +1753,7 @@ def write_offline_data(
 ):
     """
     Write data to offline files.
-    
+
     Parameters
     ----------
     point_data : pd.DataFrame
@@ -1655,7 +1782,7 @@ def write_offline_data(
         Prefix for offline data files (deprecated).
     offline_data_chunk_size : int
         Chunk size for splitting data.
-        
+
     Returns
     -------
     dict
@@ -1683,11 +1810,13 @@ def write_offline_data(
         html_file_prefix = base_name
     else:
         # Backward compatibility: use offline_data_prefix
-        file_prefix = offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+        file_prefix = (
+            offline_data_prefix if offline_data_prefix is not None else "datamapplot"
+        )
         html_file_prefix = file_prefix
 
     n_chunks = (point_data.shape[0] // offline_data_chunk_size) + 1
-    
+
     for i in range(n_chunks):
         chunk_start = i * offline_data_chunk_size
         chunk_end = min((i + 1) * offline_data_chunk_size, point_data.shape[0])
@@ -1701,12 +1830,14 @@ def write_offline_data(
             )
         if enable_colormap_selector:
             with gzip.open(f"{file_prefix}_color_data_{i}.zip", "wb") as f:
-                color_data[chunk_start:chunk_end].to_feather(f, compression="uncompressed")
-    
+                color_data[chunk_start:chunk_end].to_feather(
+                    f, compression="uncompressed"
+                )
+
     label_data_json = label_dataframe.to_json(path_or_buf=None, orient="records")
     with gzip.open(f"{file_prefix}_label_data.zip", "wb") as f:
         f.write(bytes(label_data_json, "utf-8"))
-    
+
     if enable_histogram:
         with gzip.open(f"{file_prefix}_histogram_bin_data.zip", "wb") as f:
             f.write(
@@ -1739,7 +1870,7 @@ def write_offline_data(
 def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_css):
     """
     Process selection handler and merge its HTML/JS/CSS with custom content.
-    
+
     Parameters
     ----------
     selection_handler : SelectionHandlerBase or Iterable or None
@@ -1750,7 +1881,7 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
         Existing custom JavaScript.
     custom_css : str or None
         Existing custom CSS.
-        
+
     Returns
     -------
     tuple
@@ -1758,8 +1889,10 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
     """
     if selection_handler is None:
         return custom_html, custom_js, custom_css
-    
-    if isinstance(selection_handler, Iterable) and not isinstance(selection_handler, SelectionHandlerBase):
+
+    if isinstance(selection_handler, Iterable) and not isinstance(
+        selection_handler, SelectionHandlerBase
+    ):
         for handler in selection_handler:
             if custom_html is None:
                 custom_html = handler.html
@@ -1794,19 +1927,19 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
         raise ValueError(
             "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
         )
-    
+
     return custom_html, custom_js, custom_css
 
 
 def prepare_dynamic_tooltip(dynamic_tooltip):
     """
     Prepare dynamic tooltip configuration.
-    
+
     Parameters
     ----------
     dynamic_tooltip : dict or None
         Dynamic tooltip configuration.
-        
+
     Returns
     -------
     dict
@@ -1835,12 +1968,12 @@ def prepare_dynamic_tooltip(dynamic_tooltip):
 def url_to_base64_img(url):
     """
     Convert an image URL to a base64-encoded data URI.
-    
+
     Parameters
     ----------
     url : str
         URL of the image to convert.
-        
+
     Returns
     -------
     str or None
@@ -1875,6 +2008,7 @@ def url_to_base64_img(url):
 # Offline Mode and Font Handling
 # =============================================================================
 
+
 def prepare_offline_mode_data(
     offline_mode,
     offline_mode_js_data_file,
@@ -1882,7 +2016,7 @@ def prepare_offline_mode_data(
 ):
     """
     Prepare offline mode data by loading cached JS and font files.
-    
+
     Parameters
     ----------
     offline_mode : bool
@@ -1891,7 +2025,7 @@ def prepare_offline_mode_data(
         Path to the cached JS data file.
     offline_mode_font_data_file : str or Path or None
         Path to the cached font data file.
-        
+
     Returns
     -------
     dict
@@ -1899,18 +2033,16 @@ def prepare_offline_mode_data(
     """
     import platformdirs
     from datamapplot import offline_mode_caching
-    
+
     if not offline_mode:
         return {
             "offline_mode_data": None,
             "offline_mode_font_data_file": None,
         }
-    
+
     if offline_mode_js_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
-        offline_mode_js_data_file = (
-            Path(data_directory) / "datamapplot_js_encoded.json"
-        )
+        offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
         if not offline_mode_js_data_file.is_file():
             offline_mode_caching.cache_js_files()
         with offline_mode_js_data_file.open("r") as f:
@@ -1926,7 +2058,7 @@ def prepare_offline_mode_data(
         )
         if not offline_mode_font_data_file.is_file():
             offline_mode_caching.cache_fonts()
-    
+
     return {
         "offline_mode_data": offline_mode_data,
         "offline_mode_font_data_file": offline_mode_font_data_file,
@@ -1941,7 +2073,7 @@ def prepare_fonts(
 ):
     """
     Prepare font data for embedding in HTML.
-    
+
     Parameters
     ----------
     font_family : str
@@ -1952,14 +2084,14 @@ def prepare_fonts(
         Whether offline mode is enabled.
     offline_mode_font_data_file : str or Path or None
         Path to the cached font data file.
-        
+
     Returns
     -------
     dict
         Dictionary with 'api_fontname', 'font_data', and 'api_tooltip_fontname' keys.
     """
     import requests
-    
+
     api_fontname = font_family.replace(" ", "+")
     font_data = get_google_font_for_embedding(
         font_family,
@@ -1968,7 +2100,7 @@ def prepare_fonts(
     )
     if font_data == "":
         api_fontname = None
-        
+
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
         resp = requests.get(
@@ -1979,7 +2111,7 @@ def prepare_fonts(
             api_tooltip_fontname = None
     else:
         api_tooltip_fontname = None
-    
+
     return {
         "api_fontname": api_fontname,
         "font_data": font_data,
@@ -1990,19 +2122,19 @@ def prepare_fonts(
 def prepare_logo(logo, offline_mode):
     """
     Prepare logo for embedding in HTML.
-    
+
     Parameters
     ----------
     logo : str or None
         URL of the logo image.
     offline_mode : bool
         Whether offline mode is enabled.
-        
+
     Returns
     -------
     str or None
         Processed logo URL or base64 data URI.
-        
+
     Raises
     ------
     ValueError
@@ -2010,7 +2142,7 @@ def prepare_logo(logo, offline_mode):
     """
     if logo is None:
         return None
-    
+
     scheme = urlparse(logo).scheme
     if not scheme:
         raise ValueError(
@@ -2019,6 +2151,5 @@ def prepare_logo(logo, offline_mode):
     elif offline_mode or scheme == "file":
         # Store the image inline as a base64 URI.
         return url_to_base64_img(logo)
-    
-    return logo
 
+    return logo

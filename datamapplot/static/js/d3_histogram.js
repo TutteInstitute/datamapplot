@@ -705,7 +705,10 @@ const D3Histogram = (() => {
 
             // Set hovering behavior
             d3.select(`#${INTERACTION_CONTAINER_ID}`)
-                .on('mousedown', e => this.#handleMouseDown(e))
+                .on('mousedown', e => {
+                    e.stopPropagation();  // Prevent lasso selection from intercepting histogram events
+                    this.#handleMouseDown(e);
+                })
                 .on('mouseup', e => this.#handleMouseUp(e))
                 .on('mousemove', e => this.#handleMouseMove(e))
                 .on('mouseleave', e => this.#handleMouseLeave(e))

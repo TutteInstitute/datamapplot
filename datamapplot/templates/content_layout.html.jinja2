@@ -22,7 +22,7 @@
       {% endif %}
 
       {% if search %}
-      <div id="search-container" class="container-box">
+      <div id="search-container" class="container-box interactive-element">
         <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
       </div>
       {% endif %}
@@ -47,10 +47,10 @@
     {# Bottom-left stack: colormap selector, histogram #}
     <div class="stack bottom-left">
       {%- if enable_colormap_selector %}
-      <div id="colormap-selector-container" class="container-box stack-box"></div>
+      <div id="colormap-selector-container" class="container-box stack-box interactive-element"></div>
       {%- endif -%}
       {%- if enable_histogram %}
-      <div id="d3histogram-container" class="container-box stack-box"></div>
+      <div id="d3histogram-container" class="container-box stack-box interactive-element"></div>
       {%- endif -%}
     </div>
   </div>
