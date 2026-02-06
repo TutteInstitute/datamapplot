@@ -1,0 +1,629 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Minimal Topic Tree Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+  rel="stylesheet"
+/>
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<style>
+b"@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 300;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 700;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 900;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf) format('truetype');\n}\n"
+</style>
+
+<link
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+  rel="stylesheet"
+/>
+
+<script src="https://unpkg.com/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+<script src="https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"></script>
+
+<style>
+  .content-wrapper{top:0;left:0;width:100%;height:100%;z-index:1;padding:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;min-height:calc(100vh - 16px);pointer-events:none}.stack{display:flex;flex-direction:column;gap:0;padding:0;pointer-events:none;max-height:50vh;overflow-y:visible}.top-left{grid-column:1;grid-row:1;justify-self:start;align-self:start;align-items:start}.bottom-left{grid-column:1;grid-row:2;justify-self:start;align-self:end;align-items:start;display:flex;flex-direction:column-reverse;transform:scaleY(-1);z-index:2}.top-right{grid-column:2;grid-row:1;justify-self:end;justify-items:end;align-self:start;align-items:end}.bottom-right{grid-column:2;grid-row:2;justify-self:end;justify-items:end;align-self:end;align-items:end;display:flex;flex-direction:column-reverse;transform:scaleY(-1)}.stack.bottom-left .stack-box{transform:scaleY(-1)}.stack.bottom-right .stack-box{transform:scaleY(-1)}#loading{width:100%;height:100%;top:0px;left:0px;position:absolute;display:block;z-index:99}#loading-image{position:absolute;top:45%;left:47.5%;z-index:100}#title-container{top:0;left:0}
+</style><style>
+  .datamapplot-progress-container{position:absolute;bottom:0;left:50%;transform:translate(-50%,0);width:512px;z-index:101}.datamapplot-progress-bar{width:100%;background-color:#e0e0e044;padding:3px;border-radius:6px;box-shadow:inset 0 1px 3px rgba(128,128,128,.2);margin-bottom:10px}.datamapplot-progress-bar-fill{display:block;height:12px;background-color:#659cef;border-radius:4px;transition:width 500ms ease-in-out}.datamapplot-progress-bar-text{color:white;text-align:center;line-height:12px;font-size:10px;overflow-x:visible;white-space:nowrap;vertical-align:top}
+</style><style>
+  #topic-tree{display:block;height:fit-content;width:fit-content}#topic-tree-body{overflow-y:auto;display:flex;flex-direction:column}#topic-tree-body>.nested{display:block;padding-right:10px}#topic-tree>.nested{display:block;padding-right:10px}.topic-tree-container{display:flex;flex-direction:column}.topic-tree-header{padding:0px 4px 4px 2em;border-bottom:1px solid #ddd;margin-bottom:4px;margin-top:-2em;display:flex;justify-content:space-between;align-items:center;flex-direction:row;text-wrap:nowrap;overflow:hidden}.nested{display:none;margin-left:20px;list-style-type:none;padding-inline-start:10px}.nested.active{display:block}#topic-tree::-webkit-scrollbar{width:8px}#topic-tree-body::-webkit-scrollbar-track{background:#f1f1f1}#topic-tree-body::-webkit-scrollbar-thumb{background:#888;border-radius:4px}#topic-tree-body::-webkit-scrollbar-thumb:hover{background:#555}.caret{cursor:pointer;user-select:none;padding:2px 4px;border-radius:3px;opacity:0.4;transition:opacity 0.3s ease}.caret::before{content:"\25B6";display:inline-block;margin-right:6px}.caret-down::before{transform:rotate(90deg)}.caret.unlabeled::before{content:"\25b7"}.bullet{cursor:pointer;user-select:none;padding:2px 4px;border-radius:3px;opacity:0.4;transition:opacity 0.3s ease}.bullet::before{content:"\25CF";display:inline-block;margin-right:6px}.bullet.unlabeled::before{content:"\25CB"}li{list-style-type:none;margin:5px 0}.topic-tree-btn{border:none;color:white;padding:2px 4px;border-radius:5px;cursor:pointer;margin-right:5px}.topic-tree-btn:hover{background-color:RoyalBlue}.topic-tree-label{border:none;cursor:pointer}.topic-tree-label:hover{text-decoration:underline}.expand-all-btn{padding:4px 8px;cursor:pointer;border:none;border-radius:8px;background:#3ba5e7;color:white}.expand-all-btn:hover{text-decoration:underline}.highlighted{opacity:1.0;transition:opacity 0.3s ease}.topic-tree-close-btn{font-size:1.5em;font-weight:bold;border:none;padding:0px 02px;cursor:pointer;transform:rotate(270deg);transition:transform 0.25s ease-in-out;margin:-2px;background:none;color:inherit}.topic-tree-close-btn.closed{font-size:1.5em;font-weight:bold;border:none;padding:0px 0px;cursor:pointer;transition:transform 0.25s ease-in-out;transform:rotate(90deg);margin:-2px;background:none;color:inherit}
+</style>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: Roboto;
+    color: #000000;
+  }
+  .container-box {
+    margin: 8px 16px 8px 16px;
+    padding: 12px;
+    border-radius: 16px;
+    line-height: 0.95;
+    width: fit-content;
+    height: fit-content;
+    z-index: 2;
+    backdrop-filter: blur(3px);
+    background: #ffffffaa;
+    box-shadow: 2px 3px 10px #aaaaaa44;
+    position: relative;
+    pointer-events: auto;
+  }
+  .more-opaque {
+    backdrop-filter: blur(6px);
+    background-color: #ffffffee;
+  }
+  #deck-container {
+    width: 100vw;
+    height: 100vh;  
+  }
+  #deck-container canvas {
+    z-index: 1;
+    background: #ffffff;
+  }
+  .deck-tooltip {
+      
+            font-size: 0.8em;
+            font-family: Roboto;
+            font-weight: 300;
+            color: #000000 !important;
+            background-color: #ffffffee !important;
+            border-radius: 12px;
+            backdrop-filter: blur(6px);
+            box-shadow: 2px 3px 10px #aaaaaa44;
+            max-width: 25%;
+  }
+  input {
+    margin: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    color: #000000;
+    background: #ffffffdd;
+    border: 2px inset #77777744;
+    transition: 0.5s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input:focus {
+    border: 2px inset #555;
+  }
+</style>
+  </head>
+  
+  <body>
+<div id="loading">
+  <img
+    id="loading-image"
+    src=""
+    alt="Loading..."
+    width="5%"
+  />
+</div>
+<div style="isolation: isolate; position: relative;">
+  <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  <div class="content-wrapper" style="position: relative; z-index: 1;">
+    
+    <div class="stack top-left">
+      
+      <div id="title-container" class="container-box">
+        <span
+          id="main-title"
+          style="font-family:Roboto;font-size:36pt;font-weight:;color:#000000"
+        >
+          Minimal Topic Tree Test
+        </span>
+        <br />
+        <span
+          style="font-family:Roboto;font-size:18pt;color:#777777"
+        >
+          For topic tree tests
+        </span>
+      </div>
+      
+
+      
+      
+      <div id="topic-tree" class="container-box">
+      </div>
+      
+    </div>
+    
+    
+    <div class="stack top-right">
+      
+    </div>
+    
+    
+    <div class="stack bottom-right">
+    </div>
+    
+    
+    <div class="stack bottom-left"></div>
+  </div>
+  
+  
+  
+</div>
+
+
+
+<div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+  <div id="point-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+    </span>
+  </div>
+  <div id="label-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+    </span>
+  </div>
+  <div id="meta-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+    </span>
+  </div>
+</div>
+  </body>
+  <script>
+    LAYER_ORDER=['imageLayer','dataPointLayer','boundaryLayer','labelLayer'];function getLayerIndex(object){return LAYER_ORDER.indexOf(object.id);}
+function isFontLoaded(fontName){return document.fonts.check(`12px "${fontName}"`);}
+function waitForFont(fontName,maxWait=500){return new Promise((resolve,reject)=>{if(isFontLoaded(fontName)){resolve();}else{const startTime=Date.now();const interval=setInterval(()=>{if(isFontLoaded(fontName)){clearInterval(interval);resolve();}else if(Date.now()-startTime>maxWait){clearInterval(interval);reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));}},50);}});}
+function getInitialViewportSize(){const width=document.documentElement.clientWidth;const height=document.documentElement.clientHeight;return{viewportWidth:width,viewportHeight:height};}
+function calculateZoomLevel(bounds,viewportWidth,viewportHeight,padding=0.5){const lngRange=bounds[1]-bounds[0];const latRange=bounds[3]-bounds[2];const centerLng=(bounds[0]+bounds[1])/2;const centerLat=(bounds[2]+bounds[3])/2;const zoomX=Math.log2(360/(lngRange/(viewportWidth/256)));const zoomY=Math.log2(180/(latRange/(viewportHeight/256)));const zoom=Math.min(zoomX,zoomY)-padding;return{zoomLevel:zoom,dataCenter:[centerLng,centerLat]};}
+class DataMap{constructor({container,bounds,searchItemId="text-search",lassoSelectionItemId="lasso-selection",}){this.container=container;this.searchItemId=searchItemId;this.lassoSelectionItemId=lassoSelectionItemId;this.pointData=null;this.labelData=null;this.metaData=null;this.layers=[];const{viewportWidth,viewportHeight}=getInitialViewportSize();const{zoomLevel,dataCenter}=calculateZoomLevel(bounds,viewportWidth,viewportHeight);this.deckgl=new deck.DeckGL({container:container,initialViewState:{latitude:dataCenter[1],longitude:dataCenter[0],zoom:zoomLevel},controller:{scrollZoom:{speed:0.01,smooth:true}},});this.updateTriggerCounter=0;this.dataSelectionManager=new DataSelectionManager(lassoSelectionItemId);}
+addPoints(pointData,{pointSize,pointOutlineColor=[250,250,250,128],pointLineWidth=0.001,pointHoverColor=[170,0,0,187],pointLineWidthMaxPixels=3,pointLineWidthMinPixels=0.001,pointRadiusMaxPixels=16,pointRadiusMinPixels=0.2,}){const numPoints=pointData.x.length;const positions=new Float32Array(numPoints*2);const colors=new Uint8Array(numPoints*4);const variableSize=pointSize<0;let sizes;if(variableSize){sizes=new Float32Array(numPoints);}else{sizes=null;}
+for(let i=0;i<numPoints;i++){positions[i*2]=pointData.x[i];positions[i*2+1]=pointData.y[i];colors[i*4]=pointData.r[i];colors[i*4+1]=pointData.g[i];colors[i*4+2]=pointData.b[i];colors[i*4+3]=pointData.a[i];if(variableSize){sizes[i]=pointData.size[i];}}
+this.originalColors=colors;this.selected=new Float32Array(numPoints).fill(1.0);this.pointSize=pointSize;this.pointOutlineColor=pointOutlineColor;this.pointLineWidth=pointLineWidth;this.pointHoverColor=pointHoverColor;this.pointLineWidthMaxPixels=pointLineWidthMaxPixels;this.pointLineWidthMinPixels=pointLineWidthMinPixels;this.pointRadiusMaxPixels=pointRadiusMaxPixels;this.pointRadiusMinPixels=pointRadiusMinPixels;let scatterAttributes={getPosition:{value:positions,size:2},getFillColor:{value:colors,size:4},getFilterValue:{value:this.selected,size:1}};if(variableSize){scatterAttributes.getRadius={value:sizes,size:1};}
+this.pointLayer=new deck.ScatterplotLayer({id:'dataPointLayer',data:{length:numPoints,attributes:scatterAttributes},getRadius:this.pointSize,getLineColor:this.pointOutlineColor,getLineWidth:this.pointLineWidth,highlightColor:this.pointHoverColor,lineWidthMaxPixels:this.pointLineWidthMaxPixels,lineWidthMinPixels:this.pointLineWidthMinPixels,radiusMaxPixels:this.pointRadiusMaxPixels,radiusMinPixels:this.pointRadiusMinPixels,radiusUnits:"common",lineWidthUnits:"common",autoHighlight:true,pickable:true,stroked:true,extensions:[new deck.DataFilterExtension({filterSize:1})],filterRange:[-0.5,1.5],filterSoftRange:[0.75,1.25],updateTriggers:{getFilterValue:this.updateTriggerCounter},instanceCount:numPoints,parameters:{depthTest:false}});this.layers.push(this.pointLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addEdges(edgeData,{edgeWidth=0.05,edgeOpacity=0.8,}){const numEdges=edgeData.r.length;this.edgeWidth=edgeWidth;this.edgeOpacity=edgeOpacity;const sourcePosition=new Float32Array(numEdges*2);const targetPosition=new Float32Array(numEdges*2);const colors=new Uint8Array(numEdges*4);let lineAttributes={getSourcePosition:{value:sourcePosition,size:2},getTargetPosition:{value:targetPosition,size:2},getColor:{value:colors,size:4},};for(let i=0;i<numEdges;i++){sourcePosition[i*2]=edgeData.x1[i];sourcePosition[i*2+1]=edgeData.y1[i];targetPosition[i*2]=edgeData.x2[i];targetPosition[i*2+1]=edgeData.y2[i];colors[i*4]=edgeData.r[i];colors[i*4+1]=edgeData.g[i];colors[i*4+2]=edgeData.b[i];colors[i*4+3]=180;}
+this.edgeLayer=new deck.LineLayer({id:'edgeLayer',data:{length:numEdges,attributes:lineAttributes},getSourcePosition:d=>[d.source.x,d.source.y],getTargetPosition:d=>[d.target.x,d.target.y],getWidth:this.edgeWidth,});this.layers.push(this.edgeLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addLabels(labelData,{labelTextColor=d=>[d.r,d.g,d.b],textMinPixelSize=18,textMaxPixelSize=36,textOutlineWidth=8,textOutlineColor=[238,238,238,221],textBackgroundColor=[255,255,255,64],fontFamily="Roboto",fontWeight=900,lineSpacing=0.95,textCollisionSizeScale=3.0,noiseLabel="Unlabelled",pickable=false,}){const numLabels=labelData.length;this.labelTextColor=labelTextColor;this.textMinPixelSize=textMinPixelSize;this.textMaxPixelSize=textMaxPixelSize;this.textOutlineWidth=textOutlineWidth;this.textOutlineColor=textOutlineColor;this.textBackgroundColor=textBackgroundColor;this.fontFamily=fontFamily;this.fontWeight=fontWeight;this.lineSpacing=lineSpacing;this.textCollisionSizeScale=textCollisionSizeScale;waitForFont(this.fontFamily);this.labelLayer=new deck.TextLayer({id:'labelLayer',data:labelData.filter(d=>d.label!==noiseLabel),pickable:pickable,getPosition:d=>[d.x,d.y],getText:d=>d.label,getColor:this.labelTextColor,getSize:d=>d.size,sizeScale:1,sizeMinPixels:this.textMinPixelSize,sizeMaxPixels:this.textMaxPixelSize,outlineWidth:this.textOutlineWidth,outlineColor:this.textOutlineColor,getBackgroundColor:this.textBackgroundColor,getBackgroundPadding:[15,15,15,15],background:true,characterSet:"auto",fontFamily:this.fontFamily,fontWeight:this.fontWeight,lineHeight:this.lineSpacing,fontSettings:{"sdf":true},getTextAnchor:"middle",getAlignmentBaseline:"center",lineHeight:0.95,elevation:100,collisionEnabled:true,getCollisionPriority:d=>d.size,collisionTestProps:{sizeScale:this.textCollisionSizeScale,sizeMaxPixels:this.textMaxPixelSize*2,sizeMinPixels:this.textMinPixelSize*2},extensions:[new deck.CollisionFilterExtension()],instanceCount:numLabels,parameters:{depthTest:false}});this.layers.push(this.labelLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addBoundaries(boundaryData,{clusterBoundaryLineWidth=0.5}){const numBoundaries=boundaryData.length;this.clusterBoundaryLineWidth=clusterBoundaryLineWidth;this.boundaryLayer=new deck.PolygonLayer({id:'boundaryLayer',data:boundaryData,stroked:true,filled:false,getLineColor:d=>[d.r,d.g,d.b,d.a],getPolygon:d=>d.polygon,lineWidthUnits:"common",getLineWidth:d=>d.size*d.size,lineWidthScale:this.clusterBoundaryLineWidth*5e-5,lineJointRounded:true,lineWidthMaxPixels:4,lineWidthMinPixels:0.0,instanceCount:numBoundaries,parameters:{depthTest:false}});this.layers.push(this.boundaryLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addMetaData(metaData,{tooltipFunction=({index})=>this.metaData.hover_text[index],onClickFunction=null,searchField=null,}){this.metaData=metaData;this.tooltipFunction=tooltipFunction;this.onClickFunction=onClickFunction;this.searchField=searchField;if(this.metaData.hasOwnProperty('hover_text')){this.deckgl.setProps({getTooltip:this.tooltipFunction,});}
+if(this.onClickFunction){this.deckgl.setProps({onClick:this.onClickFunction,});}
+if(this.searchField){this.searchArray=this.metaData[this.searchField].map(d=>d.toLowerCase());}}
+connectHistogram(histogramItem){this.histogramItem=histogramItem;this.histogramItemId=histogramItem.state.chart.chartContainerId;}
+addBackgroundImage(image,bounds){this.imageLayer=new deck.BitmapLayer({id:'imageLayer',bounds:bounds,image:image,parameters:{depthTest:false}});this.layers.push(this.imageLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+async addSelectionHandler(callback,selectionKind="lasso-selection",timeoutMs=60000){const startTime=Date.now();if(selectionKind==="lasso-selection"){while(!this.lassoSelector){if(Date.now()-startTime>timeoutMs){throw new Error('Timeout: lassoSelector did not become available within the specified timeout period');}
+await new Promise(resolve=>setTimeout(resolve,1000));}
+this.lassoSelector.registerSelectionHandler(callback);}else{if(!this.selectionCallbacks){this.selectionCallbacks={};}
+if(this.selectionCallbacks[selectionKind]){this.selectionCallbacks[selectionKind].push(callback);}
+this.selectionCallbacks[selectionKind]=[callback];}}
+highlightPoints(itemId){const selectedIndices=this.dataSelectionManager.getSelectedIndices();const semiSelectedIndices=this.dataSelectionManager.getBasicSelectedIndices();const hasSelectedIndices=selectedIndices.size!==0;const hasSemiSelectedIndices=semiSelectedIndices.size!==0;const hasLassoSelection=this.dataSelectionManager.hasSpecialSelection();if(hasLassoSelection){if(hasSelectedIndices){if(hasSemiSelectedIndices){this.selected.fill(-1.0);for(let i of semiSelectedIndices){this.selected[i]=0.0;}}else{this.selected.fill(0.0);}
+for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}else{if(hasSelectedIndices){this.selected.fill(-1.0);for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}
+this.updateTriggerCounter++;const sizeAdjust=1/(1+(Math.sqrt(selectedIndices.size)/Math.log2(this.selected.length)));const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFilterValue:{value:this.selected,size:1}}},radiusMinPixels:hasSelectedIndices?2*(this.pointRadiusMinPixels+sizeAdjust):this.pointRadiusMinPixels,updateTriggers:{getFilterValue:this.updateTriggerCounter,radiusMinPixels:this.updateTriggerCounter,}});const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;if(this.histogramItem&&itemId!==this.histogramItemId){if(hasSelectedIndices){this.histogramItem.drawChartWithSelection(selectedIndices);}else{this.histogramItem.removeChartWithSelection(selectedIndices);}}}
+addSelection(selectedIndices,selectionKind){this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+removeSelection(selectionKind){this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+getSelectedIndices(){return this.dataSelectionManager.getSelectedIndices();}
+searchText(searchTerm){const searchTermLower=searchTerm.toLowerCase();const selectedIndices=this.searchArray.reduce((indices,d,i)=>{if(d.indexOf(searchTermLower)>=0){indices.push(i);}
+return indices;},[]);if(searchTerm===""){this.dataSelectionManager.removeSelectedIndicesOfItem(this.searchItemId);}else{this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,this.searchItemId);}
+if(this.selectionCallbacks&&this.selectionCallbacks[this.searchItemId]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[this.searchItemId]){callback(currentSelectedIndices);}}
+this.highlightPoints(this.searchItemId);}
+recolorPoints(colorData,fieldName){if(!this.hasOwnProperty(`${fieldName}Colors`)){const numPoints=colorData[`${fieldName}_r`].length;const colors=new Uint8Array(numPoints*4);for(let i=0;i<numPoints;i++){colors[i*4]=colorData[`${fieldName}_r`][i];colors[i*4+1]=colorData[`${fieldName}_g`][i];colors[i*4+2]=colorData[`${fieldName}_b`][i];colors[i*4+3]=colorData[`${fieldName}_a`][i];}
+this[`${fieldName}Colors`]=colors;}
+const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this[`${fieldName}Colors`],size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}
+resetPointColors(){const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this.originalColors,size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}}
+  </script>
+  <script>
+    class DataSelectionManager{constructor(specialItem){this.excludeItem=specialItem;this.selectedIndicesByItem={};this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();}
+addOrUpdateSelectedIndicesOfItem(indices,itemId){const isNewItem=!this.selectedIndicesByItem.hasOwnProperty(itemId);this.selectedIndicesByItem[itemId]=new Set(indices);this.#updateSelectedIndicesCommon(isNewItem?itemId:null);}
+removeSelectedIndicesOfItem(itemId){if(this.selectedIndicesByItem.hasOwnProperty(itemId)){delete this.selectedIndicesByItem[itemId];this.#updateSelectedIndicesCommon();}}
+getSelectedIndices(){return this.selectedIndicesCommon;}
+getBasicSelectedIndices(){return this.selectedIndicesBasicCommon;}
+hasSpecialSelection(){return this.selectedIndicesByItem.hasOwnProperty(this.excludeItem);}#updateSelectedIndicesCommon(newItem=null){const sets=Object.values(this.selectedIndicesByItem);if(sets.length===0){this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();return;}
+if(sets.length===1){this.selectedIndicesCommon=sets[0];if(Object.keys(this.selectedIndicesByItem)[0]!==this.excludeItem){this.selectedIndicesBasicCommon=sets[0];}else{this.selectedIndicesBasicCommon=new Set();}
+return;}
+if(newItem){const newSet=this.selectedIndicesByItem[newItem];this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(newSet);if(newItem!==this.excludeItem){this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(newSet);}
+return;}
+this.selectedIndicesCommon=sets[0];for(let i=1;i<sets.length;i++){this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(sets[i]);if(this.selectedIndicesCommon.size===0){break;}}
+const otherSelectionItems=Object.keys(this.selectedIndicesByItem).filter(key=>key!==this.excludeItem);this.selectedIndicesBasicCommon=this.selectedIndicesByItem[otherSelectionItems[0]];for(let i=1;i<otherSelectionItems.length;i++){const otherSelection=this.selectedIndicesByItem[otherSelectionItems[i]];this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(otherSelection);}}}
+  </script>
+  <script>
+    var getNextSibling=function(elem,selector){var sibling=elem.nextElementSibling;if(!selector)return sibling;while(sibling){if(sibling.matches(selector))return sibling;sibling=sibling.nextElementSibling}};function formatTopicTreeButtonHtml(icon,labelId){return`<button class="topic-tree-btn" data-label-id="${labelId}">${icon}</button>`;}
+class TopicTree{constructor(topicTreeContainer,datamap,buttons,icon,options={title:"Topic Tree",maxWidth:"30vw",maxHeight:"42vh",fontSize:"12pt",colorBullets:false,}){this.container=topicTreeContainer;this.datamap=datamap;this.colorBullets=options.colorBullets;this.maxWidth=options.maxWidth;this.maxHeight=options.maxHeight;this.title=options.title;this.fontSize=options.fontSize;this.elements=datamap.labelData;this.rootLayerNo=Math.max(...datamap.labelData.map(e=>e.layer_no));this.parentChildMap=this.buildParentChildMap();this.container.style.fontSize=this.fontSize;this.showHideButton=document.createElement('button');this.showHideButton.classList.add('topic-tree-close-btn');this.showHideButton.innerHTML='&#10095;';this.container.appendChild(this.showHideButton);this.topicTreeContainer=document.createElement('div');this.header=document.createElement('div');this.header.classList.add('topic-tree-header');this.heading=document.createElement('h3');this.heading.textContent=this.title;this.expandAllBtn=document.createElement('button');this.expandAllBtn.classList.add('expand-all-btn');this.expandAllBtn.dataset.expanded='false';this.expandAllBtn.textContent='Expand All';this.header.appendChild(this.heading);this.header.appendChild(this.expandAllBtn);this.topicTreeContainer.appendChild(this.header);this.topicTreeBody=document.createElement('div');this.topicTreeBody.id='topic-tree-body';this.topicTreeBody.style.maxWidth=this.maxWidth;this.topicTreeBody.style.maxHeight=this.maxHeight;this.topicTreeBody.innerHTML=this.buildTreeHtml(buttons,icon);this.topicTreeBody.style.textWrap='nowrap';this.topicTreeBody.style.overflowX='auto';this.topicTreeContainer.appendChild(this.topicTreeBody);this.container.appendChild(this.topicTreeContainer);this.spanCache=new Map();this.parentChainCache=new Map();this.setupCaretHandlers();this.setupLabelHandlers(datamap);this.setupExpandAllHandler();this.setupShowHideHandler();this.initializeSpanCache();this.initializeParentChainCache();this.highlightElements(this.elements);}
+buildParentChildMap(){const parentChildMap=new Map();this.elements.forEach(element=>{const parentId=element.parent;if(!parentChildMap.has(parentId)){parentChildMap.set(parentId,[]);}
+parentChildMap.get(parentId).push(element);});return parentChildMap;}
+buildTreeHtml(buttons,icon,parentId='base'){const children=this.parentChildMap.get(parentId)||[];if(children.length===0)return'';if(this.colorBullets){return`
+                <ul class="nested">
+                    ${children.map(label => `<li><span class="${label.lowest_layer ? 'bullet' : 'caret'} ${label.id.endsWith('-1') ? 'unlabeled' : ''}"data-element-id="${label.id}"style="color: rgb(${label.r}, ${label.g}, ${label.b});"></span>${buttons?formatTopicTreeButtonHtml(icon,label.id):''}<span class="topic-tree-label"data-bounds="${JSON.stringify(label.bounds)}"data-label-id="${label.id}">${label.label||label.id}</span>${this.buildTreeHtml(buttons,icon,label.id)}</li>`).join('')}
+                </ul>
+            `;}else{return`
+            <ul class="nested">
+                ${children.map(label => `<li><span class="${label.lowest_layer ? 'bullet' : 'caret'} ${label.id.endsWith('-1') ? 'unlabeled' : ''}"data-element-id="${label.id}"></span>${buttons?formatTopicTreeButtonHtml(icon,label.id):''}<span class="topic-tree-label"data-bounds="${JSON.stringify(label.bounds)}"data-label-id="${label.id}">${label.label||label.id}</span>${this.buildTreeHtml(buttons,icon,label.id)}</li>`).join('')}
+            </ul>
+        `;}}
+setupLabelHandlers(datamap){var topicTree=this
+this.container.querySelectorAll('.topic-tree-label').forEach(button=>{button.addEventListener('click',function(){const bounds=JSON.parse(this.dataset.bounds);const labelId=this.dataset.labelId;topicTree.zoomToLabelBounds(bounds,labelId);});});}
+zoomToLabelBounds(bounds,labelId){const{viewportWidth,viewportHeight}=getInitialViewportSize();const{zoomLevel,dataCenter}=calculateZoomLevel(bounds,viewportWidth,viewportHeight);const viewState={latitude:dataCenter[1],longitude:dataCenter[0],zoom:zoomLevel,transitionDuration:1000,};this.datamap.deckgl.setProps({initialViewState:{...viewState},});}
+initializeSpanCache(){this.spanCache.clear();this.container.querySelectorAll('[data-element-id]').forEach(span=>{this.spanCache.set(span.dataset.elementId,span);});}
+initializeParentChainCache(){this.parentChainCache.clear();this.elements.forEach(element=>{const chain=[];let current=element;while(current.parent){chain.push(current.parent);current=this.elements.find(e=>e.id===current.parent);if(!current)break;}
+this.parentChainCache.set(element.id,chain);});}
+highlightElements(elements){const highlightedElements=Array.from(this.container.querySelectorAll('.highlighted'));highlightedElements.forEach(el=>el.classList.remove('highlighted'));elements.forEach(element=>{this.highlightElementAndParents(element);});}
+highlightElementAndParents(element){const elementSpan=this.spanCache.get(element.id);if(!elementSpan)return;if(elementSpan.classList.contains('highlighted'))return;elementSpan.classList.add('highlighted');const parentChain=this.parentChainCache.get(element.id);if(parentChain){for(const parentId of parentChain){const parentSpan=this.spanCache.get(parentId);if(!parentSpan)continue;if(parentSpan.classList.contains('highlighted'))break;parentSpan.classList.add('highlighted');}}}
+setupCaretHandlers(){this.container.querySelectorAll('.caret').forEach(caret=>{caret.addEventListener('click',function(){this.classList.toggle('caret-down');const nestedList=getNextSibling(this,'.nested');if(nestedList){nestedList.classList.toggle('active');}});});}
+setupExpandAllHandler(){this.expandAllBtn.addEventListener('click',function(){const isExpanded=this.dataset.expanded==='true';const carets=document.querySelectorAll('.caret');carets.forEach(caret=>{const nestedList=getNextSibling(caret,'.nested');if(isExpanded){caret.classList.remove('caret-down');if(nestedList){nestedList.classList.remove('active');}}else{caret.classList.add('caret-down');if(nestedList){nestedList.classList.add('active');}}});this.dataset.expanded=(!isExpanded).toString();this.textContent=isExpanded?'Expand All':'Collapse All';});}
+setupShowHideHandler(){const topicTreeBody=this.topicTreeBody;const header=this.header;const heading=this.heading;const expandAllBtn=this.expandAllBtn;const topicTreeContainer=this.topicTreeContainer;this.showHideButton.addEventListener('click',function(){const hidden=topicTreeContainer.hidden;if(hidden){$(topicTreeContainer).animate({height:'show',width:'show',opacity:'show'},250);topicTreeContainer.hidden=false;topicTreeBody.style.overflowX='auto';this.classList.remove('closed');}else{topicTreeBody.style.overflowX='hidden';const carets=document.querySelectorAll('.caret');carets.forEach(caret=>{const nestedList=getNextSibling(caret,'.nested');caret.classList.remove('caret-down');if(nestedList){nestedList.classList.remove('active');}});expandAllBtn.textContent='Expand All';expandAllBtn.dataset.expanded='false';$(topicTreeContainer).animate({height:'hide',width:'hide',opacity:'hide'},250);topicTreeContainer.hidden=true;this.classList.add('closed');}});}}
+  </script><script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    
+function debounce(func, timeout = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+  };
+}
+
+async function simpleArrowParser(arrow_bytes) {
+  const table = await Arrow.tableFromIPC(arrow_bytes);
+  const result = {};
+  table.schema.fields.forEach((field) => {
+    result[field.name] = table.getChild(field.name).toArray();
+  });
+  return result;
+}
+
+function mergeTypedArrays(arrays) {
+  let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  let result = new arrays[0].constructor(totalLength);
+  let currentLength = 0;
+  for (let arr of arrays) {
+    result.set(arr, currentLength);
+    currentLength += arr.length;
+  }
+  return result;
+}
+
+
+
+function updateProgressBar(id, progress) {
+  const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+  const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+  if (progressBar && progressText) {
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+  }
+}
+
+function checkAllDataLoaded() {
+  const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+  const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+  if (allLoaded) {
+    const loadingEl = document.getElementById("loading");
+    const progressEl = document.getElementById("progress-container");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (progressEl) progressEl.style.display = "none";
+  }
+}
+    
+    
+
+function isBoundsVisible({bounds, viewState}) {
+  const {width, height, longitude, latitude, zoom} = viewState;
+  const Viewport = new deck.WebMercatorViewport({width, height, longitude, latitude, zoom});
+  const minBounds = Viewport.project([bounds[0], bounds[2]]);
+  const maxBounds = Viewport.project([bounds[1], bounds[3]]);
+  return (
+    ((minBounds[0] >= 0 && minBounds[0] <= width) || (maxBounds[0] >= 0 && maxBounds[0] <= width)) &&
+    ((minBounds[1] >= 0 && minBounds[1] <= height) || (maxBounds[1] >= 0 && maxBounds[1] <= height))
+  );
+}
+
+function getVisibleTextData(viewState, labelData) {
+  if (labelData) {
+    return labelData.filter((d) => isBoundsVisible({bounds: d.bounds, viewState: viewState}));
+  }
+}
+
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    
+
+
+
+
+const pointDataEncoded = "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";
+const hoverDataEncoded = "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";
+const labelDataEncoded = "H4sIAIQAYGkC/4WVy47bNhSGX8XQWiLOIc/Vu6LdFEjSIgW6SYJAcdSJUI888AVpUvTde2RbnvHAyuwkUzT58b/w3b/Vuv3Uratl9dOvi7fdrmu3qy9VXf1TLZucxLkYW7a6+lYt470wkhfwUle7/nsXv1mCuvq0OQyfd9XyXYMlKQhnlVxKLcnH79ndsW5KkiwZAUylRkzswFDQVT/UVf859oANxNrrzddut/+4br9122o5HNbruooHOS51d1mzWhqND20MxcN/9SPLL+2+Xfyx6rth1Z1gctKCLBwLyhFmpFPgDER4gdFkplrEVfCKCpMJKLl4fI2cxplFwbLUDebkgJApx2HV8UZmoJ6VbOLKDc5zIUxgGBs4kfkc2c+b+4fDvtsu/ux3/Wa4KMXAomYE5UQHyXOoNYL4hIeWkOPsjXO+wuMkxDHZWHONcS7kagWPkjEbxCyyUscZWoBLdr8oVm4ott8euhNZKWcyxwms/Eiy1/3QD3cnKI99oIVFsuqkGJWSyYlEnzA99Z+mzC4ghqZ1eBGVQpQctqsbSeilqEBGDkqI3bFQzj6x0A2VLiykE0o5o6jMoXTdw+JVJOkRBpNqLtnA3C9ZKqrKY0xuswRvWC48S+D5OkqQUDJFcopRjBSJP1JGxQmFmzyPInJGOeUnUBDnZHndrr70Q/ccJwynTiLucIqTpzjMsE+h7DM8ngigRAJ51OYqQ4GAJQcTYL6dIGnKPFDxM5BO2iDMAb1p94dtu168aoe7Q3vXvR9+325W3W53gWswkXsUAYHQGW7srEgH8ItZolS0sIXxJMoguZM5hwm1pig8NyhmUS43608bmofUqSXYLpA6B9kdGd90+6+b7d+7M5dFfkDDdkV4agnUMQPhTH2R7LraA1TBhZ2Bnnd75M5Nwh5RRxObNfyDokCY4KYGVJ5h++1h39/339v9Y/3FMWeNa0op+usIFopZYEZVzccrUqDFOSIWFRlyREugjZX5vNKjHwkLQXSFyMTjjczz8FQWCmecPOfHt10//LXZrrr7bti/H65zNnJEE2chk3MJWqSd4iYrkZaXJbu6t0bJjMOXmjPV42D0h0BETUPPnNACOK58ujQiQqPzlDb1CPNEiU8pP/wP9xLAXl4IAAA=";
+
+
+
+
+
+const parsingWorkerBlob = new Blob([`
+  self.onmessage = async function(event) {
+  const { encodedData, JSONParse } = event.data;
+    // Function to parse base64 to Uint8Array
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
+    async function decodeBase64WithProgress(base64) {
+      const totalLength = base64.length;
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+      let offset = 0;
+
+      for (let i = 0; i < totalLength; i += chunkSize) {
+        const chunk = base64.slice(i, i + chunkSize);
+        const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        decodedArray.set(decodedChunk, offset);
+        offset += decodedChunk.length;
+
+        const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+        self.postMessage({ type: 'progress', progress: progress });
+
+        // Allow other operations to occur
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      return decodedArray.slice(0, offset);
+    }
+    const decodedData = await decodeBase64WithProgress(encodedData);
+    const decompressedData = await DecompressBytes(decodedData);
+    if (JSONParse) {
+      const parsedData = JSON.parse(new TextDecoder("utf-8").decode(decompressedData));
+      self.postMessage({ type: "data", data: parsedData });
+    } else {
+      self.postMessage({ type: "data", data: decompressedData });
+    }
+  }
+`], { type: 'application/javascript' });
+
+
+
+const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    
+const searchItemId = "text-search";
+const histogramItemId = "d3histogram-container";
+const selectionItemId = "lasso-select";
+let histogramItem = null;
+
+const container = document.getElementById('deck-container');
+
+const datamap = new DataMap({
+  container: container,
+  bounds: [-14.00064527034925, 15.999354729650758, -13.15491528911707, 12.741970310072535],
+  searchItemId: searchItemId,
+  lassoSelectionItemId: selectionItemId,      
+});
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    
+
+
+
+
+
+
+
+
+// =============================================================================
+// Point Data Loading
+// =============================================================================
+
+function loadPointDataLayer() {
+  const pointDataWorker = new Worker(workerUrl);
+  pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+  pointDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('point-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = await simpleArrowParser(data);
+
+
+      const pointData = parsedData;
+      
+      datamap.addPoints(pointData, {
+        pointSize: 0.11149217500619053,
+        pointOutlineColor: [250, 250, 250, 128],
+        pointLineWidth: 0.001,
+        pointHoverColor: [170, 0, 0, 187],
+        pointLineWidthMaxPixels: 3,
+        pointLineWidthMinPixels: 0.001,
+        pointRadiusMaxPixels: 24,
+        pointRadiusMinPixels: 0.01,
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('point-data-progress', 100);
+      checkAllDataLoaded();
+      
+      
+    }
+  };
+
+  
+  
+  
+}
+
+
+
+
+
+// =============================================================================
+// Label Data Loading
+// =============================================================================
+
+function loadLabelDataLayer() {
+  const labelDataWorker = new Worker(workerUrl);
+  labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+  labelDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('label-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const labelData = parsedData;
+      
+      datamap.labelData = labelData;
+      
+      datamap.addLabels(
+        
+        labelData.filter((d) => !(d.id && d.id.endsWith('-1')))
+        ,
+        {
+          labelTextColor: d => [d.r, d.g, d.b],
+          textMinPixelSize: 18,
+          textMaxPixelSize: 36,
+          textOutlineWidth: 8,
+          textOutlineColor: [238, 238, 238, 221],
+          textBackgroundColor: [255, 255, 255, 64],
+          fontFamily: "Roboto",
+          fontWeight: 600,
+          lineSpacing: 0.95,
+          textCollisionSizeScale: 3,
+          noiseLabel: "Unlabelled",
+          pickable: false,
+        }
+      );
+
+      
+      setupTopicTree(labelData);
+      
+      
+      
+      
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('label-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+// =============================================================================
+// Topic Tree Setup
+// =============================================================================
+
+function setupTopicTree(labelData) {
+  const topicTreeContainer = document.querySelector('#topic-tree');
+  
+  
+  const topicTree = new TopicTree(
+    topicTreeContainer,
+    datamap,
+    false,
+    null,
+    {
+      title: "Topic Tree",
+      maxWidth: "30vw",
+      maxHeight: "42vh",
+      fontSize: "12pt",
+      colorBullets: false,
+    }           
+  );
+  
+  
+  const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
+    const userIsInteracting = Object.values(interactionState).every(Boolean);
+    if (!userIsInteracting) {
+      const visible = getVisibleTextData(viewState, datamap.labelData);
+      if (visible) {
+        topicTree.highlightElements(visible);
+      }
+    }
+  }, 150);
+  
+  datamap.deckgl.setProps({
+    onViewStateChange: debouncedViewStateChange,
+  });
+}
+
+
+// =============================================================================
+// Meta Data Loading
+// =============================================================================
+
+function loadMetaData() {
+  const metaDataWorker = new Worker(workerUrl);
+  metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+  metaDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('meta-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const hoverData = parsedData;
+      
+      datamap.addMetaData(hoverData, {
+        tooltipFunction: ({index}) => hoverData.hover_text[index],
+        onClickFunction: null,
+        searchField: "hover_text",
+      });
+
+      
+      
+      updateProgressBar('meta-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+  </script>
+</html>
