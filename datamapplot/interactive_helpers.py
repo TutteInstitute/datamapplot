@@ -180,6 +180,21 @@ def _build_font_face_css(fontname, font_data):
 # =============================================================================
 
 
+# Mapping of widget dependency names to actual file names
+WIDGET_JS_FILES = {
+    "selection_control": "selection_control.js",
+    "layer_toggle": "layer_toggle.js",
+    "minimap": "minimap.js",
+    "histogram": "d3_histogram.js",
+    "lasso_selection": "lasso_selection.js",
+    "quad_tree": "quad_tree.js",
+    "colormap_selector": "colormap_selector.js",
+    "topic_tree": "topic_tree.js",
+    "dynamic_tooltip": "dynamic_tooltip.js",
+    "drawer": "drawer.js",
+}
+
+
 def get_js_dependency_sources(
     minify,
     enable_search,
@@ -189,6 +204,7 @@ def get_js_dependency_sources(
     enable_topic_tree,
     enable_dynamic_tooltip,
     enable_drawers=False,
+    widget_js_dependencies=None,
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -211,6 +227,8 @@ def get_js_dependency_sources(
         Whether to include JS dependencies for the API tooltip functionality.
     enable_drawers : bool, optional
         Whether to include JS dependencies for drawer panels.
+    widget_js_dependencies : set, optional
+        Set of widget dependency names to include (e.g., {"selection_control", "minimap"}).
 
     Returns
     -------
@@ -241,12 +259,32 @@ def get_js_dependency_sources(
     if enable_drawers:
         js_dependencies.append("drawer.js")
 
+    # Add widget-specific dependencies
+    if widget_js_dependencies:
+        for dep_name in widget_js_dependencies:
+            if dep_name in WIDGET_JS_FILES:
+                js_file = WIDGET_JS_FILES[dep_name]
+                if js_file not in js_dependencies:
+                    js_dependencies.append(js_file)
+
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
             js_dependencies_src[js_file] = jsmin(js_src) if minify else js_src
 
     return js_dependencies_src
+
+
+# Mapping of widget dependency names to actual CSS file names
+WIDGET_CSS_FILES = {
+    "selection_control": "selection_control.css",
+    "layer_toggle": "layer_toggle.css",
+    "minimap": "minimap.css",
+    "histogram": "d3_histogram_style.css",
+    "colormap_selector": "colormap_selector_style.css",
+    "topic_tree": "topic_tree_style.css",
+    "drawer": "drawer_style.css",
+}
 
 
 def get_css_dependency_sources(
@@ -256,6 +294,7 @@ def get_css_dependency_sources(
     enable_colormap_selector,
     enable_topic_tree,
     enable_drawers=False,
+    widget_css_dependencies=None,
 ):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
@@ -274,6 +313,8 @@ def get_css_dependency_sources(
         Whether to include CSS dependencies for the table of contents functionality.
     enable_drawers : bool, optional
         Whether to include CSS dependencies for drawer panels.
+    widget_css_dependencies : set, optional
+        Set of widget dependency names to include (e.g., {"selection_control", "minimap"}).
 
     Returns
     -------
@@ -299,6 +340,14 @@ def get_css_dependency_sources(
 
     if enable_drawers:
         css_dependencies.append("drawer_style.css")
+
+    # Add widget-specific dependencies
+    if widget_css_dependencies:
+        for dep_name in widget_css_dependencies:
+            if dep_name in WIDGET_CSS_FILES:
+                css_file = WIDGET_CSS_FILES[dep_name]
+                if css_file not in css_dependencies:
+                    css_dependencies.append(css_file)
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:

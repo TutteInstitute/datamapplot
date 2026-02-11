@@ -1134,6 +1134,8 @@ def render_html(
 
         # Collect widget dependencies
         widget_deps = collect_widget_dependencies(all_widgets)
+        widget_js_deps = widget_deps.get("js_files", set())
+        widget_css_deps = widget_deps.get("css_files", set())
 
         # Legacy widget flags
         (
@@ -1175,6 +1177,7 @@ def render_html(
             enable_topic_tree,
             enable_dynamic_tooltip,
             enable_drawers=enable_drawers,
+            widget_js_dependencies=widget_js_deps,
         ),
         "css_dependency_srcs": get_css_dependency_sources(
             minify_deps,
@@ -1183,6 +1186,7 @@ def render_html(
             enable_colormap_selector,
             enable_topic_tree,
             enable_drawers=enable_drawers,
+            widget_css_dependencies=widget_css_deps,
         ),
     }
 

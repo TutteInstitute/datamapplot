@@ -509,8 +509,8 @@ def update_drawer_enabled_for_handlers(
     return result
 
 
-def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, List[str]]:
-    """Collect all external dependencies from widgets.
+def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
+    """Collect all dependencies from widgets.
 
     Parameters
     ----------
@@ -520,24 +520,33 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, List[str
     Returns
     -------
     dict
-        Dictionary with keys "js" and "css" containing lists of dependency URLs
+        Dictionary with keys "js_files" and "css_files" containing sets of dependency names
     """
     dependencies = {
-        "js": [],
-        "css": [],
+        "js_files": set(),
+        "css_files": set(),
+        "external_js": set(),
     }
 
     for widget in widgets:
         if widget.dependencies:
             for dep in widget.dependencies:
-                # Simple heuristic: check file extension
-                if dep.endswith(".css"):
-                    if dep not in dependencies["css"]:
-                        dependencies["css"].append(dep)
+                # Parse dependency format: "js:name" or "css:name" or URL
+                if ":" in dep and not dep.startswith(("http://", "https://")):
+                    dep_type, dep_name = dep.split(":", 1)
+                    if dep_type == "js":
+                        dependencies["js_files"].add(dep_name)
+                    elif dep_type == "css":
+                        dependencies["css_files"].add(dep_name)
+                elif dep.startswith(("http://", "https://")):
+                    # External URL dependency
+                    dependencies["external_js"].add(dep)
+                elif dep.endswith(".css"):
+                    # Legacy format - direct CSS file reference
+                    dependencies["css_files"].add(dep.replace(".css", ""))
                 else:
-                    # Default to JS
-                    if dep not in dependencies["js"]:
-                        dependencies["js"].append(dep)
+                    # Legacy format - assume JS
+                    dependencies["js_files"].add(dep.replace(".js", ""))
 
     return dependencies
 

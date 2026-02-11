@@ -67,7 +67,13 @@ class WidgetBase:
         self.order = order
         self.collapsible = collapsible
         self.visible = visible
-        self.dependencies = dependencies or []
+        # Use instance dependencies if provided, otherwise fall back to class-level dependencies
+        if dependencies is not None:
+            self.dependencies = dependencies
+        elif not hasattr(self, "dependencies"):
+            # Only set to empty list if no class-level dependencies exist
+            self.dependencies = []
+        # If class has dependencies attribute, it will be used via attribute lookup
         self.kwargs = kwargs
 
     @property
@@ -713,7 +719,7 @@ class LegendWidget(WidgetBase):
         Additional keyword arguments passed to WidgetBase
     """
 
-    dependencies = []  # Uses core datamap.js
+    dependencies = ["js:colormap_selector"]
 
     @cfg.complete(unconfigurable={"self"})
     def __init__(self, **kwargs):
@@ -809,4 +815,332 @@ img {
   margin-left: auto;
   margin-right: auto;
 }
+"""
+
+
+class SelectionControlWidget(WidgetBase):
+    """Widget for controlling selection modes and managing selection groups.
+
+    Provides UI controls for:
+    - Selection modes: Replace, Add (union), Remove (subtract), Intersect
+    - Named selection groups: Save, load, and delete selection sets
+    - Clear all selections
+
+    This widget integrates with the DataSelectionManager to provide advanced
+    selection control workflows.
+
+    Parameters
+    ----------
+    show_modes : bool, optional
+        Whether to show selection mode buttons. Default is True.
+
+    show_groups : bool, optional
+        Whether to show selection groups UI. Default is True.
+
+    show_clear : bool, optional
+        Whether to show clear selection button. Default is True.
+
+    max_groups : int, optional
+        Maximum number of selection groups allowed. Default is 10.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    dependencies = ["js:selection_control", "css:selection_control"]
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        show_modes=True,
+        show_groups=True,
+        show_clear=True,
+        max_groups=10,
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "selection-control")
+        kwargs.setdefault("location", "top-right")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        self.show_modes = show_modes
+        self.show_groups = show_groups
+        self.show_clear = show_clear
+        self.max_groups = max_groups
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+    @property
+    def javascript(self):
+        """Generate JS to instantiate SelectionControl."""
+        import json
+
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        if (!window.datamap) {{
+            console.warn('DataMap not available for selection control');
+            return;
+        }}
+        
+        const selectionControl = new SelectionControl(
+            container,
+            window.datamap,
+            {{
+                showModes: {str(self.show_modes).lower()},
+                showGroups: {str(self.show_groups).lower()},
+                showClear: {str(self.show_clear).lower()},
+                maxGroups: {self.max_groups}
+            }}
+        );
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = selectionControl;
+    }}
+    
+    if (window.datamap) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
+
+
+class LayerToggleWidget(WidgetBase):
+    """Widget for controlling visibility and opacity of map layers.
+
+    Provides checkboxes to show/hide layers and sliders to adjust opacity.
+    Can control points, labels, cluster boundaries, and other visualization layers.
+
+    Parameters
+    ----------
+    layers : list of dict, optional
+        List of layer configurations. Each dict should have:
+        - 'id': str - Layer identifier ('points', 'labels', 'clusters')
+        - 'label': str - Display name for the layer
+        - 'visible': bool - Initial visibility
+        - 'opacity': float - Initial opacity (0.0-1.0)
+        Default layers: points, labels, clusters
+
+    show_opacity : bool, optional
+        Whether to show opacity sliders. Default is True.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    dependencies = ["js:layer_toggle", "css:layer_toggle"]
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        layers=None,
+        show_opacity=True,
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "layer-toggle")
+        kwargs.setdefault("location", "top-right")
+        kwargs.setdefault("order", 1)
+        super().__init__(**kwargs)
+
+        self.layers = layers or [
+            {
+                "id": "imageLayer",
+                "label": "Background",
+                "visible": True,
+                "opacity": 1.0,
+            },
+            {
+                "id": "edgeLayer",
+                "label": "Edges",
+                "visible": True,
+                "opacity": 1.0,
+            },
+            {
+                "id": "dataPointLayer",
+                "label": "Points",
+                "visible": True,
+                "opacity": 1.0,
+            },
+            {"id": "labelLayer", "label": "Labels", "visible": True, "opacity": 1.0},
+            {
+                "id": "boundaryLayer",
+                "label": "Cluster Boundaries",
+                "visible": True,
+                "opacity": 0.5,
+            },
+        ]
+        self.show_opacity = show_opacity
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+    @property
+    def javascript(self):
+        """Generate JS to instantiate LayerToggle."""
+        import json
+
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        if (!window.datamap) {{
+            console.warn('DataMap not available for layer toggle');
+            return;
+        }}
+        
+        const layerToggle = new LayerToggle(
+            container,
+            window.datamap,
+            {{
+                layers: {json.dumps(self.layers)},
+                showOpacity: {str(self.show_opacity).lower()}
+            }}
+        );
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = layerToggle;
+    }}
+    
+    if (window.datamap && window.datamap.deckgl) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
+
+
+class MiniMapWidget(WidgetBase):
+    """Widget displaying a minimap overview of the entire dataset.
+
+    Shows all data points with a viewport indicator showing the current view.
+    Click on the minimap to navigate to different regions.
+
+    Parameters
+    ----------
+    width : int, optional
+        Width of the minimap in pixels. Default is 200.
+
+    height : int, optional
+        Height of the minimap in pixels. Default is 150.
+
+    update_throttle : int, optional
+        Throttle time for viewport updates in milliseconds. Default is 200.
+
+    border_color : str, optional
+        Color of the viewport indicator border. Default is "#3ba5e7".
+
+    border_width : int, optional
+        Width of the viewport indicator border in pixels. Default is 2.
+
+    background_color : str, optional
+        Background color of the minimap. Default is "#f5f5f5".
+
+    point_color : str, optional
+        Color of the data points. Default is "#666666".
+
+    point_size : int, optional
+        Size of data points in pixels. Default is 2.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    dependencies = ["js:minimap", "css:minimap"]
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        width=200,
+        height=150,
+        update_throttle=200,
+        border_color="#3ba5e7",
+        border_width=2,
+        background_color="#f5f5f5",
+        point_color="#666666",
+        point_size=2,
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "minimap")
+        kwargs.setdefault("location", "bottom-right")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        self.width = width
+        self.height = height
+        self.update_throttle = update_throttle
+        self.border_color = border_color
+        self.border_width = border_width
+        self.background_color = background_color
+        self.point_color = point_color
+        self.point_size = point_size
+
+    @property
+    def html(self):
+        return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+    @property
+    def javascript(self):
+        """Generate JS to instantiate MiniMap."""
+        import json
+
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+
+        return f"""
+(function() {{
+    const container = document.querySelector('#{container_id}');
+    if (!container) return;
+    
+    function setup() {{
+        if (!window.datamap) {{
+            console.warn('DataMap not available for minimap');
+            return;
+        }}
+        
+        const minimap = new MiniMap(
+            container,
+            window.datamap,
+            {{
+                width: {self.width},
+                height: {self.height},
+                updateThrottle: {self.update_throttle},
+                borderColor: {json.dumps(self.border_color)},
+                borderWidth: {self.border_width},
+                backgroundColor: {json.dumps(self.background_color)},
+                pointColor: {json.dumps(self.point_color)},
+                pointSize: {self.point_size},
+                mirrorY: {str("bottom" in self.location and "drawer" not in self.location).lower()}
+            }}
+        );
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = minimap;
+    }}
+    
+    if (window.datamap && window.datamap.pointData) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
 """

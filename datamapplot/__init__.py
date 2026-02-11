@@ -10,6 +10,9 @@ from datamapplot.widgets import (
     ColormapSelectorWidget,
     LegendWidget,
     LogoWidget,
+    SelectionControlWidget,
+    LayerToggleWidget,
+    MiniMapWidget,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,
@@ -51,6 +54,9 @@ __all__ = [
     "ColormapSelectorWidget",
     "LegendWidget",
     "LogoWidget",
+    "SelectionControlWidget",
+    "LayerToggleWidget",
+    "MiniMapWidget",
     # Widget helpers
     "WidgetConfig",
     "VALID_LOCATIONS",

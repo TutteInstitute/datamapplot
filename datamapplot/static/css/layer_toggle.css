@@ -1,0 +1,205 @@
+/* Layer Toggle Widget Styles */
+
+.layer-toggle-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.layers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.layer-item {
+    padding: 10px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.layer-item:hover {
+    background: #f9f9f9;
+}
+
+.layer-visibility-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.layer-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.layer-label {
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+}
+
+.layer-opacity-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 24px;
+}
+
+.opacity-label {
+    font-size: 11px;
+    color: #666;
+    flex-shrink: 0;
+}
+
+/* .layer-opacity-slider {
+    flex: 1;
+    height: 2px;
+    border-radius: 2px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+.layer-opacity-slider::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.38);
+    border: none;
+}
+
+.layer-opacity-slider::-moz-range-track {
+    height: 2px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, 0.38);
+    border: none;
+}
+
+.layer-opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1976d2;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    margin-top: -8px;
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+}
+
+.layer-opacity-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1976d2;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
+} */
+
+.layer-opacity-slider::-webkit-slider-thumb:hover {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0.16);
+}
+
+.layer-opacity-slider::-moz-range-thumb:hover {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0.16);
+}
+
+.layer-opacity-slider::-webkit-slider-thumb:active {
+    box-shadow: 0 0 0 12px rgba(25, 118, 210, 0.24);
+    transform: scale(1.1);
+}
+
+.layer-opacity-slider::-moz-range-thumb:active {
+    box-shadow: 0 0 0 12px rgba(25, 118, 210, 0.24);
+    transform: scale(1.1);
+}
+
+.layer-opacity-slider:focus {
+    outline: none;
+}
+
+.layer-opacity-slider:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0.16);
+}
+
+.layer-opacity-slider:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0.16);
+}
+
+.opacity-value {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
+    min-width: 35px;
+    text-align: right;
+}
+
+/* 1. Reset the default appearance */
+.layer-opacity-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    cursor: pointer;
+    outline: none;
+    background: transparent;
+}
+
+/* 2. The Track (Chrome, Safari, Edge) */
+.layer-opacity-slider::-webkit-slider-runnable-track {
+    background: #bbdefb;
+    /* Light blue (Material primary light) */
+    height: 4px;
+    border-radius: 2px;
+}
+
+/* 3. The Thumb (Chrome, Safari, Edge) */
+.layer-opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 20px;
+    background-color: #1976d2;
+    /* Material primary */
+    border-radius: 50%;
+    margin-top: -8px;
+    /* Centers thumb on the track */
+    transition: box-shadow 0.2s ease;
+}
+
+/* 4. The Hover "Halo" Effect */
+.layer-opacity-slider:hover::-webkit-slider-thumb {
+    box-shadow: 0 0 0 8px rgba(25, 118, 210, 0.16);
+}
+
+/* 5. Firefox Specific Styles */
+.layer-opacity-slider::-moz-range-track {
+    background: #bbdefb;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.layer-opacity-slider::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #1976d2;
+    border: none;
+    border-radius: 50%;
+    transition: box-shadow 0.2s ease;
+}
+
+.layer-opacity-slider:hover::-moz-range-thumb {
+    box-shadow: 0 0 0 10px rgba(25, 118, 210, 0.16);
+}

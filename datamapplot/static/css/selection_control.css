@@ -1,0 +1,245 @@
+/* Selection Control Widget Styles */
+
+.selection-control-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.selection-control-section {
+    margin-bottom: 16px;
+}
+
+.selection-control-label {
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    color: #666;
+}
+
+/* Selection Mode Buttons */
+.selection-mode-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.selection-mode-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.selection-mode-button:hover {
+    background: #f5f5f5;
+    border-color: #999;
+}
+
+.selection-mode-button.active {
+    background: #3ba5e7;
+    color: white;
+    border-color: #2b8bc7;
+}
+
+.selection-mode-button .mode-icon {
+    font-size: 14px;
+}
+
+.selection-mode-button .mode-label {
+    font-size: 11px;
+}
+
+/* Clear Button */
+.selection-control-clear-button {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 16px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.selection-control-clear-button:hover {
+    background: #c0392b;
+}
+
+/* Save Group Controls */
+.save-group-container {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.group-name-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.group-name-input:focus {
+    outline: none;
+    border-color: #3ba5e7;
+}
+
+.save-group-button {
+    padding: 6px 16px;
+    background: #2ecc71;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.save-group-button:hover:not(:disabled) {
+    background: #27ae60;
+}
+
+.save-group-button:disabled {
+    background: #95a5a6;
+    cursor: not-allowed;
+}
+
+/* Selection Groups List */
+.selection-groups-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.groups-empty-message {
+    text-align: center;
+    color: #999;
+    font-size: 11px;
+    padding: 12px;
+    font-style: italic;
+}
+
+.selection-group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 6px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.selection-group-item:hover {
+    background: #f9f9f9;
+    border-color: #ccc;
+}
+
+.selection-group-item.active {
+    background: #e3f2fd;
+    border-color: #3ba5e7;
+}
+
+.group-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.group-color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.group-label {
+    font-size: 12px;
+    font-weight: 500;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.group-count {
+    font-size: 10px;
+    color: #666;
+    flex-shrink: 0;
+}
+
+.group-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.group-action-button {
+    padding: 4px 8px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 10px;
+    transition: all 0.2s;
+}
+
+.group-action-button:hover {
+    background: #f0f0f0;
+}
+
+.load-button {
+    color: #3ba5e7;
+    border-color: #3ba5e7;
+}
+
+.load-button:hover {
+    background: #3ba5e7;
+    color: white;
+}
+
+.delete-button {
+    color: #e74c3c;
+    border-color: #e74c3c;
+    font-weight: bold;
+}
+
+.delete-button:hover {
+    background: #e74c3c;
+    color: white;
+}
+
+/* Scrollbar styling for groups list */
+.selection-groups-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.selection-groups-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.selection-groups-list::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.selection-groups-list::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}

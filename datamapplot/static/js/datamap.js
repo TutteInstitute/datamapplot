@@ -240,6 +240,9 @@ class DataMap {
     pointRadiusMaxPixels = 16,
     pointRadiusMinPixels = 0.2,
   }) {
+    // Store point data for widget access
+    this.pointData = pointData;
+
     // Parse out and reformat data for deck.gl
     const numPoints = pointData.x.length;
     const positions = new Float32Array(numPoints * 2);
@@ -642,6 +645,10 @@ class DataMap {
     return this.dataSelectionManager.getSelectedIndices();
   }
 
+  refreshSelection() {
+    this.highlightPoints();
+  }
+
   searchText(searchTerm) {
     const searchTermLower = searchTerm.toLowerCase();
     const selectedIndices = this.searchArray.reduce((indices, d, i) => {
@@ -730,5 +737,86 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+  }
+
+  // Layer management methods for widgets
+  setLayerVisibility(layerId, visible) {
+    const layerMap = {
+      'imageLayer': this.imageLayer,
+      'dataPointLayer': this.pointLayer,
+      'labelLayer': this.labelLayer,
+      'boundaryLayer': this.boundaryLayer,
+      'edgeLayer': this.edgeLayer
+    };
+
+    const layer = layerMap[layerId];
+    if (!layer) return;
+
+    const idx = this.layers.indexOf(layer);
+    if (idx === -1) return;
+
+    const updatedLayer = layer.clone({ visible });
+    this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
+    this.deckgl.setProps({ layers: this.layers });
+
+    // Update stored reference
+    if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;
+    else if (layerId === 'labelLayer') this.labelLayer = updatedLayer;
+    else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
+    else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
+    else if (layerId === 'imageLayer') this.imageLayer = updatedLayer;
+  }
+
+  setLayerOpacity(layerId, opacity) {
+    const layerMap = {
+      'imageLayer': this.imageLayer,
+      'dataPointLayer': this.pointLayer,
+      'labelLayer': this.labelLayer,
+      'boundaryLayer': this.boundaryLayer,
+      'edgeLayer': this.edgeLayer
+    };
+
+    const layer = layerMap[layerId];
+    if (!layer) return;
+
+    const idx = this.layers.indexOf(layer);
+    if (idx === -1) return;
+
+    const updatedLayer = layer.clone({ opacity });
+    this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
+    this.deckgl.setProps({ layers: this.layers });
+
+    // Update stored reference
+    if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;
+    else if (layerId === 'labelLayer') this.labelLayer = updatedLayer;
+    else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
+    else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
+    else if (layerId === 'imageLayer') this.imageLayer = updatedLayer;
+  }
+
+  getLayerVisibility(layerId) {
+    const layerMap = {
+      'imageLayer': this.imageLayer,
+      'dataPointLayer': this.pointLayer,
+      'labelLayer': this.labelLayer,
+      'boundaryLayer': this.boundaryLayer,
+      'edgeLayer': this.edgeLayer
+    };
+
+    const layer = layerMap[layerId];
+    return layer ? layer.props.visible !== false : true;
+  }
+
+  getLayerOpacity(layerId) {
+    const layerMap = {
+      'imageLayer': this.imageLayer,
+      'dataPointLayer': this.pointLayer,
+      'labelLayer': this.labelLayer,
+      'boundaryLayer': this.boundaryLayer,
+      'edgeLayer': this.edgeLayer
+    };
+
+    const layer = layerMap[layerId];
+    return layer ? (layer.props.opacity !== undefined ? layer.props.opacity : 1.0) : 1.0;
   }
 }
