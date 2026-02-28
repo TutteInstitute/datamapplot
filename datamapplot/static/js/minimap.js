@@ -222,9 +222,12 @@ class MiniMap {
             dragStartX = e.clientX;
             dragStartY = e.clientY;
 
-            const rect = this.viewportOverlay.getBoundingClientRect();
-            viewportStartX = rect.left - this.container.getBoundingClientRect().left;
-            viewportStartY = rect.top - this.container.getBoundingClientRect().top;
+            // Read position from style (canvas-local coordinates) rather than
+            // getBoundingClientRect (screen coordinates) so we stay in the same
+            // coordinate system as the canvas and the unprojection math, even
+            // when the parent stack has CSS transform: scaleY(-1).
+            viewportStartX = parseFloat(this.viewportOverlay.style.left) || 0;
+            viewportStartY = parseFloat(this.viewportOverlay.style.top) || 0;
 
             e.preventDefault();
             e.stopPropagation();
@@ -234,8 +237,13 @@ class MiniMap {
             if (!isDragging) return;
 
             const dx = e.clientX - dragStartX;
-            const dy = this.options.mirrorY ? e.clientY - dragStartY : dragStartY - e.clientY;
-            // const dy = dragStartY - e.clientY;
+            // When mirrorY is true the minimap sits inside a CSS scaleY(-1)
+            // parent, so screen-space down corresponds to local-space up.
+            // Negate the delta so dragging moves the viewport in the visually
+            // correct direction.
+            const dy = this.options.mirrorY
+                ? -(e.clientY - dragStartY)
+                : (e.clientY - dragStartY);
 
             const newX = viewportStartX + dx;
             const newY = viewportStartY + dy;
@@ -247,7 +255,9 @@ class MiniMap {
             const centerY = newY + viewportHeight / 2;
 
             const dataX = (centerX - this.offset.x) / this.scale + this.bounds.minX;
-            const dataY = this.options.mirrorY ? this.bounds.maxY - (centerY - this.offset.y) / this.scale : (centerY - this.offset.y) / this.scale + this.bounds.minY;
+            const dataY = this.options.mirrorY
+                ? (centerY - this.offset.y) / this.scale + this.bounds.minY
+                : this.bounds.maxY - (centerY - this.offset.y) / this.scale;
             const dataZoom = this.currentViewState.zoom;
 
             // Update deck.gl via initialViewState
@@ -263,8 +273,6 @@ class MiniMap {
                 }
             });
             this.throttledUpdate();
-            // this.currentViewState.latitude = dataY;
-            // this.currentViewState.longitude = dataX;
 
             e.preventDefault();
         });
@@ -279,11 +287,18 @@ class MiniMap {
 
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // When mirrorY is true the minimap is inside a CSS scaleY(-1) parent,
+        // so screen-space y is inverted relative to canvas-local y.
+        let y = e.clientY - rect.top;
+        if (this.options.mirrorY) {
+            y = this.options.height - y;
+        }
 
         // Unproject from minimap to data coordinates
         const dataX = (x - this.offset.x) / this.scale + this.bounds.minX;
-        const dataY = (y - this.offset.y) / this.scale + this.bounds.minY;
+        const dataY = this.options.mirrorY
+            ? (y - this.offset.y) / this.scale + this.bounds.minY
+            : this.bounds.maxY - (y - this.offset.y) / this.scale;
 
         // Get current view state
         const currentViewState = this.datamap.deckgl.viewState || this.datamap.deckgl.props.initialViewState;
