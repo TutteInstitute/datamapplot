@@ -19,6 +19,11 @@ from datamapplot.widgets import (
     ColormapSelectorWidget,
     LegendWidget,
     LogoWidget,
+    SelectionControlWidget,
+    LayerToggleWidget,
+    MiniMapWidget,
+    RESTSearchWidget,
+    AnnotationWidget,
 )
 
 
@@ -247,6 +252,11 @@ def create_widget_from_config(
         "colormap_selector": ColormapSelectorWidget,
         "legend": LegendWidget,
         "logo": LogoWidget,
+        "selection_control": SelectionControlWidget,
+        "layer_toggle": LayerToggleWidget,
+        "minimap": MiniMapWidget,
+        "rest_search": RESTSearchWidget,
+        "annotation": AnnotationWidget,
     }
 
     if widget_type not in widget_classes:

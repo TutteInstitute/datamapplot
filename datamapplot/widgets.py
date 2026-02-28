@@ -1144,3 +1144,307 @@ class MiniMapWidget(WidgetBase):
     }}
 }})();
 """
+
+
+class RESTSearchWidget(WidgetBase):
+    """Server-side search widget that queries a REST endpoint.
+    
+    Parameters
+    ----------
+    endpoint_url : str
+        Full URL to the search endpoint (e.g., "https://api.example.com/search")
+    
+    http_method : str, optional (default: "POST")
+        HTTP method to use: "POST" or "GET"
+    
+    request_body_template : dict, optional
+        Template for request body. Use "{query}" placeholder for search term.
+        Example: {"q": "{query}", "limit": 50}
+        If None, defaults to {"query": "{query}"}
+    
+    auth_headers : dict, optional
+        HTTP headers for authentication.
+        Example: {"Authorization": "Bearer YOUR_TOKEN"}
+    
+    response_path : str, optional (default: "results")
+        JSON path to array of results. Use dot notation for nested paths.
+        Example: "data.items" for response like {"data": {"items": [...]}}
+    
+    id_field : str, optional (default: "id")
+        Field name in response objects that contains point IDs to select
+    
+    debounce_ms : int, optional (default: 300)
+        Milliseconds to wait after typing before sending request
+    
+    min_query_length : int, optional (default: 2)
+        Minimum characters required before search is triggered
+    
+    placeholder : str, optional
+        Placeholder text for search input
+    
+    show_result_count : bool, optional (default: True)
+        Whether to display "X results found" message
+    
+    timeout_ms : int, optional (default: 10000)
+        Request timeout in milliseconds
+    
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+    
+    dependencies = ["js:rest_search", "css:rest_search"]
+    
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        endpoint_url,
+        http_method="POST",
+        request_body_template=None,
+        auth_headers=None,
+        response_path="results",
+        id_field="id",
+        debounce_ms=300,
+        min_query_length=2,
+        placeholder="Search...",
+        show_result_count=True,
+        timeout_ms=10000,
+        **kwargs
+    ):
+        kwargs.setdefault("widget_id", "rest-search")
+        kwargs.setdefault("location", "drawer-left")
+        kwargs.setdefault("order", 1)
+        super().__init__(**kwargs)
+        
+        self.endpoint_url = endpoint_url
+        self.http_method = http_method.upper()
+        self.request_body_template = request_body_template or {"query": "{query}"}
+        self.auth_headers = auth_headers or {}
+        self.response_path = response_path
+        self.id_field = id_field
+        self.debounce_ms = debounce_ms
+        self.min_query_length = min_query_length
+        self.placeholder = placeholder
+        self.show_result_count = show_result_count
+        self.timeout_ms = timeout_ms
+        
+        # Validate HTTP method
+        if self.http_method not in ["GET", "POST"]:
+            raise ValueError("http_method must be 'GET' or 'POST'")
+    
+    @property
+    def html(self):
+        """Return HTML container for the widget."""
+        return f'<div id="{self.get_container_id()}" class="rest-search-container"></div>'
+    
+    @property
+    def javascript(self):
+        """Generate JS to instantiate RESTSearchWidget."""
+        import json
+        
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+        config = self.collect_widget_data()
+        
+        return f"""
+(function() {{
+    const containerId = '{container_id}';
+    const config = {json.dumps(config)};
+    
+    function setup() {{
+        if (!window.datamap) {{
+            console.warn('DataMap not available for REST search widget');
+            return;
+        }}
+        
+        const widget = new RESTSearchWidget(containerId, config, window.datamap);
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = widget;
+    }}
+    
+    if (window.datamap) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
+    
+    def collect_widget_data(self):
+        """Collect widget configuration for template."""
+        return {
+            "endpoint_url": self.endpoint_url,
+            "http_method": self.http_method,
+            "request_body_template": self.request_body_template,
+            "auth_headers": self.auth_headers,
+            "response_path": self.response_path,
+            "id_field": self.id_field,
+            "debounce_ms": self.debounce_ms,
+            "min_query_length": self.min_query_length,
+            "placeholder": self.placeholder,
+            "show_result_count": self.show_result_count,
+            "timeout_ms": self.timeout_ms,
+        }
+
+
+class AnnotationWidget(WidgetBase):
+    """Annotation widget for adding persistent markup to the map.
+    
+    Supports adding text labels, arrows, and shapes (circles, rectangles)
+    that persist across sessions via JSON export/import.
+    
+    Parameters
+    ----------
+    initial_annotations : list, optional
+        List of annotation dicts to load on initialization.
+        Each annotation should have: {"type": "text"|"arrow"|"circle", ...}
+    
+    allow_text : bool, optional (default: True)
+        Enable text annotation tool
+    
+    allow_arrows : bool, optional (default: True)
+        Enable arrow annotation tool
+    
+    allow_circles : bool, optional (default: True)
+        Enable circle annotation tool
+    
+    allow_rectangles : bool, optional (default: True)
+        Enable rectangle annotation tool
+    
+    default_text_color : str, optional (default: "#000000")
+        Default color for text annotations
+    
+    default_text_size : int, optional (default: 14)
+        Default font size for text annotations
+    
+    default_stroke_color : str, optional (default: "#FF0000")
+        Default color for arrows and shapes
+    
+    default_stroke_width : int, optional (default: 2)
+        Default line width for arrows and shapes
+    
+    default_fill_opacity : float, optional (default: 0.2)
+        Default fill opacity for circles and rectangles (0-1)
+    
+    enable_export : bool, optional (default: True)
+        Show export button to download annotations as JSON
+    
+    enable_import : bool, optional (default: True)
+        Show import button to load annotations from JSON file
+    
+    snap_to_points : bool, optional (default: False)
+        If True, annotation coordinates snap to nearest data point
+    
+    snap_distance : float, optional (default: 20)
+        Pixel distance for snap-to-point behavior
+    
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+    
+    dependencies = ["js:annotation", "css:annotation"]
+    
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        initial_annotations=None,
+        allow_text=True,
+        allow_arrows=True,
+        allow_circles=True,
+        allow_rectangles=True,
+        default_text_color="#000000",
+        default_text_size=14,
+        default_stroke_color="#FF0000",
+        default_stroke_width=2,
+        default_fill_opacity=0.2,
+        enable_export=True,
+        enable_import=True,
+        snap_to_points=False,
+        snap_distance=20,
+        **kwargs
+    ):
+        kwargs.setdefault("widget_id", "annotation")
+        kwargs.setdefault("location", "drawer-left")
+        kwargs.setdefault("order", 2)
+        super().__init__(**kwargs)
+        
+        self.initial_annotations = initial_annotations or []
+        self.allow_text = allow_text
+        self.allow_arrows = allow_arrows
+        self.allow_circles = allow_circles
+        self.allow_rectangles = allow_rectangles
+        self.default_text_color = default_text_color
+        self.default_text_size = default_text_size
+        self.default_stroke_color = default_stroke_color
+        self.default_stroke_width = default_stroke_width
+        self.default_fill_opacity = default_fill_opacity
+        self.enable_export = enable_export
+        self.enable_import = enable_import
+        self.snap_to_points = snap_to_points
+        self.snap_distance = snap_distance
+    
+    @property
+    def html(self):
+        """Return HTML container for the widget."""
+        return f'<div id="{self.get_container_id()}" class="annotation-container"></div>'
+    
+    @property
+    def javascript(self):
+        """Generate JS to instantiate AnnotationWidget."""
+        import json
+        
+        container_id = self.get_container_id()
+        widget_id = self.widget_id
+        config = self.collect_widget_data()
+        
+        return f"""
+(function() {{
+    const containerId = '{container_id}';
+    const config = {json.dumps(config)};
+    
+    function setup() {{
+        if (!window.datamap) {{
+            console.warn('DataMap not available for annotation widget');
+            return;
+        }}
+        
+        const widget = new AnnotationWidget(containerId, config, window.datamap);
+        
+        // Store reference
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets['{widget_id}'] = widget;
+    }}
+    
+    if (window.datamap) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup);
+    }}
+}})();
+"""
+    
+    def collect_widget_data(self):
+        """Collect widget configuration for template."""
+        return {
+            "initial_annotations": self.initial_annotations,
+            "tools": {
+                "text": self.allow_text,
+                "arrow": self.allow_arrows,
+                "circle": self.allow_circles,
+                "rectangle": self.allow_rectangles,
+            },
+            "defaults": {
+                "text_color": self.default_text_color,
+                "text_size": self.default_text_size,
+                "stroke_color": self.default_stroke_color,
+                "stroke_width": self.default_stroke_width,
+                "fill_opacity": self.default_fill_opacity,
+            },
+            "features": {
+                "export": self.enable_export,
+                "import": self.enable_import,
+                "snap_to_points": self.snap_to_points,
+                "snap_distance": self.snap_distance,
+            },
+        }

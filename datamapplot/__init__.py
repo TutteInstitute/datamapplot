@@ -13,6 +13,8 @@ from datamapplot.widgets import (
     SelectionControlWidget,
     LayerToggleWidget,
     MiniMapWidget,
+    RESTSearchWidget,
+    AnnotationWidget,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,
