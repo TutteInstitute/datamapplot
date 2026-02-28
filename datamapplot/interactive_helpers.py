@@ -539,6 +539,50 @@ def cmap_name_to_color_list(cmap_name):
     return [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
 
 
+def prepare_hex_density_color_range(cmap, n_colors=6):
+    """Convert a colormap specification to a list of [R, G, B] arrays for deck.gl.
+
+    Parameters
+    ----------
+    cmap : str or list
+        Either a matplotlib colormap name (e.g. ``"viridis"``) or a list of
+        ``[R, G, B]`` or ``[R, G, B, A]`` color arrays with values 0-255.
+
+    n_colors : int, optional
+        Number of color stops to sample when ``cmap`` is a string name.
+        Default is 6.
+
+    Returns
+    -------
+    list of list
+        A list of ``[R, G, B]`` arrays (values 0-255) suitable for the
+        deck.gl ``colorRange`` property.
+    """
+    if isinstance(cmap, str):
+        mpl_cmap = get_cmap(cmap)
+        colors = []
+        for t in np.linspace(0, 1, n_colors):
+            r, g, b, _a = mpl_cmap(t)
+            colors.append([int(r * 255), int(g * 255), int(b * 255)])
+        return colors
+    elif isinstance(cmap, (list, np.ndarray)):
+        # Validate and normalise user-provided RGBA/RGB arrays
+        result = []
+        for c in cmap:
+            c = list(c)
+            if len(c) < 3:
+                raise ValueError(
+                    f"Each color must have at least 3 components (R, G, B), got {c}"
+                )
+            result.append([int(c[0]), int(c[1]), int(c[2])])
+        return result
+    else:
+        raise TypeError(
+            f"hex_density_cmap must be a colormap name string or list of RGB(A) "
+            f"arrays, got {type(cmap)}"
+        )
+
+
 def array_to_colors(values, cmap_name, metadata, color_list=None):
     """
     Convert an array of values to RGBA color values.

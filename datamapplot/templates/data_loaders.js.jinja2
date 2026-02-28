@@ -55,6 +55,18 @@ function loadPointDataLayer() {
         pointRadiusMinPixels: {{ point_radius_min_pixels }},
       });
 
+      {% if enable_hex_density %}
+      datamap.addHexagonLayer(datamap.pointData, {
+        numZoomLevels: {{ hex_density_num_zoom_levels }},
+        minCount: {{ hex_density_min_count }},
+        colorRange: {{ hex_density_color_range }},
+        baseRadius: {{ hex_density_base_radius }},
+        coverage: {{ hex_density_coverage }},
+        opacity: {{ hex_density_opacity }},
+        zoomThresholds: {{ hex_density_zoom_thresholds }},
+      });
+      {% endif %}
+
       document.getElementById("loading").style.display = "none";
       updateProgressBar('point-data-progress', 100);
       checkAllDataLoaded();

@@ -972,6 +972,12 @@ class LayerToggleWidget(WidgetBase):
                 "visible": True,
                 "opacity": 1.0,
             },
+            {
+                "id": "hexagonLayer",
+                "label": "Density Heatmap",
+                "visible": True,
+                "opacity": 0.6,
+            },
             {"id": "labelLayer", "label": "Labels", "visible": True, "opacity": 1.0},
             {
                 "id": "boundaryLayer",

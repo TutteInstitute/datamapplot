@@ -75,6 +75,7 @@ from datamapplot.interactive_helpers import (
     prepare_fonts,
     prepare_logo,
     label_text_and_polygon_dataframes,
+    prepare_hex_density_color_range,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,
@@ -498,6 +499,14 @@ def render_html(
     widget_layout=None,
     default_widget_config=None,
     use_widgets=None,
+    enable_hex_density=False,
+    hex_density_num_zoom_levels=4,
+    hex_density_min_count=5,
+    hex_density_cmap="viridis",
+    hex_density_base_radius=None,
+    hex_density_opacity=0.6,
+    hex_density_coverage=0.8,
+    hex_density_zoom_thresholds=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -866,6 +875,42 @@ def render_html(
         for ``inline_data=False`` and will be displayed before data is loaded, and data loading
         will not proceed until the user has dismissed the warning.
 
+    enable_hex_density: bool (optional, default=False)
+        Whether to add a HexagonLayer providing a density heatmap overview. Hexagonal
+        bins are colored by the number of points they contain. At zoomed-out views the
+        hexagons occlude the individual points; as the user zooms in, sparse bins
+        vanish and points become visible underneath.
+
+    hex_density_num_zoom_levels: int (optional, default=4)
+        Number of discrete zoom buckets. Re-aggregation only happens when the zoom
+        crosses one of these level boundaries, keeping interaction smooth on large
+        datasets.
+
+    hex_density_min_count: int (optional, default=5)
+        Minimum number of points in a hexagonal bin before the bin is drawn. Bins
+        with fewer points are transparent so that individual points are visible.
+
+    hex_density_cmap: str or list (optional, default="viridis")
+        Colormap for the hexagonal bins. Can be a matplotlib colormap name (e.g.
+        ``"viridis"``, ``"plasma"``) or a list of ``[R, G, B]`` / ``[R, G, B, A]``
+        arrays with values 0-255.
+
+    hex_density_base_radius: float or None (optional, default=None)
+        Hex radius in meters at the finest (most zoomed-in) zoom bucket. If ``None``,
+        a radius is auto-computed from the data bounds so that roughly 100 hexagons
+        span the data extent.
+
+    hex_density_opacity: float (optional, default=0.6)
+        Opacity of the hex density layer (0.0 - 1.0).
+
+    hex_density_coverage: float (optional, default=0.8)
+        Hexagon coverage multiplier (0.0 - 1.0). Controls the visual gap between
+        adjacent hexagons.
+
+    hex_density_zoom_thresholds: list of float or None (optional, default=None)
+        Explicit zoom level breakpoints for re-aggregation. If ``None``, thresholds
+        are auto-distributed evenly across the zoom range.
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -915,6 +960,18 @@ def render_html(
         **histogram_settings,
     }
     enable_lasso_selection = selection_handler is not None
+
+    # Hex density layer processing
+    if enable_hex_density:
+        hex_density_color_range = prepare_hex_density_color_range(hex_density_cmap)
+        if hex_density_base_radius is None:
+            # Auto-compute: make ~100 hexagons span the data extent
+            x_extent = bounds[2] - bounds[0]  # lng extent in degrees
+            # Rough conversion: 1 degree longitude ≈ 111,320 m at equator
+            extent_meters = x_extent * 111_320
+            hex_density_base_radius = max(extent_meters / 100, 10)
+    else:
+        hex_density_color_range = []
 
     point_data_cols = ["x", "y", "r", "g", "b", "a"]
 
@@ -1059,10 +1116,12 @@ def render_html(
 
     # Initialize widget containers
     widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
-    drawer_enabled = {"left": False, "right": False}
+    drawer_enabled = {"left": False, "right": False, "bottom": False}
     widget_css = ""
     widget_js = ""
     encoded_widget_data = {}  # Initialize for both paths
+    widget_js_deps = set()
+    widget_css_deps = set()
 
     if use_widget_system:
         # Load default widget config from file if provided
@@ -1289,6 +1348,14 @@ def render_html(
         n_data_chunks=n_chunks,
         on_click=on_click,
         enable_lasso_selection=enable_lasso_selection,
+        enable_hex_density=enable_hex_density,
+        hex_density_num_zoom_levels=hex_density_num_zoom_levels,
+        hex_density_min_count=hex_density_min_count,
+        hex_density_color_range=json.dumps(hex_density_color_range),
+        hex_density_base_radius=hex_density_base_radius,
+        hex_density_opacity=hex_density_opacity,
+        hex_density_coverage=hex_density_coverage,
+        hex_density_zoom_thresholds=json.dumps(hex_density_zoom_thresholds),
         get_tooltip=get_tooltip,
         search_field=search_field,
         show_loading_progress=show_loading_progress,
