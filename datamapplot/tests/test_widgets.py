@@ -1049,11 +1049,12 @@ class TestLayerToggleWidget:
     def test_default_layers(self):
         """Test that default layers are created."""
         widget = LayerToggleWidget()
-        assert len(widget.layers) == 5
+        assert len(widget.layers) == 6
         layer_ids = [l["id"] for l in widget.layers]
         assert "imageLayer" in layer_ids
         assert "edgeLayer" in layer_ids
         assert "dataPointLayer" in layer_ids
+        assert "hexagonLayer" in layer_ids
         assert "labelLayer" in layer_ids
         assert "boundaryLayer" in layer_ids
 
