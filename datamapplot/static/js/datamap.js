@@ -343,9 +343,9 @@ class DataMap {
   addHexagonLayer(pointData, {
     numZoomLevels = 4,
     minCount = 5,
-    colorRange = [[255, 255, 178], [254, 204, 92], [253, 141, 60], [240, 59, 32], [189, 0, 38]],
+    colorRange = [[239, 243, 255], [189, 215, 231], [107, 174, 214], [49, 130, 189], [8, 81, 156]],
     baseRadius = 1000,
-    coverage = 0.8,
+    coverage = 1.0,
     opacity = 0.6,
     zoomThresholds = null,
   }) {
@@ -373,13 +373,17 @@ class DataMap {
       }
     }
 
-    // Compute radius for each zoom bucket: larger radius at lower zoom
-    // Bucket 0 is the most zoomed-out, bucket N-1 is the most zoomed-in
+    // Compute radius for each zoom bucket.
+    // baseRadius is the coarsest (top-level / most zoomed-out) hex size.
+    // Each zoom level subdivides by a fixed factor of 1.5, so more zoom
+    // levels produce ever-finer hexagons at the bottom without changing
+    // the top-level granularity.
+    const HEX_STEP_FACTOR = 1.5;
     const nBuckets = this._hexZoomThresholds.length + 1;
     this._hexRadii = new Array(nBuckets);
     for (let i = 0; i < nBuckets; i++) {
-      // Most zoomed-in bucket (last) gets baseRadius; each step out doubles
-      this._hexRadii[i] = baseRadius * Math.pow(2, nBuckets - 1 - i);
+      // Bucket 0 = coarsest (baseRadius), each step down divides by 1.5
+      this._hexRadii[i] = baseRadius / Math.pow(HEX_STEP_FACTOR, i);
     }
 
     // Determine which zoom bucket we start in
@@ -404,19 +408,16 @@ class DataMap {
       coverage: coverage,
       opacity: opacity,
       extruded: false,
-      elevationScale: 0,
-      colorScaleType: 'quantize',
+      colorScaleType: 'quantile',
       pickable: false,
-      parameters: { depthTest: false },
     };
 
     if (minCount > 0) {
-      // CPU aggregation path: return 0 for bins below threshold so they
-      // map to the transparent first entry in colorRange
-      const transparentColor = [0, 0, 0, 0];
-      hexLayerProps.colorRange = [transparentColor, ...colorRange];
+      // CPU aggregation path: return null for bins below threshold so
+      // they are excluded from rendering entirely
+      hexLayerProps.colorRange = colorRange;
       hexLayerProps.getColorValue = (points) => {
-        return points.length >= minCount ? points.length : 0;
+        return points.length >= minCount ? points.length : null;
       };
       hexLayerProps.gpuAggregation = false;
     } else {
@@ -427,6 +428,10 @@ class DataMap {
     }
 
     this.hexagonLayer = new deck.HexagonLayer(hexLayerProps);
+
+    // Store full props for recreation on zoom transitions (ensures
+    // color domain is recomputed from scratch at each zoom level)
+    this._hexLayerProps = hexLayerProps;
 
     this.layers.push(this.hexagonLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
@@ -480,7 +485,9 @@ class DataMap {
   }
 
   /**
-   * Clone the hexagon layer with a new radius, triggering re-aggregation.
+   * Recreate the hexagon layer with a new radius, forcing full
+   * re-aggregation and color domain recomputation so the color scale
+   * adapts to the count range at each zoom level.
    */
   _updateHexRadius(newRadius) {
     if (!this.hexagonLayer) return;
@@ -488,7 +495,12 @@ class DataMap {
     const idx = this.layers.indexOf(this.hexagonLayer);
     if (idx === -1) return;
 
-    const updatedLayer = this.hexagonLayer.clone({ radius: newRadius });
+    // Build a brand-new layer so deck.gl recomputes aggregation
+    // and color domain from scratch (clone may reuse cached state).
+    const updatedLayer = new deck.HexagonLayer({
+      ...this._hexLayerProps,
+      radius: newRadius,
+    });
     this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
     this.deckgl.setProps({ layers: this.layers });
     this.hexagonLayer = updatedLayer;

@@ -502,10 +502,10 @@ def render_html(
     enable_hex_density=False,
     hex_density_num_zoom_levels=4,
     hex_density_min_count=5,
-    hex_density_cmap="viridis",
+    hex_density_cmap="Blues",
     hex_density_base_radius=None,
     hex_density_opacity=0.6,
-    hex_density_coverage=0.8,
+    hex_density_coverage=1.0,
     hex_density_zoom_thresholds=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
@@ -882,30 +882,34 @@ def render_html(
         vanish and points become visible underneath.
 
     hex_density_num_zoom_levels: int (optional, default=4)
-        Number of discrete zoom buckets. Re-aggregation only happens when the zoom
-        crosses one of these level boundaries, keeping interaction smooth on large
-        datasets.
+        Number of discrete zoom buckets. The coarsest (top-level) hex size is
+        fixed by ``hex_density_base_radius``; each additional zoom level
+        subdivides further (1.5× finer per level), so more levels produce
+        ever-finer hexagons when zoomed in.
 
     hex_density_min_count: int (optional, default=5)
         Minimum number of points in a hexagonal bin before the bin is drawn. Bins
         with fewer points are transparent so that individual points are visible.
 
-    hex_density_cmap: str or list (optional, default="viridis")
+    hex_density_cmap: str or list (optional, default="Blues")
         Colormap for the hexagonal bins. Can be a matplotlib colormap name (e.g.
-        ``"viridis"``, ``"plasma"``) or a list of ``[R, G, B]`` / ``[R, G, B, A]``
-        arrays with values 0-255.
+        ``"Blues"``, ``"viridis"``, ``"plasma"``) or a list of ``[R, G, B]`` /
+        ``[R, G, B, A]`` arrays with values 0-255. The default ``"Blues"``
+        works well on white backgrounds; for dark backgrounds try ``"viridis"``
+        or ``"plasma"``.
 
     hex_density_base_radius: float or None (optional, default=None)
-        Hex radius in meters at the finest (most zoomed-in) zoom bucket. If ``None``,
-        a radius is auto-computed from the data bounds so that roughly 100 hexagons
-        span the data extent.
+        Hex radius in meters at the coarsest (most zoomed-out) zoom level.
+        If ``None``, a radius is auto-computed from the data bounds so that
+        roughly 60 hexagons span the data extent at the top level. Each
+        additional zoom level subdivides from this size.
 
     hex_density_opacity: float (optional, default=0.6)
         Opacity of the hex density layer (0.0 - 1.0).
 
-    hex_density_coverage: float (optional, default=0.8)
-        Hexagon coverage multiplier (0.0 - 1.0). Controls the visual gap between
-        adjacent hexagons.
+    hex_density_coverage: float (optional, default=1.0)
+        Hexagon coverage multiplier (0.0 - 1.0). At 1.0 hexagons tile tightly
+        with no gaps; lower values introduce visual gaps between adjacent hexagons.
 
     hex_density_zoom_thresholds: list of float or None (optional, default=None)
         Explicit zoom level breakpoints for re-aggregation. If ``None``, thresholds
@@ -965,11 +969,14 @@ def render_html(
     if enable_hex_density:
         hex_density_color_range = prepare_hex_density_color_range(hex_density_cmap)
         if hex_density_base_radius is None:
-            # Auto-compute: make ~100 hexagons span the data extent
-            x_extent = bounds[2] - bounds[0]  # lng extent in degrees
+            # Auto-compute the coarsest (top-level) hex radius so that
+            # ~60 hexagons span the data extent at the most zoomed-out view.
+            # More zoom levels will subdivide further from this fixed top.
+            # bounds format is [xmin, xmax, ymin, ymax]
+            x_extent = bounds[1] - bounds[0]  # lng extent in degrees
             # Rough conversion: 1 degree longitude ≈ 111,320 m at equator
             extent_meters = x_extent * 111_320
-            hex_density_base_radius = max(extent_meters / 100, 10)
+            hex_density_base_radius = max(extent_meters / 60, 50)
     else:
         hex_density_color_range = []
 
