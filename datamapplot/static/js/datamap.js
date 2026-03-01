@@ -351,12 +351,13 @@ class DataMap {
   }) {
     const numPoints = pointData.x.length;
 
-    // Build a plain array of [lng, lat] for HexagonLayer data
-    const positionArray = new Array(numPoints);
-    for (let i = 0; i < numPoints; i++) {
-      positionArray[i] = [pointData.x[i], pointData.y[i]];
-    }
-    this._hexPointData = positionArray;
+    // Use a lightweight index range as data and read positions from the
+    // existing typed arrays via getPosition, avoiding a full copy of all
+    // point coordinates into N new [x,y] tuple arrays.
+    const indexRange = { length: numPoints };
+    this._hexPointData = indexRange;
+    this._hexPositionX = pointData.x;
+    this._hexPositionY = pointData.y;
 
     // Compute zoom thresholds
     const initialZoom = this.deckgl.props.initialViewState.zoom;
@@ -403,7 +404,7 @@ class DataMap {
     let hexLayerProps = {
       id: 'hexagonLayer',
       data: this._hexPointData,
-      getPosition: d => d,
+      getPosition: (_, { index }) => [this._hexPositionX[index], this._hexPositionY[index]],
       radius: startRadius,
       coverage: coverage,
       opacity: opacity,
