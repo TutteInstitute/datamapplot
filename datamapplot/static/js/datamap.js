@@ -228,6 +228,53 @@ class DataMap {
 
     // Widget registry for inter-widget communication
     this.widgetRegistry = new WidgetRegistry();
+
+    // Centralised view-state-change dispatch.
+    // A single permanent handler on deck.gl fans out to all registered
+    // listeners, replacing the fragile capture-and-wrap chain pattern.
+    this._viewStateListeners = new Map();
+    this.deckgl.setProps({
+      onViewStateChange: (params) => {
+        for (const handler of this._viewStateListeners.values()) {
+          try { handler(params); } catch (e) {
+            console.error('Error in viewStateChange listener:', e);
+          }
+        }
+        return params.viewState;
+      },
+    });
+  }
+
+  /**
+   * Register a named view-state-change listener.
+   * @param {string} id   Unique key (e.g. 'hexZoom', 'annotation').
+   * @param {Function} handler  Called with the deck.gl onViewStateChange params.
+   */
+  onViewStateChange(id, handler) {
+    this._viewStateListeners.set(id, handler);
+  }
+
+  /**
+   * Remove a previously registered view-state-change listener by id.
+   * @param {string} id  The key used when registering.
+   */
+  offViewStateChange(id) {
+    this._viewStateListeners.delete(id);
+  }
+
+  /**
+   * Programmatically trigger all view-state-change listeners.
+   * deck.gl only fires onViewStateChange for user interactions, so call
+   * this after setting initialViewState via setProps to keep every
+   * subsystem (annotation overlay, minimap, hex zoom, etc.) in sync.
+   * @param {Object} viewState  The new view state object.
+   */
+  notifyViewStateChange(viewState) {
+    for (const handler of this._viewStateListeners.values()) {
+      try { handler({ viewState }); } catch (e) {
+        console.error('Error in viewStateChange listener:', e);
+      }
+    }
   }
 
   addPoints(pointData, {
@@ -455,22 +502,14 @@ class DataMap {
   }
 
   /**
-   * Set up an onViewStateChange listener that re-aggregates the hex layer
+   * Register a view-state-change listener that re-aggregates the hex layer
    * only when the zoom crosses a bucket boundary.
    */
   _setupHexZoomListener() {
-    // Chain with any existing onViewStateChange handler
-    const origHandler = this.deckgl.props.onViewStateChange || null;
-
-    // Simple debounce helper scoped to this listener
     let debounceTimer = null;
     const DEBOUNCE_MS = 150;
 
-    const hexZoomHandler = (params) => {
-      // Always call the original handler first
-      if (origHandler) origHandler(params);
-
-      // Debounce the bucket check
+    this.onViewStateChange('hexZoom', (params) => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         const zoom = params.viewState.zoom;
@@ -480,9 +519,7 @@ class DataMap {
           this._updateHexRadius(this._hexRadii[newBucket]);
         }
       }, DEBOUNCE_MS);
-    };
-
-    this.deckgl.setProps({ onViewStateChange: hexZoomHandler });
+    });
   }
 
   /**

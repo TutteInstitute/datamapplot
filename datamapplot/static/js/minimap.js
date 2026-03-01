@@ -182,34 +182,21 @@ class MiniMap {
     }
 
     attachEventListeners() {
-        // Listen to deck.gl view state changes
+        // Listen to deck.gl view state changes via the centralised dispatcher.
         if (this.datamap.deckgl) {
             // Guard flag: when true we are inside a synthetic notification
-            // triggered by _notifyViewStateChange.  The minimap's own handler
-            // should still forward to the chain but must NOT update viewState
-            // or setProps (we already did that before the notification).
+            // triggered by notifyViewStateChange.  The minimap's own handler
+            // must NOT update viewState or setProps (we already did that
+            // before the notification).
             this._isNotifying = false;
 
-            this._chainedOnViewStateChange =
-                this.datamap.deckgl.props.onViewStateChange || null;
-
-            this.datamap.deckgl.setProps({
-                onViewStateChange: (params) => {
-                    // Always forward to the rest of the chain so every
-                    // handler (annotation widget, topic-tree, etc.) runs.
-                    if (this._chainedOnViewStateChange) {
-                        this._chainedOnViewStateChange(params);
-                    }
-                    // Skip minimap-specific logic when this call originates
-                    // from our own programmatic view-state update.
-                    if (!this._isNotifying) {
-                        this.throttledUpdate();
-                        this.currentViewState = params.viewState;
-                        this.datamap.deckgl.setProps({
-                            initialViewState: this.currentViewState
-                        });
-                    }
-                    return params.viewState;
+            this.datamap.onViewStateChange('minimap', (params) => {
+                if (!this._isNotifying) {
+                    this.throttledUpdate();
+                    this.currentViewState = params.viewState;
+                    this.datamap.deckgl.setProps({
+                        initialViewState: this.currentViewState
+                    });
                 }
             });
         }
@@ -284,10 +271,12 @@ class MiniMap {
             this.datamap.deckgl.setProps({
                 initialViewState: newViewState
             });
-            // Notify chained handlers (annotation widget etc.) that the
-            // view changed — deck.gl does not fire onViewStateChange for
-            // programmatic initialViewState updates.
-            this._notifyViewStateChange(newViewState);
+            // Notify all view-state listeners (annotation overlay,
+            // hex zoom, etc.) — deck.gl does not fire onViewStateChange
+            // for programmatic initialViewState updates.
+            this._isNotifying = true;
+            try { this.datamap.notifyViewStateChange(newViewState); }
+            finally { this._isNotifying = false; }
             this.throttledUpdate();
 
             e.preventDefault();
@@ -331,31 +320,10 @@ class MiniMap {
         this.datamap.deckgl.setProps({
             initialViewState: newViewState
         });
-        // Notify chained handlers (annotation widget etc.)
-        this._notifyViewStateChange(newViewState);
-    }
-
-    /**
-     * Explicitly invoke the full onViewStateChange handler chain after a
-     * programmatic view-state update.  deck.gl only fires the callback
-     * for user-initiated interactions, so we synthesize the call here
-     * to keep layers like the annotation overlay in sync.
-     *
-     * We call the CURRENT top-of-chain handler from deckgl.props rather
-     * than the one captured at init time, because other widgets (e.g.
-     * AnnotationWidget) may install their handlers after the minimap.
-     * A reentrancy guard (_isNotifying) prevents the minimap's own
-     * handler from re-triggering setProps / throttledUpdate.
-     */
-    _notifyViewStateChange(viewState) {
-        const handler = this.datamap.deckgl.props.onViewStateChange;
-        if (!handler) return;
+        // Notify all view-state listeners (annotation overlay, hex zoom, etc.)
         this._isNotifying = true;
-        try {
-            handler({ viewState });
-        } finally {
-            this._isNotifying = false;
-        }
+        try { this.datamap.notifyViewStateChange(newViewState); }
+        finally { this._isNotifying = false; }
     }
 
     throttle(func, wait) {

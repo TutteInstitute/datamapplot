@@ -442,7 +442,7 @@ class TopicTreeWidget(WidgetBase):
         {button_handlers}
         // Set up viewport highlighting
         const debounced = debounce(({{viewState, interactionState}}) => {{
-            const userIsInteracting = Object.values(interactionState).every(Boolean);
+            const userIsInteracting = interactionState && Object.values(interactionState).every(Boolean);
             if (!userIsInteracting) {{
                 const visible = getVisibleTextData(viewState, window.datamap.labelData);
                 if (visible) {{
@@ -451,9 +451,7 @@ class TopicTreeWidget(WidgetBase):
             }}
         }}, 150);
         
-        window.datamap.deckgl.setProps({{
-            onViewStateChange: debounced,
-        }});
+        window.datamap.onViewStateChange('topicTree', debounced);
         
         // Store reference
         window.datamap.widgets = window.datamap.widgets || {{}};

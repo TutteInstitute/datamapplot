@@ -74,7 +74,7 @@ class TopicTree {
         this.topicTreeContainer.appendChild(this.topicTreeBody);
 
         this.container.appendChild(this.topicTreeContainer);
-    
+
         this.spanCache = new Map();
         this.parentChainCache = new Map();
         this.setupCaretHandlers();
@@ -85,11 +85,11 @@ class TopicTree {
         this.initializeParentChainCache();
         this.highlightElements(this.elements);
     }
-    
+
 
     buildParentChildMap() {
         const parentChildMap = new Map();
-        
+
         // First, handle elements with actual parents
         this.elements.forEach(element => {
             const parentId = element.parent;
@@ -98,13 +98,13 @@ class TopicTree {
             }
             parentChildMap.get(parentId).push(element);
         });
-    
+
         return parentChildMap;
     }
 
     buildTreeHtml(buttons, icon, parentId = 'base') {
         const children = this.parentChildMap.get(parentId) || [];
-        
+
         if (children.length === 0) return '';
         if (this.colorBullets) {
             return `
@@ -135,14 +135,14 @@ class TopicTree {
                     </li>
                 `).join('')}
             </ul>
-        `;           
+        `;
         }
     }
 
     setupLabelHandlers(datamap) {
         var topicTree = this
         this.container.querySelectorAll('.topic-tree-label').forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const bounds = JSON.parse(this.dataset.bounds);
                 const labelId = this.dataset.labelId;
                 topicTree.zoomToLabelBounds(bounds, labelId);
@@ -160,8 +160,11 @@ class TopicTree {
             transitionDuration: 1000,
         };
         this.datamap.deckgl.setProps({
-            initialViewState: {...viewState},
+            initialViewState: { ...viewState },
         });
+        // Notify all view-state listeners — deck.gl does not fire
+        // onViewStateChange for programmatic initialViewState updates.
+        this.datamap.notifyViewStateChange(viewState);
     }
 
     initializeSpanCache() {
@@ -184,36 +187,36 @@ class TopicTree {
             this.parentChainCache.set(element.id, chain);
         });
     }
-    
+
     highlightElements(elements) {
         // Clear all existing highlights first
         const highlightedElements = Array.from(this.container.querySelectorAll('.highlighted'));
         highlightedElements.forEach(el => el.classList.remove('highlighted'));
-        
+
         elements.forEach(element => {
             this.highlightElementAndParents(element);
         });
     }
-    
+
     highlightElementAndParents(element) {
         const elementSpan = this.spanCache.get(element.id);
         if (!elementSpan) return;
-        
+
         // If this element is already highlighted, we can skip it and its entire parent chain
         if (elementSpan.classList.contains('highlighted')) return;
-        
+
         elementSpan.classList.add('highlighted');
-        
+
         // Use cached parent chain, but abort as soon as we hit a highlighted element
         const parentChain = this.parentChainCache.get(element.id);
         if (parentChain) {
             for (const parentId of parentChain) {
                 const parentSpan = this.spanCache.get(parentId);
                 if (!parentSpan) continue;
-                
+
                 // If we hit a highlighted parent, we can stop - its parents are already done
                 if (parentSpan.classList.contains('highlighted')) break;
-                
+
                 parentSpan.classList.add('highlighted');
             }
         }
@@ -221,7 +224,7 @@ class TopicTree {
 
     setupCaretHandlers() {
         this.container.querySelectorAll('.caret').forEach(caret => {
-            caret.addEventListener('click', function() {
+            caret.addEventListener('click', function () {
                 this.classList.toggle('caret-down');
                 const nestedList = getNextSibling(this, '.nested');
                 if (nestedList) {
@@ -232,10 +235,10 @@ class TopicTree {
     }
 
     setupExpandAllHandler() {
-        this.expandAllBtn.addEventListener('click', function() {
+        this.expandAllBtn.addEventListener('click', function () {
             const isExpanded = this.dataset.expanded === 'true';
             const carets = document.querySelectorAll('.caret');
-            
+
             carets.forEach(caret => {
                 const nestedList = getNextSibling(caret, '.nested');
                 if (isExpanded) {
@@ -252,7 +255,7 @@ class TopicTree {
                     }
                 }
             });
-            
+
             // Toggle button state
             this.dataset.expanded = (!isExpanded).toString();
             this.textContent = isExpanded ? 'Expand All' : 'Collapse All';
@@ -265,10 +268,10 @@ class TopicTree {
         const heading = this.heading;
         const expandAllBtn = this.expandAllBtn;
         const topicTreeContainer = this.topicTreeContainer;
-        this.showHideButton.addEventListener('click', function() {
+        this.showHideButton.addEventListener('click', function () {
             const hidden = topicTreeContainer.hidden;
             if (hidden) {
-                $(topicTreeContainer).animate({height: 'show', width: 'show', opacity: 'show'}, 250);
+                $(topicTreeContainer).animate({ height: 'show', width: 'show', opacity: 'show' }, 250);
                 topicTreeContainer.hidden = false;
                 topicTreeBody.style.overflowX = 'auto';
                 this.classList.remove('closed');
@@ -285,7 +288,7 @@ class TopicTree {
                 });
                 expandAllBtn.textContent = 'Expand All';
                 expandAllBtn.dataset.expanded = 'false';
-                $(topicTreeContainer).animate({height: 'hide', width: 'hide', opacity: 'hide'}, 250);
+                $(topicTreeContainer).animate({ height: 'hide', width: 'hide', opacity: 'hide' }, 250);
                 topicTreeContainer.hidden = true;
                 this.classList.add('closed');
             }

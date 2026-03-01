@@ -127,8 +127,8 @@ class AnnotationWidget {
         // Inline text input reference
         this._textInput = null;
 
-        // For chaining deck.gl callbacks
-        this._origOnViewStateChange = null;
+        // View-state listener id for the centralised dispatcher
+        this._viewStateListenerId = 'annotation';
 
         // Resize observer
         this._resizeObserver = null;
@@ -202,17 +202,8 @@ class AnnotationWidget {
     // ------------------------------------------------------------------
 
     hookViewStateChange() {
-        this._origOnViewStateChange = this.datamap.deckgl.props.onViewStateChange || null;
-
-        this.datamap.deckgl.setProps({
-            onViewStateChange: (params) => {
-                // Call any previously-chained handler first
-                if (this._origOnViewStateChange) {
-                    this._origOnViewStateChange(params);
-                }
-                this.scheduleRedraw();
-                return params.viewState;
-            },
+        this.datamap.onViewStateChange(this._viewStateListenerId, () => {
+            this.scheduleRedraw();
         });
     }
 
@@ -877,10 +868,8 @@ class AnnotationWidget {
         // Disconnect resize observer
         if (this._resizeObserver) this._resizeObserver.disconnect();
 
-        // Restore original viewstate handler
-        if (this._origOnViewStateChange !== undefined) {
-            this.datamap.deckgl.setProps({ onViewStateChange: this._origOnViewStateChange || undefined });
-        }
+        // Unregister view-state listener
+        this.datamap.offViewStateChange(this._viewStateListenerId);
 
         // Restore deck.gl controller
         this.datamap.deckgl.setProps({

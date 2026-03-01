@@ -230,6 +230,7 @@ function loadLabelDataLayer() {
 
 function setupTopicTree(labelData) {
   const topicTreeContainer = document.querySelector('#topic-tree');
+  if (!topicTreeContainer) return;
   
   {% if topic_tree_button_on_click != 'null' %}
   const topicTree = new TopicTree(
@@ -269,7 +270,7 @@ function setupTopicTree(labelData) {
   {% endif %}
   
   const debouncedViewStateChange = debounce(({viewState, interactionState}) => {
-    const userIsInteracting = Object.values(interactionState).every(Boolean);
+    const userIsInteracting = interactionState && Object.values(interactionState).every(Boolean);
     if (!userIsInteracting) {
       const visible = getVisibleTextData(viewState, datamap.labelData);
       if (visible) {
@@ -278,9 +279,7 @@ function setupTopicTree(labelData) {
     }
   }, 150);
   
-  datamap.deckgl.setProps({
-    onViewStateChange: debouncedViewStateChange,
-  });
+  datamap.onViewStateChange('topicTree', debouncedViewStateChange);
 }
 {% endif %}
 
