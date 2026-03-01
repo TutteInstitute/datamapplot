@@ -1,5 +1,5 @@
 
-LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'boundaryLayer', 'labelLayer'];
+LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'hexagonLayer', 'boundaryLayer', 'labelLayer'];
 
 function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
@@ -321,6 +321,190 @@ class DataMap {
     this.layers.push(this.pointLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
     this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
+  /**
+   * Add a HexagonLayer for density heatmap visualization.
+   *
+   * The layer aggregates point positions into hexagonal bins and colors them
+   * by count. Re-aggregation only occurs when the zoom crosses one of a fixed
+   * number of threshold levels (not on every zoom event) for performance.
+   *
+   * @param {Object} pointData - The point data object (must have .x and .y arrays)
+   * @param {Object} options
+   * @param {number}   options.numZoomLevels   - Number of discrete zoom buckets (default 4)
+   * @param {number}   options.minCount        - Minimum points in a hex before it is drawn (default 5)
+   * @param {Array}    options.colorRange      - Array of [R,G,B] or [R,G,B,A] arrays for the color scale
+   * @param {number}   options.baseRadius      - Hex radius in meters at the finest zoom bucket
+   * @param {number}   options.coverage        - Hex coverage 0-1 (default 0.8)
+   * @param {number}   options.opacity         - Layer opacity 0-1 (default 0.6)
+   * @param {Array|null} options.zoomThresholds - Explicit zoom breakpoints (auto-computed if null)
+   */
+  addHexagonLayer(pointData, {
+    numZoomLevels = 4,
+    minCount = 5,
+    colorRange = [[239, 243, 255], [189, 215, 231], [107, 174, 214], [49, 130, 189], [8, 81, 156]],
+    baseRadius = 1000,
+    coverage = 1.0,
+    opacity = 0.6,
+    zoomThresholds = null,
+  }) {
+    const numPoints = pointData.x.length;
+
+    // Use a lightweight index range as data and read positions from the
+    // existing typed arrays via getPosition, avoiding a full copy of all
+    // point coordinates into N new [x,y] tuple arrays.
+    const indexRange = { length: numPoints };
+    this._hexPointData = indexRange;
+    this._hexPositionX = pointData.x;
+    this._hexPositionY = pointData.y;
+
+    // Compute zoom thresholds
+    const initialZoom = this.deckgl.props.initialViewState.zoom;
+    if (zoomThresholds && zoomThresholds.length > 0) {
+      this._hexZoomThresholds = zoomThresholds.slice().sort((a, b) => a - b);
+    } else {
+      // Auto-distribute thresholds across a reasonable zoom range
+      const zoomMin = Math.max(initialZoom - 2, 0);
+      const zoomMax = initialZoom + 8;
+      const step = (zoomMax - zoomMin) / numZoomLevels;
+      this._hexZoomThresholds = [];
+      for (let i = 1; i <= numZoomLevels; i++) {
+        this._hexZoomThresholds.push(zoomMin + step * i);
+      }
+    }
+
+    // Compute radius for each zoom bucket.
+    // baseRadius is the coarsest (top-level / most zoomed-out) hex size.
+    // Each zoom level subdivides by a fixed factor of 1.5, so more zoom
+    // levels produce ever-finer hexagons at the bottom without changing
+    // the top-level granularity.
+    const HEX_STEP_FACTOR = 1.5;
+    const nBuckets = this._hexZoomThresholds.length + 1;
+    this._hexRadii = new Array(nBuckets);
+    for (let i = 0; i < nBuckets; i++) {
+      // Bucket 0 = coarsest (baseRadius), each step down divides by 1.5
+      this._hexRadii[i] = baseRadius / Math.pow(HEX_STEP_FACTOR, i);
+    }
+
+    // Determine which zoom bucket we start in
+    this._currentHexZoomBucket = this._getHexZoomBucket(initialZoom);
+    const startRadius = this._hexRadii[this._currentHexZoomBucket];
+
+    // Store hex config for later use
+    this._hexMinCount = minCount;
+    this._hexColorRange = colorRange;
+    this._hexCoverage = coverage;
+    this._hexBaseRadius = baseRadius;
+
+    // Build the HexagonLayer
+    // When minCount > 0 we need CPU aggregation with getColorValue to filter
+    // sparse bins. We prepend a transparent entry to colorRange so bins with
+    // value 0 are invisible.
+    let hexLayerProps = {
+      id: 'hexagonLayer',
+      data: this._hexPointData,
+      getPosition: (_, { index }) => [this._hexPositionX[index], this._hexPositionY[index]],
+      radius: startRadius,
+      coverage: coverage,
+      opacity: opacity,
+      extruded: false,
+      colorScaleType: 'quantile',
+      pickable: false,
+    };
+
+    if (minCount > 0) {
+      // CPU aggregation path: return null for bins below threshold so
+      // they are excluded from rendering entirely
+      hexLayerProps.colorRange = colorRange;
+      hexLayerProps.getColorValue = (points) => {
+        return points.length >= minCount ? points.length : null;
+      };
+      hexLayerProps.gpuAggregation = false;
+    } else {
+      hexLayerProps.colorRange = colorRange;
+      hexLayerProps.getColorWeight = 1;
+      hexLayerProps.colorAggregation = 'COUNT';
+      hexLayerProps.gpuAggregation = true;
+    }
+
+    this.hexagonLayer = new deck.HexagonLayer(hexLayerProps);
+
+    // Store full props for recreation on zoom transitions (ensures
+    // color domain is recomputed from scratch at each zoom level)
+    this._hexLayerProps = hexLayerProps;
+
+    this.layers.push(this.hexagonLayer);
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+
+    // Set up zoom-bucketed re-aggregation listener
+    this._setupHexZoomListener();
+  }
+
+  /**
+   * Determine which zoom bucket a given zoom level falls into.
+   * Bucket 0 = below first threshold (most zoomed out),
+   * Bucket N = above last threshold (most zoomed in).
+   */
+  _getHexZoomBucket(zoom) {
+    for (let i = 0; i < this._hexZoomThresholds.length; i++) {
+      if (zoom < this._hexZoomThresholds[i]) return i;
+    }
+    return this._hexZoomThresholds.length;
+  }
+
+  /**
+   * Set up an onViewStateChange listener that re-aggregates the hex layer
+   * only when the zoom crosses a bucket boundary.
+   */
+  _setupHexZoomListener() {
+    // Chain with any existing onViewStateChange handler
+    const origHandler = this.deckgl.props.onViewStateChange || null;
+
+    // Simple debounce helper scoped to this listener
+    let debounceTimer = null;
+    const DEBOUNCE_MS = 150;
+
+    const hexZoomHandler = (params) => {
+      // Always call the original handler first
+      if (origHandler) origHandler(params);
+
+      // Debounce the bucket check
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const zoom = params.viewState.zoom;
+        const newBucket = this._getHexZoomBucket(zoom);
+        if (newBucket !== this._currentHexZoomBucket) {
+          this._currentHexZoomBucket = newBucket;
+          this._updateHexRadius(this._hexRadii[newBucket]);
+        }
+      }, DEBOUNCE_MS);
+    };
+
+    this.deckgl.setProps({ onViewStateChange: hexZoomHandler });
+  }
+
+  /**
+   * Recreate the hexagon layer with a new radius, forcing full
+   * re-aggregation and color domain recomputation so the color scale
+   * adapts to the count range at each zoom level.
+   */
+  _updateHexRadius(newRadius) {
+    if (!this.hexagonLayer) return;
+
+    const idx = this.layers.indexOf(this.hexagonLayer);
+    if (idx === -1) return;
+
+    // Build a brand-new layer so deck.gl recomputes aggregation
+    // and color domain from scratch (clone may reuse cached state).
+    const updatedLayer = new deck.HexagonLayer({
+      ...this._hexLayerProps,
+      radius: newRadius,
+    });
+    this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
+    this.deckgl.setProps({ layers: this.layers });
+    this.hexagonLayer = updatedLayer;
   }
 
   addEdges(edgeData, {
@@ -746,7 +930,8 @@ class DataMap {
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
-      'edgeLayer': this.edgeLayer
+      'edgeLayer': this.edgeLayer,
+      'hexagonLayer': this.hexagonLayer
     };
 
     const layer = layerMap[layerId];
@@ -765,6 +950,7 @@ class DataMap {
     else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
     else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
     else if (layerId === 'imageLayer') this.imageLayer = updatedLayer;
+    else if (layerId === 'hexagonLayer') this.hexagonLayer = updatedLayer;
   }
 
   setLayerOpacity(layerId, opacity) {
@@ -773,7 +959,8 @@ class DataMap {
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
-      'edgeLayer': this.edgeLayer
+      'edgeLayer': this.edgeLayer,
+      'hexagonLayer': this.hexagonLayer
     };
 
     const layer = layerMap[layerId];
@@ -792,6 +979,7 @@ class DataMap {
     else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
     else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
     else if (layerId === 'imageLayer') this.imageLayer = updatedLayer;
+    else if (layerId === 'hexagonLayer') this.hexagonLayer = updatedLayer;
   }
 
   getLayerVisibility(layerId) {
@@ -800,7 +988,8 @@ class DataMap {
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
-      'edgeLayer': this.edgeLayer
+      'edgeLayer': this.edgeLayer,
+      'hexagonLayer': this.hexagonLayer
     };
 
     const layer = layerMap[layerId];
@@ -813,7 +1002,8 @@ class DataMap {
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
-      'edgeLayer': this.edgeLayer
+      'edgeLayer': this.edgeLayer,
+      'hexagonLayer': this.hexagonLayer
     };
 
     const layer = layerMap[layerId];
