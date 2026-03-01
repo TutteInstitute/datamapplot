@@ -1,5 +1,5 @@
 coveralls
-dask[dataframe]<2025.0.1 # temporarily cap. 2025.0.1 is incompatible with datashader
+dask[dataframe]
 pytest
 pytest-azurepipelines
 pytest-cov

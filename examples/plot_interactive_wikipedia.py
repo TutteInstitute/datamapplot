@@ -7,6 +7,7 @@ Demonstrating interactive plotting with a Simple Wikipedia data map.
 For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/Wikipedia_data_map_example.html
 """
+import gzip
 import numpy as np
 import datamapplot
 
@@ -16,7 +17,8 @@ for i in range(6):
     wikipedia_label_layers.append(
         np.load(f"wikipedia_layer{i}_cluster_labels.npz", allow_pickle=True)["arr_0"]
     )
-wikipedia_hover_text = np.load("wikipedia_large_hover_text.npz", allow_pickle=True)["arr_0"]
+with gzip.open("wikipedia_large_hover_text.txt.gz", mode="rt", encoding="utf-8") as file_hover_text:
+    wikipedia_hover_text = np.fromiter((line.strip() for line in file_hover_text.readlines()), "object")
 wikipedia_marker_size_array = np.load("wikipedia_marker_size_array.npz")["arr_0"]
 
 plot = datamapplot.create_interactive_plot(

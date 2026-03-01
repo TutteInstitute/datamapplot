@@ -184,20 +184,31 @@ class MiniMap {
     attachEventListeners() {
         // Listen to deck.gl view state changes
         if (this.datamap.deckgl) {
-            const originalOnViewStateChange = this.datamap.deckgl.props.onViewStateChange;
+            // Guard flag: when true we are inside a synthetic notification
+            // triggered by _notifyViewStateChange.  The minimap's own handler
+            // should still forward to the chain but must NOT update viewState
+            // or setProps (we already did that before the notification).
+            this._isNotifying = false;
+
+            this._chainedOnViewStateChange =
+                this.datamap.deckgl.props.onViewStateChange || null;
 
             this.datamap.deckgl.setProps({
                 onViewStateChange: (params) => {
-                    // Call original handler if it exists
-                    if (originalOnViewStateChange) {
-                        originalOnViewStateChange(params);
+                    // Always forward to the rest of the chain so every
+                    // handler (annotation widget, topic-tree, etc.) runs.
+                    if (this._chainedOnViewStateChange) {
+                        this._chainedOnViewStateChange(params);
                     }
-                    // Update minimap viewport
-                    this.throttledUpdate();
-                    this.currentViewState = params.viewState;
-                    this.datamap.deckgl.setProps({
-                        initialViewState: this.currentViewState
-                    });
+                    // Skip minimap-specific logic when this call originates
+                    // from our own programmatic view-state update.
+                    if (!this._isNotifying) {
+                        this.throttledUpdate();
+                        this.currentViewState = params.viewState;
+                        this.datamap.deckgl.setProps({
+                            initialViewState: this.currentViewState
+                        });
+                    }
                     return params.viewState;
                 }
             });
@@ -222,9 +233,12 @@ class MiniMap {
             dragStartX = e.clientX;
             dragStartY = e.clientY;
 
-            const rect = this.viewportOverlay.getBoundingClientRect();
-            viewportStartX = rect.left - this.container.getBoundingClientRect().left;
-            viewportStartY = rect.top - this.container.getBoundingClientRect().top;
+            // Read position from style (canvas-local coordinates) rather than
+            // getBoundingClientRect (screen coordinates) so we stay in the same
+            // coordinate system as the canvas and the unprojection math, even
+            // when the parent stack has CSS transform: scaleY(-1).
+            viewportStartX = parseFloat(this.viewportOverlay.style.left) || 0;
+            viewportStartY = parseFloat(this.viewportOverlay.style.top) || 0;
 
             e.preventDefault();
             e.stopPropagation();
@@ -234,8 +248,13 @@ class MiniMap {
             if (!isDragging) return;
 
             const dx = e.clientX - dragStartX;
-            const dy = this.options.mirrorY ? e.clientY - dragStartY : dragStartY - e.clientY;
-            // const dy = dragStartY - e.clientY;
+            // When mirrorY is true the minimap sits inside a CSS scaleY(-1)
+            // parent, so screen-space down corresponds to local-space up.
+            // Negate the delta so dragging moves the viewport in the visually
+            // correct direction.
+            const dy = this.options.mirrorY
+                ? -(e.clientY - dragStartY)
+                : (e.clientY - dragStartY);
 
             const newX = viewportStartX + dx;
             const newY = viewportStartY + dy;
@@ -247,24 +266,29 @@ class MiniMap {
             const centerY = newY + viewportHeight / 2;
 
             const dataX = (centerX - this.offset.x) / this.scale + this.bounds.minX;
-            const dataY = this.options.mirrorY ? this.bounds.maxY - (centerY - this.offset.y) / this.scale : (centerY - this.offset.y) / this.scale + this.bounds.minY;
+            const dataY = this.options.mirrorY
+                ? (centerY - this.offset.y) / this.scale + this.bounds.minY
+                : this.bounds.maxY - (centerY - this.offset.y) / this.scale;
             const dataZoom = this.currentViewState.zoom;
 
             // Update deck.gl via initialViewState
             // When controller is enabled, changing initialViewState updates the view
             const currentViewState = this.datamap.deckgl.props.initialViewState;
+            const newViewState = {
+                ...currentViewState,
+                longitude: dataX,
+                latitude: dataY,
+                zoom: dataZoom,
+                transitionDuration: 0
+            };
             this.datamap.deckgl.setProps({
-                initialViewState: {
-                    ...currentViewState,
-                    longitude: dataX,
-                    latitude: dataY,
-                    zoom: dataZoom,
-                    transitionDuration: 0
-                }
+                initialViewState: newViewState
             });
+            // Notify chained handlers (annotation widget etc.) that the
+            // view changed — deck.gl does not fire onViewStateChange for
+            // programmatic initialViewState updates.
+            this._notifyViewStateChange(newViewState);
             this.throttledUpdate();
-            // this.currentViewState.latitude = dataY;
-            // this.currentViewState.longitude = dataX;
 
             e.preventDefault();
         });
@@ -279,11 +303,18 @@ class MiniMap {
 
         const rect = this.canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        // When mirrorY is true the minimap is inside a CSS scaleY(-1) parent,
+        // so screen-space y is inverted relative to canvas-local y.
+        let y = e.clientY - rect.top;
+        if (this.options.mirrorY) {
+            y = this.options.height - y;
+        }
 
         // Unproject from minimap to data coordinates
         const dataX = (x - this.offset.x) / this.scale + this.bounds.minX;
-        const dataY = (y - this.offset.y) / this.scale + this.bounds.minY;
+        const dataY = this.options.mirrorY
+            ? (y - this.offset.y) / this.scale + this.bounds.minY
+            : this.bounds.maxY - (y - this.offset.y) / this.scale;
 
         // Get current view state
         const currentViewState = this.datamap.deckgl.viewState || this.datamap.deckgl.props.initialViewState;
@@ -300,6 +331,31 @@ class MiniMap {
         this.datamap.deckgl.setProps({
             initialViewState: newViewState
         });
+        // Notify chained handlers (annotation widget etc.)
+        this._notifyViewStateChange(newViewState);
+    }
+
+    /**
+     * Explicitly invoke the full onViewStateChange handler chain after a
+     * programmatic view-state update.  deck.gl only fires the callback
+     * for user-initiated interactions, so we synthesize the call here
+     * to keep layers like the annotation overlay in sync.
+     *
+     * We call the CURRENT top-of-chain handler from deckgl.props rather
+     * than the one captured at init time, because other widgets (e.g.
+     * AnnotationWidget) may install their handlers after the minimap.
+     * A reentrancy guard (_isNotifying) prevents the minimap's own
+     * handler from re-triggering setProps / throttledUpdate.
+     */
+    _notifyViewStateChange(viewState) {
+        const handler = this.datamap.deckgl.props.onViewStateChange;
+        if (!handler) return;
+        this._isNotifying = true;
+        try {
+            handler({ viewState });
+        } finally {
+            this._isNotifying = false;
+        }
     }
 
     throttle(func, wait) {

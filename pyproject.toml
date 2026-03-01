@@ -23,7 +23,6 @@ requires-python = ">=3.10"
 dependencies = [
     "colorcet",
     "colorspacious>=1.1",
-    "dask[complete]>=2024.4.1, <2025.0.1",
     "datashader>=0.16",
     "importlib-resources",
     "jinja2",
@@ -40,6 +39,7 @@ dependencies = [
     "scikit-learn>=1.1",
     "platformdirs",
     "typing_extensions",
+    "dask[complete]>=2026.1.2",
 ]
 
 [project.urls]

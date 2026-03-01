@@ -26,7 +26,7 @@ allenai_logo_response = requests.get(
     "https://allenai.org/newsletters/archive/2023-03-newsletter_files/927c3ca8-6c75-862c-ee5d-81703ef10a8d.png",
     stream=True,
 )
-allenai_logo = np.asarray(PIL.Image.open(allenai_logo_response.raw))
+allenai_logo = np.asarray(PIL.Image.open(allenai_logo_response.raw).convert("RGBA"))
 
 fig, ax = datamapplot.create_plot(
     cord19_data_map,
