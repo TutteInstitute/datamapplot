@@ -1059,7 +1059,7 @@ def render_html(
 
     # Initialize widget containers
     widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
-    drawer_enabled = {"left": False, "right": False}
+    drawer_enabled = {"left": False, "right": False, "bottom": False}
     widget_css = ""
     widget_js = ""
     encoded_widget_data = {}  # Initialize for both paths
