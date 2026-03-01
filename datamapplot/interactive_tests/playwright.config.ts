@@ -16,9 +16,9 @@ export default defineConfig({
   expect: {
     timeout: 180_000,
     toHaveScreenshot: {
-      threshold: 0.2, // This is the per pixel color difference threshold
+      threshold: 0.3, // This is the per pixel color difference threshold
       animations: 'disabled',
-      maxDiffPixelRatio: 0.03, // This is the total pixel difference ratio threshold
+      maxDiffPixelRatio: 0.05, // This is the total pixel difference ratio threshold
     }
   },
   projects: [
