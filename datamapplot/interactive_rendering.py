@@ -1063,6 +1063,8 @@ def render_html(
     widget_css = ""
     widget_js = ""
     encoded_widget_data = {}  # Initialize for both paths
+    widget_js_deps = set()
+    widget_css_deps = set()
 
     if use_widget_system:
         # Load default widget config from file if provided
