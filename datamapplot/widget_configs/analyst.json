@@ -1,0 +1,41 @@
+{
+    "_description": "Analyst layout - full featured with histograms and colormaps in drawers",
+    "title": {
+        "location": "top-left",
+        "order": 0,
+        "visible": true
+    },
+    "search": {
+        "location": "top-left",
+        "order": 1,
+        "visible": true
+    },
+    "topic-tree": {
+        "location": "drawer-left",
+        "order": 0,
+        "visible": true,
+        "collapsible": false
+    },
+    "histogram": {
+        "location": "drawer-left",
+        "order": 1,
+        "visible": true,
+        "collapsible": false
+    },
+    "colormap-selector": {
+        "location": "drawer-right",
+        "order": 0,
+        "visible": true,
+        "collapsible": false
+    },
+    "legend": {
+        "location": "drawer-right",
+        "order": 1,
+        "visible": true
+    },
+    "logo": {
+        "location": "bottom-right",
+        "order": 0,
+        "visible": true
+    }
+}

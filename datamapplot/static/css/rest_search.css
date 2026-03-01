@@ -1,0 +1,127 @@
+/* RESTSearchWidget Styles */
+.rest-search-widget {
+    padding: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+}
+
+.rest-search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.rest-search-input {
+    flex: 1;
+    padding: 10px 36px 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.rest-search-input:focus {
+    border-color: #1976d2;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+
+.rest-search-loading {
+    position: absolute;
+    right: 36px;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+}
+
+.rest-search-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #1976d2;
+    border-radius: 50%;
+    animation: rest-search-spin 0.8s linear infinite;
+}
+
+@keyframes rest-search-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.rest-search-clear {
+    position: absolute;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: #666;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+    padding: 0;
+}
+
+.rest-search-clear:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: #333;
+}
+
+.rest-search-results-info {
+    padding: 8px 12px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.rest-search-result-count {
+    font-weight: 500;
+}
+
+.rest-search-error {
+    padding: 10px 12px;
+    background-color: #ffebee;
+    border-left: 3px solid #f44336;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #c62828;
+    margin-top: 8px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .rest-search-input {
+        background-color: #2d2d2d;
+        border-color: #444;
+        color: #fff;
+    }
+
+    .rest-search-input:focus {
+        border-color: #64b5f6;
+        box-shadow: 0 0 0 2px rgba(100, 181, 246, 0.2);
+    }
+
+    .rest-search-results-info {
+        background-color: #2d2d2d;
+        color: #aaa;
+    }
+
+    .rest-search-error {
+        background-color: #3d1f1f;
+        border-left-color: #f44336;
+        color: #ff8a80;
+    }
+
+    .rest-search-clear {
+        color: #aaa;
+    }
+
+    .rest-search-clear:hover {
+        background-color: rgba(255, 255, 255, 0.08);
+        color: #fff;
+    }
+}

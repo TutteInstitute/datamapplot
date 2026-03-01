@@ -40,6 +40,7 @@ plot = datamapplot.create_interactive_plot(
     topic_tree_kwds={
         "color_bullets": True,
     },
+    use_widgets=False,
 )
 plot.save("arxiv_ml_topic_tree.html")
 plot

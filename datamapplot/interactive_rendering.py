@@ -66,6 +66,7 @@ from datamapplot.interactive_helpers import (
     get_js_dependency_sources,
     get_css_dependency_sources,
     get_js_dependency_urls,
+    get_css_dependency_urls,
     compute_percentile_bounds,
     cmap_name_to_color_list,
     array_to_colors,
@@ -74,6 +75,28 @@ from datamapplot.interactive_helpers import (
     prepare_fonts,
     prepare_logo,
     label_text_and_polygon_dataframes,
+)
+from datamapplot.widget_helpers import (
+    WidgetConfig,
+    VALID_LOCATIONS,
+    load_widget_config_from_json,
+    validate_widget_layout,
+    merge_widget_configs,
+    widgets_from_legacy_params,
+    group_widgets_by_location,
+    get_drawer_enabled,
+    update_drawer_enabled_for_handlers,
+    collect_widget_dependencies,
+    legacy_widget_flags_from_widgets,
+    collect_widget_data,
+    encode_widget_data,
+)
+from datamapplot.widgets import (
+    WidgetBase,
+    SearchWidget,
+    HistogramWidget,
+    TopicTreeWidget,
+    LegendWidget,
 )
 
 try:
@@ -471,6 +494,10 @@ def render_html(
     splash_warning=None,
     noise_color="#999999",
     noise_label="Unlabelled",
+    widgets=None,
+    widget_layout=None,
+    default_widget_config=None,
+    use_widgets=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -1018,6 +1045,119 @@ def render_html(
     tooltip_loading_js = dynamic_tooltip_config["tooltip_loading_js"]
     tooltip_error_js = dynamic_tooltip_config["tooltip_error_js"]
 
+    # ==========================================================================
+    # Widget System Processing
+    # ==========================================================================
+
+    # Determine if we should use the new widget system
+    # use_widgets=None means auto-detect: use widgets if widgets param is provided
+    # use_widgets=True forces widget system even with legacy params
+    # use_widgets=False forces legacy system
+    use_widget_system = use_widgets
+    if use_widget_system is None:
+        use_widget_system = widgets is not None
+
+    # Initialize widget containers
+    widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
+    drawer_enabled = {"left": False, "right": False, "bottom": False}
+    widget_css = ""
+    widget_js = ""
+    encoded_widget_data = {}  # Initialize for both paths
+    widget_js_deps = set()
+    widget_css_deps = set()
+
+    if use_widget_system:
+        # Load default widget config from file if provided
+        default_config = None
+        if default_widget_config is not None:
+            if isinstance(default_widget_config, (str, Path)):
+                default_config = load_widget_config_from_json(default_widget_config)
+            elif isinstance(default_widget_config, dict):
+                default_config = validate_widget_layout(default_widget_config)
+
+        # Validate user widget layout if provided
+        user_layout = None
+        if widget_layout is not None:
+            user_layout = validate_widget_layout(widget_layout)
+
+        # Merge configurations
+        merged_layout = merge_widget_configs(default_config, user_layout)
+
+        # Collect widgets - either from explicit widgets param or from legacy params
+        all_widgets = []
+        if widgets is not None:
+            if isinstance(widgets, WidgetBase):
+                all_widgets = [widgets]
+            elif isinstance(widgets, Iterable):
+                all_widgets = list(widgets)
+        else:
+            # Convert legacy parameters to widgets
+            all_widgets = widgets_from_legacy_params(
+                title=title,
+                sub_title=sub_title,
+                font_family=font_family,
+                title_font_size=title_font_size,
+                sub_title_font_size=sub_title_font_size,
+                font_weight=font_weight,
+                title_font_color=title_font_color,
+                sub_title_font_color=sub_title_font_color,
+                enable_search=enable_search,
+                search_field=search_field,
+                enable_topic_tree=enable_topic_tree,
+                topic_tree_kwds=topic_tree_kwds,
+                histogram_data=histogram_data,
+                histogram_settings=histogram_settings,
+                histogram_n_bins=histogram_n_bins,
+                colormaps=colormaps,
+                colormap_rawdata=colormap_rawdata,
+                colormap_metadata=color_metadata,
+                cluster_layer_colormaps=cluster_layer_colormaps,
+                logo=logo,
+                logo_width=logo_width,
+            )
+
+        # Group widgets by location, applying layout overrides
+        widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
+
+        # Determine which drawers should be enabled
+        drawer_enabled = get_drawer_enabled(widgets_by_location)
+
+        # Update drawer enablement for selection handlers
+        drawer_enabled = update_drawer_enabled_for_handlers(
+            drawer_enabled, selection_handler
+        )
+
+        # Collect widget CSS and JS
+        for widget in all_widgets:
+            if widget.css:
+                widget_css += widget.css + "\n"
+            if widget.javascript:
+                widget_js += widget.javascript + "\n"
+
+        # Collect widget dependencies
+        widget_deps = collect_widget_dependencies(all_widgets)
+        widget_js_deps = widget_deps.get("js_files", set())
+        widget_css_deps = widget_deps.get("css_files", set())
+
+        # Legacy widget flags
+        (
+            enable_search,
+            enable_histogram,
+            enable_topic_tree,
+            search_field,
+            histogram_ctx,
+            topic_tree_kwds,
+        ) = legacy_widget_flags_from_widgets(all_widgets)
+
+        # Collect and encode widget data for template
+        raw_widget_data = collect_widget_data(all_widgets)
+        encoded_widget_data = encode_widget_data(raw_widget_data, len(point_data))
+
+    # Determine if drawers are enabled (for dependency loading)
+    enable_drawers = (
+        drawer_enabled["left"] or drawer_enabled["right"] or drawer_enabled["bottom"]
+    )
+
     # Pepare JS/CSS dependencies for embedding in the HTML template
     dependencies_ctx = {
         "js_dependency_urls": get_js_dependency_urls(
@@ -1027,6 +1167,9 @@ def render_html(
             selection_handler,
             cdn_url=cdn_url,
         ),
+        "css_dependency_urls": get_css_dependency_urls(
+            selection_handler,
+        ),
         "js_dependency_srcs": get_js_dependency_sources(
             minify_deps,
             enable_search,
@@ -1035,6 +1178,8 @@ def render_html(
             enable_colormap_selector,
             enable_topic_tree,
             enable_dynamic_tooltip,
+            enable_drawers=enable_drawers,
+            widget_js_dependencies=widget_js_deps,
         ),
         "css_dependency_srcs": get_css_dependency_sources(
             minify_deps,
@@ -1042,6 +1187,8 @@ def render_html(
             show_loading_progress,
             enable_colormap_selector,
             enable_topic_tree,
+            enable_drawers=enable_drawers,
+            widget_css_dependencies=widget_css_deps,
         ),
     }
 
@@ -1058,6 +1205,7 @@ def render_html(
         offline_mode_font_data_file,
     )
     offline_mode_data = offline_result["offline_mode_data"]
+    offline_mode_css_data = offline_result["offline_mode_css_data"]
     offline_mode_font_data_file = offline_result["offline_mode_font_data_file"]
 
     # Prepare fonts
@@ -1099,7 +1247,7 @@ def render_html(
         shadow_color=shadow_color,
         input_background=input_background,
         input_border=input_border,
-        custom_css=custom_css,
+        custom_css=(custom_css or "") + "\n" + widget_css,
         use_title=title is not None,
         title_font_size=title_font_size,
         sub_title_font_size=sub_title_font_size,
@@ -1148,9 +1296,10 @@ def render_html(
         show_loading_progress=show_loading_progress,
         background_image=background_image,
         background_image_bounds=background_image_bounds,
-        custom_js=custom_js,
+        custom_js=(custom_js or "") + "\n" + widget_js,
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
+        offline_mode_css_data=offline_mode_css_data,
         splash_warning=splash_warning,
         enable_api_tooltip=enable_dynamic_tooltip,
         tooltip_identifier_js=tooltip_identifier_js,
@@ -1158,6 +1307,13 @@ def render_html(
         tooltip_format_js=tooltip_format_js,
         tooltip_loading_js=tooltip_loading_js,
         tooltip_error_js=tooltip_error_js,
+        # Widget system context
+        use_widget_system=use_widget_system,
+        widgets_by_location=widgets_by_location,
+        drawer_enabled=drawer_enabled,
+        enable_drawers=enable_drawers,
+        darkmode=darkmode,
+        widget_data=encoded_widget_data,
         **dependencies_ctx,
     )
     return html_str

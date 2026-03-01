@@ -1,0 +1,13 @@
+{
+    "_description": "Minimal layout - just title and search in top-left corner",
+    "title": {
+        "location": "top-left",
+        "order": 0,
+        "visible": true
+    },
+    "search": {
+        "location": "top-left",
+        "order": 1,
+        "visible": true
+    }
+}

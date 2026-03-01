@@ -1,0 +1,38 @@
+{
+    "_description": "Default layout - matches the original datamapplot layout for backward compatibility",
+    "title": {
+        "location": "top-left",
+        "order": 0,
+        "visible": true
+    },
+    "search": {
+        "location": "top-left",
+        "order": 1,
+        "visible": true
+    },
+    "topic-tree": {
+        "location": "top-left",
+        "order": 2,
+        "visible": true
+    },
+    "legend": {
+        "location": "top-right",
+        "order": 0,
+        "visible": true
+    },
+    "colormap-selector": {
+        "location": "bottom-left",
+        "order": 0,
+        "visible": true
+    },
+    "histogram": {
+        "location": "bottom-left",
+        "order": 1,
+        "visible": true
+    },
+    "logo": {
+        "location": "bottom-right",
+        "order": 0,
+        "visible": true
+    }
+}

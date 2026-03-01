@@ -9,6 +9,7 @@ highlighted on the data map.
 For a full size version see
 https://lmcinnes.github.io/datamapplot_examples/CORD19_data_map_example.html
 """
+
 import numpy as np
 import pandas as pd
 import datamapplot
@@ -26,7 +27,9 @@ cord19_marker_size_array = np.log(1 + np.load("cord19_marker_size_array.npz")["a
 
 # Load publication dates for histogram
 # The dates file matches the large CORD19 dataset (517229 points)
-publication_dates = np.load("CORD19-subset-publish-dates.npz", allow_pickle=True)["arr_0"]
+publication_dates = np.load("CORD19-subset-publish-dates.npz", allow_pickle=True)[
+    "arr_0"
+]
 publication_dates = pd.Series(publication_dates)
 
 # Create the interactive plot with histogram
@@ -59,7 +62,7 @@ plot = datamapplot.create_interactive_plot(
         "histogram_bin_fill_color": "#6290C3",
         "histogram_bin_selected_fill_color": "#2EBFA5",
     },
-    inline_data=False,
+    inline_data=True,
     offline_data_prefix="cord_histogram_gallery",
 )
 plot.save("cord19_histogram.html")

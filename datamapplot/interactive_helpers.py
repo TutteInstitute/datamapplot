@@ -180,6 +180,23 @@ def _build_font_face_css(fontname, font_data):
 # =============================================================================
 
 
+# Mapping of widget dependency names to actual file names
+WIDGET_JS_FILES = {
+    "selection_control": "selection_control.js",
+    "layer_toggle": "layer_toggle.js",
+    "minimap": "minimap.js",
+    "rest_search": "rest_search.js",
+    "annotation": "annotation.js",
+    "histogram": "d3_histogram.js",
+    "lasso_selection": "lasso_selection.js",
+    "quad_tree": "quad_tree.js",
+    "colormap_selector": "colormap_selector.js",
+    "topic_tree": "topic_tree.js",
+    "dynamic_tooltip": "dynamic_tooltip.js",
+    "drawer": "drawer.js",
+}
+
+
 def get_js_dependency_sources(
     minify,
     enable_search,
@@ -188,6 +205,8 @@ def get_js_dependency_sources(
     colormap_selector,
     enable_topic_tree,
     enable_dynamic_tooltip,
+    enable_drawers=False,
+    widget_js_dependencies=None,
 ):
     """
     Gather the necessary JavaScript dependency files for embedding in the HTML template.
@@ -208,6 +227,10 @@ def get_js_dependency_sources(
         Whether to include JS dependencies for the topic tree functionality.
     enable_dynamic_tooltip : bool
         Whether to include JS dependencies for the API tooltip functionality.
+    enable_drawers : bool, optional
+        Whether to include JS dependencies for drawer panels.
+    widget_js_dependencies : set, optional
+        Set of widget dependency names to include (e.g., {"selection_control", "minimap"}).
 
     Returns
     -------
@@ -235,6 +258,17 @@ def get_js_dependency_sources(
     if enable_dynamic_tooltip:
         js_dependencies.append("dynamic_tooltip.js")
 
+    if enable_drawers:
+        js_dependencies.append("drawer.js")
+
+    # Add widget-specific dependencies
+    if widget_js_dependencies:
+        for dep_name in widget_js_dependencies:
+            if dep_name in WIDGET_JS_FILES:
+                js_file = WIDGET_JS_FILES[dep_name]
+                if js_file not in js_dependencies:
+                    js_dependencies.append(js_file)
+
     for js_file in js_dependencies:
         with open(static_dir / js_file, "r", encoding="utf-8") as file:
             js_src = file.read()
@@ -243,12 +277,28 @@ def get_js_dependency_sources(
     return js_dependencies_src
 
 
+# Mapping of widget dependency names to actual CSS file names
+WIDGET_CSS_FILES = {
+    "selection_control": "selection_control.css",
+    "layer_toggle": "layer_toggle.css",
+    "minimap": "minimap.css",
+    "rest_search": "rest_search.css",
+    "annotation": "annotation.css",
+    "histogram": "d3_histogram_style.css",
+    "colormap_selector": "colormap_selector_style.css",
+    "topic_tree": "topic_tree_style.css",
+    "drawer": "drawer_style.css",
+}
+
+
 def get_css_dependency_sources(
     minify,
     enable_histogram,
     show_loading_progress,
     enable_colormap_selector,
     enable_topic_tree,
+    enable_drawers=False,
+    widget_css_dependencies=None,
 ):
     """
     Gather the necessary CSS dependency files for embedding in the HTML template.
@@ -265,6 +315,10 @@ def get_css_dependency_sources(
         Whether to include CSS dependencies for the colormap selector.
     enable_topic_tree : bool
         Whether to include CSS dependencies for the table of contents functionality.
+    enable_drawers : bool, optional
+        Whether to include CSS dependencies for drawer panels.
+    widget_css_dependencies : set, optional
+        Set of widget dependency names to include (e.g., {"selection_control", "minimap"}).
 
     Returns
     -------
@@ -287,6 +341,17 @@ def get_css_dependency_sources(
 
     if enable_topic_tree:
         css_dependencies.append("topic_tree_style.css")
+
+    if enable_drawers:
+        css_dependencies.append("drawer_style.css")
+
+    # Add widget-specific dependencies
+    if widget_css_dependencies:
+        for dep_name in widget_css_dependencies:
+            if dep_name in WIDGET_CSS_FILES:
+                css_file = WIDGET_CSS_FILES[dep_name]
+                if css_file not in css_dependencies:
+                    css_dependencies.append(css_file)
 
     for css_file in css_dependencies:
         with open(static_dir / css_file, "r", encoding="utf-8") as file:
@@ -338,9 +403,15 @@ def get_js_dependency_urls(
     if selection_handler is not None:
         if isinstance(selection_handler, Iterable):
             for handler in selection_handler:
-                js_dependency_urls.extend(handler.dependencies)
+                # Only include JS files, filter out CSS
+                for dep in handler.dependencies:
+                    if not dep.endswith(".css"):
+                        js_dependency_urls.append(dep)
         elif isinstance(selection_handler, SelectionHandlerBase):
-            js_dependency_urls.extend(selection_handler.dependencies)
+            # Only include JS files, filter out CSS
+            for dep in selection_handler.dependencies:
+                if not dep.endswith(".css"):
+                    js_dependency_urls.append(dep)
         else:
             raise ValueError(
                 "The selection_handler must be an instance of SelectionHandlerBase "
@@ -348,6 +419,45 @@ def get_js_dependency_urls(
             )
 
     return list(set(js_dependency_urls))
+
+
+def get_css_dependency_urls(selection_handler=None):
+    """
+    Gather the necessary CSS dependency URLs from selection handlers.
+
+    Parameters
+    ----------
+    selection_handler : SelectionHandlerBase or Iterable[SelectionHandlerBase], optional
+        The selection handler(s) to use for managing data selection.
+
+    Returns
+    -------
+    list
+        A list of URLs that point to the required CSS dependencies.
+    """
+    from datamapplot.selection_handlers import SelectionHandlerBase
+
+    css_dependency_urls = []
+
+    if selection_handler is not None:
+        if isinstance(selection_handler, Iterable):
+            for handler in selection_handler:
+                # Only include CSS files
+                for dep in handler.dependencies:
+                    if dep.endswith(".css"):
+                        css_dependency_urls.append(dep)
+        elif isinstance(selection_handler, SelectionHandlerBase):
+            # Only include CSS files
+            for dep in selection_handler.dependencies:
+                if dep.endswith(".css"):
+                    css_dependency_urls.append(dep)
+        else:
+            raise ValueError(
+                "The selection_handler must be an instance of SelectionHandlerBase "
+                "or an iterable of SelectionHandlerBase instances."
+            )
+
+    return list(set(css_dependency_urls))
 
 
 # =============================================================================
@@ -1986,10 +2096,10 @@ def url_to_base64_img(url):
             data = response.read()
             content_type = response.info().get_content_type()
     except HTTPError as e:
-        print(f"Error downloading image: HTTP error {e.code} {e.reason}")
+        print(f"Error downloading image {url}: HTTP error {e.code} {e.reason}")
         return None
     except URLError as e:
-        print(f"Error downloading image: Network error {e.reason}")
+        print(f"Error downloading image {url}: Network error {e.reason}")
         return None
 
     # Determine the image type from the response content type.
@@ -2015,7 +2125,7 @@ def prepare_offline_mode_data(
     offline_mode_font_data_file,
 ):
     """
-    Prepare offline mode data by loading cached JS and font files.
+    Prepare offline mode data by loading cached JS, CSS, and font files.
 
     Parameters
     ----------
@@ -2029,7 +2139,8 @@ def prepare_offline_mode_data(
     Returns
     -------
     dict
-        Dictionary with 'offline_mode_data' and 'offline_mode_font_data_file' keys.
+        Dictionary with 'offline_mode_data', 'offline_mode_css_data', and
+        'offline_mode_font_data_file' keys.
     """
     import platformdirs
     from datamapplot import offline_mode_caching
@@ -2037,9 +2148,11 @@ def prepare_offline_mode_data(
     if not offline_mode:
         return {
             "offline_mode_data": None,
+            "offline_mode_css_data": None,
             "offline_mode_font_data_file": None,
         }
 
+    # Load JS cache
     if offline_mode_js_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
         offline_mode_js_data_file = Path(data_directory) / "datamapplot_js_encoded.json"
@@ -2051,6 +2164,25 @@ def prepare_offline_mode_data(
         with open(offline_mode_js_data_file, "r") as f:
             offline_mode_data = json.load(f)
 
+    # Load CSS cache
+    data_directory = platformdirs.user_data_dir("datamapplot")
+    offline_mode_css_data_file = Path(data_directory) / "datamapplot_css_encoded.json"
+    if not offline_mode_css_data_file.is_file():
+        offline_mode_caching.cache_css_files()
+    with offline_mode_css_data_file.open("r") as f:
+        offline_mode_css_data_encoded = json.load(f)
+
+    # Decode the base64 CSS content for direct embedding in <style> tags
+    offline_mode_css_data = {}
+    for url, css_info in offline_mode_css_data_encoded.items():
+        offline_mode_css_data[url] = {
+            "name": css_info["name"],
+            "decoded_content": base64.b64decode(css_info["encoded_content"]).decode(
+                "utf-8"
+            ),
+        }
+
+    # Check for fonts
     if offline_mode_font_data_file is None:
         data_directory = platformdirs.user_data_dir("datamapplot")
         offline_mode_font_data_file = (
@@ -2061,6 +2193,7 @@ def prepare_offline_mode_data(
 
     return {
         "offline_mode_data": offline_mode_data,
+        "offline_mode_css_data": offline_mode_css_data,
         "offline_mode_font_data_file": offline_mode_font_data_file,
     }
 

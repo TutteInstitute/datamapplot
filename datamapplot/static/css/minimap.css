@@ -1,0 +1,20 @@
+/* MiniMap Widget Styles */
+
+.minimap-canvas {
+    cursor: pointer;
+}
+
+.minimap-viewport-indicator {
+    border-radius: 2px;
+    transition: all 0.1s ease-out;
+}
+
+.minimap-viewport-indicator::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(59, 165, 231, 0.1);
+}

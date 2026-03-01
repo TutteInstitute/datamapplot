@@ -11,9 +11,10 @@ from ..offline_mode_caching import (
     ConfirmInteractiveStdio,
     ConfirmYes,
     DEFAULT_CACHE_FILES,
+    load_css_files,
     load_fonts,
     load_js_files,
-    make_store
+    make_store,
 )
 
 
@@ -31,8 +32,8 @@ def abcdefgh():
         (["2", "1-4"], {"a", "c", "d"}),
         (["2 1-4", "7 1 5"], {"c", "d", "e", "g"}),
         (["2 3.4", "5"], {"b", "c"}),
-        (["a"], set("abcdefgh"))
-    ]
+        (["a"], set("abcdefgh")),
+    ],
 )
 def test_confirm_interactive(input, expected, abcdefgh):
     with patch("datamapplot.offline_mode_caching.input", side_effect=[*input, "."]):
@@ -61,12 +62,12 @@ def js_old():
     return {
         "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js": {
             "encoded_content": "heyhey",
-            "name": "arrow"
+            "name": "arrow",
         },
         "https://unpkg.com/jquery@3.7.1/dist/jquery.min.js": {
             "encoded_content": "hoho",
-            "name": "jquery"
-        }
+            "name": "jquery",
+        },
     }
 
 
@@ -75,12 +76,12 @@ def js_new():
     return {
         "https://unpkg.com/d3@latest/dist/d3.min.js": {
             "encoded_content": "codecodecode",
-            "name": "d3"
+            "name": "d3",
         },
         "https://unpkg.com/jquery@3.7.1/dist/jquery.min.js": {
             "encoded_content": "hoho",
-            "name": "jquerynew"
-        }
+            "name": "jquerynew",
+        },
     }
 
 
@@ -93,15 +94,15 @@ def fonts_old():
                 "type": "truetype",
                 "weight": "100",
                 "unicode_range": "",
-                "content": "blaaaaah"
+                "content": "blaaaaah",
             },
             {
                 "style": "italic",
                 "type": "truetype",
                 "weight": "400",
                 "unicode_range": "",
-                "content": "blooh"
-            }
+                "content": "blooh",
+            },
         ],
         "Marcellus": [
             {
@@ -109,9 +110,9 @@ def fonts_old():
                 "type": "truetype",
                 "weight": "400",
                 "unicode_range": "",
-                "content": "tedious"
+                "content": "tedious",
             }
-        ]
+        ],
     }
 
 
@@ -124,7 +125,7 @@ def fonts_new():
                 "type": "truetype",
                 "weight": "100",
                 "unicode_range": "",
-                "content": "blaaaaah"
+                "content": "blaaaaah",
             },
         ],
         "Marcellus SC": [
@@ -133,10 +134,30 @@ def fonts_new():
                 "type": "truetype",
                 "weight": "400",
                 "unicode_range": "",
-                "content": "probablythesameasmarcellus"
+                "content": "probablythesameasmarcellus",
             }
-        ]
-     }
+        ],
+    }
+
+
+@pytest.fixture
+def css_old():
+    return {
+        "https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css": {
+            "encoded_content": "csscontentold",
+            "name": "jquery.dataTables.min.css",
+        }
+    }
+
+
+@pytest.fixture
+def css_new():
+    return {
+        "https://example.com/another.css": {
+            "encoded_content": "anothercss",
+            "name": "another.css",
+        }
+    }
 
 
 @pytest.fixture
@@ -152,25 +173,23 @@ def zip_cache(tmp_path):
 
 
 @pytest.fixture
-def cache_in_mem(js_old, fonts_old, dir_cache, zip_cache, request):
+def cache_in_mem(js_old, css_old, fonts_old, dir_cache, zip_cache, request):
     name_confirm, name_cache = request.param
     return Cache(
         js=js_old,
+        css=css_old,
         fonts=fonts_old,
-        confirm={
-            "yes": ConfirmYes,
-            "interactive": ConfirmInteractiveStdio
-        }[name_confirm](),
-        store=make_store(
-            {"dir": dir_cache, "zip": zip_cache}[name_cache]
-        )
+        confirm={"yes": ConfirmYes, "interactive": ConfirmInteractiveStdio}[
+            name_confirm
+        ](),
+        store=make_store({"dir": dir_cache, "zip": zip_cache}[name_cache]),
     )
 
 
 @pytest.mark.parametrize(
     "cache_in_mem,validate_store",
     [(("yes", "dir"), Path.is_dir), (("yes", "zip"), Path.is_file)],
-    indirect=["cache_in_mem"]
+    indirect=["cache_in_mem"],
 )
 def test_store(cache_in_mem, validate_store):
     cache_in_mem.save()
@@ -185,12 +204,13 @@ def no_cache(preserving_cache):
 
 
 @pytest.fixture
-def path_archive(js_new, fonts_new, zip_cache):
+def path_archive(js_new, css_new, fonts_new, zip_cache):
     cache = Cache(
         js=js_new,
+        css=css_new,
         fonts=fonts_new,
         confirm=ConfirmYes(),
-        store=make_store(zip_cache)
+        store=make_store(zip_cache),
     )
     cache.save()
     return zip_cache
@@ -198,19 +218,19 @@ def path_archive(js_new, fonts_new, zip_cache):
 
 def dmp_offline_cache(*args: str, input="", is_returncode_checked=True) -> int:
     cp = sp.run(
-        ["dmp_offline_cache", "--no-refresh", *args],
-        input=input,
-        encoding="utf-8"
+        ["dmp_offline_cache", "--no-refresh", *args], input=input, encoding="utf-8"
     )
     if is_returncode_checked:
         cp.check_returncode()
     return cp.returncode
 
 
-def test_import_no_clobber(no_cache, path_archive, js_new, fonts_new):
+def test_import_no_clobber(no_cache, path_archive, js_new, css_new, fonts_new):
     assert not Path(_DATA_DIRECTORY).is_dir()
     with pytest.raises(OSError):
         load_js_files()
+    with pytest.raises(OSError):
+        load_css_files()
     with pytest.raises(OSError):
         load_fonts()
     assert path_archive.is_file() and path_archive.suffix == ".zip"
@@ -218,15 +238,17 @@ def test_import_no_clobber(no_cache, path_archive, js_new, fonts_new):
     dmp_offline_cache("--import", str(path_archive))
 
     assert js_new == load_js_files()
+    assert css_new == load_css_files()
     assert fonts_new == load_fonts()
 
 
 @pytest.fixture
-def existing_cache(preserving_cache, js_old, fonts_old):
+def existing_cache(preserving_cache, js_old, css_old, fonts_old):
     dir = Path(_DATA_DIRECTORY)
     dir.mkdir(parents=True, exist_ok=True)
     cache = Cache.from_path(dir, confirm=ConfirmYes())
     cache.js = js_old
+    cache.css = css_old
     cache.fonts = fonts_old
     cache.save()
     return cache
@@ -245,25 +267,26 @@ def js_imported_full(js_old, js_new):
 
 
 @pytest.fixture
+def css_imported_full(css_old, css_new):
+    return _merge(css_old, css_new)
+
+
+@pytest.fixture
 def fonts_imported_full(fonts_old, fonts_new):
     return _merge(fonts_old, fonts_new)
 
 
 @pytest.mark.parametrize(
-    "cache_in_mem",
-    [("interactive", "zip")],
-    indirect=["cache_in_mem"]
+    "cache_in_mem", [("interactive", "zip")], indirect=["cache_in_mem"]
 )
 def test_update_clobber(
-    cache_in_mem,
-    path_archive,
-    js_imported_full,
-    fonts_imported_full
+    cache_in_mem, path_archive, js_imported_full, css_imported_full, fonts_imported_full
 ):
     cache_src = Cache.from_path(path_archive, ConfirmYes())
     with patch("datamapplot.offline_mode_caching.input", side_effect=["1-2 .", "1 ."]):
         cache_in_mem.update(cache_src)
     assert js_imported_full == cache_in_mem.js
+    assert css_imported_full == cache_in_mem.css
     assert fonts_imported_full == cache_in_mem.fonts
 
 
@@ -271,16 +294,20 @@ def test_import_clobber_partial(
     existing_cache,
     path_archive,
     js_old,
+    css_old,
     fonts_old,
     js_imported_full,
-    fonts_new
+    css_imported_full,
+    fonts_new,
 ):
     assert js_old == load_js_files()
+    assert css_old == load_css_files()
     assert fonts_old == load_fonts()
 
     dmp_offline_cache("--import", str(path_archive), input="1-2 .\n.\n")
 
     assert js_imported_full == load_js_files()
+    assert css_imported_full == load_css_files()
     fonts_after = {}
     fonts_after.update(fonts_old)
     fonts_after["Marcellus SC"] = fonts_new["Marcellus SC"]
@@ -291,25 +318,30 @@ def test_import_no_confirm(
     existing_cache,
     path_archive,
     js_old,
+    css_old,
     fonts_old,
     js_imported_full,
-    fonts_imported_full
+    css_imported_full,
+    fonts_imported_full,
 ):
     assert js_old == load_js_files()
+    assert css_old == load_css_files()
     assert fonts_old == load_fonts()
 
     dmp_offline_cache("--yes", "--import", str(path_archive), input="")
 
     assert js_imported_full == load_js_files()
+    assert css_imported_full == load_css_files()
     assert fonts_imported_full == load_fonts()
 
 
-def test_export_no_clobber(existing_cache, zip_cache, js_old, fonts_old):
+def test_export_no_clobber(existing_cache, zip_cache, js_old, css_old, fonts_old):
     assert not zip_cache.exists()
     dmp_offline_cache("--export", str(zip_cache), "--no-refresh")
 
     cache_exported = Cache.from_path(zip_cache, ConfirmYes())
     assert js_old == cache_exported.js
+    assert css_old == cache_exported.css
     assert fonts_old == cache_exported.fonts
 
 
@@ -319,16 +351,17 @@ def js_exported_full(js_old, js_new):
 
 
 @pytest.fixture
+def css_exported_full(css_old, css_new):
+    return _merge(css_new, css_old)
+
+
+@pytest.fixture
 def fonts_exported_full(fonts_old, fonts_new):
     return _merge(fonts_new, fonts_old)
 
 
 def test_export_clobber_partial(
-    existing_cache,
-    path_archive,
-    js_old,
-    js_new,
-    fonts_exported_full
+    existing_cache, path_archive, js_old, js_new, css_exported_full, fonts_exported_full
 ):
     assert path_archive.is_file()
     dmp_offline_cache("--export", str(path_archive), "--no-refresh", input=".\na.\n")
@@ -340,6 +373,7 @@ def test_export_clobber_partial(
         "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"
     ]
     assert js_expected == cache_exported.js
+    assert css_exported_full == cache_exported.css
     assert fonts_exported_full == cache_exported.fonts
 
 
@@ -347,20 +381,19 @@ def test_export_no_confirm(
     existing_cache,
     path_archive,
     js_exported_full,
-    fonts_exported_full
+    css_exported_full,
+    fonts_exported_full,
 ):
     assert path_archive.is_file()
     dmp_offline_cache("--export", str(path_archive), "--no-refresh", "--yes")
 
     cache_exported = Cache.from_path(path_archive, ConfirmYes())
     assert js_exported_full == cache_exported.js
+    assert css_exported_full == cache_exported.css
     assert fonts_exported_full == cache_exported.fonts
 
 
 def test_bail_stdin_closed(existing_cache, path_archive):
     assert 11 == dmp_offline_cache(
-        "--import",
-        str(path_archive),
-        input="",
-        is_returncode_checked=False
+        "--import", str(path_archive), input="", is_returncode_checked=False
     )

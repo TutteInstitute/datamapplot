@@ -11,7 +11,7 @@
     {% include 'styles.html.jinja2' %}
   </head>
   
-  <body>
+  <body{% if darkmode %} class="darkmode"{% endif %}>
     {#- Loading indicator -#}
     {% include 'loading_indicator.html.jinja2' %}
     
@@ -82,6 +82,21 @@
     
     {%- if enable_histogram %}
     loadHistogramData();
+    {%- endif %}
+    
+    {%- if enable_drawers %}
+    // =========================================================================
+    // Drawer Initialization
+    // =========================================================================
+    const drawerManager = new DrawerManager({
+      leftEnabled: {{ drawer_enabled.left | tojson }},
+      rightEnabled: {{ drawer_enabled.right | tojson }},
+      bottomEnabled: {{ drawer_enabled.bottom | tojson }},
+      persistState: true,
+    });
+    
+    // Make drawer manager accessible for widgets
+    window.drawerManager = drawerManager;
     {%- endif %}
     
     {%- if enable_api_tooltip %}

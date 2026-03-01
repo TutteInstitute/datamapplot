@@ -1,0 +1,345 @@
+/* Drawer container styles for slide-out panels */
+
+.drawer-container {
+    position: fixed;
+    top: 0;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: transform 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 16px;
+    box-sizing: border-box;
+    pointer-events: auto;
+}
+
+/* Left drawer positioning */
+.drawer-left {
+    left: 0;
+    transform: translateX(-100%);
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.drawer-left.open {
+    transform: translateX(0);
+}
+
+/* Right drawer positioning */
+.drawer-right {
+    right: 0;
+    transform: translateX(100%);
+    border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.drawer-right.open {
+    transform: translateX(0);
+}
+
+/* Bottom drawer positioning */
+.drawer-bottom {
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 350px !important;
+    max-height: 50vh !important;
+    transform: translateY(100%);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    top: auto !important;
+    border-right: none;
+    border-left: none;
+}
+
+.drawer-bottom.open {
+    transform: translateY(0);
+}
+
+/* Default drawer width (only for left/right) */
+.drawer-left,
+.drawer-right {
+    width: 400px;
+    max-width: 90vw;
+}
+
+/* Drawer handle/toggle button */
+.drawer-handle {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(3px);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    z-index: 101;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease, left 0.3s ease-in-out, right 0.3s ease-in-out;
+    font-size: 18px;
+    color: #333;
+    user-select: none;
+    pointer-events: auto;
+}
+
+.drawer-handle:hover {
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.drawer-handle:active {
+    transform: translateY(-50%) scale(0.95);
+}
+
+/* Left drawer handle - starts at left edge, curves right */
+.drawer-handle.left {
+    left: 0;
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+}
+
+/* When left drawer is open, handle moves with drawer */
+.drawer-handle.left.drawer-open {
+    left: 400px;
+}
+
+/* Right drawer handle - starts at right edge, curves left */
+.drawer-handle.right {
+    right: 0;
+    border-radius: 8px 0 0 8px;
+    border-right: none;
+}
+
+/* When right drawer is open, handle moves with drawer */
+.drawer-handle.right.drawer-open {
+    right: 400px;
+}
+
+/* Bottom drawer handle - starts at bottom edge, curves up */
+.drawer-handle.bottom {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 32px;
+    border-radius: 8px 8px 0 0;
+    border-bottom: none;
+    top: auto;
+}
+
+/* When bottom drawer is open, handle moves with drawer */
+.drawer-handle.bottom.drawer-open {
+    bottom: 350px;
+    transform: translateX(-50%);
+}
+
+/* Handle icon - arrow pointing inward when closed, outward when open */
+.drawer-handle .icon {
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+/* Left handle: > when closed (pointing right/inward), < when open (pointing left/outward) */
+.drawer-handle.left .icon {
+    /* Default: pointing right (into drawer) */
+}
+
+.drawer-handle.left.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
+/* Right handle: < when closed (pointing left/inward), > when open (pointing right/outward) */
+.drawer-handle.right .icon {
+    /* Default: pointing left (into drawer) */
+}
+
+.drawer-handle.right.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
+/* Bottom handle: ▲ when closed (pointing up/inward), ▼ when open (pointing down/outward) */
+.drawer-handle.bottom .icon {
+    /* Default: pointing up (into drawer) */
+}
+
+.drawer-handle.bottom.drawer-open .icon {
+    transform: rotate(180deg);
+}
+
+/* Content wrapper resizing when drawer opens */
+.content-wrapper {
+    transition: margin-left 0.3s ease-in-out, margin-right 0.3s ease-in-out, margin-bottom 0.3s ease-in-out, width 0.3s ease-in-out, height 0.3s ease-in-out;
+}
+
+.content-wrapper.drawer-left-open {
+    margin-left: 400px;
+    width: calc(100% - 400px);
+}
+
+.content-wrapper.drawer-right-open {
+    margin-right: 400px;
+    width: calc(100% - 400px);
+}
+
+.content-wrapper.drawer-bottom-open {
+    margin-bottom: 350px;
+    height: calc(100% - 350px);
+}
+
+/* Widgets inside drawers */
+.drawer-container .container-box {
+    margin: 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Scrollbar styling for drawers */
+.drawer-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.drawer-container::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+
+.drawer-container::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.drawer-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode support - using explicit class instead of media query */
+/* Applied via body.darkmode or .darkmode parent class */
+.darkmode .drawer-container,
+body.darkmode .drawer-container {
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkmode .drawer-left,
+body.darkmode .drawer-left {
+    border-right-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkmode .drawer-right,
+body.darkmode .drawer-right {
+    border-left-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkmode .drawer-bottom,
+body.darkmode .drawer-bottom {
+    border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkmode .drawer-handle,
+body.darkmode .drawer-handle {
+    background: rgba(40, 40, 40, 0.9);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #ddd;
+}
+
+.darkmode .drawer-handle:hover,
+body.darkmode .drawer-handle:hover {
+    background: rgba(50, 50, 50, 1);
+}
+
+.darkmode .drawer-container::-webkit-scrollbar-track,
+body.darkmode .drawer-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.darkmode .drawer-container::-webkit-scrollbar-thumb,
+body.darkmode .drawer-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.darkmode .drawer-container::-webkit-scrollbar-thumb:hover,
+body.darkmode .drawer-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Responsive adjustments for smaller screens */
+@media screen and (max-width: 768px) {
+    .drawer-container {
+        width: 320px;
+    }
+
+    .drawer-handle.left.drawer-open {
+        left: 320px;
+    }
+
+    .drawer-handle.right.drawer-open {
+        right: 320px;
+    }
+
+    .content-wrapper.drawer-left-open {
+        transform: translateX(320px);
+    }
+
+    .content-wrapper.drawer-right-open {
+        transform: translateX(-320px);
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .drawer-container {
+        width: 280px;
+    }
+
+    .drawer-handle.left.drawer-open {
+        left: 280px;
+    }
+
+    .drawer-handle.right.drawer-open {
+        right: 280px;
+    }
+
+    .content-wrapper.drawer-left-open {
+        transform: translateX(280px);
+    }
+
+    .content-wrapper.drawer-right-open {
+        transform: translateX(-280px);
+    }
+
+    /* Reduce handle size on very small screens */
+    .drawer-handle {
+        width: 24px;
+        height: 60px;
+        font-size: 14px;
+    }
+}
+
+/* Animation for drawer content appearing */
+.drawer-container .container-box {
+    animation: fadeInUp 0.3s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Hide drawer handle when drawer is disabled */
+.drawer-handle.disabled {
+    display: none;
+}

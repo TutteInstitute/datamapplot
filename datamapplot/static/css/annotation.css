@@ -1,0 +1,200 @@
+/* AnnotationWidget Styles */
+
+/* ---- Overlay canvas ---- */
+.annotation-overlay-canvas {
+    pointer-events: none;
+    image-rendering: auto;
+}
+
+/* ---- Toolbar (lives inside the drawer) ---- */
+.annotation-widget {
+    padding: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+}
+
+.annotation-toolbar {
+    display: flex;
+    gap: 12px;
+    padding: 8px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.annotation-tool-group {
+    display: flex;
+    gap: 4px;
+    padding: 0 8px;
+    border-right: 1px solid #ddd;
+}
+
+.annotation-tool-group:last-child {
+    border-right: none;
+}
+
+.annotation-tool-btn,
+.annotation-action-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background-color: transparent;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.annotation-tool-btn:hover,
+.annotation-action-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+.annotation-tool-btn.active {
+    background-color: #1976d2;
+    color: white;
+}
+
+.annotation-tool-btn.active:hover {
+    background-color: #1565c0;
+}
+
+.annotation-tool-btn svg,
+.annotation-action-btn svg {
+    fill: currentColor;
+}
+
+.annotation-action-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* ---- Annotation list ---- */
+.annotation-list {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.annotation-list-header {
+    padding: 10px 12px;
+    background-color: #f5f5f5;
+    font-size: 13px;
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+}
+
+.annotation-list-items {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.annotation-list-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.annotation-list-item:hover {
+    background-color: #f9f9f9;
+}
+
+.annotation-list-item.selected {
+    background-color: #e3f2fd;
+    border-left: 3px solid #1976d2;
+}
+
+.annotation-list-item:last-child {
+    border-bottom: none;
+}
+
+.annotation-list-label {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+}
+
+.annotation-list-delete {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background-color: transparent;
+    color: #999;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background-color 0.2s, color 0.2s;
+    padding: 0;
+}
+
+.annotation-list-delete:hover {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #f44336;
+}
+
+/* ---- Inline text input ---- */
+.annotation-text-input {
+    font-family: Arial, sans-serif;
+    border: 2px solid #1976d2;
+    border-radius: 3px;
+    padding: 4px 8px;
+    outline: none;
+    background: rgba(255, 255, 255, 0.95);
+    min-width: 120px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transform: translate(-50%, -50%);
+}
+
+/* ---- Dark mode  (uses .darkmode body class, not prefers-color-scheme) ---- */
+.darkmode .annotation-toolbar {
+    background-color: #2d2d2d;
+}
+
+.darkmode .annotation-tool-group {
+    border-right-color: #444;
+}
+
+.darkmode .annotation-tool-btn:hover,
+.darkmode .annotation-action-btn:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.darkmode .annotation-list {
+    border-color: #444;
+}
+
+.darkmode .annotation-list-header {
+    background-color: #2d2d2d;
+    border-bottom-color: #444;
+    color: #fff;
+}
+
+.darkmode .annotation-list-item {
+    border-bottom-color: #333;
+}
+
+.darkmode .annotation-list-item:hover {
+    background-color: #333;
+}
+
+.darkmode .annotation-list-item.selected {
+    background-color: #1a3a5c;
+    border-left-color: #42a5f5;
+}
+
+.darkmode .annotation-list-label {
+    color: #ddd;
+}
+
+.darkmode .annotation-text-input {
+    background: rgba(40, 40, 40, 0.95);
+    color: #eee;
+    border-color: #42a5f5;
+}
