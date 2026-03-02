@@ -390,7 +390,7 @@ class DataMap {
   addHexagonLayer(pointData, {
     numZoomLevels = 4,
     minCount = 5,
-    colorRange = [[239, 243, 255], [189, 215, 231], [107, 174, 214], [49, 130, 189], [8, 81, 156]],
+    colorRange = [[255, 255, 255, 0], [239, 243, 255], [189, 215, 231], [107, 174, 214], [49, 130, 189], [8, 81, 156]],
     baseRadius = 1000,
     coverage = 1.0,
     opacity = 0.6,
@@ -412,8 +412,8 @@ class DataMap {
       this._hexZoomThresholds = zoomThresholds.slice().sort((a, b) => a - b);
     } else {
       // Auto-distribute thresholds across a reasonable zoom range
-      const zoomMin = Math.max(initialZoom - 2, 0);
-      const zoomMax = initialZoom + 8;
+      const zoomMin = Math.max(initialZoom - 1, 0);
+      const zoomMax = initialZoom + 4;
       const step = (zoomMax - zoomMin) / numZoomLevels;
       this._hexZoomThresholds = [];
       for (let i = 1; i <= numZoomLevels; i++) {
@@ -423,14 +423,14 @@ class DataMap {
 
     // Compute radius for each zoom bucket.
     // baseRadius is the coarsest (top-level / most zoomed-out) hex size.
-    // Each zoom level subdivides by a fixed factor of 1.5, so more zoom
+    // Each zoom level subdivides by a fixed factor ofsqrt(2), so more zoom
     // levels produce ever-finer hexagons at the bottom without changing
     // the top-level granularity.
-    const HEX_STEP_FACTOR = 1.5;
+    const HEX_STEP_FACTOR = Math.SQRT2; // sqrt(2) gives a nice visual progression of hex sizes across zoom levels
     const nBuckets = this._hexZoomThresholds.length + 1;
     this._hexRadii = new Array(nBuckets);
     for (let i = 0; i < nBuckets; i++) {
-      // Bucket 0 = coarsest (baseRadius), each step down divides by 1.5
+      // Bucket 0 = coarsest (baseRadius), each step down divides by HEX_STEP_FACTOR
       this._hexRadii[i] = baseRadius / Math.pow(HEX_STEP_FACTOR, i);
     }
 
@@ -461,11 +461,11 @@ class DataMap {
     };
 
     if (minCount > 0) {
-      // CPU aggregation path: return null for bins below threshold so
+      // CPU aggregation path: return undefined for bins below threshold so
       // they are excluded from rendering entirely
       hexLayerProps.colorRange = colorRange;
       hexLayerProps.getColorValue = (points) => {
-        return points.length >= minCount ? points.length : null;
+        return points.length >= minCount ? points.length : undefined;
       };
       hexLayerProps.gpuAggregation = false;
     } else {
