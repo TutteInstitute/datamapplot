@@ -40,9 +40,20 @@
     transition: all 0.2s;
 }
 
+.darkmode .selection-mode-button {
+    background: #333;
+    border-color: #555;
+    color: #eee;
+}
+
 .selection-mode-button:hover {
     background: #f5f5f5;
     border-color: #999;
+}
+
+.darkmode .selection-mode-button:hover {
+    background: #444;
+    border-color: #777;
 }
 
 .selection-mode-button.active {
