@@ -93,6 +93,7 @@ from datamapplot.widget_helpers import (
     encode_widget_data,
 )
 from datamapplot.widgets import (
+    ColormapSelectorWidget,
     WidgetBase,
 )
 
@@ -1019,16 +1020,38 @@ def render_html(
         bin_data, index_data = None, None
 
     # Prepare colormap data
-    color_metadata, color_data, enable_colormap_selector = prepare_colormap_data(
-        point_dataframe,
-        colormap_rawdata,
-        colormap_metadata,
-        colormaps,
-        cluster_layer_colormaps,
-        label_layers,
-        cluster_colormap,
-        noise_color,
-    )
+    if widgets is not None and any(
+        isinstance(widget, ColormapSelectorWidget)
+        for widget in (widgets if isinstance(widgets, list) else [widgets])
+    ):
+        colormap_widget = [
+            widget
+            for widget in (widgets if isinstance(widgets, list) else [widgets])
+            if isinstance(widget, ColormapSelectorWidget)
+        ][0]
+        # If a ColormapSelectorWidget is present, we assume the user is handling colormap data themselves
+        color_metadata, color_data, enable_colormap_selector = prepare_colormap_data(
+            point_dataframe,
+            colormap_widget.colormap_rawdata,
+            colormap_widget.colormap_metadata,
+            colormap_widget.colormaps,
+            colormap_widget.cluster_layer_colormaps,
+            label_layers,
+            cluster_colormap,
+            noise_color,
+        )
+        colormap_widget.colormap_metadata = color_metadata
+    else:
+        color_metadata, color_data, enable_colormap_selector = prepare_colormap_data(
+            point_dataframe,
+            colormap_rawdata,
+            colormap_metadata,
+            colormaps,
+            cluster_layer_colormaps,
+            label_layers,
+            cluster_colormap,
+            noise_color,
+        )
 
     # Encode data for inline HTML or write to offline files
     if inline_data:
