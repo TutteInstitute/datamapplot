@@ -66,5 +66,7 @@ function checkAllDataLoaded() {
     const progressEl = document.getElementById("progress-container");
     if (loadingEl) loadingEl.style.display = "none";
     if (progressEl) progressEl.style.display = "none";
+    // Dispatch unified event for widgets to listen on
+    document.dispatchEvent(new CustomEvent('datamapDataLoaded'));
   }
 }
