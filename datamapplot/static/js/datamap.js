@@ -987,7 +987,10 @@ class DataMap {
     else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
     else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
     else if (layerId === 'imageLayer') this.imageLayer = updatedLayer;
-    else if (layerId === 'hexagonLayer') this.hexagonLayer = updatedLayer;
+    else if (layerId === 'hexagonLayer') {
+      this.hexagonLayer = updatedLayer;
+      this._hexLayerProps = { ...this._hexLayerProps, visible }; // Update stored props for future radius-based re-creation
+    }
   }
 
   setLayerOpacity(layerId, opacity) {
