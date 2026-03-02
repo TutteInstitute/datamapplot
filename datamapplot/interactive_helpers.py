@@ -539,7 +539,7 @@ def cmap_name_to_color_list(cmap_name):
     return [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
 
 
-def prepare_hex_density_color_range(cmap, n_colors=6):
+def prepare_hex_density_color_range(cmap, n_colors=12):
     """Convert a colormap specification to a list of [R, G, B] arrays for deck.gl.
 
     Parameters
