@@ -1,3 +1,4 @@
+from datamapplot.widgets import TopicTreeWidget
 import numpy as np
 import pandas as pd
 import textwrap
@@ -506,6 +507,18 @@ def create_interactive_plot(
     data_map_coords = (30.0 / raw_data_scale) * (
         data_map_coords - np.mean(data_map_coords, axis=0)
     )
+    if (
+        "widgets" in render_html_kwds
+        or "widget_layout" in render_html_kwds
+        or "default_widget_config" in render_html_kwds
+    ):
+        topic_tree_widget_exists = any(
+            isinstance(widget, TopicTreeWidget)
+            for widget in render_html_kwds.get("widgets", [])
+        )
+    else:
+        topic_tree_widget_exists = False
+    enable_topic_tree = enable_topic_tree or topic_tree_widget_exists
 
     if len(label_layers) == 0:
         label_dataframe = pd.DataFrame(

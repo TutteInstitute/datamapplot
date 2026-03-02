@@ -94,10 +94,6 @@ from datamapplot.widget_helpers import (
 )
 from datamapplot.widgets import (
     WidgetBase,
-    SearchWidget,
-    HistogramWidget,
-    TopicTreeWidget,
-    LegendWidget,
 )
 
 try:
@@ -1119,7 +1115,11 @@ def render_html(
     # use_widgets=False forces legacy system
     use_widget_system = use_widgets
     if use_widget_system is None:
-        use_widget_system = widgets is not None
+        use_widget_system = (
+            widgets is not None
+            or widget_layout is not None
+            or default_widget_config is not None
+        )
 
     # Initialize widget containers
     widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
