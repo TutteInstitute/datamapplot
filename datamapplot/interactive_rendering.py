@@ -904,7 +904,7 @@ def render_html(
         roughly 60 hexagons span the data extent at the top level. Each
         additional zoom level subdivides from this size.
 
-    hex_density_opacity: float (optional, default=0.6)
+    hex_density_opacity: float (optional, default=0.75)
         Opacity of the hex density layer (0.0 - 1.0).
 
     hex_density_coverage: float (optional, default=1.0)

@@ -550,7 +550,7 @@ def prepare_hex_density_color_range(cmap, n_colors=12):
 
     n_colors : int, optional
         Number of color stops to sample when ``cmap`` is a string name.
-        Default is 6.
+        Default is 12.
 
     Returns
     -------

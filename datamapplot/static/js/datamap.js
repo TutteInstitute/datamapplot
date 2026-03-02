@@ -423,10 +423,10 @@ class DataMap {
 
     // Compute radius for each zoom bucket.
     // baseRadius is the coarsest (top-level / most zoomed-out) hex size.
-    // Each zoom level subdivides by a fixed factor of 1.414 (sqrt(2)), so more zoom
+    // Each zoom level subdivides by a fixed factor ofsqrt(2), so more zoom
     // levels produce ever-finer hexagons at the bottom without changing
     // the top-level granularity.
-    const HEX_STEP_FACTOR = 1.414; // sqrt(2) gives a nice visual progression of hex sizes across zoom levels
+    const HEX_STEP_FACTOR = Math.SQRT2; // sqrt(2) gives a nice visual progression of hex sizes across zoom levels
     const nBuckets = this._hexZoomThresholds.length + 1;
     this._hexRadii = new Array(nBuckets);
     for (let i = 0; i < nBuckets; i++) {
@@ -461,7 +461,7 @@ class DataMap {
     };
 
     if (minCount > 0) {
-      // CPU aggregation path: return null for bins below threshold so
+      // CPU aggregation path: return undefined for bins below threshold so
       // they are excluded from rendering entirely
       hexLayerProps.colorRange = colorRange;
       hexLayerProps.getColorValue = (points) => {
