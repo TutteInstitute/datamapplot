@@ -1,9 +1,14 @@
+from datamapplot.widget_helpers import (
+    load_widget_config_from_json,
+    validate_widget_layout,
+)
 from datamapplot.widgets import TopicTreeWidget
 import numpy as np
 import pandas as pd
 import textwrap
 from tqdm import tqdm
 import colorcet
+from pathlib import Path
 
 from matplotlib import pyplot as plt
 from matplotlib.colors import to_rgb
@@ -512,9 +517,22 @@ def create_interactive_plot(
         or "widget_layout" in render_html_kwds
         or "default_widget_config" in render_html_kwds
     ):
+        if "default_widget_config" in render_html_kwds:
+            default_widget_config = render_html_kwds["default_widget_config"]
+            if isinstance(default_widget_config, (str, Path)):
+                default_config = load_widget_config_from_json(default_widget_config)
+            elif isinstance(default_widget_config, dict):
+                default_config = validate_widget_layout(default_widget_config)
+            else:
+                default_config = {}
+        else:
+            default_config = {}
         topic_tree_widget_exists = any(
             isinstance(widget, TopicTreeWidget)
             for widget in render_html_kwds.get("widgets", [])
+        ) or any(
+            widget_id == "topic_tree" and not widget_config._positional_only
+            for widget_id, widget_config in default_config.items()
         )
     else:
         topic_tree_widget_exists = False

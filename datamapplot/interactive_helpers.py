@@ -152,7 +152,12 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
                     f'<link rel="preload" href="{font.url}" as="font" '
                     f'crossorigin="anonymous" type="font/woff2" />'
                 )
-        return "\n".join(font_links) + f"\n<style>\n{collection.content}\n</style>\n"
+        return (
+            "\n".join(font_links)
+            + "\n<style>\n"
+            + str(collection.content)
+            + "\n</style>\n"
+        )
     return ""
 
 
@@ -2245,6 +2250,7 @@ def prepare_offline_mode_data(
 def prepare_fonts(
     font_family,
     tooltip_font_family,
+    other_font_families,
     offline_mode,
     offline_mode_font_data_file,
 ):
@@ -2286,8 +2292,21 @@ def prepare_fonts(
         )
         if not resp.ok:
             api_tooltip_fontname = None
+        else:
+            font_data += get_google_font_for_embedding(
+                tooltip_font_family,
+                offline_mode=offline_mode,
+                offline_font_file=offline_mode_font_data_file if offline_mode else None,
+            )
     else:
         api_tooltip_fontname = None
+
+    for other_font_family in other_font_families:
+        font_data += get_google_font_for_embedding(
+            other_font_family,
+            offline_mode=offline_mode,
+            offline_font_file=offline_mode_font_data_file if offline_mode else None,
+        )
 
     return {
         "api_fontname": api_fontname,

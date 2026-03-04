@@ -29,7 +29,7 @@ def query_google_fonts(fontname):
             f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
         )
         if api_response.ok:
-            return FontCollection(str(api_response.content))
+            return FontCollection(api_response.text)
         return FontCollection("")
     except BaseException:
         warn(f"Failed in getting google-font {fontname}; using fallback ...")

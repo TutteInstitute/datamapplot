@@ -80,6 +80,8 @@ from datamapplot.interactive_helpers import (
 from datamapplot.widget_helpers import (
     WidgetConfig,
     VALID_LOCATIONS,
+    create_widget_from_config,
+    font_families_from_widgets,
     load_widget_config_from_json,
     validate_widget_layout,
     merge_widget_configs,
@@ -1172,11 +1174,19 @@ def render_html(
 
         # Collect widgets - either from explicit widgets param or from legacy params
         all_widgets = []
-        if widgets is not None:
+        if widgets is not None or len(merged_layout) > 0:
             if isinstance(widgets, WidgetBase):
                 all_widgets = [widgets]
             elif isinstance(widgets, Iterable):
                 all_widgets = list(widgets)
+
+            existing_widget_ids = {w.widget_id for w in all_widgets}
+            all_widgets += [
+                create_widget_from_config(widget_id, widget_config)
+                for widget_id, widget_config in merged_layout.items()
+                if widget_id not in existing_widget_ids
+                and not widget_config._positional_only
+            ]
         else:
             # Convert legacy parameters to widgets
             all_widgets = widgets_from_legacy_params(
@@ -1239,6 +1249,9 @@ def render_html(
         # Collect and encode widget data for template
         raw_widget_data = collect_widget_data(all_widgets)
         encoded_widget_data = encode_widget_data(raw_widget_data, len(point_data))
+        other_font_families = font_families_from_widgets(all_widgets)
+    else:
+        other_font_families = []
 
     # Determine if drawers are enabled (for dependency loading)
     enable_drawers = (
@@ -1299,6 +1312,7 @@ def render_html(
     font_result = prepare_fonts(
         font_family,
         tooltip_font_family,
+        other_font_families,
         offline_mode,
         offline_mode_font_data_file,
     )
