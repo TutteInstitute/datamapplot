@@ -1,4 +1,25 @@
 {# Main content layout with stacks and drawers - widget-based system #}
+
+{# Macro to render a widget, optionally wrapping in a collapsible container #}
+{% macro render_widget(widget) %}
+{%- if widget.collapsible %}
+<div class="collapsible-wrapper{% if 'stack-box' in widget.html %} stack-box{% endif %}" data-widget-id="{{ widget.widget_id }}">
+  <div class="collapsible-header container-box">
+    <span class="collapse-chevron">&#10095;</span>
+    <span class="collapsible-title">{{ widget.title or widget.widget_id }}</span>
+  </div>
+  <div class="collapsible-content">
+    {{ widget.html | safe }}
+  </div>
+  <button class="collapse-overlay-btn" aria-label="Collapse widget">
+    <span class="collapse-chevron">&#10095;</span>
+  </button>
+</div>
+{%- else %}
+{{ widget.html | safe }}
+{%- endif %}
+{% endmacro %}
+
 <div style="isolation: isolate; position: relative;">
   <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
   
@@ -6,7 +27,7 @@
   {% if drawer_enabled.left %}
   <div class="drawer-container drawer-left">
     {%- for widget in widgets_by_location.get('drawer-left', []) %}
-    {{ widget.html | safe }}
+    {{ render_widget(widget) }}
     {%- endfor %}
   </div>
   <div class="drawer-handle left">
@@ -18,7 +39,7 @@
   {% if drawer_enabled.right %}
   <div class="drawer-container drawer-right">
     {%- for widget in widgets_by_location.get('drawer-right', []) %}
-    {{ widget.html | safe }}
+    {{ render_widget(widget) }}
     {%- endfor %}
   </div>
   <div class="drawer-handle right">
@@ -30,7 +51,7 @@
   {% if drawer_enabled.bottom %}
   <div class="drawer-container drawer-bottom">
     {%- for widget in widgets_by_location.get('drawer-bottom', []) %}
-    {{ widget.html | safe }}
+    {{ render_widget(widget) }}
     {%- endfor %}
   </div>
   <div class="drawer-handle bottom">
@@ -72,7 +93,7 @@
       
       {# Widget-based rendering #}
       {%- for widget in widgets_by_location.get('top-left', []) %}
-      {{ widget.html | safe }}
+      {{ render_widget(widget) }}
       {%- endfor %}
     </div>
     
@@ -86,7 +107,7 @@
       
       {# Widget-based rendering #}
       {%- for widget in widgets_by_location.get('top-right', []) %}
-      {{ widget.html | safe }}
+      {{ render_widget(widget) }}
       {%- endfor %}
     </div>
     
@@ -95,7 +116,7 @@
       {# Widget-based rendering (excluding logos which are rendered separately) #}
       {%- for widget in widgets_by_location.get('bottom-right', []) %}
       {%- if 'LogoWidget' not in widget.__class__.__name__ %}
-      {{ widget.html | safe }}
+      {{ render_widget(widget) }}
       {%- endif %}
       {%- endfor %}
     </div>
@@ -112,7 +133,7 @@
       
       {# Widget-based rendering #}
       {%- for widget in widgets_by_location.get('bottom-left', []) %}
-      {{ widget.html | safe }}
+      {{ render_widget(widget) }}
       {%- endfor %}
     </div>
   </div>

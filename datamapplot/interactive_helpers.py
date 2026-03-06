@@ -199,6 +199,7 @@ WIDGET_JS_FILES = {
     "topic_tree": "topic_tree.js",
     "dynamic_tooltip": "dynamic_tooltip.js",
     "drawer": "drawer.js",
+    "collapsible": "collapsible.js",
 }
 
 
@@ -293,6 +294,7 @@ WIDGET_CSS_FILES = {
     "colormap_selector": "colormap_selector_style.css",
     "topic_tree": "topic_tree_style.css",
     "drawer": "drawer_style.css",
+    "collapsible": "collapsible.css",
 }
 
 

@@ -1,0 +1,143 @@
+/* ==========================================================================
+   Collapsible Widget System
+   Provides opt-in collapse/expand functionality for any widget.
+   ========================================================================== */
+
+/* --- Wrapper --- */
+.collapsible-wrapper {
+    position: relative;
+    pointer-events: auto;
+}
+
+/* Un-flip content inside bottom stacks (same pattern as .stack-box) */
+.stack.bottom-left .collapsible-wrapper,
+.stack.bottom-right .collapsible-wrapper {
+    transform: scaleY(-1);
+}
+
+/* --- Overlay toggle button (visible when expanded) --- */
+.collapse-overlay-btn {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: rgba(128, 128, 128, 0.15);
+    color: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+    pointer-events: auto;
+}
+
+/* Chevron points downward when expanded (click to collapse) */
+.collapse-overlay-btn .collapse-chevron {
+    display: inline-block;
+    transition: transform 0.25s ease-in-out;
+    transform: rotate(90deg);
+    line-height: 1;
+}
+
+.collapsible-wrapper:hover .collapse-overlay-btn {
+    opacity: 0.7;
+}
+
+.collapse-overlay-btn:hover {
+    opacity: 1 !important;
+    background: rgba(128, 128, 128, 0.3);
+}
+
+/* Hide overlay button when collapsed */
+.collapsible-wrapper.collapsed .collapse-overlay-btn {
+    display: none;
+}
+
+/* --- Collapsed header bar (hidden when expanded) --- */
+.collapsible-header {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    pointer-events: auto;
+    user-select: none;
+    white-space: nowrap;
+    padding: 8px 12px;
+}
+
+.collapsible-header .collapsible-title {
+    font-size: 0.9em;
+    font-weight: 500;
+    line-height: 1.2;
+    opacity: 0.85;
+}
+
+.collapsible-header .collapse-chevron {
+    display: inline-block;
+    transition: transform 0.25s ease-in-out;
+    transform: rotate(0deg);
+    font-size: 0.85em;
+    line-height: 1;
+}
+
+/* Show header when collapsed */
+.collapsible-wrapper.collapsed .collapsible-header {
+    display: flex;
+}
+
+/* --- Content area --- */
+.collapsible-content {
+    overflow: hidden;
+}
+
+/* Hide content when collapsed */
+.collapsible-wrapper.collapsed .collapsible-content {
+    display: none;
+}
+
+/* --- Drawer adjustments --- */
+.drawer-container .collapsible-wrapper {
+    width: 100%;
+}
+
+.drawer-container .collapsible-header {
+    margin: 8px 0;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 16px;
+}
+
+/* --- Responsive --- */
+@media screen and (max-width: 768px) {
+    .collapse-overlay-btn {
+        /* Always show on touch devices (no hover) */
+        opacity: 0.6;
+    }
+
+    .collapsible-header {
+        padding: 6px 10px;
+    }
+
+    .collapsible-header .collapsible-title {
+        font-size: 0.85em;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .collapse-overlay-btn {
+        width: 20px;
+        height: 20px;
+        font-size: 0.75em;
+    }
+
+    .collapsible-header {
+        padding: 4px 8px;
+    }
+}

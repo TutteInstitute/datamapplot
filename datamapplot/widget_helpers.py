@@ -453,6 +453,7 @@ def group_widgets_by_location(
             order = config.order
             widget.location = location
             widget.order = order
+            widget.collapsible = config.collapsible
         else:
             location = widget.location
             order = widget.order
@@ -553,7 +554,12 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
         "external_js": set(),
     }
 
+    has_collapsible = False
+
     for widget in widgets:
+        if getattr(widget, "collapsible", False):
+            has_collapsible = True
+
         if widget.dependencies:
             for dep in widget.dependencies:
                 # Parse dependency format: "js:name" or "css:name" or URL
@@ -572,6 +578,11 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
                 else:
                     # Legacy format - assume JS
                     dependencies["js_files"].add(dep.replace(".js", ""))
+
+    # Auto-include collapsible JS/CSS when any widget is collapsible
+    if has_collapsible:
+        dependencies["js_files"].add("collapsible")
+        dependencies["css_files"].add("collapsible")
 
     return dependencies
 

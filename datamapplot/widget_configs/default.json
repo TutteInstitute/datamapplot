@@ -54,7 +54,7 @@
         "order": 3,
         "visible": true,
         "_positional_only": true,
-        "collapsible": false,
+        "collapsible": false
     },
     "minimap": {
         "location": "bottom-right",
