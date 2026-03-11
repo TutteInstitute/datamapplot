@@ -60,6 +60,11 @@ class WidgetConfig:
     collapsible : bool
         Whether widget can be collapsed by user
 
+    _positional_only : bool
+        Flag to indicate if widget should only be override positional parameters
+        (e.g. from legacy params) and not be added as a new widget
+        from layout config
+
     custom_params : dict
         Additional custom parameters for the widget
     """
@@ -69,6 +74,9 @@ class WidgetConfig:
     order: int = 0
     visible: bool = True
     collapsible: bool = False
+    _positional_only: bool = field(
+        default=False, repr=False
+    )  # Internal flag for positional-only widgets
     custom_params: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -121,7 +129,11 @@ def load_widget_config_from_json(path: Union[str, Path]) -> Dict[str, WidgetConf
     ValueError
         If the JSON is invalid or contains invalid configurations
     """
-    path = Path(path)
+    widget_config_dir = Path(__file__).resolve().parent / "widget_configs"
+    if f"{path}.json" in [f.name for f in widget_config_dir.iterdir()]:
+        path = widget_config_dir / f"{path}.json"
+    else:
+        path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Widget configuration file not found: {path}")
 
@@ -130,6 +142,8 @@ def load_widget_config_from_json(path: Union[str, Path]) -> Dict[str, WidgetConf
 
     configs = {}
     for widget_id, config in config_dict.items():
+        if widget_id.startswith("_"):
+            continue  # Skip metadata entries
         if isinstance(config, dict):
             config["widget_id"] = widget_id
             configs[widget_id] = WidgetConfig(**config)
@@ -226,7 +240,8 @@ def create_widget_from_config(
     ----------
     widget_type : str
         Type of widget to create. One of: "title", "search", "topic_tree",
-        "histogram", "colormap_selector", "legend", "logo"
+        "histogram", "colormap_selector", "legend", "logo", "selection_control",
+        "layer_toggle", "minimap", "rest_search", "annotation"
 
     config : WidgetConfig or dict, optional
         Configuration for the widget
@@ -438,6 +453,7 @@ def group_widgets_by_location(
             order = config.order
             widget.location = location
             widget.order = order
+            widget.collapsible = config.collapsible
         else:
             location = widget.location
             order = widget.order
@@ -538,7 +554,12 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
         "external_js": set(),
     }
 
+    has_collapsible = False
+
     for widget in widgets:
+        if getattr(widget, "collapsible", False):
+            has_collapsible = True
+
         if widget.dependencies:
             for dep in widget.dependencies:
                 # Parse dependency format: "js:name" or "css:name" or URL
@@ -557,6 +578,11 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
                 else:
                     # Legacy format - assume JS
                     dependencies["js_files"].add(dep.replace(".js", ""))
+
+    # Auto-include collapsible JS/CSS when any widget is collapsible
+    if has_collapsible:
+        dependencies["js_files"].add("collapsible")
+        dependencies["css_files"].add("collapsible")
 
     return dependencies
 
@@ -737,3 +763,29 @@ def encode_widget_data(widget_data, point_data_length):
         encoded["search_field"] = widget_data["search_fields"][0]["search_field"]
 
     return encoded
+
+
+def font_families_from_widgets(widgets: List[WidgetBase]) -> List[str]:
+    """Extract font families used by widgets for embedding.
+
+    Parameters
+    ----------
+    widgets : list
+        List of widget instances
+
+    Returns
+    -------
+    list
+        List of font family names used by widgets
+    """
+    font_families = set()
+
+    for widget in widgets:
+        if hasattr(widget, "title_font_family") and widget.title_font_family:
+            font_families.add(widget.title_font_family)
+        if hasattr(widget, "sub_title_font_family") and widget.sub_title_font_family:
+            font_families.add(widget.sub_title_font_family)
+        if hasattr(widget, "font_family") and widget.font_family:
+            font_families.add(widget.font_family)
+
+    return list(font_families)

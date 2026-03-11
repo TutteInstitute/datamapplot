@@ -3,36 +3,64 @@
     "title": {
         "location": "top-left",
         "order": 0,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     },
     "search": {
         "location": "top-left",
         "order": 1,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     },
     "topic-tree": {
         "location": "top-left",
         "order": 2,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     },
     "legend": {
         "location": "top-right",
         "order": 0,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     },
     "colormap-selector": {
         "location": "bottom-left",
-        "order": 0,
-        "visible": true
+        "order": 1,
+        "visible": true,
+        "_positional_only": true
     },
     "histogram": {
         "location": "bottom-left",
-        "order": 1,
-        "visible": true
+        "order": 0,
+        "visible": true,
+        "_positional_only": true
     },
     "logo": {
         "location": "bottom-right",
         "order": 0,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
+    },
+    "selection_control": {
+        "location": "top-right",
+        "order": 2,
+        "visible": true,
+        "collapsible": false,
+        "_positional_only": true
+    },
+    "layer_toggle": {
+        "location": "top-right",
+        "order": 3,
+        "visible": true,
+        "_positional_only": true,
+        "collapsible": false
+    },
+    "minimap": {
+        "location": "bottom-right",
+        "order": 3,
+        "visible": true,
+        "collapsible": false,
+        "_positional_only": true
     }
 }

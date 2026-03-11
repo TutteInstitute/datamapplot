@@ -1956,3 +1956,85 @@ class TestCreateWidgetFromConfigExtended:
         widget = create_widget_from_config("search", config=config)
         assert widget.location == "drawer-right"
         assert widget.order == 10
+
+
+class TestCollapsibleSystem:
+    """Tests for the collapsible widget system."""
+
+    def test_collapsible_default_false(self):
+        """Test that collapsible defaults to False."""
+        widget = WidgetBase(widget_id="test")
+        assert widget.collapsible is False
+
+    def test_collapsible_set_true(self):
+        """Test that collapsible can be set to True."""
+        widget = WidgetBase(widget_id="test", collapsible=True)
+        assert widget.collapsible is True
+
+    def test_collapsible_in_get_config(self):
+        """Test that collapsible is included in get_config output."""
+        widget = WidgetBase(widget_id="test", collapsible=True)
+        config = widget.get_config()
+        assert config["collapsible"] is True
+
+    def test_collapsible_propagated_from_layout(self):
+        """Test that group_widgets_by_location propagates collapsible from layout config."""
+        widget = SearchWidget()
+        assert widget.collapsible is False
+
+        layout = {"search": WidgetConfig(widget_id="search", collapsible=True)}
+        grouped = group_widgets_by_location([widget], layout)
+        search_widget = grouped["top-left"][0]
+        assert search_widget.collapsible is True
+
+    def test_collapsible_not_propagated_without_layout(self):
+        """Test that collapsible is unchanged when no layout override exists."""
+        widget = SearchWidget(collapsible=True)
+        grouped = group_widgets_by_location([widget])
+        search_widget = grouped["top-left"][0]
+        assert search_widget.collapsible is True
+
+    def test_collect_dependencies_includes_collapsible_when_needed(self):
+        """Test that collapsible JS/CSS deps are auto-included when any widget is collapsible."""
+        widget = WidgetBase(widget_id="test", collapsible=True)
+        deps = collect_widget_dependencies([widget])
+        assert "collapsible" in deps["js_files"]
+        assert "collapsible" in deps["css_files"]
+
+    def test_collect_dependencies_excludes_collapsible_when_not_needed(self):
+        """Test that collapsible deps are not included when no widget is collapsible."""
+        widget = WidgetBase(widget_id="test", collapsible=False)
+        deps = collect_widget_dependencies([widget])
+        assert "collapsible" not in deps["js_files"]
+        assert "collapsible" not in deps["css_files"]
+
+    def test_collect_dependencies_mixed_collapsible(self):
+        """Test collapsible deps included when at least one widget is collapsible."""
+        w1 = WidgetBase(widget_id="w1", collapsible=False)
+        w2 = WidgetBase(widget_id="w2", collapsible=True)
+        deps = collect_widget_dependencies([w1, w2])
+        assert "collapsible" in deps["js_files"]
+        assert "collapsible" in deps["css_files"]
+
+    def test_collapsible_with_title_widget(self):
+        """Test collapsible on a concrete widget type."""
+        widget = TitleWidget(title="My Title", collapsible=True)
+        assert widget.collapsible is True
+        assert widget.title_text == "My Title"
+
+    def test_collapsible_with_histogram_widget(self):
+        """Test collapsible on HistogramWidget."""
+        widget = HistogramWidget(collapsible=True)
+        assert widget.collapsible is True
+        # Ensure html still contains expected container
+        assert widget.get_container_id() in widget.html
+
+    def test_widget_config_collapsible_field(self):
+        """Test WidgetConfig dataclass has collapsible field."""
+        config = WidgetConfig(widget_id="test", collapsible=True)
+        assert config.collapsible is True
+
+    def test_widget_config_collapsible_defaults_false(self):
+        """Test WidgetConfig collapsible defaults to False."""
+        config = WidgetConfig(widget_id="test")
+        assert config.collapsible is False

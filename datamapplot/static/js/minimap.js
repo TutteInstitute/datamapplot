@@ -12,7 +12,7 @@ class MiniMap {
             updateThrottle: options.updateThrottle || 200,
             borderColor: options.borderColor || '#3ba5e7',
             borderWidth: options.borderWidth || 2,
-            backgroundColor: options.backgroundColor || '#f5f5f5',
+            // backgroundColor: options.backgroundColor || '#f5f5f5',
             pointColor: options.pointColor || '#666666',
             pointSize: options.pointSize || 2,
             mirrorY: options.mirrorY || false,
@@ -34,10 +34,11 @@ class MiniMap {
 
     render() {
         this.container.innerHTML = '';
+        this.container.className = 'container-box minimap-container';
         this.container.style.width = `${this.options.width}px`;
         this.container.style.height = `${this.options.height}px`;
         this.container.style.position = 'relative';
-        this.container.style.background = this.options.backgroundColor;
+        // this.container.style.background = this.options.backgroundColor;
         this.container.style.borderRadius = '4px';
         this.container.style.overflow = 'hidden';
 

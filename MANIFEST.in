@@ -4,3 +4,4 @@ include datamapplot/static/js/*.js
 include datamapplot/static/css/*.css
 include datamapplot/static/css/*.jinja2
 include datamapplot/templates/*.jinja2
+include datamapplot/widget_configs/*.json

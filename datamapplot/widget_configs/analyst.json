@@ -1,6 +1,10 @@
 {
     "_description": "Analyst layout - full featured with histograms and colormaps in drawers",
     "title": {
+        "custom_params": {
+            "title": "Interactive Data Map",
+            "sub_title": "Created with datamapplot"
+        },
         "location": "top-left",
         "order": 0,
         "visible": true
@@ -10,32 +14,54 @@
         "order": 1,
         "visible": true
     },
-    "topic-tree": {
+    "topic_tree": {
         "location": "drawer-left",
         "order": 0,
+        "visible": true,
+        "collapsible": false
+    },
+    "selection_control": {
+        "location": "drawer-left",
+        "order": 1,
+        "visible": true,
+        "collapsible": false
+    },
+    "layer_toggle": {
+        "location": "drawer-left",
+        "order": 2,
+        "visible": true,
+        "collapsible": false
+    },
+    "minimap": {
+        "location": "bottom-right",
+        "order": 3,
         "visible": true,
         "collapsible": false
     },
     "histogram": {
-        "location": "drawer-left",
+        "location": "bottom-left",
         "order": 1,
         "visible": true,
-        "collapsible": false
+        "collapsible": false,
+        "_positional_only": true
     },
-    "colormap-selector": {
-        "location": "drawer-right",
+    "colormap_selector": {
+        "location": "drawer-left",
         "order": 0,
         "visible": true,
-        "collapsible": false
+        "collapsible": false,
+        "_positional_only": true
     },
     "legend": {
         "location": "drawer-right",
         "order": 1,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     },
     "logo": {
         "location": "bottom-right",
         "order": 0,
-        "visible": true
+        "visible": true,
+        "_positional_only": true
     }
 }

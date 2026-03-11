@@ -702,7 +702,7 @@ class ColormapSelectorWidget(WidgetBase):
     if (window.datamap && window.datamap.colorData) {{
         setup();
     }} else {{
-        document.addEventListener('datamapColorDataLoaded', setup);
+        document.addEventListener('datamapDataLoaded', setup);
     }}
 }})();
 """
@@ -1023,7 +1023,7 @@ class LayerToggleWidget(WidgetBase):
         window.datamap.widgets['{widget_id}'] = layerToggle;
     }}
     
-    if (window.datamap && window.datamap.deckgl) {{
+    if (window.datamap && window.datamap.deckgl && window.datamap.layers && window.datamap.layers.length > 0) {{
         setup();
     }} else {{
         document.addEventListener('datamapDataLoaded', setup);
@@ -1152,52 +1152,52 @@ class MiniMapWidget(WidgetBase):
 
 class RESTSearchWidget(WidgetBase):
     """Server-side search widget that queries a REST endpoint.
-    
+
     Parameters
     ----------
     endpoint_url : str
         Full URL to the search endpoint (e.g., "https://api.example.com/search")
-    
+
     http_method : str, optional (default: "POST")
         HTTP method to use: "POST" or "GET"
-    
+
     request_body_template : dict, optional
         Template for request body. Use "{query}" placeholder for search term.
         Example: {"q": "{query}", "limit": 50}
         If None, defaults to {"query": "{query}"}
-    
+
     auth_headers : dict, optional
         HTTP headers for authentication.
         Example: {"Authorization": "Bearer YOUR_TOKEN"}
-    
+
     response_path : str, optional (default: "results")
         JSON path to array of results. Use dot notation for nested paths.
         Example: "data.items" for response like {"data": {"items": [...]}}
-    
+
     id_field : str, optional (default: "id")
         Field name in response objects that contains point IDs to select
-    
+
     debounce_ms : int, optional (default: 300)
         Milliseconds to wait after typing before sending request
-    
+
     min_query_length : int, optional (default: 2)
         Minimum characters required before search is triggered
-    
+
     placeholder : str, optional
         Placeholder text for search input
-    
+
     show_result_count : bool, optional (default: True)
         Whether to display "X results found" message
-    
+
     timeout_ms : int, optional (default: 10000)
         Request timeout in milliseconds
-    
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
-    
+
     dependencies = ["js:rest_search", "css:rest_search"]
-    
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
@@ -1212,13 +1212,13 @@ class RESTSearchWidget(WidgetBase):
         placeholder="Search...",
         show_result_count=True,
         timeout_ms=10000,
-        **kwargs
+        **kwargs,
     ):
         kwargs.setdefault("widget_id", "rest-search")
         kwargs.setdefault("location", "drawer-left")
         kwargs.setdefault("order", 1)
         super().__init__(**kwargs)
-        
+
         self.endpoint_url = endpoint_url
         self.http_method = http_method.upper()
         self.request_body_template = request_body_template or {"query": "{query}"}
@@ -1230,25 +1230,27 @@ class RESTSearchWidget(WidgetBase):
         self.placeholder = placeholder
         self.show_result_count = show_result_count
         self.timeout_ms = timeout_ms
-        
+
         # Validate HTTP method
         if self.http_method not in ["GET", "POST"]:
             raise ValueError("http_method must be 'GET' or 'POST'")
-    
+
     @property
     def html(self):
         """Return HTML container for the widget."""
-        return f'<div id="{self.get_container_id()}" class="rest-search-container"></div>'
-    
+        return (
+            f'<div id="{self.get_container_id()}" class="rest-search-container"></div>'
+        )
+
     @property
     def javascript(self):
         """Generate JS to instantiate RESTSearchWidget."""
         import json
-        
+
         container_id = self.get_container_id()
         widget_id = self.widget_id
         config = self.collect_widget_data()
-        
+
         return f"""
 (function() {{
     const containerId = '{container_id}';
@@ -1274,7 +1276,7 @@ class RESTSearchWidget(WidgetBase):
     }}
 }})();
 """
-    
+
     def collect_widget_data(self):
         """Collect widget configuration for template."""
         return {
@@ -1294,61 +1296,61 @@ class RESTSearchWidget(WidgetBase):
 
 class AnnotationWidget(WidgetBase):
     """Annotation widget for adding persistent markup to the map.
-    
+
     Supports adding text labels, arrows, and shapes (circles, rectangles)
     that persist across sessions via JSON export/import.
-    
+
     Parameters
     ----------
     initial_annotations : list, optional
         List of annotation dicts to load on initialization.
         Each annotation should have: {"type": "text"|"arrow"|"circle", ...}
-    
+
     allow_text : bool, optional (default: True)
         Enable text annotation tool
-    
+
     allow_arrows : bool, optional (default: True)
         Enable arrow annotation tool
-    
+
     allow_circles : bool, optional (default: True)
         Enable circle annotation tool
-    
+
     allow_rectangles : bool, optional (default: True)
         Enable rectangle annotation tool
-    
+
     default_text_color : str, optional (default: "#000000")
         Default color for text annotations
-    
+
     default_text_size : int, optional (default: 14)
         Default font size for text annotations
-    
+
     default_stroke_color : str, optional (default: "#FF0000")
         Default color for arrows and shapes
-    
+
     default_stroke_width : int, optional (default: 2)
         Default line width for arrows and shapes
-    
+
     default_fill_opacity : float, optional (default: 0.2)
         Default fill opacity for circles and rectangles (0-1)
-    
+
     enable_export : bool, optional (default: True)
         Show export button to download annotations as JSON
-    
+
     enable_import : bool, optional (default: True)
         Show import button to load annotations from JSON file
-    
+
     snap_to_points : bool, optional (default: False)
         If True, annotation coordinates snap to nearest data point
-    
+
     snap_distance : float, optional (default: 20)
         Pixel distance for snap-to-point behavior
-    
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
-    
+
     dependencies = ["js:annotation", "css:annotation"]
-    
+
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
@@ -1366,13 +1368,13 @@ class AnnotationWidget(WidgetBase):
         enable_import=True,
         snap_to_points=False,
         snap_distance=20,
-        **kwargs
+        **kwargs,
     ):
         kwargs.setdefault("widget_id", "annotation")
         kwargs.setdefault("location", "drawer-left")
         kwargs.setdefault("order", 2)
         super().__init__(**kwargs)
-        
+
         self.initial_annotations = initial_annotations or []
         self.allow_text = allow_text
         self.allow_arrows = allow_arrows
@@ -1387,21 +1389,23 @@ class AnnotationWidget(WidgetBase):
         self.enable_import = enable_import
         self.snap_to_points = snap_to_points
         self.snap_distance = snap_distance
-    
+
     @property
     def html(self):
         """Return HTML container for the widget."""
-        return f'<div id="{self.get_container_id()}" class="annotation-container"></div>'
-    
+        return (
+            f'<div id="{self.get_container_id()}" class="annotation-container"></div>'
+        )
+
     @property
     def javascript(self):
         """Generate JS to instantiate AnnotationWidget."""
         import json
-        
+
         container_id = self.get_container_id()
         widget_id = self.widget_id
         config = self.collect_widget_data()
-        
+
         return f"""
 (function() {{
     const containerId = '{container_id}';
@@ -1427,7 +1431,7 @@ class AnnotationWidget(WidgetBase):
     }}
 }})();
 """
-    
+
     def collect_widget_data(self):
         """Collect widget configuration for template."""
         return {

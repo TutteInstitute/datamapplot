@@ -1,6 +1,10 @@
 {
     "_description": "Minimal layout - just title and search in top-left corner",
     "title": {
+        "custom_params": {
+            "title": "Interactive Data Map",
+            "sub_title": "Created with datamapplot"
+        },
         "location": "top-left",
         "order": 0,
         "visible": true
