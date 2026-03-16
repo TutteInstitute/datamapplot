@@ -16,6 +16,9 @@ const colorDataEncoded = "{{ base64_color_data }}";
 {% if edge_bundle %}
 const edgeDataEncoded = "{{ base64_edge_data }}";
 {% endif %}
+{% if enable_density_overview %}
+const densityOverviewImages = {{ density_overview_images|tojson|safe }};
+{% endif %}
 
 {% include 'worker_inline.js.jinja2' %}
 
@@ -78,6 +81,12 @@ const colorDataEncoded = [
 {% endif %}
 {% if edge_bundle %}
 const edgeDataEncoded = [`${originURL}/{{ file_prefix }}_edge_data.zip`];
+{% endif %}
+{% if enable_density_overview %}
+const densityOverviewImages = {};
+{% for field, filename in density_overview_images.items() %}
+densityOverviewImages["{{ field }}"] = `${originURL}/{{ filename }}`;
+{% endfor %}
 {% endif %}
 
 {% include 'worker_file.js.jinja2' %}

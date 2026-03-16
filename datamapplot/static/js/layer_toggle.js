@@ -9,6 +9,7 @@ class LayerToggle {
         this.options = {
             layers: options.layers || [
                 { id: 'imageLayer', label: 'Background', visible: true, opacity: 1.0 },
+                { id: 'densityOverviewLayer', label: 'Density Overview', visible: true, opacity: 1.0 },
                 { id: 'edgeLayer', label: 'Edges', visible: true, opacity: 1.0 },
                 { id: 'dataPointLayer', label: 'Points', visible: true, opacity: 1.0 },
                 { id: 'labelLayer', label: 'Labels', visible: true, opacity: 1.0 },

@@ -76,6 +76,8 @@ from datamapplot.interactive_helpers import (
     prepare_logo,
     label_text_and_polygon_dataframes,
     prepare_hex_density_color_range,
+    render_all_density_overview_images,
+    encode_density_overview_images,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,
@@ -506,6 +508,9 @@ def render_html(
     hex_density_opacity=0.75,
     hex_density_coverage=1.0,
     hex_density_zoom_thresholds=None,
+    enable_density_overview=False,
+    density_overview_resolution=2048,
+    density_overview_crossfade_range=None,
 ):
     """Given data about points, and data about labels, render to an HTML file
     using Deck.GL to provide an interactive plot that can be zoomed, panned
@@ -914,6 +919,18 @@ def render_html(
         Explicit zoom level breakpoints for re-aggregation. If ``None``, thresholds
         are auto-distributed evenly across the zoom range.
 
+    enable_density_overview: bool (optional, default=False)
+        Whether to render a datashader-based density overview image that is
+        shown when zoomed out and crossfades to the scatter points as the
+        user zooms in. Requires datashader to be installed.
+
+    density_overview_resolution: int (optional, default=2048)
+        Pixel resolution for the longer axis of the density overview image.
+
+    density_overview_crossfade_range: float or None (optional, default=None)
+        Number of zoom levels over which the crossfade from the density
+        overview to the scatter points occurs. If ``None``, defaults to 2.0.
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -1096,6 +1113,32 @@ def render_html(
     file_prefix = data_encoding["file_prefix"]
     html_file_prefix = data_encoding["html_file_prefix"]
     n_chunks = data_encoding["n_chunks"]
+
+    # Density overview image generation
+    if enable_density_overview:
+        density_overview_images_pil = render_all_density_overview_images(
+            point_dataframe,
+            color_data,
+            color_metadata if enable_colormap_selector else None,
+            bounds,
+            density_overview_resolution,
+        )
+        density_overview_images = encode_density_overview_images(
+            density_overview_images_pil,
+            inline_data,
+            file_prefix=file_prefix,
+            html_file_prefix=html_file_prefix,
+        )
+        if density_overview_crossfade_range is None:
+            density_overview_crossfade_range = 2.0
+        density_overview_target_radius_min = point_radius_min_pixels
+        density_overview_target_line_width_min = point_line_width_min_pixels
+        point_radius_min_pixels = 0
+        point_line_width_min_pixels = 0
+    else:
+        density_overview_images = None
+        density_overview_target_radius_min = 0
+        density_overview_target_line_width_min = 0
 
     # Style configuration
     title_font_color = style_config["title_font_color"]
@@ -1400,6 +1443,14 @@ def render_html(
         hex_density_opacity=hex_density_opacity,
         hex_density_coverage=hex_density_coverage,
         hex_density_zoom_thresholds=json.dumps(hex_density_zoom_thresholds),
+        enable_density_overview=enable_density_overview,
+        density_overview_images=(
+            density_overview_images if density_overview_images else {}
+        ),
+        density_overview_bounds=[bounds[0], bounds[2], bounds[1], bounds[3]],
+        density_overview_crossfade_range=density_overview_crossfade_range,
+        density_overview_target_radius_min=density_overview_target_radius_min,
+        density_overview_target_line_width_min=density_overview_target_line_width_min,
         get_tooltip=get_tooltip,
         search_field=search_field,
         show_loading_progress=show_loading_progress,

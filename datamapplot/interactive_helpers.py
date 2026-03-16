@@ -590,6 +590,178 @@ def prepare_hex_density_color_range(cmap, n_colors=12):
         )
 
 
+def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
+    """Render a datashader overview image from point coordinates and RGBA colors.
+
+    Parameters
+    ----------
+    coords : ndarray of shape (N, 2)
+        The x, y coordinates for each point.
+
+    colors_rgba : ndarray of shape (N, 4), dtype uint8
+        RGBA color values (0-255) for each point.
+
+    bounds : list
+        ``[xmin, xmax, ymin, ymax]`` defining the data extent.
+
+    resolution : int, optional
+        Pixel resolution for the longer axis of the output image. Default 2048.
+
+    Returns
+    -------
+    PIL.Image.Image
+        An RGBA image of the rendered density overview.
+    """
+    try:
+        import datashader as ds
+        import datashader.transfer_functions as tf
+    except ImportError:
+        raise ImportError(
+            "datashader is required for density overview rendering. "
+            "Install it with: pip install datashader"
+        )
+    from PIL import Image
+
+    xmin, xmax, ymin, ymax = bounds
+    x_extent = xmax - xmin
+    y_extent = ymax - ymin
+
+    if x_extent >= y_extent:
+        plot_width = resolution
+        plot_height = max(1, int(resolution * y_extent / x_extent))
+    else:
+        plot_height = resolution
+        plot_width = max(1, int(resolution * x_extent / y_extent))
+
+    # Convert RGBA uint8 to hex strings for categorical coloring
+    hex_colors = np.array(
+        ["#{:02x}{:02x}{:02x}".format(r, g, b) for r, g, b in colors_rgba[:, :3]]
+    )
+
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {
+            "x": coords[:, 0],
+            "y": coords[:, 1],
+            "color": pd.Categorical(hex_colors),
+        }
+    )
+
+    canvas = ds.Canvas(
+        plot_width=plot_width,
+        plot_height=plot_height,
+        x_range=(xmin, xmax),
+        y_range=(ymin, ymax),
+    )
+    agg = canvas.points(df, "x", "y", agg=ds.count_cat("color"))
+    color_key = {c: c for c in np.unique(hex_colors)}
+    img = tf.shade(agg, color_key=color_key, how="eq_hist")
+    img = tf.spread(img, px=1, how="over")
+
+    # Convert to PIL Image (datashader returns an xarray with RGBA data)
+    return img.to_pil()
+
+
+def render_all_density_overview_images(
+    point_dataframe, color_data, colormaps_metadata, bounds, resolution=2048
+):
+    """Render density overview images for the base colormap and each additional colormap.
+
+    Parameters
+    ----------
+    point_dataframe : pandas.DataFrame
+        Must contain columns ``x``, ``y``, ``r``, ``g``, ``b``, ``a``.
+
+    color_data : pandas.DataFrame or None
+        DataFrame with ``{field}_r``, ``{field}_g``, ``{field}_b``, ``{field}_a``
+        columns for each colormap field. May be ``None`` if no extra colormaps.
+
+    colormaps_metadata : list of dict
+        Each dict must have a ``"field"`` key identifying the colormap.
+
+    bounds : list
+        ``[xmin, xmax, ymin, ymax]``.
+
+    resolution : int, optional
+        Pixel resolution for the longer axis. Default 2048.
+
+    Returns
+    -------
+    dict
+        Mapping of field name to ``PIL.Image.Image``. The base cluster
+        colormap is keyed as ``"none"``.
+    """
+    coords = point_dataframe[["x", "y"]].values
+    images = {}
+
+    # Base cluster colors
+    base_rgba = point_dataframe[["r", "g", "b", "a"]].values.astype(np.uint8)
+    images["none"] = render_density_overview_image(
+        coords, base_rgba, bounds, resolution
+    )
+
+    # Per-colormap images
+    if color_data is not None and colormaps_metadata:
+        for cm in colormaps_metadata:
+            field = cm.get("field", "")
+            if not field or field == "none":
+                continue
+            cols = [f"{field}_r", f"{field}_g", f"{field}_b", f"{field}_a"]
+            if all(c in color_data.columns for c in cols):
+                cm_rgba = color_data[cols].values.astype(np.uint8)
+                images[field] = render_density_overview_image(
+                    coords, cm_rgba, bounds, resolution
+                )
+
+    return images
+
+
+def encode_density_overview_images(
+    images, inline_data, file_prefix=None, html_file_prefix=None
+):
+    """Encode density overview images for template consumption.
+
+    Parameters
+    ----------
+    images : dict
+        Mapping of field name to ``PIL.Image.Image``.
+
+    inline_data : bool
+        If ``True``, encode as base64 data URIs. If ``False``, write PNG
+        files to disk and return relative filenames.
+
+    file_prefix : str or None
+        Full file path prefix for writing files (offline mode).
+
+    html_file_prefix : str or None
+        Basename prefix for HTML references (offline mode).
+
+    Returns
+    -------
+    dict
+        Mapping of field name to image URI (base64 data URI or relative filename).
+    """
+    import io
+    import base64
+
+    result = {}
+    for field, img in images.items():
+        if inline_data:
+            buf = io.BytesIO()
+            img.save(buf, format="PNG", optimize=True)
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            result[field] = f"data:image/png;base64,{b64}"
+        else:
+            safe_field = field.replace("/", "_").replace(" ", "_")
+            filename = f"{file_prefix}_density_overview_{safe_field}.png"
+            img.save(filename, format="PNG", optimize=True)
+            html_filename = f"{html_file_prefix}_density_overview_{safe_field}.png"
+            result[field] = html_filename
+
+    return result
+
+
 def array_to_colors(values, cmap_name, metadata, color_list=None):
     """
     Convert an array of values to RGBA color values.

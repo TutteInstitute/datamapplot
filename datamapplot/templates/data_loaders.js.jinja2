@@ -67,6 +67,16 @@ function loadPointDataLayer() {
       });
       {% endif %}
 
+      {% if enable_density_overview %}
+      datamap.addDensityOverview(
+        densityOverviewImages,
+        {{ density_overview_bounds }},
+        {{ density_overview_crossfade_range }},
+        {{ density_overview_target_radius_min }},
+        {{ density_overview_target_line_width_min }}
+      );
+      {% endif %}
+
       document.getElementById("loading").style.display = "none";
       updateProgressBar('point-data-progress', 100);
       checkAllDataLoaded();

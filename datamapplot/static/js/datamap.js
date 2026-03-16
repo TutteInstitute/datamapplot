@@ -1,5 +1,5 @@
 
-LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'hexagonLayer', 'boundaryLayer', 'labelLayer'];
+LAYER_ORDER = ['imageLayer', 'densityOverviewLayer', 'dataPointLayer', 'hexagonLayer', 'boundaryLayer', 'labelLayer'];
 
 function getLayerIndex(object) {
   return LAYER_ORDER.indexOf(object.id);
@@ -743,6 +743,94 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
+  addDensityOverview(images, bounds, crossfadeRange, targetRadiusMin, targetLineWidthMin) {
+    this._densityOverviewImages = images;
+    // Compute crossfade start/end from the current initial zoom
+    const currentZoom = this.deckgl.viewManager
+      ? this.deckgl.viewManager.getViewState().zoom
+      : this.deckgl.props.initialViewState.zoom;
+    const crossfadeStart = currentZoom;
+    const crossfadeEnd = currentZoom + crossfadeRange;
+    this._densityOverviewConfig = { crossfadeStart, crossfadeEnd };
+    this._densityOverviewTargetRadiusMin = targetRadiusMin;
+    this._densityOverviewTargetLineWidthMin = targetLineWidthMin;
+    this._densityOverviewLastT = null;
+
+    this.densityOverviewLayer = new deck.BitmapLayer({
+      id: 'densityOverviewLayer',
+      bounds: bounds,
+      image: images["none"],
+      opacity: 1.0,
+      parameters: {
+        depthTest: false
+      }
+    });
+
+    this.layers.push(this.densityOverviewLayer);
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+
+    this.onViewStateChange('densityOverviewCrossfade', (params) => {
+      this._updateDensityCrossfade(params.viewState);
+    });
+  }
+
+  _updateDensityCrossfade(viewState) {
+    if (!this._densityOverviewConfig || !this.densityOverviewLayer) return;
+
+    const { crossfadeStart, crossfadeEnd } = this._densityOverviewConfig;
+    const zoom = viewState.zoom;
+    const rawT = Math.max(0, Math.min(1, (zoom - crossfadeStart) / (crossfadeEnd - crossfadeStart)));
+    // Apply easing (cubic in-out)
+    const t = rawT < 0.5
+      ? 4 * rawT * rawT * rawT
+      : 1 - Math.pow(-2 * rawT + 2, 3) / 2;
+
+    // Skip update if t hasn't changed meaningfully
+    const quantized = Math.round(t * 200);
+    if (quantized === this._densityOverviewLastT) return;
+    this._densityOverviewLastT = quantized;
+
+    const origRadius = this._densityOverviewTargetRadiusMin;
+    const origLineWidth = this._densityOverviewTargetLineWidthMin;
+
+    // Update density overview layer opacity
+    const overlayIdx = this.layers.indexOf(this.densityOverviewLayer);
+    if (overlayIdx !== -1) {
+      const updatedOverlay = this.densityOverviewLayer.clone({ opacity: 1 - t });
+      this.layers = [...this.layers.slice(0, overlayIdx), updatedOverlay, ...this.layers.slice(overlayIdx + 1)];
+      this.densityOverviewLayer = updatedOverlay;
+    }
+
+    // Update point layer opacity, radiusMinPixels, lineWidthMinPixels
+    const pointIdx = this.layers.indexOf(this.pointLayer);
+    if (pointIdx !== -1) {
+      const updatedPoints = this.pointLayer.clone({
+        opacity: t,
+        radiusMinPixels: t * origRadius,
+        lineWidthMinPixels: t * origLineWidth,
+      });
+      this.layers = [...this.layers.slice(0, pointIdx), updatedPoints, ...this.layers.slice(pointIdx + 1)];
+      this.pointLayer = updatedPoints;
+    }
+
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
+  _swapDensityOverviewImage(field) {
+    if (!this._densityOverviewImages || !this.densityOverviewLayer) return;
+    const image = this._densityOverviewImages[field] || this._densityOverviewImages["none"];
+    if (!image) return;
+
+    const idx = this.layers.indexOf(this.densityOverviewLayer);
+    if (idx === -1) return;
+
+    const updatedLayer = this.densityOverviewLayer.clone({ image });
+    this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
+    this.densityOverviewLayer = updatedLayer;
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
   async addSelectionHandler(callback, selectionKind = "lasso-selection", timeoutMs = 60000) {
     const startTime = Date.now();
 
@@ -930,6 +1018,7 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+    this._swapDensityOverviewImage(fieldName);
   }
 
   resetPointColors() {
@@ -958,12 +1047,14 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+    this._swapDensityOverviewImage("none");
   }
 
   // Layer management methods for widgets
   setLayerVisibility(layerId, visible) {
     const layerMap = {
       'imageLayer': this.imageLayer,
+      'densityOverviewLayer': this.densityOverviewLayer,
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
@@ -983,6 +1074,7 @@ class DataMap {
 
     // Update stored reference
     if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;
+    else if (layerId === 'densityOverviewLayer') this.densityOverviewLayer = updatedLayer;
     else if (layerId === 'labelLayer') this.labelLayer = updatedLayer;
     else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
     else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
@@ -996,6 +1088,7 @@ class DataMap {
   setLayerOpacity(layerId, opacity) {
     const layerMap = {
       'imageLayer': this.imageLayer,
+      'densityOverviewLayer': this.densityOverviewLayer,
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
@@ -1015,6 +1108,7 @@ class DataMap {
 
     // Update stored reference
     if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;
+    else if (layerId === 'densityOverviewLayer') this.densityOverviewLayer = updatedLayer;
     else if (layerId === 'labelLayer') this.labelLayer = updatedLayer;
     else if (layerId === 'boundaryLayer') this.boundaryLayer = updatedLayer;
     else if (layerId === 'edgeLayer') this.edgeLayer = updatedLayer;
@@ -1028,6 +1122,7 @@ class DataMap {
   getLayerVisibility(layerId) {
     const layerMap = {
       'imageLayer': this.imageLayer,
+      'densityOverviewLayer': this.densityOverviewLayer,
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
@@ -1042,6 +1137,7 @@ class DataMap {
   getLayerOpacity(layerId) {
     const layerMap = {
       'imageLayer': this.imageLayer,
+      'densityOverviewLayer': this.densityOverviewLayer,
       'dataPointLayer': this.pointLayer,
       'labelLayer': this.labelLayer,
       'boundaryLayer': this.boundaryLayer,
