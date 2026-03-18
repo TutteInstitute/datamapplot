@@ -395,6 +395,9 @@
   {% if edge_bundle %}
   const edgeDataEncoded = "{{base64_edge_data}}";
   {% endif %}
+  {% if enable_density_overview %}
+  const densityOverviewTiles = {{ density_overview_images| tojson | safe }};
+  {% endif %}
 
   // Blob for the parsing worker
   const parsingWorkerBlob = new Blob([`
@@ -528,6 +531,21 @@
   {% if edge_bundle %}
   const edgeDataEncoded = [`${originURL}/{{file_prefix}}_edge_data.zip`];
   {% endif %}
+  {% if enable_density_overview %}
+  const DENSITY_API_TOKEN = null;
+  const densityOverviewTiles = {};
+  {% for field, levels in density_overview_images.items() %}
+  densityOverviewTiles["{{ field }}"] = [
+    {% for tiles in levels %}
+  [
+    {% for tile in tiles %}
+  { "row": { { tile.row } }, "col": { { tile.col } }, "bounds": { { tile.bounds } }, "image": `${originURL}/{{ tile.image }}` },
+  {% endfor %}
+    ],
+  {% endfor %}
+  ];
+  {% endfor %}
+  {% endif %}
 
   // Blob for the parsing worker
   const parsingWorkerBlob = new Blob([`
@@ -633,6 +651,45 @@
     }
   }
 
+  async function resolveDensityTileImages(tilePyramids) {
+    const allTiles = [];
+    for (const field of Object.keys(tilePyramids)) {
+      for (const level of tilePyramids[field]) {
+        for (const tile of level) {
+          allTiles.push(tile);
+        }
+      }
+    }
+    if (allTiles.length === 0) return;
+    const needsResolve = allTiles[0].image.includes('/api/contents/');
+    if (!needsResolve) return;
+
+    const headers = {};
+    const densityApiToken = (typeof DENSITY_API_TOKEN !== 'undefined') ? DENSITY_API_TOKEN : null;
+    if (densityApiToken) {
+      headers['Authorization'] = 'Token ' + densityApiToken;
+    }
+
+    await Promise.all(allTiles.map(async (tile) => {
+      try {
+        const resp = await fetch(tile.image, { headers });
+        if (!resp.ok) {
+          console.error('Failed to fetch density tile:', tile.image, resp.status);
+          return;
+        }
+        const json = await resp.json();
+        const b64 = json.content;
+        const bin = atob(b64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'image/png' });
+        tile.image = URL.createObjectURL(blob);
+      } catch (e) {
+        console.error('Error resolving density tile image:', e);
+      }
+    }));
+  }
+
   function loadPointDataLayer() {
     pointDataWorker.postMessage({ encodedData: pointDataEncoded, JSONParse: false });
 
@@ -673,6 +730,21 @@
   opacity: { { hex_density_opacity } },
   zoomThresholds: { { hex_density_zoom_thresholds } },
           });
+  {% endif %}
+
+  {% if enable_density_overview %}
+  await resolveDensityTileImages(densityOverviewTiles);
+  datamap.addDensityOverview(
+    densityOverviewTiles,
+    {{ density_overview_bounds }},
+    {{ density_overview_crossfade_range }},
+    {{ density_overview_point_size }},
+    {{ density_overview_data_x_range }},
+    {{ density_overview_data_y_range }},
+    {{ density_overview_tile_resolution }},
+    {{ density_overview_target_radius_min }},
+    {{ density_overview_target_line_width_min }}
+  );
   {% endif %}
 
   document.getElementById("loading").style.display = "none";

@@ -29,6 +29,55 @@
 {% endmacro %}
 
 // =============================================================================
+// Density Tile Image Resolver
+// =============================================================================
+
+async function resolveDensityTileImages(tilePyramids) {
+  // When running inside a Jupyter notebook with file-based data, image URLs
+  // point at the Jupyter contents API which returns JSON with base64 content
+  // instead of raw image bytes.  Detect this and convert to blob URLs so that
+  // deck.gl BitmapLayer can consume them.
+  const allTiles = [];
+  for (const field of Object.keys(tilePyramids)) {
+    for (const level of tilePyramids[field]) {
+      for (const tile of level) {
+        allTiles.push(tile);
+      }
+    }
+  }
+  if (allTiles.length === 0) return;
+
+  // Only need special handling when the URL routes through /api/contents/
+  const needsResolve = allTiles[0].image.includes('/api/contents/');
+  if (!needsResolve) return;
+
+  const headers = {};
+  const densityApiToken = (typeof DENSITY_API_TOKEN !== 'undefined') ? DENSITY_API_TOKEN : null;
+  if (densityApiToken) {
+    headers['Authorization'] = 'Token ' + densityApiToken;
+  }
+
+  await Promise.all(allTiles.map(async (tile) => {
+    try {
+      const resp = await fetch(tile.image, { headers });
+      if (!resp.ok) {
+        console.error('Failed to fetch density tile:', tile.image, resp.status);
+        return;
+      }
+      const json = await resp.json();
+      const b64 = json.content;  // Jupyter contents API base64 field
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const blob = new Blob([bytes], { type: 'image/png' });
+      tile.image = URL.createObjectURL(blob);
+    } catch (e) {
+      console.error('Error resolving density tile image:', e);
+    }
+  }));
+}
+
+// =============================================================================
 // Point Data Loading
 // =============================================================================
 
@@ -65,6 +114,21 @@ function loadPointDataLayer() {
         opacity: {{ hex_density_opacity }},
         zoomThresholds: {{ hex_density_zoom_thresholds }},
       });
+      {% endif %}
+
+      {% if enable_density_overview %}
+      await resolveDensityTileImages(densityOverviewTiles);
+      datamap.addDensityOverview(
+        densityOverviewTiles,
+        {{ density_overview_bounds }},
+        {{ density_overview_crossfade_range }},
+        {{ density_overview_point_size }},
+        {{ density_overview_data_x_range }},
+        {{ density_overview_data_y_range }},
+        {{ density_overview_tile_resolution }},
+        {{ density_overview_target_radius_min }},
+        {{ density_overview_target_line_width_min }}
+      );
       {% endif %}
 
       document.getElementById("loading").style.display = "none";

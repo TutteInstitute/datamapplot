@@ -1,8 +1,15 @@
 
-LAYER_ORDER = ['imageLayer', 'dataPointLayer', 'hexagonLayer', 'boundaryLayer', 'labelLayer'];
+LAYER_ORDER = ['imageLayer', 'densityOverviewLayer', 'dataPointLayer', 'hexagonLayer', 'boundaryLayer', 'labelLayer'];
 
 function getLayerIndex(object) {
-  return LAYER_ORDER.indexOf(object.id);
+  // Exact match first
+  const idx = LAYER_ORDER.indexOf(object.id);
+  if (idx !== -1) return idx;
+  // Prefix match for multi-tile layers (e.g. 'densityOverviewLayer_L0_R0_C0')
+  for (let i = 0; i < LAYER_ORDER.length; i++) {
+    if (object.id.startsWith(LAYER_ORDER[i])) return i;
+  }
+  return -1;
 }
 
 /**
@@ -743,6 +750,229 @@ class DataMap {
     this.deckgl.setProps({ layers: [...this.layers] });
   }
 
+  addDensityOverview(tilePyramids, fullBounds, crossfadeRange, pointSize, dataXRange, dataYRange, tileResolution, targetRadiusMin, targetLineWidthMin) {
+    // tilePyramids: { field: [ [level0_tiles], [level1_tiles], ... ] }
+    //   each tile: { row, col, bounds: [left,bottom,right,top], image: uri }
+    this._densityTilePyramids = tilePyramids;
+    this._densityFullBounds = fullBounds;
+    this._densityTileResolution = tileResolution;
+    this._densityOverviewTargetRadiusMin = targetRadiusMin;
+    this._densityOverviewTargetLineWidthMin = targetLineWidthMin;
+    this._densityOverviewLastT = null;
+    this._densityCurrentField = "none";
+
+    const currentZoom = this.deckgl.viewManager
+      ? this.deckgl.viewManager.getViewState().zoom
+      : this.deckgl.props.initialViewState.zoom;
+
+    // Auto-compute crossfade range
+    if (crossfadeRange == null) {
+      const vw = this.deckgl.canvas ? this.deckgl.canvas.clientWidth : 1500;
+      const pixelsPerUnit = vw / dataXRange;
+      const pixelRadiusAtZ0 = pointSize * pixelsPerUnit;
+      const targetPixelRadius = 1.0;
+      const zoomToVisible = Math.log2(targetPixelRadius / Math.max(pixelRadiusAtZ0, 1e-12));
+      // Extend the crossfade well beyond the point-visible threshold so
+      // the density-to-points transition feels gradual rather than abrupt.
+      crossfadeRange = Math.max(3.0, zoomToVisible * 1.5);
+    }
+
+    const crossfadeStart = currentZoom;
+    const crossfadeEnd = currentZoom + crossfadeRange;
+    this._densityOverviewConfig = { crossfadeStart, crossfadeEnd };
+
+    // Compute zoom thresholds for tile-level transitions.
+    // Each level doubles effective resolution, so each spans ~1 zoom level.
+    const pyramid = tilePyramids["none"] || [];
+    const nLevels = pyramid.length;
+    this._densityZoomThresholds = [];
+    if (nLevels > 1) {
+      const levelStep = crossfadeRange / nLevels;
+      for (let i = 1; i < nLevels; i++) {
+        this._densityZoomThresholds.push(currentZoom + levelStep * i);
+      }
+    }
+    // Width (in zoom levels) of the cross-dissolve zone centred on each
+    // level threshold.  40% of a level-step keeps the blend smooth without
+    // requiring both levels visible for the full step.
+    this._densityLevelBlendWidth = nLevels > 1
+      ? Math.min(1.0, (crossfadeRange / nLevels) * 0.4)
+      : 0;
+    this._densityCurrentLevel = 0;
+    this._densityBlendLevel = null;  // secondary level during cross-dissolve
+
+    // Create BitmapLayers for level 0
+    this._densityTileLayers = [];
+    this._setDensityTileLevel(0, 1.0);
+
+    this.onViewStateChange('densityOverviewCrossfade', (params) => {
+      this._updateDensityCrossfade(params.viewState);
+    });
+  }
+
+  _getDensityZoomLevel(zoom) {
+    for (let i = 0; i < this._densityZoomThresholds.length; i++) {
+      if (zoom < this._densityZoomThresholds[i]) return i;
+    }
+    return this._densityZoomThresholds.length;
+  }
+
+  _setDensityTileLevel(level, opacity) {
+    // Remove old density tile layers from the main layer list
+    this.layers = this.layers.filter(l => !l.id.startsWith('densityOverviewLayer_'));
+    this._densityTileLayers = [];
+    this._densityBlendLevel = null;
+
+    const pyramid = this._densityTilePyramids[this._densityCurrentField]
+      || this._densityTilePyramids["none"] || [];
+    const tiles = pyramid[level] || [];
+
+    for (const tile of tiles) {
+      const layer = new deck.BitmapLayer({
+        id: `densityOverviewLayer_L${level}_R${tile.row}_C${tile.col}`,
+        bounds: tile.bounds,
+        image: tile.image,
+        opacity: opacity,
+        parameters: { depthTest: false },
+      });
+      this._densityTileLayers.push(layer);
+      this.layers.push(layer);
+    }
+
+    this._densityCurrentLevel = level;
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
+  // Show two adjacent tile levels simultaneously for a smooth cross-dissolve.
+  _setDensityDualLevel(levelA, opacityA, levelB, opacityB) {
+    this.layers = this.layers.filter(l => !l.id.startsWith('densityOverviewLayer_'));
+    this._densityTileLayers = [];
+
+    const pyramid = this._densityTilePyramids[this._densityCurrentField]
+      || this._densityTilePyramids["none"] || [];
+
+    for (const [level, opacity] of [[levelA, opacityA], [levelB, opacityB]]) {
+      const tiles = pyramid[level] || [];
+      for (const tile of tiles) {
+        const layer = new deck.BitmapLayer({
+          id: `densityOverviewLayer_L${level}_R${tile.row}_C${tile.col}`,
+          bounds: tile.bounds,
+          image: tile.image,
+          opacity: opacity,
+          parameters: { depthTest: false },
+        });
+        this._densityTileLayers.push(layer);
+        this.layers.push(layer);
+      }
+    }
+
+    this._densityCurrentLevel = levelA;
+    this._densityBlendLevel = levelB;
+    this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
+  _updateDensityCrossfade(viewState) {
+    if (!this._densityOverviewConfig) return;
+
+    const { crossfadeStart, crossfadeEnd } = this._densityOverviewConfig;
+    const zoom = viewState.zoom;
+    const rawT = Math.max(0, Math.min(1, (zoom - crossfadeStart) / (crossfadeEnd - crossfadeStart)));
+    // Apply easing (cubic in-out)
+    const t = rawT < 0.5
+      ? 4 * rawT * rawT * rawT
+      : 1 - Math.pow(-2 * rawT + 2, 3) / 2;
+
+    // Skip update if t hasn't changed meaningfully
+    const quantized = Math.round(t * 200);
+    if (quantized === this._densityOverviewLastT) return;
+    this._densityOverviewLastT = quantized;
+
+    const overallOpacity = 1 - t;
+    const targetLevel = this._getDensityZoomLevel(zoom);
+    const halfBlend = this._densityLevelBlendWidth / 2;
+
+    // Determine whether we are inside a cross-dissolve zone around a
+    // level threshold.  If so, blend between the two adjacent levels.
+    let needDual = false;
+    let levelA = targetLevel;
+    let levelB = -1;
+    let blendT = 0; // 0 = fully levelA, 1 = fully levelB
+
+    if (halfBlend > 0) {
+      // Check threshold we just crossed into targetLevel
+      if (targetLevel > 0) {
+        const th = this._densityZoomThresholds[targetLevel - 1];
+        const d = zoom - th;
+        if (d >= 0 && d < halfBlend) {
+          levelA = targetLevel - 1;
+          levelB = targetLevel;
+          blendT = 0.5 + (d / this._densityLevelBlendWidth);
+          needDual = true;
+        }
+      }
+      // Check threshold we are approaching from targetLevel
+      if (!needDual && targetLevel < this._densityZoomThresholds.length) {
+        const th = this._densityZoomThresholds[targetLevel];
+        const d = th - zoom;
+        if (d >= 0 && d < halfBlend) {
+          levelA = targetLevel;
+          levelB = targetLevel + 1;
+          blendT = 0.5 - (d / this._densityLevelBlendWidth);
+          needDual = true;
+        }
+      }
+    }
+
+    if (needDual) {
+      const opA = overallOpacity * (1 - blendT);
+      const opB = overallOpacity * blendT;
+      this._setDensityDualLevel(levelA, opA, levelB, opB);
+    } else if (targetLevel !== this._densityCurrentLevel || this._densityBlendLevel !== null) {
+      // Exited a blend zone or changed level — snap to single level
+      this._setDensityTileLevel(targetLevel, overallOpacity);
+    } else {
+      // Same level, just update opacity on existing tile layers
+      for (let i = 0; i < this._densityTileLayers.length; i++) {
+        const oldLayer = this._densityTileLayers[i];
+        const idx = this.layers.indexOf(oldLayer);
+        if (idx !== -1) {
+          const updated = oldLayer.clone({ opacity: overallOpacity });
+          this.layers[idx] = updated;
+          this._densityTileLayers[i] = updated;
+        }
+      }
+    }
+
+    // Update point layer opacity, radiusMinPixels, lineWidthMinPixels
+    const origRadius = this._densityOverviewTargetRadiusMin;
+    const origLineWidth = this._densityOverviewTargetLineWidthMin;
+    const pointIdx = this.layers.indexOf(this.pointLayer);
+    if (pointIdx !== -1) {
+      const updatedPoints = this.pointLayer.clone({
+        opacity: t,
+        radiusMinPixels: t * origRadius,
+        lineWidthMinPixels: t * origLineWidth,
+      });
+      this.layers[pointIdx] = updatedPoints;
+      this.pointLayer = updatedPoints;
+    }
+
+    this.deckgl.setProps({ layers: [...this.layers] });
+  }
+
+  _swapDensityOverviewImage(field) {
+    if (!this._densityTilePyramids) return;
+    this._densityCurrentField = field;
+    // Determine current opacity from one of the active tiles
+    const curOpacity = this._densityTileLayers.length > 0
+      ? (this._densityTileLayers[0].props.opacity !== undefined
+        ? this._densityTileLayers[0].props.opacity : 1.0)
+      : 1.0;
+    this._setDensityTileLevel(this._densityCurrentLevel, curOpacity);
+  }
+
   async addSelectionHandler(callback, selectionKind = "lasso-selection", timeoutMs = 60000) {
     const startTime = Date.now();
 
@@ -930,6 +1160,7 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+    this._swapDensityOverviewImage(fieldName);
   }
 
   resetPointColors() {
@@ -958,10 +1189,26 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+    this._swapDensityOverviewImage("none");
   }
 
   // Layer management methods for widgets
   setLayerVisibility(layerId, visible) {
+    // Density overview tiles are controlled as a group
+    if (layerId === 'densityOverviewLayer' && this._densityTileLayers && this._densityTileLayers.length > 0) {
+      for (let i = 0; i < this._densityTileLayers.length; i++) {
+        const oldLayer = this._densityTileLayers[i];
+        const idx = this.layers.indexOf(oldLayer);
+        if (idx !== -1) {
+          const updated = oldLayer.clone({ visible });
+          this.layers[idx] = updated;
+          this._densityTileLayers[i] = updated;
+        }
+      }
+      this.deckgl.setProps({ layers: [...this.layers] });
+      return;
+    }
+
     const layerMap = {
       'imageLayer': this.imageLayer,
       'dataPointLayer': this.pointLayer,
@@ -994,6 +1241,21 @@ class DataMap {
   }
 
   setLayerOpacity(layerId, opacity) {
+    // Density overview tiles are controlled as a group
+    if (layerId === 'densityOverviewLayer' && this._densityTileLayers && this._densityTileLayers.length > 0) {
+      for (let i = 0; i < this._densityTileLayers.length; i++) {
+        const oldLayer = this._densityTileLayers[i];
+        const idx = this.layers.indexOf(oldLayer);
+        if (idx !== -1) {
+          const updated = oldLayer.clone({ opacity });
+          this.layers[idx] = updated;
+          this._densityTileLayers[i] = updated;
+        }
+      }
+      this.deckgl.setProps({ layers: [...this.layers] });
+      return;
+    }
+
     const layerMap = {
       'imageLayer': this.imageLayer,
       'dataPointLayer': this.pointLayer,
@@ -1026,6 +1288,9 @@ class DataMap {
   }
 
   getLayerVisibility(layerId) {
+    if (layerId === 'densityOverviewLayer' && this._densityTileLayers && this._densityTileLayers.length > 0) {
+      return this._densityTileLayers[0].props.visible !== false;
+    }
     const layerMap = {
       'imageLayer': this.imageLayer,
       'dataPointLayer': this.pointLayer,
@@ -1040,6 +1305,10 @@ class DataMap {
   }
 
   getLayerOpacity(layerId) {
+    if (layerId === 'densityOverviewLayer' && this._densityTileLayers && this._densityTileLayers.length > 0) {
+      const l = this._densityTileLayers[0];
+      return l.props.opacity !== undefined ? l.props.opacity : 1.0;
+    }
     const layerMap = {
       'imageLayer': this.imageLayer,
       'dataPointLayer': this.pointLayer,
