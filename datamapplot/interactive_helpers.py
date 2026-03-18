@@ -27,7 +27,8 @@ from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, MiniBatchKMeans
+from scipy.spatial import KDTree
 import datetime as dt
 
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
@@ -590,7 +591,84 @@ def prepare_hex_density_color_range(cmap, n_colors=12):
         )
 
 
-def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
+def _quantize_palette(colors_rgba, max_colors=256, pinned_colors=None):
+    """Quantize an RGBA color array to at most *max_colors* unique RGB values.
+
+    Uses MiniBatchKMeans on the unique RGB triples to find cluster centroids,
+    then remaps every point to its nearest centroid.  Alpha values are
+    preserved unchanged.
+
+    Parameters
+    ----------
+    colors_rgba : ndarray of shape (N, 4), dtype uint8
+    max_colors : int
+    pinned_colors : ndarray of shape (K, 3), dtype uint8, or None
+        RGB colours that must appear verbatim in the quantised palette
+        (e.g. the noise colour).  These are reserved before clustering;
+        KMeans only assigns ``max_colors - K`` additional centroids.
+
+    Returns
+    -------
+    ndarray of shape (N, 4), dtype uint8
+        Quantized colours (fewer unique RGB triples).
+    """
+    unique_rgb, inverse = np.unique(colors_rgba[:, :3], axis=0, return_inverse=True)
+    if len(unique_rgb) <= max_colors:
+        return colors_rgba
+
+    # Identify which unique colours are pinned (must be preserved exactly)
+    if pinned_colors is not None and len(pinned_colors) > 0:
+        pinned_colors = np.asarray(pinned_colors, dtype=np.uint8).reshape(-1, 3)
+        # Build a set of pinned tuples for fast lookup
+        pinned_set = set(map(tuple, pinned_colors))
+        is_pinned = np.array([tuple(c) in pinned_set for c in unique_rgb])
+        unpinned_rgb = unique_rgb[~is_pinned]
+        n_pinned = int(is_pinned.sum())  # actual number of pinned found
+    else:
+        unpinned_rgb = unique_rgb
+        is_pinned = np.zeros(len(unique_rgb), dtype=bool)
+        n_pinned = 0
+
+    n_clusters = max(1, max_colors - n_pinned)
+
+    if len(unpinned_rgb) <= n_clusters:
+        # Already within budget after accounting for pinned colours
+        return colors_rgba
+
+    kmeans = MiniBatchKMeans(
+        n_clusters=n_clusters,
+        random_state=0,
+        n_init=1,
+        batch_size=min(1024, len(unpinned_rgb)),
+    )
+    kmeans.fit(unpinned_rgb.astype(np.float64))
+    kmeans_centroids = np.clip(kmeans.cluster_centers_, 0, 255).astype(np.uint8)
+
+    # Build combined palette: pinned colours first, then KMeans centroids
+    pinned_found = (
+        unique_rgb[is_pinned] if n_pinned > 0 else np.empty((0, 3), dtype=np.uint8)
+    )
+    all_centroids = np.concatenate([pinned_found, kmeans_centroids], axis=0)
+
+    tree = KDTree(all_centroids.astype(np.float64))
+    _, nearest_idx = tree.query(unique_rgb.astype(np.float64))
+
+    result = np.empty_like(colors_rgba)
+    result[:, :3] = all_centroids[nearest_idx[inverse]]
+    result[:, 3] = colors_rgba[:, 3]
+    return result
+
+
+def render_density_overview_image(
+    coords,
+    colors_rgba,
+    bounds,
+    resolution=2048,
+    cmap_name=None,
+    values=None,
+    max_colors=64,
+    pinned_colors=None,
+):
     """Render a datashader overview image from point coordinates and RGBA colors.
 
     Parameters
@@ -599,13 +677,30 @@ def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
         The x, y coordinates for each point.
 
     colors_rgba : ndarray of shape (N, 4), dtype uint8
-        RGBA color values (0-255) for each point.
+        RGBA color values (0-255) for each point.  Ignored when *cmap_name*
+        and *values* are provided.
 
     bounds : list
         ``[xmin, xmax, ymin, ymax]`` defining the data extent.
 
     resolution : int, optional
         Pixel resolution for the longer axis of the output image. Default 2048.
+
+    cmap_name : str or None, optional
+        Matplotlib colormap name.  When given together with *values*, uses a
+        memory-efficient ``ds.mean()`` aggregation instead of ``count_cat``.
+
+    values : ndarray of shape (N,) or None, optional
+        Pre-normalised 0-1 float values for the continuous colormap path.
+
+    max_colors : int, optional
+        Maximum number of distinct colours to keep in the categorical
+        ``count_cat`` path.  Palettes with more unique colours are quantised
+        via MiniBatchKMeans.  Default 256.
+
+    pinned_colors : ndarray of shape (K, 3), dtype uint8, or None
+        RGB colours that must survive quantisation unchanged (e.g. noise
+        colour).
 
     Returns
     -------
@@ -620,7 +715,6 @@ def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
             "datashader is required for density overview rendering. "
             "Install it with: pip install datashader"
         )
-    from PIL import Image
 
     xmin, xmax, ymin, ymax = bounds
     x_extent = xmax - xmin
@@ -633,12 +727,29 @@ def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
         plot_height = resolution
         plot_width = max(1, int(resolution * x_extent / y_extent))
 
-    # Convert RGBA uint8 to hex strings for categorical coloring
+    canvas = ds.Canvas(
+        plot_width=plot_width,
+        plot_height=plot_height,
+        x_range=(xmin, xmax),
+        y_range=(ymin, ymax),
+    )
+
+    # --- Strategy A: continuous cmap via ds.mean() --------------------------
+    if cmap_name is not None and values is not None:
+        df = pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "value": values})
+        agg = canvas.points(df, "x", "y", agg=ds.mean("value"))
+        img = tf.shade(agg, cmap=cmap_name, how="eq_hist")
+        # img = tf.spread(img, px=1, how="over")
+        return img.to_pil()
+
+    # --- Strategy B: categorical count_cat (with palette quantisation) ------
+    colors_rgba = _quantize_palette(
+        colors_rgba, max_colors, pinned_colors=pinned_colors
+    )
+
     hex_colors = np.array(
         ["#{:02x}{:02x}{:02x}".format(r, g, b) for r, g, b in colors_rgba[:, :3]]
     )
-
-    import pandas as pd
 
     df = pd.DataFrame(
         {
@@ -648,25 +759,355 @@ def render_density_overview_image(coords, colors_rgba, bounds, resolution=2048):
         }
     )
 
-    canvas = ds.Canvas(
-        plot_width=plot_width,
-        plot_height=plot_height,
-        x_range=(xmin, xmax),
-        y_range=(ymin, ymax),
-    )
     agg = canvas.points(df, "x", "y", agg=ds.count_cat("color"))
     color_key = {c: c for c in np.unique(hex_colors)}
-    img = tf.shade(agg, color_key=color_key, how="eq_hist")
-    img = tf.spread(img, px=1, how="over")
+    img = tf.shade(
+        agg, color_key=color_key, how="eq_hist", rescale_discrete_levels=True
+    )
+    # img = tf.spread(img, px=1, how="over")
 
-    # Convert to PIL Image (datashader returns an xarray with RGBA data)
     return img.to_pil()
 
 
-def render_all_density_overview_images(
-    point_dataframe, color_data, colormaps_metadata, bounds, resolution=2048
+def _render_and_encode_tile(
+    coords,
+    colors_rgba,
+    full_bounds,
+    level,
+    row,
+    col,
+    tile_resolution,
+    inline_data,
+    file_prefix=None,
+    html_file_prefix=None,
+    field="none",
+    cmap_name=None,
+    values=None,
+    pinned_colors=None,
 ):
-    """Render density overview images for the base colormap and each additional colormap.
+    """Render and encode a single density tile.  Designed to run in a worker
+    thread — all arguments are picklable and the return value is a plain dict
+    (no PIL Image objects).
+
+    Returns ``None`` when the tile contains no data points.
+    """
+    import io as _io
+    import base64 as _b64
+
+    xmin, xmax, ymin, ymax = full_bounds
+    n_cols = 2**level
+    n_rows = 2**level
+    x_step = (xmax - xmin) / n_cols
+    y_step = (ymax - ymin) / n_rows
+
+    tile_xmin = xmin + col * x_step
+    tile_xmax = xmin + (col + 1) * x_step
+    tile_ymin = ymin + row * y_step
+    tile_ymax = ymin + (row + 1) * y_step
+
+    mask = (
+        (coords[:, 0] >= tile_xmin)
+        & (coords[:, 0] <= tile_xmax)
+        & (coords[:, 1] >= tile_ymin)
+        & (coords[:, 1] <= tile_ymax)
+    )
+    if mask.sum() == 0:
+        return None
+
+    tile_bounds = [tile_xmin, tile_xmax, tile_ymin, tile_ymax]
+    tile_values = values[mask] if values is not None else None
+    img = render_density_overview_image(
+        coords[mask],
+        colors_rgba[mask],
+        tile_bounds,
+        tile_resolution,
+        cmap_name=cmap_name,
+        values=tile_values,
+        pinned_colors=pinned_colors,
+    )
+
+    # Encode immediately so we never need to pickle a PIL Image
+    if inline_data:
+        buf = _io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        b64 = _b64.b64encode(buf.getvalue()).decode("ascii")
+        image_uri = f"data:image/png;base64,{b64}"
+    else:
+        safe_field = field.replace("/", "_").replace(" ", "_")
+        fname = f"{file_prefix}_density_L{level}" f"_R{row}_C{col}_{safe_field}.png"
+        img.save(fname, format="PNG", optimize=True)
+        html_fname = (
+            f"{html_file_prefix}_density_L{level}" f"_R{row}_C{col}_{safe_field}.png"
+        )
+        image_uri = html_fname
+
+    return {
+        "field": field,
+        "level": level,
+        "row": row,
+        "col": col,
+        "bounds": [tile_xmin, tile_ymin, tile_xmax, tile_ymax],
+        "image": image_uri,
+    }
+
+
+def render_and_encode_all_density_tiles(
+    point_dataframe,
+    color_data,
+    colormaps_metadata,
+    bounds,
+    n_levels=2,
+    tile_resolution=2048,
+    inline_data=True,
+    file_prefix=None,
+    html_file_prefix=None,
+    n_jobs=None,
+    colormap_rawdata=None,
+    noise_color="#999999",
+):
+    """Render and encode all density overview tiles in parallel.
+
+    Combines the work of ``render_all_density_overview_images`` and
+    ``encode_density_overview_images`` into a single function that executes
+    tile rendering + PNG encoding concurrently using a thread pool.
+
+    Parameters
+    ----------
+    point_dataframe : pandas.DataFrame
+        Must contain columns ``x``, ``y``, ``r``, ``g``, ``b``, ``a``.
+    color_data : pandas.DataFrame or None
+    colormaps_metadata : list of dict or None
+    bounds : list of ``[xmin, xmax, ymin, ymax]``
+    n_levels : int
+    tile_resolution : int
+    inline_data : bool
+    file_prefix : str or None
+    html_file_prefix : str or None
+    n_jobs : int or None
+        Number of worker threads.  ``None`` uses ``os.cpu_count()``.
+        ``1`` disables parallelism (useful for debugging).
+    colormap_rawdata : list of ndarray or None
+        Raw data arrays corresponding to ``colormaps_metadata`` (excluding the
+        "none" base entry).  Used to obtain normalised values for continuous
+        colormaps so that ``ds.mean()`` can be used instead of ``count_cat``.
+    noise_color : str
+        Hex colour string for noise / unlabelled points (e.g. ``"#999999"``).
+        This colour is pinned so that palette quantisation never merges it
+        with a nearby cluster centroid.
+
+    Returns
+    -------
+    dict
+        ``{field: [[tile_dicts], …]}`` ready for template consumption.
+    """
+    import os
+    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+    coords = point_dataframe[["x", "y"]].values
+
+    # Convert noise_color to an RGB uint8 triple for pinning
+    noise_rgb = (np.array(to_rgba(noise_color)[:3]) * 255).astype(np.uint8)
+    pinned = noise_rgb.reshape(1, 3)
+
+    # Collect (field_name, rgba_array, cmap_name_or_None, values_or_None, pinned_or_None) quads
+    colormap_inputs = []
+    base_rgba = point_dataframe[["r", "g", "b", "a"]].values.astype(np.uint8)
+    colormap_inputs.append(("none", base_rgba, None, None, pinned))
+
+    if color_data is not None and colormaps_metadata:
+        raw_idx = 0
+        for cm in colormaps_metadata:
+            field = cm.get("field", "")
+            if not field or field == "none":
+                continue
+            cols = [f"{field}_r", f"{field}_g", f"{field}_b", f"{field}_a"]
+            if all(c in color_data.columns for c in cols):
+                cm_rgba = color_data[cols].values.astype(np.uint8)
+
+                cmap_name = None
+                norm_values = None
+
+                # Detect continuous numeric colormaps eligible for ds.mean()
+                if (
+                    cm.get("kind") == "continuous"
+                    and cm.get("cmapName")
+                    and colormap_rawdata is not None
+                    and raw_idx < len(colormap_rawdata)
+                ):
+                    rawdata = np.asarray(colormap_rawdata[raw_idx])
+                    if rawdata.dtype.kind in ("f", "i", "u"):
+                        value_range = cm.get("valueRange", [None, None])
+                        vmin, vmax = value_range
+                        if vmin is None:
+                            valid = np.isfinite(rawdata.astype(float))
+                            vmin = float(rawdata[valid].min()) if valid.any() else 0.0
+                        if vmax is None:
+                            valid = np.isfinite(rawdata.astype(float))
+                            vmax = float(rawdata[valid].max()) if valid.any() else 1.0
+                        norm_values = np.full(len(rawdata), np.nan)
+                        valid = np.isfinite(rawdata.astype(float))
+                        if vmax != vmin:
+                            norm_values[valid] = (
+                                rawdata[valid].astype(float) - vmin
+                            ) / (vmax - vmin)
+                        else:
+                            norm_values[valid] = 0.5
+                        cmap_name = cm["cmapName"]
+
+                colormap_inputs.append((field, cm_rgba, cmap_name, norm_values, None))
+            raw_idx += 1
+
+    # Build flat list of task arguments
+    tasks = []
+    for field, rgba, cmap_name, vals, pinned_cols in colormap_inputs:
+        for level in range(n_levels):
+            n_grid = 2**level
+            for row in range(n_grid):
+                for col in range(n_grid):
+                    tasks.append(
+                        (
+                            coords,
+                            rgba,
+                            bounds,
+                            level,
+                            row,
+                            col,
+                            tile_resolution,
+                            inline_data,
+                            file_prefix,
+                            html_file_prefix,
+                            field,
+                            cmap_name,
+                            vals,
+                            pinned_cols,
+                        )
+                    )
+
+    # Execute
+    if n_jobs is None:
+        n_jobs = os.cpu_count() or 1
+    n_jobs = min(n_jobs, len(tasks))
+
+    if n_jobs <= 1 or len(tasks) <= 1:
+        results = [_render_and_encode_tile(*t) for t in tasks]
+    else:
+        with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+            results = list(pool.map(_render_and_encode_tile, *zip(*tasks)))
+
+    # Reassemble into {field: [[tile_dicts], …]} pyramid structure
+    output = {}
+    for field, _, _, _, _ in colormap_inputs:
+        output[field] = [[] for _ in range(n_levels)]
+
+    for tile in results:
+        if tile is None:
+            continue
+        field = tile.pop("field")
+        level = tile.pop("level")
+        output[field][level].append(tile)
+
+    return output
+
+
+def _render_tile_level(coords, colors_rgba, full_bounds, level, tile_resolution):
+    """Render all tiles for a single level of a quadtree tile pyramid.
+
+    Parameters
+    ----------
+    coords : ndarray of shape (N, 2)
+    colors_rgba : ndarray of shape (N, 4), dtype uint8
+    full_bounds : list of ``[xmin, xmax, ymin, ymax]``
+    level : int
+        Quadtree level (0 = 1 tile, 1 = 2x2, 2 = 4x4, ...).
+    tile_resolution : int
+        Pixel resolution per tile (longer axis).
+
+    Returns
+    -------
+    list of dict
+        Each dict has ``"row"``, ``"col"``, ``"bounds"`` (deck.gl format
+        ``[left, bottom, right, top]``), and ``"image"`` (``PIL.Image``).
+        Tiles with no data points are omitted.
+    """
+    xmin, xmax, ymin, ymax = full_bounds
+    n_cols = 2**level
+    n_rows = 2**level
+    x_step = (xmax - xmin) / n_cols
+    y_step = (ymax - ymin) / n_rows
+
+    tiles = []
+    for row in range(n_rows):
+        for col in range(n_cols):
+            tile_xmin = xmin + col * x_step
+            tile_xmax = xmin + (col + 1) * x_step
+            tile_ymin = ymin + row * y_step
+            tile_ymax = ymin + (row + 1) * y_step
+
+            # Filter points within this tile
+            mask = (
+                (coords[:, 0] >= tile_xmin)
+                & (coords[:, 0] <= tile_xmax)
+                & (coords[:, 1] >= tile_ymin)
+                & (coords[:, 1] <= tile_ymax)
+            )
+            if mask.sum() == 0:
+                continue
+
+            tile_bounds = [tile_xmin, tile_xmax, tile_ymin, tile_ymax]
+            img = render_density_overview_image(
+                coords[mask], colors_rgba[mask], tile_bounds, tile_resolution
+            )
+            # Store bounds in deck.gl format [left, bottom, right, top]
+            tiles.append(
+                {
+                    "row": row,
+                    "col": col,
+                    "bounds": [tile_xmin, tile_ymin, tile_xmax, tile_ymax],
+                    "image": img,
+                }
+            )
+
+    return tiles
+
+
+def render_density_overview_tile_pyramid(
+    coords, colors_rgba, bounds, n_levels, tile_resolution=2048
+):
+    """Render a multi-level quadtree tile pyramid of datashader images.
+
+    Parameters
+    ----------
+    coords : ndarray of shape (N, 2)
+    colors_rgba : ndarray of shape (N, 4), dtype uint8
+    bounds : list of ``[xmin, xmax, ymin, ymax]``
+    n_levels : int
+        Number of quadtree levels (1 = single tile, 2 = single + 2x2, etc.).
+    tile_resolution : int
+        Pixel resolution per tile.
+
+    Returns
+    -------
+    list of list of dict
+        ``pyramid[level]`` is a list of tile dicts with ``row``, ``col``,
+        ``bounds``, and ``image`` keys.
+    """
+    pyramid = []
+    for level in range(n_levels):
+        tiles = _render_tile_level(coords, colors_rgba, bounds, level, tile_resolution)
+        pyramid.append(tiles)
+    return pyramid
+
+
+def render_all_density_overview_images(
+    point_dataframe,
+    color_data,
+    colormaps_metadata,
+    bounds,
+    n_levels=2,
+    tile_resolution=2048,
+):
+    """Render density overview tile pyramids for the base colormap and each
+    additional colormap.
 
     Parameters
     ----------
@@ -683,22 +1124,25 @@ def render_all_density_overview_images(
     bounds : list
         ``[xmin, xmax, ymin, ymax]``.
 
-    resolution : int, optional
-        Pixel resolution for the longer axis. Default 2048.
+    n_levels : int
+        Number of quadtree levels.
+
+    tile_resolution : int
+        Pixel resolution per tile.
 
     Returns
     -------
     dict
-        Mapping of field name to ``PIL.Image.Image``. The base cluster
-        colormap is keyed as ``"none"``.
+        Mapping of field name to tile pyramid (list of list of tile dicts).
+        The base cluster colormap is keyed as ``"none"``.
     """
     coords = point_dataframe[["x", "y"]].values
-    images = {}
+    result = {}
 
     # Base cluster colors
     base_rgba = point_dataframe[["r", "g", "b", "a"]].values.astype(np.uint8)
-    images["none"] = render_density_overview_image(
-        coords, base_rgba, bounds, resolution
+    result["none"] = render_density_overview_tile_pyramid(
+        coords, base_rgba, bounds, n_levels, tile_resolution
     )
 
     # Per-colormap images
@@ -710,22 +1154,23 @@ def render_all_density_overview_images(
             cols = [f"{field}_r", f"{field}_g", f"{field}_b", f"{field}_a"]
             if all(c in color_data.columns for c in cols):
                 cm_rgba = color_data[cols].values.astype(np.uint8)
-                images[field] = render_density_overview_image(
-                    coords, cm_rgba, bounds, resolution
+                result[field] = render_density_overview_tile_pyramid(
+                    coords, cm_rgba, bounds, n_levels, tile_resolution
                 )
 
-    return images
+    return result
 
 
 def encode_density_overview_images(
-    images, inline_data, file_prefix=None, html_file_prefix=None
+    tile_pyramids, inline_data, file_prefix=None, html_file_prefix=None
 ):
-    """Encode density overview images for template consumption.
+    """Encode density overview tile pyramids for template consumption.
 
     Parameters
     ----------
-    images : dict
-        Mapping of field name to ``PIL.Image.Image``.
+    tile_pyramids : dict
+        Mapping of field name to pyramid (list of list of tile dicts, each
+        with ``"row"``, ``"col"``, ``"bounds"``, ``"image"`` keys).
 
     inline_data : bool
         If ``True``, encode as base64 data URIs. If ``False``, write PNG
@@ -740,25 +1185,45 @@ def encode_density_overview_images(
     Returns
     -------
     dict
-        Mapping of field name to image URI (base64 data URI or relative filename).
+        Mapping of field name to list of lists of tile dicts with ``"row"``,
+        ``"col"``, ``"bounds"``, and ``"image"`` (URI string) keys.
     """
     import io
     import base64
 
     result = {}
-    for field, img in images.items():
-        if inline_data:
-            buf = io.BytesIO()
-            img.save(buf, format="PNG", optimize=True)
-            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-            result[field] = f"data:image/png;base64,{b64}"
-        else:
-            safe_field = field.replace("/", "_").replace(" ", "_")
-            filename = f"{file_prefix}_density_overview_{safe_field}.png"
-            img.save(filename, format="PNG", optimize=True)
-            html_filename = f"{html_file_prefix}_density_overview_{safe_field}.png"
-            result[field] = html_filename
-
+    for field, pyramid in tile_pyramids.items():
+        encoded_pyramid = []
+        for level_idx, tiles in enumerate(pyramid):
+            encoded_tiles = []
+            for tile in tiles:
+                if inline_data:
+                    buf = io.BytesIO()
+                    tile["image"].save(buf, format="PNG", optimize=True)
+                    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+                    image_uri = f"data:image/png;base64,{b64}"
+                else:
+                    safe_field = field.replace("/", "_").replace(" ", "_")
+                    fname = (
+                        f"{file_prefix}_density_L{level_idx}"
+                        f"_R{tile['row']}_C{tile['col']}_{safe_field}.png"
+                    )
+                    tile["image"].save(fname, format="PNG", optimize=True)
+                    html_fname = (
+                        f"{html_file_prefix}_density_L{level_idx}"
+                        f"_R{tile['row']}_C{tile['col']}_{safe_field}.png"
+                    )
+                    image_uri = html_fname
+                encoded_tiles.append(
+                    {
+                        "row": tile["row"],
+                        "col": tile["col"],
+                        "bounds": tile["bounds"],
+                        "image": image_uri,
+                    }
+                )
+            encoded_pyramid.append(encoded_tiles)
+        result[field] = encoded_pyramid
     return result
 
 
@@ -1069,6 +1534,9 @@ def build_colormap_data(colormap_rawdata, colormap_metadata, base_colors):
             "vmin": metadata.get("vmin", None),
             "vmax": metadata.get("vmax", None),
         }
+
+        if cmap_name is not None:
+            colormap["cmapName"] = cmap_name
 
         if "show_legend" in metadata:
             colormap["showLegend"] = metadata["show_legend"]
@@ -1888,7 +2356,7 @@ def prepare_colormap_data(
     Returns
     -------
     tuple
-        (color_metadata, color_data, enable_colormap_selector)
+        (color_metadata, color_data, enable_colormap_selector, colormap_rawdata)
     """
     if colormap_rawdata is not None and colormap_metadata is not None:
         jch_colors = cspace_convert(
@@ -1929,7 +2397,7 @@ def prepare_colormap_data(
         color_metadata, color_data = build_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
         )
-        return color_metadata, color_data, True
+        return color_metadata, color_data, True, colormap_rawdata
     elif colormaps is not None:
         colormap_metadata = default_colormap_options(colormaps)
         colormap_rawdata = list(colormaps.values())
@@ -1956,9 +2424,9 @@ def prepare_colormap_data(
         color_metadata, color_data = build_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
         )
-        return color_metadata, color_data, True
+        return color_metadata, color_data, True, colormap_rawdata
     else:
-        return None, None, False
+        return None, None, False, None
 
 
 def encode_inline_data(
