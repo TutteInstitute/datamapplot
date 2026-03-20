@@ -46,6 +46,7 @@ plot = datamapplot.create_interactive_plot(
     offline_data_prefix="wikipedia_gallery",
     enable_density_overview=True,
     density_overview_tile_resolution=1024,
-    density_overview_n_jobs=1,
+    density_overview_n_jobs=4,
+    density_overview_n_levels=2,
 )
 plot
