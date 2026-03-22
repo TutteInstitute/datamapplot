@@ -103,6 +103,9 @@ html_static_path = [
     "../examples/Wikipedia_example.gif",
 ]
 html_extra_path = glob.glob("*.zip")
+html_css_files = [
+    "theme_overrides.css",
+]
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
