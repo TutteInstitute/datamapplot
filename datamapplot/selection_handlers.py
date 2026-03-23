@@ -1054,9 +1054,7 @@ class LLMSummary(SelectionHandlerBase):
         # Build JS models object
         models_js = ", ".join(f'"{p}": "{self.models[p]}"' for p in self.providers)
         # Build JS n_samples object
-        n_samples_js = ", ".join(
-            f'"{p}": {self.n_samples[p]}' for p in self.providers
-        )
+        n_samples_js = ", ".join(f'"{p}": {self.n_samples[p]}' for p in self.providers)
 
         # Escape the prompt template for JS — convert {keywords} / {samples}
         # to JS template literal interpolation ${keywords} / ${samples}
