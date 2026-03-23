@@ -126,6 +126,9 @@ def process_html_files():
     for zipfile in glob.glob("examples/*gallery*.zip"):
         print(f"Moving {zipfile} to {os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/'}")
         shutil.copy(zipfile, os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/')
+      for pngfile in glob.glob("examples/*gallery*.png"):
+        print(f"Moving {pngfile} to {os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/'}")
+        shutil.copy(pngfile, os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/')
     print(list(glob.glob(os.environ['READTHEDOCS_OUTPUT'] + 'html/auto_examples/*')))
     print("zip files transferred:", list(glob.glob(os.environ['READTHEDOCS_OUTPUT'] + 'html/*.zip')))
     for filename in glob.glob(os.environ["READTHEDOCS_OUTPUT"] + 'html/**/*.html', recursive=True):
