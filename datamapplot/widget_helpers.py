@@ -12,6 +12,7 @@ from pathlib import Path
 
 from datamapplot.widgets import (
     WidgetBase,
+    SelectionWidget,
     TitleWidget,
     SearchWidget,
     TopicTreeWidget,
@@ -24,19 +25,9 @@ from datamapplot.widgets import (
     MiniMapWidget,
     RESTSearchWidget,
     AnnotationWidget,
+    normalize_location,
+    VALID_LOCATIONS,
 )
-
-
-# Valid widget locations
-VALID_LOCATIONS = [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
-    "drawer-left",
-    "drawer-right",
-    "drawer-bottom",
-]
 
 
 @dataclass
@@ -81,11 +72,7 @@ class WidgetConfig:
 
     def __post_init__(self):
         """Validate configuration after initialization."""
-        if self.location not in VALID_LOCATIONS:
-            raise ValueError(
-                f"Invalid location '{self.location}'. "
-                f"Must be one of: {', '.join(VALID_LOCATIONS)}"
-            )
+        self.location = normalize_location(self.location)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary representation."""
@@ -522,14 +509,15 @@ def update_drawer_enabled_for_handlers(
     elif isinstance(selection_handlers, SelectionHandlerBase):
         handlers = [selection_handlers]
 
-    # Check each handler's location
+    # Check each handler's location (already normalized via normalize_location)
     for handler in handlers:
         if hasattr(handler, "location") and handler.location:
-            if handler.location == "left-drawer":
+            loc = handler.location
+            if loc == "drawer-left":
                 result["left"] = True
-            elif handler.location == "right-drawer":
+            elif loc == "drawer-right":
                 result["right"] = True
-            elif handler.location == "bottom-drawer":
+            elif loc == "drawer-bottom":
                 result["bottom"] = True
 
     return result

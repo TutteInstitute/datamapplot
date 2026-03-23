@@ -70,3 +70,18 @@ function checkAllDataLoaded() {
     document.dispatchEvent(new CustomEvent('datamapDataLoaded'));
   }
 }
+
+// Find a stack container or drawer by location name.
+// Supports both corner locations ("top-left", "bottom-right", etc.)
+// and drawer locations ("drawer-left", "drawer-right", "drawer-bottom").
+function findStackContainer(location) {
+  let stack = document.getElementsByClassName("stack " + location)[0];
+  if (!stack && location.startsWith("drawer-")) {
+    const drawerDirection = location.replace("drawer-", "");
+    const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
+    if (drawer) {
+      stack = drawer;
+    }
+  }
+  return stack;
+}

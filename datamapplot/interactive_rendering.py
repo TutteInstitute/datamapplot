@@ -228,6 +228,22 @@ _TEMPLATE_DIRS = [
 ]
 
 
+def _collect_handler_widgets(selection_handler):
+    """Return a flat list of widgets owned by the given selection handler(s)."""
+    widgets = []
+    if selection_handler is None:
+        return widgets
+    handlers = (
+        selection_handler
+        if isinstance(selection_handler, (list, tuple))
+        else [selection_handler]
+    )
+    for handler in handlers:
+        if hasattr(handler, "widgets"):
+            widgets.extend(handler.widgets)
+    return widgets
+
+
 def _get_jinja_env():
     """Get a Jinja2 Environment configured with template directories.
 
@@ -1254,6 +1270,7 @@ def render_html(
             widgets is not None
             or widget_layout is not None
             or default_widget_config is not None
+            or len(_collect_handler_widgets(selection_handler)) > 0
         )
 
     # Initialize widget containers
@@ -1322,6 +1339,12 @@ def render_html(
                 logo=logo,
                 logo_width=logo_width,
             )
+
+        # Collect widgets owned by selection handlers and add them to
+        # the widget list *before* grouping so that drawer enablement
+        # and placement are handled through the normal widget pipeline.
+        handler_widgets = _collect_handler_widgets(selection_handler)
+        all_widgets += handler_widgets
 
         # Group widgets by location, applying layout overrides
         widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
@@ -1430,8 +1453,10 @@ def render_html(
     font_data = font_result["font_data"]
     api_tooltip_fontname = font_result["api_tooltip_fontname"]
 
-    # Process selection handler(s)
-    custom_html, custom_js, custom_css = prepare_selection_handler(
+    # Process selection handler(s) — handler-owned widgets were already
+    # injected into ``all_widgets`` above so they are rendered inside the
+    # correct drawer / stack containers by the template.
+    custom_html, custom_js, custom_css, _handler_widgets = prepare_selection_handler(
         selection_handler, custom_html, custom_js, custom_css
     )
 

@@ -2686,50 +2686,49 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
     Returns
     -------
     tuple
-        (custom_html, custom_js, custom_css) with handler content merged.
+        (custom_html, custom_js, custom_css, handler_widgets) with handler
+        content merged.  ``handler_widgets`` is a list of widget instances
+        owned by the handlers (may be empty).
     """
+    handler_widgets = []
+
     if selection_handler is None:
-        return custom_html, custom_js, custom_css
+        return custom_html, custom_js, custom_css, handler_widgets
+
+    def _process_one(handler):
+        nonlocal custom_html, custom_js, custom_css
+        if custom_html is None:
+            custom_html = handler.html
+        else:
+            custom_html += handler.html
+
+        if custom_js is None:
+            custom_js = handler.javascript
+        else:
+            custom_js += handler.javascript
+
+        if custom_css is None:
+            custom_css = handler.css
+        else:
+            custom_css += handler.css
+
+        # Collect any widgets owned by this handler
+        if hasattr(handler, "widgets"):
+            handler_widgets.extend(handler.widgets)
 
     if isinstance(selection_handler, Iterable) and not isinstance(
         selection_handler, SelectionHandlerBase
     ):
         for handler in selection_handler:
-            if custom_html is None:
-                custom_html = handler.html
-            else:
-                custom_html += handler.html
-
-            if custom_js is None:
-                custom_js = handler.javascript
-            else:
-                custom_js += handler.javascript
-
-            if custom_css is None:
-                custom_css = handler.css
-            else:
-                custom_css += handler.css
+            _process_one(handler)
     elif isinstance(selection_handler, SelectionHandlerBase):
-        if custom_html is None:
-            custom_html = selection_handler.html
-        else:
-            custom_html += selection_handler.html
-
-        if custom_js is None:
-            custom_js = selection_handler.javascript
-        else:
-            custom_js += selection_handler.javascript
-
-        if custom_css is None:
-            custom_css = selection_handler.css
-        else:
-            custom_css += selection_handler.css
+        _process_one(selection_handler)
     else:
         raise ValueError(
             "selection_handler must be an instance of SelectionHandlerBase or an iterable of SelectionHandlerBase instances"
         )
 
-    return custom_html, custom_js, custom_css
+    return custom_html, custom_js, custom_css, handler_widgets
 
 
 def prepare_dynamic_tooltip(dynamic_tooltip):
