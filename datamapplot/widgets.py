@@ -10,6 +10,57 @@ from datamapplot.config import ConfigManager
 
 cfg = ConfigManager()
 
+# Valid widget locations
+VALID_LOCATIONS = [
+    "top-left",
+    "top-right",
+    "bottom-left",
+    "bottom-right",
+    "drawer-left",
+    "drawer-right",
+    "drawer-bottom",
+]
+
+# Map legacy selection-handler location names to widget-convention names
+_LOCATION_ALIASES = {
+    "left-drawer": "drawer-left",
+    "right-drawer": "drawer-right",
+    "bottom-drawer": "drawer-bottom",
+}
+
+
+def normalize_location(location):
+    """Normalize a location string to the canonical widget convention.
+
+    Accepts both widget-convention names (``"drawer-left"``) and legacy
+    selection-handler names (``"left-drawer"``) and returns the canonical form.
+
+    Parameters
+    ----------
+    location : str or None
+        The location string to normalize.
+
+    Returns
+    -------
+    str or None
+        The normalized location, or *None* if the input was *None*.
+
+    Raises
+    ------
+    ValueError
+        If the location is not a recognized value.
+    """
+    if location is None:
+        return None
+    canonical = _LOCATION_ALIASES.get(location, location)
+    if canonical not in VALID_LOCATIONS:
+        raise ValueError(
+            f"Invalid location '{location}'. "
+            f"Must be one of: {', '.join(VALID_LOCATIONS)} "
+            f"(or legacy aliases: {', '.join(_LOCATION_ALIASES.keys())})"
+        )
+    return canonical
+
 
 class WidgetBase:
     """Base class for widgets. Widgets are modular UI components that can be added
@@ -63,7 +114,7 @@ class WidgetBase:
     ):
         self.widget_id = widget_id
         self.title = title
-        self.location = location
+        self.location = normalize_location(location)
         self.order = order
         self.collapsible = collapsible
         self.visible = visible
@@ -157,6 +208,157 @@ class WidgetBase:
             "css": self.css,
             "javascript": self.javascript,
         }
+
+
+class SelectionWidget(WidgetBase):
+    """A lightweight widget for selection-handler display components.
+
+    Provides a standard container with show/hide support and drawer integration.
+    Selection handlers that display UI on selection can embed a ``SelectionWidget``
+    to manage their container instead of hand-rolling DOM creation in JavaScript.
+
+    The container starts hidden (``visible=False``) and exposes ``show()`` /
+    ``hide()`` JavaScript helpers that selection handler callbacks can call.
+
+    Parameters
+    ----------
+    widget_id : str
+        Unique identifier for the widget container.
+
+    title : str or None, optional
+        Optional title displayed at the top of the container.
+
+    location : str, optional
+        Placement location. Default is ``"top-right"``.
+
+    order : int, optional
+        Stacking order within the location. Default is 50.
+
+    width : int or str or None, optional
+        CSS width for the container. If an int, treated as pixels.
+        ``None`` means ``fit-content``. Default is ``None``.
+
+    max_height : str, optional
+        CSS max-height for the scrollable content area. Default is ``"80vh"``.
+
+    container_css_class : str, optional
+        CSS class(es) for the outer container element.
+        Default is ``"container-box more-opaque stack-box"``.
+
+    inner_html : str, optional
+        Additional HTML to render inside the container (after the title).
+        Default is ``""``.
+
+    **kwargs
+        Forwarded to :class:`WidgetBase`.
+    """
+
+    def __init__(
+        self,
+        widget_id,
+        title=None,
+        location="top-right",
+        order=50,
+        width=None,
+        max_height="80vh",
+        container_css_class="container-box more-opaque stack-box",
+        inner_html="",
+        **kwargs,
+    ):
+        super().__init__(
+            widget_id=widget_id,
+            title=title,
+            location=location,
+            order=order,
+            visible=False,
+            **kwargs,
+        )
+        self.width = width
+        self.max_height = max_height
+        self.container_css_class = container_css_class
+        self.inner_html = inner_html
+
+    @property
+    def html(self):
+        container_id = self.get_container_id()
+        width_style = ""
+        if self.width is not None:
+            w = (
+                f"{self.width}px"
+                if isinstance(self.width, (int, float))
+                else self.width
+            )
+            width_style = f"width: {w};"
+
+        title_html = ""
+        if self.title:
+            title_html = f'<div class="selection-widget-title">' f"{self.title}</div>"
+
+        return (
+            f'<div id="{container_id}" '
+            f'class="{self.container_css_class}" '
+            f'data-order="{self.order}" '
+            f'style="display:none;{width_style}">'
+            f"{title_html}"
+            f'<div id="{container_id}-content" '
+            f'class="selection-widget-content">'
+            f"{self.inner_html}"
+            f"</div></div>"
+        )
+
+    @property
+    def css(self):
+        container_id = self.get_container_id()
+        return f"""
+#{container_id} .selection-widget-title {{
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 8px;
+}}
+#{container_id} .selection-widget-content {{
+    overflow-y: auto;
+    max-height: {self.max_height};
+}}
+"""
+
+    @property
+    def javascript(self):
+        container_id = self.get_container_id()
+        location = self.location or "top-right"
+        return f"""
+// SelectionWidget helpers for {container_id}
+(function() {{
+    const _swContainer = document.getElementById("{container_id}");
+
+    // Append to the correct stack/drawer if not already placed by the template
+    if (_swContainer && (!_swContainer.parentElement
+        || (!_swContainer.parentElement.classList.contains("stack")
+            && !_swContainer.parentElement.classList.contains("drawer-container")))) {{
+        const stack = findStackContainer("{location}");
+        if (stack) {{
+            stack.appendChild(_swContainer);
+        }}
+    }}
+
+    // Expose show/hide helpers on the DOM element
+    if (_swContainer) {{
+        _swContainer.showWidget = function() {{
+            _swContainer.style.display = "block";
+            if ("{location}".startsWith("drawer-") && window.drawerManager) {{
+                const dir = "{location}".replace("drawer-", "");
+                window.drawerManager.openDrawer(dir);
+            }}
+        }};
+        _swContainer.hideWidget = function() {{
+            _swContainer.style.display = "none";
+            if ("{location}".startsWith("drawer-") && window.drawerManager) {{
+                const dir = "{location}".replace("drawer-", "");
+                window.drawerManager.closeDrawer(dir);
+            }}
+        }};
+    }}
+}})();
+"""
 
 
 class TitleWidget(WidgetBase):

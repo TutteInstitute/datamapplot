@@ -2,6 +2,7 @@ from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
 
 from datamapplot.config import ConfigManager
+from datamapplot.widgets import normalize_location, SelectionWidget
 
 
 cfg = ConfigManager()
@@ -162,12 +163,25 @@ class SelectionHandlerBase:
     """
 
     def __init__(self, location=None, order=50, **kwargs):
-        self.location = location
+        self.location = normalize_location(location)
         self.order = order if order is not None else 50
         if "dependencies" in kwargs:
             self.dependencies = kwargs["dependencies"]
         else:
             self.dependencies = []
+        self._widgets = []
+
+    @property
+    def widgets(self):
+        """Return widget instances owned by this handler.
+
+        Subclasses that embed widgets for their display should populate
+        ``self._widgets`` during ``__init__``. The rendering pipeline
+        collects these and feeds them into the widget system so that
+        HTML/CSS/JS are placed via the template rather than via
+        ``custom_html``/``custom_css``.
+        """
+        return list(self._widgets)
 
     @property
     def javascript(self):
@@ -207,7 +221,7 @@ class DisplaySample(SelectionHandlerBase):
         self,
         n_samples=256,
         font_family=None,
-        location="right-drawer",
+        location="drawer-right",
         order=10,
         cdn_url="unpkg.com",
         other_triggers=None,
@@ -223,64 +237,28 @@ class DisplaySample(SelectionHandlerBase):
         self.font_family = font_family
         self.other_triggers = other_triggers
 
+        # Build inner HTML for the widget container
+        inner_html = (
+            '<button class="button resample-button" id="display-sample-resample">Resample</button>'
+            '<button class="button clear-selection-button" id="display-sample-clear"></button>'
+            '<div id="selection-display"></div>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="selection",
+                location=self.location,
+                order=self.order,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
+
         result = f"""
-// Find or create container in stack
-function findStackContainer(location) {{
-    let stack = document.getElementsByClassName("stack " + location)[0];
-    if (!stack && location.includes("drawer")) {{
-        // Extract drawer direction (e.g., "right" from "right-drawer")
-        const drawerDirection = location.replace("-drawer", "");
-        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
-        if (drawer) {{
-            stack = drawer;
-        }}
-    }}
-    return stack;
-}}
-
-function ensureSelectionContainer() {{
-    let selectionContainer = document.getElementById("selection-container");
-    
-    if (!selectionContainer) {{
-        const stackContainer = findStackContainer("{self.location}");
-        if (!stackContainer) {{
-            console.warn("Stack container for {self.location} not found yet");
-            return null;
-        }}
-        
-        selectionContainer = document.createElement("div");
-        selectionContainer.id = "selection-container";
-        selectionContainer.className = "container-box more-opaque stack-box";
-        selectionContainer.style.display = "none";
-        selectionContainer.dataset.order = "{self.order}";
-        
-        // Create buttons and display div
-        const resampleButton = document.createElement("button");
-        resampleButton.className = "button resample-button";
-        resampleButton.textContent = "Resample";
-        resampleButton.onclick = resampleSelection;
-        
-        const clearSelectionButton = document.createElement("button");
-        clearSelectionButton.className = "button clear-selection-button";
-        clearSelectionButton.onclick = clearSelection;
-        
-        const selectionDisplayDiv = document.createElement("div");
-        selectionDisplayDiv.id = "selection-display";
-        
-        selectionContainer.appendChild(resampleButton);
-        selectionContainer.appendChild(clearSelectionButton);
-        selectionContainer.appendChild(selectionDisplayDiv);
-        
-        stackContainer.appendChild(selectionContainer);
-    }}
-    
-    return selectionContainer;
-}}
-
-// Ensure container exists (will be created on first selection if not ready now)
-ensureSelectionContainer();
+// DisplaySample handler
+const _dsContainer = document.getElementById("{container_id}");
 
 const shuffle = ([...arr]) => {{
   let m = arr.length;
@@ -292,87 +270,51 @@ const shuffle = ([...arr]) => {{
 }};
 const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
 
-function samplerCallback(selectedPoints) {{
+function _dsPopulateList(selectedPoints) {{
     const n_samples = {self.n_samples};
-    const selectionContainer = ensureSelectionContainer();
-    
-    if (!selectionContainer) {{
-        console.warn("Selection container not available yet");
+    if (selectedPoints.length > n_samples) {{
+        selectedPoints = sampleSize(selectedPoints, n_samples);
+    }}
+
+    const selectionDisplayDiv = document.getElementById('selection-display');
+    var listItems = document.createElement('ul');
+    while (selectionDisplayDiv.firstChild) {{
+        selectionDisplayDiv.removeChild(selectionDisplayDiv.firstChild);
+    }}
+    if (datamap.metaData) {{
+      selectedPoints.forEach((index) => {{
+          listItems.appendChild(document.createElement('li')).textContent = datamap.metaData.hover_text[index];
+      }});
+    }} else {{
+        listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
+    }}
+    selectionDisplayDiv.appendChild(listItems);
+}}
+
+function samplerCallback(selectedPoints) {{
+    if (!_dsContainer) return;
+
+    if (selectedPoints.length == 0) {{
+        _dsContainer.hideWidget();
         return;
     }}
-    
-    if (selectedPoints.length == 0) {{
-        selectionContainer.style.display = 'none';
-        return;       
-    }}
-    
-    if (selectedPoints.length > n_samples) {{
-        selectedPoints = sampleSize(selectedPoints, n_samples);
-    }}
-    
-    const selectionDisplayDiv = document.getElementById('selection-display');
-    var listItems = document.createElement('ul');
-    while (selectionDisplayDiv.firstChild) {{
-        selectionDisplayDiv.removeChild(selectionDisplayDiv.firstChild);
-    }}
-    if (datamap.metaData) {{
-      selectedPoints.forEach((index) => {{
-          listItems.appendChild(document.createElement('li')).textContent = datamap.metaData.hover_text[index];
-      }});
-    }} else {{
-        listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
-    }}
-    selectionDisplayDiv.appendChild(listItems);
-    selectionContainer.style.display = 'block';
-    
-    // Open drawer if in drawer location
-    if ("{self.location}".includes("drawer") && window.drawerManager) {{
-        const drawerDirection = "{self.location}".replace("-drawer", "");
-        window.drawerManager.openDrawer(drawerDirection);
-    }}
+
+    _dsPopulateList(selectedPoints);
+    _dsContainer.showWidget();
 }}
 
-function resampleSelection() {{
-    const n_samples = {self.n_samples};
+document.getElementById("display-sample-resample").onclick = function() {{
     let selectedPoints = Array.from(datamap.getSelectedIndices());
-    if (selectedPoints.length > n_samples) {{
-        selectedPoints = sampleSize(selectedPoints, n_samples);
-    }}
-    const selectionContainer = ensureSelectionContainer();
-    if (!selectionContainer) return;
-    
-    const selectionDisplayDiv = document.getElementById('selection-display');
-    var listItems = document.createElement('ul');
-    while (selectionDisplayDiv.firstChild) {{
-        selectionDisplayDiv.removeChild(selectionDisplayDiv.firstChild);
-    }}
-    if (datamap.metaData) {{
-      selectedPoints.forEach((index) => {{
-          listItems.appendChild(document.createElement('li')).textContent = datamap.metaData.hover_text[index];
-      }});
-    }} else {{
-        listItems.appendChild(document.createElement('li')).textContent = "Meta data still loading ..."
-    }}
-    selectionDisplayDiv.appendChild(listItems);
-}}
+    _dsPopulateList(selectedPoints);
+}};
 
-function clearSelection() {{
-    const selectionContainer = ensureSelectionContainer();
-    if (!selectionContainer) return;
-    
-    selectionContainer.style.display = 'none';
-    
-    // Close drawer if in drawer location
-    if ("{self.location}".includes("drawer") && window.drawerManager) {{
-        const drawerDirection = "{self.location}".replace("-drawer", "");
-        window.drawerManager.closeDrawer(drawerDirection);
-    }}
-
+document.getElementById("display-sample-clear").onclick = function() {{
+    if (_dsContainer) _dsContainer.hideWidget();
     datamap.removeSelection(datamap.lassoSelectionItemId);
-}}
+}};
 
 await datamap.addSelectionHandler(samplerCallback);
-        """
+"""
         if self.other_triggers:
             for trigger in self.other_triggers:
                 result += f"""await datamap.addSelectionHandler(samplerCallback, "{trigger}");\n"""
@@ -380,13 +322,13 @@ await datamap.addSelectionHandler(samplerCallback);
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         if self.font_family:
             font_family_str = f"font-family: {self.font_family};"
         else:
             font_family_str = ""
         return f"""
-    #selection-container {{
-        display: none;
+    #{container_id} {{
         {font_family_str}
     }}
     #selection-display {{
@@ -424,7 +366,7 @@ await datamap.addSelectionHandler(samplerCallback);
 
     @property
     def html(self):
-        return ""  # Container created dynamically in JavaScript
+        return ""
 
 
 class WordCloud(SelectionHandlerBase):
@@ -512,19 +454,25 @@ class WordCloud(SelectionHandlerBase):
             self.color_scale_reversed = False
         self.other_triggers = other_triggers
 
+        self._widgets = [
+            SelectionWidget(
+                widget_id="word-cloud",
+                location=self.location,
+                order=self.order,
+                width=self.width,
+                inner_html="",
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
         result = f"""
 const _STOPWORDS = new Set({self.stop_words});
 const _ROTATIONS = [0, -90, 90, -45, 45, -30, 30, -60, 60, -15, 15, -75, 75, -7.5, 7.5, -22.5, 22.5, -52.5, 52.5, -37.5, 37.5, -67.5, 67.5];
-let wordCloudStackContainer = document.getElementsByClassName("stack {self.location}")[0];
-const wordCloudItem = document.createElement("div");
-wordCloudItem.id = "word-cloud";
-wordCloudItem.className = "container-box more-opaque stack-box";
-wordCloudItem.dataset.order = "{self.order}";
-wordCloudStackContainer.appendChild(wordCloudItem);
+const wordCloudItem = document.getElementById("{container_id}");
 
-const wordCloudSvg = d3.select("#word-cloud").append("svg")
+const wordCloudSvg = d3.select("#{container_id}").append("svg")
     .attr("width", {self.width})
     .attr("height", {self.height})
     .append("g")
@@ -658,9 +606,9 @@ const sampleSize = ([...arr], n = 1) => shuffle(arr).slice(0, n);
 
 function wordCloudCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
-        $(wordCloudItem).animate({{height:'show'}}, 250);
+        if (wordCloudItem) wordCloudItem.showWidget();
     }} else {{
-        $(wordCloudItem).animate({{height:'hide'}}, 250);
+        if (wordCloudItem) wordCloudItem.hideWidget();
     }}
     let selectedText;
     if (datamap.metaData) {{
@@ -686,10 +634,10 @@ await datamap.addSelectionHandler(debounce(wordCloudCallback, 100));
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#word-cloud {{
+#{container_id} {{
     position: relative;
-    display: none;
     width: {self.width}px;
     height: {self.height}px;
     z-index: 10;
@@ -765,34 +713,32 @@ class CohereSummary(SelectionHandlerBase):
         self.width = width
         self.other_triggers = other_triggers
 
+        inner_html = (
+            '<div id="api-key-container">'
+            '<label for="api-key">Cohere API Key: </label>'
+            '<input autocomplete="off" type="password" id="api-key" placeholder="Enter your API key here">'
+            "</div>"
+            '<div id="summary-container" class="container-box more-opaque"></div>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="cohere-summary",
+                location=self.location,
+                order=self.order,
+                width=self.width + 32,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
         result = f"""
 // Stop word list
 const _STOPWORDS = new Set({self.stop_words});
-const cohereStackContainer = document.getElementsByClassName("stack {self.location}")[0];
-const summaryLayout = document.createElement("div");
-summaryLayout.id = "layout-container";
-summaryLayout.dataset.order = "{self.order}";
-const apiContainer = document.createElement("div");
-apiContainer.id = "api-key-container";
-apiContainer.className = "container-box more-opaque stack-box";
-const keyLabel = document.createElement("label");
-keyLabel.for = "apiKey";
-keyLabel.textContent = "Cohere API Key: ";
-const keyInput = document.createElement("input");
-keyInput.autocomplete = "off";
-keyInput.type = "password";
-keyInput.id - "api-key";
-keyInput.placeholder = "Enter your API key here";
-apiContainer.appendChild(keyLabel);
-apiContainer.appendChild(keyInput);
-summaryLayout.appendChild(apiContainer);
-const summaryContainer = document.createElement("div");
-summaryContainer.id = "summary-container";
-summaryContainer.className = "container-box more-opaque";
-summaryLayout.appendChild(summaryContainer);
-cohereStackContainer.appendChild(summaryLayout);
+const summaryContainer = document.getElementById("summary-container");
+const _csContainer = document.getElementById("{container_id}");
+if (_csContainer) _csContainer.style.display = "block"; // Always visible
 
 // Cohere API call
 async function cohereChat(message, apiKey) {{
@@ -860,15 +806,15 @@ Samples text items associated to the topic are:
 Please provide a concise summary of the selection of items. Be as specific as possible.
 The summary should be a few sentences long at most, and ideally just a single sentence.
 `;
-        cohereChat(prompt, apiKey).then(response => {{ summaryContainer.innerHTML = response.text }} );
+        cohereChat(prompt, apiKey).then(response => {{ summaryContainer.textContent = response.text }} );
     }}
 }}
 
 function cohereSummaryCallback(selectedPoints) {{
     if (selectedPoints.length > 0) {{
-        $(summaryContainer).animate({{width:'show'}}, {self.width});
+        summaryContainer.style.display = "block";
     }} else {{
-        $(summaryContainer).animate({{width:'hide'}}, {self.width});
+        summaryContainer.style.display = "none";
     }}
     let selectedText;
     if (datamap.metaData) {{
@@ -892,12 +838,12 @@ await datamap.addSelectionHandler(cohereSummaryCallback);
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#layout_container {{
+#{container_id} {{
     position: relative;
     display: flex;
     flex-direction: column;
-    width: {self.width + 32}px;
 }}
 #summary-container {{
     display: none;
@@ -912,6 +858,541 @@ await datamap.addSelectionHandler(cohereSummaryCallback);
     align-self: end;
     width: fit-content;
     margin: 8px 16px 8px 16px;
+    z-index: 10;
+}}
+"""
+
+
+_LLM_DEFAULT_MODELS = {
+    "anthropic": "claude-sonnet-4-20250514",
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-2.0-flash",
+    "cohere": "command-r",
+    "mistral": "mistral-small-latest",
+    "groq": "llama-3.3-70b-versatile",
+}
+
+_LLM_PROVIDER_LABELS = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "gemini": "Google Gemini",
+    "cohere": "Cohere",
+    "mistral": "Mistral",
+    "groq": "Groq",
+}
+
+_LLM_ALL_PROVIDERS = list(_LLM_DEFAULT_MODELS.keys())
+
+_LLM_DEFAULT_N_SAMPLES = {
+    "anthropic": 256,
+    "openai": 256,
+    "gemini": 256,
+    "cohere": 64,
+    "mistral": 128,
+    "groq": 128,
+}
+
+_LLM_DEFAULT_PROMPT = (
+    "We have samples of items from a selection of items about a topic.\n"
+    "Keywords associated to the topic are: {keywords}\n"
+    "Samples of text items associated to the topic are:\n"
+    "- {samples}\n"
+    "\n"
+    "Please provide a concise summary of the selection of items. Be as specific as possible.\n"
+    "The summary should be a few sentences long at most, and ideally just a single sentence.\n"
+)
+
+
+class LLMSummary(SelectionHandlerBase):
+    """A selection handler that uses an LLM API to generate a summary of selected text items.
+
+    Supports multiple LLM providers (Anthropic, OpenAI, Google Gemini, Cohere, Mistral, Groq)
+    with a runtime-switchable dropdown selector. The handler extracts keywords and samples from
+    the selected text, builds a prompt, and calls the chosen provider's REST API from the browser.
+
+    For providers with OpenAI-compatible streaming APIs (OpenAI, Mistral, Groq), responses are
+    streamed incrementally. For others (Anthropic, Gemini, Cohere), the full response is fetched
+    and displayed at once.
+
+    Note that API key handling here is done client-side and is suitable only for private or
+    small-scale use. It is NOT suitable for production deployment. If you pre-fill the API key
+    via the ``api_key`` parameter, be aware that the key will be embedded in the HTML output.
+    **Never distribute HTML files containing your API key.**
+
+    Parameters
+    ----------
+    providers : list of str, optional
+        Which providers to offer in the dropdown. Must be a subset of
+        ``["anthropic", "openai", "gemini", "cohere", "mistral", "groq"]``.
+        Default is all six providers.
+
+    default_provider : str, optional
+        Which provider is initially selected in the dropdown. Default is ``"openai"``.
+
+    models : dict, optional
+        A mapping of provider key to model name, overriding the built-in defaults.
+        For example ``{"openai": "gpt-4o", "anthropic": "claude-sonnet-4-20250514"}``.
+
+    api_key : str, optional
+        An API key to pre-fill into the input field. **Security warning**: this key will be
+        embedded in plain text in the generated HTML. Only use this for local, private use.
+        Default is ``None`` (user must enter the key at runtime).
+
+    prompt_template : str, optional
+        A custom prompt template with ``{keywords}`` and ``{samples}`` placeholders.
+        Default is a built-in prompt that asks for a concise summary.
+
+    stop_words : list, optional
+        A list of stop words to exclude from keyword extraction. Default is the English stop
+        words from scikit-learn.
+
+    n_keywords : int, optional
+        The number of keywords to extract from the text items. Default is 128.
+
+    n_samples : int or dict, optional
+        The number of text samples to include in the prompt. Can be an int (used for all
+        providers) or a dict mapping provider keys to sample counts. Default is a per-provider
+        dict tuned to each provider's context window size (e.g. 256 for large-context models
+        like OpenAI/Anthropic/Gemini, 128 for Mistral/Groq, 64 for Cohere).
+
+    width : int, optional
+        The width of the summary container in pixels. Default is 500.
+
+    location : str, optional
+        The location of the summary container on the page. Default is ``"top-right"``.
+
+    order : int, optional
+        The order of the widget in its location stack. Default is 50.
+
+    other_triggers : list, optional
+        Additional selection trigger names to bind the callback to.
+
+    **kwargs
+        Additional keyword arguments passed to the ``SelectionHandlerBase`` constructor.
+    """
+
+    @cfg.complete(unconfigurable={"self", "width", "n_keywords", "n_samples"})
+    def __init__(
+        self,
+        providers=None,
+        default_provider="openai",
+        models=None,
+        api_key=None,
+        prompt_template=None,
+        stop_words=None,
+        n_keywords=128,
+        n_samples=None,
+        width=500,
+        location="top-right",
+        order=50,
+        other_triggers=None,
+        **kwargs,
+    ):
+        super().__init__(
+            location=location,
+            order=order,
+            **kwargs,
+        )
+        self.providers = providers or list(_LLM_ALL_PROVIDERS)
+        unknown = set(self.providers) - set(_LLM_ALL_PROVIDERS)
+        if unknown:
+            raise ValueError(
+                f"Unknown LLM provider(s): {sorted(unknown)}. "
+                f"Supported providers are: {sorted(_LLM_ALL_PROVIDERS)}"
+            )
+        if default_provider not in self.providers:
+            raise ValueError(
+                f"default_provider {default_provider!r} is not in providers "
+                f"{self.providers}"
+            )
+        self.default_provider = default_provider
+        resolved_models = dict(_LLM_DEFAULT_MODELS)
+        if models:
+            resolved_models.update(models)
+        self.models = resolved_models
+        self.api_key = api_key
+        self.prompt_template = prompt_template or _LLM_DEFAULT_PROMPT
+        self.stop_words = stop_words or list(ENGLISH_STOP_WORDS)
+        self.n_keywords = n_keywords
+        if isinstance(n_samples, dict):
+            resolved_n_samples = dict(_LLM_DEFAULT_N_SAMPLES)
+            resolved_n_samples.update(n_samples)
+            self.n_samples = resolved_n_samples
+        elif n_samples is not None:
+            self.n_samples = {p: n_samples for p in _LLM_ALL_PROVIDERS}
+        else:
+            self.n_samples = dict(_LLM_DEFAULT_N_SAMPLES)
+        self.width = width
+        self.other_triggers = other_triggers
+
+        # Build provider dropdown options
+        options_html = ""
+        for p in self.providers:
+            label = _LLM_PROVIDER_LABELS.get(p, p)
+            selected = " selected" if p == self.default_provider else ""
+            options_html += f'<option value="{p}"{selected}>{label}</option>'
+
+        api_key_attr = f' value="{self.api_key}"' if self.api_key else ""
+
+        inner_html = (
+            '<div id="llm-controls-row">'
+            '<div id="llm-provider-container">'
+            '<label for="llm-provider">Provider: </label>'
+            f'<select id="llm-provider">{options_html}</select>'
+            "</div>"
+            '<div id="llm-api-key-container">'
+            '<label for="llm-api-key">API Key: </label>'
+            f'<input autocomplete="off" type="password" id="llm-api-key"'
+            f' placeholder="Enter your API key here"{api_key_attr}>'
+            "</div>"
+            "</div>"
+            '<div id="llm-summary-output"></div>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="llm-summary",
+                title="LLM Summary",
+                location=self.location,
+                order=self.order,
+                width=self.width + 32,
+                inner_html=inner_html,
+            )
+        ]
+
+    @property
+    def javascript(self):
+        container_id = self._widgets[0].get_container_id()
+        # Build JS models object
+        models_js = ", ".join(f'"{p}": "{self.models[p]}"' for p in self.providers)
+        # Build JS n_samples object
+        n_samples_js = ", ".join(f'"{p}": {self.n_samples[p]}' for p in self.providers)
+
+        # Escape the prompt template for safe JS template literal embedding:
+        # 1. Escape backslashes and backticks for the template literal.
+        # 2. Neutralise any ${...} sequences in user input to prevent
+        #    arbitrary JS execution via template literal interpolation.
+        # 3. Then map the recognised placeholders {keywords}/{samples}
+        #    to their JS interpolation equivalents.
+        js_prompt = (
+            self.prompt_template.replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("${", "\\${")
+            .replace("{keywords}", "${keywords}")
+            .replace("{samples}", "${samples}")
+        )
+
+        result = f"""
+// LLM Summary handler
+const _llmStopWords = new Set({self.stop_words});
+const _llmSummaryContainer = document.getElementById("llm-summary-output");
+const _llmProviderSelect = document.getElementById("llm-provider");
+const _llmApiKeyInput = document.getElementById("llm-api-key");
+const _llmContainer = document.getElementById("{container_id}");
+if (_llmContainer) _llmContainer.style.display = "block"; // Always visible for API key entry
+
+const _llmModels = {{{models_js}}};
+const _llmNSamples = {{{n_samples_js}}};
+
+// ---- Provider API configurations ----
+const _llmProviders = {{
+    openai: {{
+        endpoint: "https://api.openai.com/v1/chat/completions",
+        streaming: true,
+        buildRequest: (message, model, apiKey) => ({{
+            url: "https://api.openai.com/v1/chat/completions",
+            options: {{
+                method: "POST",
+                headers: {{
+                    "Authorization": `Bearer ${{apiKey}}`,
+                    "Content-Type": "application/json"
+                }},
+                body: JSON.stringify({{
+                    model: model,
+                    messages: [{{role: "user", content: message}}],
+                    stream: true
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.choices[0].message.content
+    }},
+    anthropic: {{
+        endpoint: "https://api.anthropic.com/v1/messages",
+        streaming: false,
+        buildRequest: (message, model, apiKey) => ({{
+            url: "https://api.anthropic.com/v1/messages",
+            options: {{
+                method: "POST",
+                headers: {{
+                    "x-api-key": apiKey,
+                    "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-dangerous-direct-browser-access": "true"
+                }},
+                body: JSON.stringify({{
+                    model: model,
+                    max_tokens: 1024,
+                    messages: [{{role: "user", content: message}}]
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.content[0].text
+    }},
+    gemini: {{
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/",
+        streaming: false,
+        buildRequest: (message, model, apiKey) => ({{
+            url: `https://generativelanguage.googleapis.com/v1beta/models/${{model}}:generateContent?key=${{apiKey}}`,
+            options: {{
+                method: "POST",
+                headers: {{
+                    "Content-Type": "application/json"
+                }},
+                body: JSON.stringify({{
+                    contents: [{{parts: [{{text: message}}]}}]
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.candidates[0].content.parts[0].text
+    }},
+    cohere: {{
+        endpoint: "https://api.cohere.ai/v1/chat",
+        streaming: false,
+        buildRequest: (message, model, apiKey) => ({{
+            url: "https://api.cohere.ai/v1/chat",
+            options: {{
+                method: "POST",
+                headers: {{
+                    "Authorization": `Bearer ${{apiKey}}`,
+                    "Content-Type": "application/json"
+                }},
+                body: JSON.stringify({{
+                    message: message,
+                    model: model
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.text
+    }},
+    mistral: {{
+        endpoint: "https://api.mistral.ai/v1/chat/completions",
+        streaming: true,
+        buildRequest: (message, model, apiKey) => ({{
+            url: "https://api.mistral.ai/v1/chat/completions",
+            options: {{
+                method: "POST",
+                headers: {{
+                    "Authorization": `Bearer ${{apiKey}}`,
+                    "Content-Type": "application/json"
+                }},
+                body: JSON.stringify({{
+                    model: model,
+                    messages: [{{role: "user", content: message}}],
+                    stream: true
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.choices[0].message.content
+    }},
+    groq: {{
+        endpoint: "https://api.groq.com/openai/v1/chat/completions",
+        streaming: true,
+        buildRequest: (message, model, apiKey) => ({{
+            url: "https://api.groq.com/openai/v1/chat/completions",
+            options: {{
+                method: "POST",
+                headers: {{
+                    "Authorization": `Bearer ${{apiKey}}`,
+                    "Content-Type": "application/json"
+                }},
+                body: JSON.stringify({{
+                    model: model,
+                    messages: [{{role: "user", content: message}}],
+                    stream: true
+                }})
+            }}
+        }}),
+        parseResponse: (json) => json.choices[0].message.content
+    }}
+}};
+
+// ---- Streaming helper for OpenAI-compatible SSE APIs ----
+async function _llmStreamResponse(response, container) {{
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    container.textContent = "";
+    while (true) {{
+        const {{done, value}} = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, {{stream: true}});
+        const lines = buffer.split("\\n");
+        buffer = lines.pop();
+        for (const line of lines) {{
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") return;
+            try {{
+                const parsed = JSON.parse(data);
+                const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
+                if (delta && delta.content) {{
+                    container.appendChild(document.createTextNode(delta.content));
+                }}
+            }} catch (e) {{
+                // Skip malformed JSON chunks
+            }}
+        }}
+    }}
+}}
+
+// ---- Unified LLM call ----
+async function _callLLM(provider, message) {{
+    const apiKey = _llmApiKeyInput.value;
+    if (!apiKey) {{
+        _llmSummaryContainer.innerHTML = "No API Key provided &mdash; cannot generate a summary!";
+        return;
+    }}
+    const model = _llmModels[provider];
+    const config = _llmProviders[provider];
+    if (!config) {{
+        _llmSummaryContainer.innerHTML = `Unknown provider: ${{provider}}`;
+        return;
+    }}
+    const req = config.buildRequest(message, model, apiKey);
+    _llmSummaryContainer.innerHTML = "Generating summary&hellip;";
+    try {{
+        const response = await fetch(req.url, req.options);
+        if (!response.ok) {{
+            if (response.status === 401) {{
+                _llmSummaryContainer.innerHTML = "Error: Unauthorized &mdash; please check your API key.";
+            }} else {{
+                _llmSummaryContainer.innerHTML = `Error: HTTP ${{response.status}}`;
+            }}
+            return;
+        }}
+        if (config.streaming) {{
+            await _llmStreamResponse(response, _llmSummaryContainer);
+        }} else {{
+            const json = await response.json();
+            _llmSummaryContainer.textContent = config.parseResponse(json);
+        }}
+    }} catch (err) {{
+        _llmSummaryContainer.textContent = "Error: " + err.message;
+    }}
+}}
+
+// ---- Keyword extraction ----
+function _llmWordCounter(textItems) {{
+    const words = textItems.join(' ').toLowerCase().split(/\\s+/);
+    const wordCounts = new Map();
+    words.forEach(word => {{
+        wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
+    }});
+    _llmStopWords.forEach(stopword => wordCounts.delete(stopword));
+    const result = Array.from(wordCounts, ([word, frequency]) => ({{ text: word, size: Math.sqrt(frequency) }}))
+                        .sort((a, b) => b.size - a.size).slice(0, {self.n_keywords});
+    const maxSize = Math.max(...(result.map(x => x.size)));
+    return result.map(({{text, size}}) => ({{ text: text, size: (size / maxSize)}}));
+}}
+
+// ---- Sampling utilities ----
+const _llmShuffle = ([...arr]) => {{
+  let m = arr.length;
+  while (m) {{
+    const i = Math.floor(Math.random() * m--);
+    [arr[m], arr[i]] = [arr[i], arr[m]];
+  }}
+  return arr;
+}};
+const _llmSampleSize = ([...arr], n = 1) => _llmShuffle(arr).slice(0, n);
+
+// ---- Build prompt and call LLM ----
+function _llmGenerateSummary(textItems) {{
+    const provider = _llmProviderSelect.value;
+    const keywords = _llmWordCounter(textItems).map(d => d.text).join(", ");
+    const sampleText = _llmSampleSize(textItems, _llmNSamples[provider] || {self.n_samples.get('openai', 256)});
+    const samples = sampleText.join("\\n- ");
+    const prompt = `{js_prompt}`;
+    _callLLM(provider, prompt);
+}}
+
+// ---- Selection callback ----
+function _llmSummaryCallback(selectedPoints) {{
+    if (selectedPoints.length > 0) {{
+        _llmSummaryContainer.style.display = "block";
+    }} else {{
+        _llmSummaryContainer.style.display = "none";
+        _llmSummaryContainer.innerHTML = "";
+        return;
+    }}
+    let selectedText;
+    if (datamap.metaData) {{
+        selectedText = selectedPoints.map(i => datamap.metaData.hover_text[i]);
+    }} else {{
+        selectedText = ["Meta data still loading ..."];
+    }}
+    _llmGenerateSummary(selectedText);
+}}
+
+// ---- Clear summary on provider change ----
+_llmProviderSelect.addEventListener("change", () => {{
+    _llmSummaryContainer.innerHTML = "";
+}});
+
+await datamap.addSelectionHandler(_llmSummaryCallback);
+"""
+        if self.other_triggers:
+            for trigger in self.other_triggers:
+                result += f"""await datamap.addSelectionHandler(_llmSummaryCallback, "{trigger}");\n"""
+        return result
+
+    @property
+    def html(self):
+        return ""
+
+    @property
+    def css(self):
+        container_id = self._widgets[0].get_container_id()
+        return f"""
+#{container_id} {{
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}}
+#llm-controls-row {{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 16px;
+    flex-wrap: wrap;
+}}
+#llm-provider-container,
+#llm-api-key-container {{
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}}
+#llm-provider {{
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+}}
+#llm-api-key {{
+    padding: 2px 4px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 13px;
+    width: 180px;
+}}
+#llm-summary-output {{
+    display: none;
+    width: {self.width - 24}px;
+    height: fit-content;
+    font-size: 16px;
+    font-weight: 400;
+    margin: 0px 16px 8px 16px;
     z-index: 10;
 }}
 """
@@ -958,50 +1439,49 @@ class TagSelection(SelectionHandlerBase):
         self.max_height = max_height
         self.other_triggers = other_triggers
 
+        inner_html = (
+            "<span>"
+            '<button id="new-tag-button" class="button tag-button" disabled>Create New Tag</button>'
+            '<input id="tag-input" type="text" placeholder="Enter tag name" disabled>'
+            "</span>"
+            '<div id="tag-display">'
+            '<ul id="tag-list"></ul>'
+            "</div>"
+            '<button id="save-tags" class="button tag-button enabled">Save tags</button>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="tag",
+                location=self.location,
+                order=self.order,
+                width=self.width,
+                max_height=self.max_height,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
         result = f"""
     const tagColors = [
     {",".join(['"'+x+'"' for x in self.tag_colors])}
     ];
 
     const tags = new Map();
-    const tagStackContainer = document.getElementsByClassName("stack {self.location}")[0];
-    const tagContainer = document.createElement("div");
-    tagContainer.id = "tag-container";
-    tagContainer.className = "container-box more-opaque stack-box";
-    tagContainer.dataset.order = "{self.order}";
-    const newTagSpan = document.createElement("span");
-    const tagButton = document.createElement("button");
-    tagButton.id = "new-tag-button";
-    tagButton.className = "button tag-button";
-    tagButton.textContent = "Create New Tag";
-    tagButton.disabled = true;
-    const tagInput = document.createElement("input");
-    tagInput.id = "tag-input";
-    tagInput.type = "text";
-    tagInput.placeholder = "Enter tag name";
+    const tagContainer = document.getElementById("{container_id}");
+    if (tagContainer) tagContainer.style.display = "block"; // Always visible
+    const tagButton = document.getElementById("new-tag-button");
+    const tagInput = document.getElementById("tag-input");
+    const tagList = document.getElementById("tag-list");
+    const saveTagsButton = document.getElementById("save-tags");
+
     tagInput.addEventListener("keypress", (event) => {{
         if (event.key === "Enter") {{
             createNewTag(datamap.getSelectedIndices());
         }}
     }});
-    tagInput.disabled = true;
-    newTagSpan.appendChild(tagButton);
-    newTagSpan.appendChild(tagInput);
-    tagContainer.appendChild(newTagSpan);
-    const tagDisplay = document.createElement("div");
-    tagDisplay.id = "tag-display";
-    const tagList = document.createElement("ul");
-    tagList.id = "tag-list";
-    tagDisplay.appendChild(tagList);
-    tagContainer.appendChild(tagDisplay);
-    const saveTagsButton = document.createElement("button");
-    saveTagsButton.id = "save-tags";
-    saveTagsButton.className = "button tag-button enabled";
-    saveTagsButton.textContent = "Save tags";
-    tagContainer.appendChild(saveTagsButton);
-    tagStackContainer.appendChild(tagContainer);
+
     const selectedTags = new Set();
     saveTagsButton.onclick = saveTags;
     let numTags = 0;
@@ -1138,10 +1618,10 @@ class TagSelection(SelectionHandlerBase):
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#tag-container {{
+#{container_id} {{
     position: relative;
-    width: {self.width}px;
     height: fit-content;
     z-index: 10;
 }}
@@ -1283,64 +1763,37 @@ class DataTable(SelectionHandlerBase):
         self.width = width
         self.other_triggers = other_triggers
 
+        # Build inner HTML with conditional download buttons
+        controls_html = '<div class="table-controls">'
+        if "csv" in self.download_formats:
+            controls_html += '<button class="table-button" onclick="downloadTableData(\'csv\')">Download CSV</button>'
+        if "json" in self.download_formats:
+            controls_html += '<button class="table-button" onclick="downloadTableData(\'json\')">Download JSON</button>'
+        controls_html += "</div>"
+
+        inner_html = (
+            f"{controls_html}"
+            f'<div class="table-wrapper">'
+            f'<table id="selection-table" class="display compact stripe"></table>'
+            f"</div>"
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="data-table",
+                location=self.location,
+                order=self.order,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
         columns_js = "null" if self.columns is None else str(self.columns)
         result = f"""
 // DataTable selection handler using DataTables library
-// Helper to find stack container or drawer
-function findStackContainer(location) {{
-    let stack = document.getElementsByClassName("stack " + location)[0];
-    if (!stack && location.includes("drawer")) {{
-        const drawerDirection = location.replace("-drawer", "");
-        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
-        if (drawer) {{
-            stack = drawer;
-        }}
-    }}
-    return stack;
-}}
-
-const dataTableStackContainer = findStackContainer("{self.location}");
-const dataTableContainer = document.createElement("div");
-dataTableContainer.id = "data-table-container";
-dataTableContainer.className = "container-box more-opaque stack-box";
-dataTableContainer.dataset.order = "{self.order}";
-
-// Download buttons
-const tableControls = document.createElement("div");
-tableControls.className = "table-controls";
-"""
-        if "csv" in self.download_formats:
-            result += """
-const csvButton = document.createElement("button");
-csvButton.className = "table-button";
-csvButton.textContent = "Download CSV";
-csvButton.onclick = () => downloadTableData('csv');
-tableControls.appendChild(csvButton);
-"""
-        if "json" in self.download_formats:
-            result += """
-const jsonButton = document.createElement("button");
-jsonButton.className = "table-button";
-jsonButton.textContent = "Download JSON";
-jsonButton.onclick = () => downloadTableData('json');
-tableControls.appendChild(jsonButton);
-"""
-        result += f"""
-
-dataTableContainer.appendChild(tableControls);
-
-// Table wrapper
-const tableWrapper = document.createElement("div");
-tableWrapper.className = "table-wrapper";
-const table = document.createElement("table");
-table.id = "selection-table";
-table.className = "display compact stripe";
-tableWrapper.appendChild(table);
-dataTableContainer.appendChild(tableWrapper);
-
-dataTableStackContainer.appendChild(dataTableContainer);
+const _dtContainer = document.getElementById("{container_id}");
+if (_dtContainer) _dtContainer.style.display = "block"; // Always visible
 
 // Table state
 let dataTable = null;
@@ -1520,8 +1973,8 @@ async function dataTableCallback(selectedPoints) {{
     }});
     
     // Open drawer if in drawer location
-    if ("{self.location}".includes("drawer") && window.drawerManager) {{
-        const drawerDirection = "{self.location}".replace("-drawer", "");
+    if ("{self.location}".startsWith("drawer-") && window.drawerManager) {{
+        const drawerDirection = "{self.location}".replace("drawer-", "");
         window.drawerManager.openDrawer(drawerDirection);
     }}
 }}
@@ -1535,8 +1988,9 @@ await datamap.addSelectionHandler(dataTableCallback);
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#data-table-container {{
+#{container_id} {{
     width: 100%;
     max-width: 100%;
     padding: 12px;
@@ -1590,18 +2044,18 @@ await datamap.addSelectionHandler(dataTableCallback);
 }}
 
 /* Responsive adjustments for different drawer locations */
-.drawer-bottom #data-table-container {{
+.drawer-bottom #{container_id} {{
     max-height: 300px;
     height: auto;
 }}
 
-.drawer-right #data-table-container,
-.drawer-left #data-table-container {{
+.drawer-right #{container_id},
+.drawer-left #{container_id} {{
     min-width: 400px;
 }}
 
 /* Stack containers */
-.stack #data-table-container {{
+.stack #{container_id} {{
     min-width: 350px;
     max-width: min(800px, 95vw);
 }}
@@ -1672,111 +2126,94 @@ class ExportSelection(SelectionHandlerBase):
         self.show_format_selector = show_format_selector
         self.other_triggers = other_triggers
 
+        # Build inner HTML for the widget container
+        format_selector_html = ""
+        if self.show_format_selector:
+            format_selector_html = (
+                f'<select id="export-format" class="export-select">'
+                f'<option value="json">JSON</option>'
+                f'<option value="csv">CSV</option>'
+                f'<option value="tsv">TSV</option>'
+                f"</select>"
+            )
+        inner_html = (
+            f'<div class="export-controls">'
+            f"{format_selector_html}"
+            f'<button id="export-button" class="export-button" disabled>Export</button>'
+            f"</div>"
+            f'<div id="export-info" class="export-info">No selection</div>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="export",
+                title="Export Selection",
+                location=self.location,
+                order=self.order,
+                width=200,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
+        format_expr = (
+            'document.getElementById("export-format").value'
+            if self.show_format_selector
+            else f'"{self.export_format}"'
+        )
+        if self.show_format_selector:
+            set_default_format = f"""
+const _esFormatSelect = document.getElementById("export-format");
+if (_esFormatSelect) _esFormatSelect.value = "{self.export_format}";
+"""
+        else:
+            set_default_format = ""
+
         result = f"""
 // ExportSelection handler
-// Helper to find stack container or drawer
-function findStackContainer(location) {{
-    let stack = document.getElementsByClassName("stack " + location)[0];
-    if (!stack && location.includes("drawer")) {{
-        const drawerDirection = location.replace("-drawer", "");
-        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
-        if (drawer) {{
-            stack = drawer;
-        }}
-    }}
-    return stack;
-}}
-
-const exportStackContainer = findStackContainer("{self.location}");
-const exportContainer = document.createElement("div");
-exportContainer.id = "export-container";
-exportContainer.className = "container-box more-opaque stack-box";
-exportContainer.dataset.order = "{self.order}";
-
-const exportTitle = document.createElement("div");
-exportTitle.className = "export-title";
-exportTitle.textContent = "Export Selection";
-exportContainer.appendChild(exportTitle);
-
-const exportControls = document.createElement("div");
-exportControls.className = "export-controls";
-"""
-        if self.show_format_selector:
-            result += """
-const formatSelect = document.createElement("select");
-formatSelect.id = "export-format";
-formatSelect.className = "export-select";
-formatSelect.innerHTML = `
-    <option value="json">JSON</option>
-    <option value="csv">CSV</option>
-    <option value="tsv">TSV</option>
-`;
-"""
-            result += f"""formatSelect.value = "{self.export_format}";\nexportControls.appendChild(formatSelect);\n"""
-
-        result += """
-const exportButton = document.createElement("button");
-exportButton.id = "export-button";
-exportButton.className = "export-button";
-exportButton.textContent = "Export";
-exportButton.disabled = true;
-exportControls.appendChild(exportButton);
-
-exportContainer.appendChild(exportControls);
-
-const exportInfo = document.createElement("div");
-exportInfo.id = "export-info";
-exportInfo.className = "export-info";
-exportInfo.textContent = "No selection";
-exportContainer.appendChild(exportInfo);
-
-exportStackContainer.appendChild(exportContainer);
+const _esContainer = document.getElementById("{container_id}");
+if (_esContainer) _esContainer.style.display = "block"; // Always visible
+{set_default_format}
+const exportButton = document.getElementById("export-button");
+const exportInfo = document.getElementById("export-info");
 
 let currentSelection = [];
 
 // Helper: Convert to CSV/TSV
-function arrayToDelimitedText(data, delimiter) {
+function arrayToDelimitedText(data, delimiter) {{
     if (data.length === 0) return '';
-    
+
     const keys = Object.keys(data[0]);
     const header = keys.join(delimiter);
-    const rows = data.map(row => 
-        keys.map(key => {
+    const rows = data.map(row =>
+        keys.map(key => {{
             const value = row[key];
             if (value === null || value === undefined) return '';
             const stringValue = String(value);
-            // For CSV/TSV, escape if contains delimiter, quote, or newline
-            if (stringValue.includes(delimiter) || stringValue.includes('"') || stringValue.includes('\\n')) {
+            if (stringValue.includes(delimiter) || stringValue.includes('"') || stringValue.includes('\\n')) {{
                 return '"' + stringValue.replace(/"/g, '""') + '"';
-            }
+            }}
             return stringValue;
-        }).join(delimiter)
+        }}).join(delimiter)
     );
     return header + '\\n' + rows.join('\\n');
-}
+}}
 
 // Export function
-function exportSelectionData() {
-    if (currentSelection.length === 0) {
+function exportSelectionData() {{
+    if (currentSelection.length === 0) {{
         alert('No data to export');
         return;
-    }
-    
-    if (!datamap.metaData) {
+    }}
+
+    if (!datamap.metaData) {{
         alert('Metadata not loaded yet');
         return;
-    }
-    
-"""
-        format_expr = (
-            "formatSelect.value"
-            if self.show_format_selector
-            else f'"{self.export_format}"'
-        )
-        result += f"""    const format = {format_expr};
-    
+    }}
+
+    const format = {format_expr};
+
     // Build export data
     const exportData = currentSelection.map(index => {{
         const row = {{}};
@@ -1805,9 +2242,9 @@ function exportSelectionData() {
         result += f"""
         return row;
     }});
-    
+
     let content, mimeType, extension;
-    
+
     if (format === 'json') {{
         content = JSON.stringify(exportData, null, 2);
         mimeType = 'application/json';
@@ -1821,7 +2258,7 @@ function exportSelectionData() {
         mimeType = 'text/tab-separated-values';
         extension = 'tsv';
     }}
-    
+
     const blob = new Blob([content], {{ type: mimeType }});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1838,7 +2275,7 @@ exportButton.onclick = exportSelectionData;
 // Export callback
 function exportCallback(selectedPoints) {{
     currentSelection = selectedPoints;
-    
+
     if (selectedPoints.length === 0) {{
         exportButton.disabled = true;
         exportInfo.textContent = 'No selection';
@@ -1857,35 +2294,29 @@ await datamap.addSelectionHandler(exportCallback);
 
     @property
     def css(self):
-        return """
-#export-container {
+        container_id = self._widgets[0].get_container_id()
+        return f"""
+#{container_id} {{
     padding: 12px;
-    width: fit-content;
     min-width: 200px;
-}
+}}
 
-.export-title {
-    font-weight: bold;
-    margin-bottom: 8px;
-    font-size: 14px;
-}
-
-.export-controls {
+.export-controls {{
     display: flex;
     gap: 8px;
     align-items: center;
     margin-bottom: 8px;
-}
+}}
 
-.export-select {
+.export-select {{
     padding: 4px 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: white;
     font-size: 12px;
-}
+}}
 
-.export-button {
+.export-button {{
     padding: 6px 16px;
     background-color: #4CAF50;
     color: white;
@@ -1894,36 +2325,36 @@ await datamap.addSelectionHandler(exportCallback);
     cursor: pointer;
     font-size: 12px;
     font-weight: bold;
-}
+}}
 
-.export-button:hover:not(:disabled) {
+.export-button:hover:not(:disabled) {{
     background-color: #45a049;
-}
+}}
 
-.export-button:disabled {
+.export-button:disabled {{
     background-color: #cccccc;
     color: #666666;
     cursor: not-allowed;
-}
+}}
 
-.export-info {
+.export-info {{
     font-size: 11px;
     color: #666;
     font-style: italic;
-}
+}}
 
 /* Dark mode support */
 .darkmode .export-select,
-body.darkmode .export-select {
+body.darkmode .export-select {{
     background-color: #2d2d2d;
     color: #e0e0e0;
     border-color: #555;
-}
+}}
 
 .darkmode .export-info,
-body.darkmode .export-info {
+body.darkmode .export-info {{
     color: #aaa;
-}
+}}
 """
 
     @property
@@ -1988,8 +2419,21 @@ class Statistics(SelectionHandlerBase):
         self.width = width
         self.other_triggers = other_triggers
 
+        inner_html = '<div id="stats-content" class="stats-content"></div>'
+        self._widgets = [
+            SelectionWidget(
+                widget_id="stats",
+                title="Selection Statistics",
+                location=self.location,
+                order=self.order,
+                width=self.width,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
+        container_id = self._widgets[0].get_container_id()
         numeric_cols_js = (
             "null" if self.numeric_columns is None else str(self.numeric_columns)
         )
@@ -2001,36 +2445,9 @@ class Statistics(SelectionHandlerBase):
 
         result = f"""
 // Statistics handler
-// Helper to find stack container or drawer
-function findStackContainer(location) {{
-    let stack = document.getElementsByClassName("stack " + location)[0];
-    if (!stack && location.includes("drawer")) {{
-        const drawerDirection = location.replace("-drawer", "");
-        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
-        if (drawer) {{
-            stack = drawer;
-        }}
-    }}
-    return stack;
-}}
-
-const statsStackContainer = findStackContainer("{self.location}");
-const statsContainer = document.createElement("div");
-statsContainer.id = "stats-container";
-statsContainer.className = "container-box more-opaque stack-box";
-statsContainer.dataset.order = "{self.order}";
-
-const statsTitle = document.createElement("div");
-statsTitle.className = "stats-title";
-statsTitle.textContent = "Selection Statistics";
-statsContainer.appendChild(statsTitle);
-
-const statsContent = document.createElement("div");
-statsContent.id = "stats-content";
-statsContent.className = "stats-content";
-statsContainer.appendChild(statsContent);
-
-statsStackContainer.appendChild(statsContainer);
+const _statsContainer = document.getElementById("{container_id}");
+if (_statsContainer) _statsContainer.style.display = "block"; // Always visible
+const statsContent = document.getElementById("stats-content");
 
 let globalStats = {{}};
 let numericColumns = {numeric_cols_js};
@@ -2039,21 +2456,21 @@ let categoricalColumns = {categorical_cols_js};
 // Helper: Compute basic statistics
 function computeStats(values) {{
     if (values.length === 0) return null;
-    
+
     const numericValues = values.map(Number).filter(v => !isNaN(v));
     if (numericValues.length === 0) return null;
-    
+
     const sorted = numericValues.slice().sort((a, b) => a - b);
     const sum = sorted.reduce((a, b) => a + b, 0);
     const mean = sum / sorted.length;
-    
+
     const variance = sorted.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / sorted.length;
     const std = Math.sqrt(variance);
-    
+
     const median = sorted.length % 2 === 0
         ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
         : sorted[Math.floor(sorted.length / 2)];
-    
+
     return {{
         count: sorted.length,
         mean: mean,
@@ -2069,14 +2486,14 @@ function computeTextStats(texts) {{
     const wordCounts = texts.map(text => text.split(/\\s+/).filter(w => w.length > 0).length);
     const totalWords = wordCounts.reduce((a, b) => a + b, 0);
     const avgWords = totalWords / texts.length;
-    
+
     const allWords = new Set();
     texts.forEach(text => {{
         text.toLowerCase().split(/\\s+/).forEach(word => {{
             if (word.length > 0) allWords.add(word);
         }});
     }});
-    
+
     return {{
         avgWords: avgWords,
         totalWords: totalWords,
@@ -2087,7 +2504,7 @@ function computeTextStats(texts) {{
 // Initialize global statistics
 function initGlobalStats() {{
     if (!datamap.metaData) return;
-    
+
     // Auto-detect numeric columns if not specified
     if (numericColumns === null) {{
         numericColumns = [];
@@ -2100,7 +2517,7 @@ function initGlobalStats() {{
             }}
         }});
     }}
-    
+
     // Compute global stats for numeric columns
     if (numericColumns && numericColumns.length > 0) {{
         numericColumns.forEach(col => {{
@@ -2109,7 +2526,7 @@ function initGlobalStats() {{
             }}
         }});
     }}
-    
+
     // Compute global text stats
     if ({str(self.show_text_stats).lower()} && datamap.metaData.hover_text) {{
         globalStats['text'] = computeTextStats(datamap.metaData.hover_text);
@@ -2122,9 +2539,9 @@ function renderStats(selectedPoints) {{
         statsContent.innerHTML = '<div class="stats-item">No selection</div>';
         return;
     }}
-    
+
     let html = '';
-    
+
     // Basic counts
     const totalPoints = datamap.metaData.hover_text ? datamap.metaData.hover_text.length : 0;
     const percentage = totalPoints > 0 ? ((selectedPoints.length / totalPoints) * 100).toFixed(1) : 0;
@@ -2134,12 +2551,12 @@ function renderStats(selectedPoints) {{
             <div class="stats-item"><strong>${{selectedPoints.length}}</strong> of ${{totalPoints}} points (${{percentage}}%)</div>
         </div>
     `;
-    
+
     // Text statistics
     if ({str(self.show_text_stats).lower()} && datamap.metaData.hover_text) {{
         const selectedTexts = selectedPoints.map(i => datamap.metaData.hover_text[i]);
         const selectionTextStats = computeTextStats(selectedTexts);
-        
+
         html += `
             <div class="stats-section">
                 <div class="stats-section-title">Text Statistics</div>
@@ -2161,15 +2578,15 @@ function renderStats(selectedPoints) {{
             </div>
         `;
     }}
-    
+
     // Numeric column statistics
     if (numericColumns && numericColumns.length > 0) {{
         numericColumns.forEach(col => {{
             if (!datamap.metaData[col]) return;
-            
+
             const selectedValues = selectedPoints.map(i => datamap.metaData[col][i]);
             const selectionStats = computeStats(selectedValues);
-            
+
             if (selectionStats) {{
                 html += `
                     <div class="stats-section">
@@ -2195,20 +2612,20 @@ function renderStats(selectedPoints) {{
             }}
         }});
     }}
-    
+
     // Categorical distributions
     if (categoricalColumns && categoricalColumns.length > 0) {{
         categoricalColumns.forEach(col => {{
             if (!datamap.metaData[col]) return;
-            
+
             const selectedValues = selectedPoints.map(i => datamap.metaData[col][i]);
             const counts = {{}};
             selectedValues.forEach(val => {{
                 counts[val] = (counts[val] || 0) + 1;
             }});
-            
+
             const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-            
+
             html += `
                 <div class="stats-section">
                     <div class="stats-section-title">${{col}} (top 5)</div>
@@ -2220,7 +2637,7 @@ function renderStats(selectedPoints) {{
             html += `</div>`;
         }});
     }}
-    
+
     statsContent.innerHTML = html;
 }}
 
@@ -2230,12 +2647,12 @@ function statsCallback(selectedPoints) {{
         statsContent.innerHTML = '<div class="stats-item">Loading metadata...</div>';
         return;
     }}
-    
+
     // Initialize global stats on first call
     if (Object.keys(globalStats).length === 0) {{
         initGlobalStats();
     }}
-    
+
     renderStats(selectedPoints);
 }}
 
@@ -2248,18 +2665,10 @@ await datamap.addSelectionHandler(statsCallback);
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#stats-container {{
-    width: {self.width}px;
+#{container_id} {{
     padding: 12px;
-}}
-
-.stats-title {{
-    font-weight: bold;
-    font-size: 14px;
-    margin-bottom: 12px;
-    border-bottom: 2px solid #4CAF50;
-    padding-bottom: 4px;
 }}
 
 .stats-content {{
@@ -2289,11 +2698,6 @@ await datamap.addSelectionHandler(statsCallback);
 }}
 
 /* Dark mode support */
-.darkmode .stats-title,
-body.darkmode .stats-title {{
-    border-bottom-color: #45a049;
-}}
-
 .darkmode .stats-section-title,
 body.darkmode .stats-section-title {{
     color: #5FD068;
@@ -2414,86 +2818,49 @@ class Histogram(SelectionHandlerBase):
         self.height = height
         self.other_triggers = other_triggers
 
+        inner_html = (
+            '<div class="histogram-title">Distribution</div>'
+            '<div class="histogram-controls">'
+            '<select id="histogram-field-select" class="histogram-select">'
+            '<option value="">&#x2795; Add field...</option>'
+            "</select>"
+            '<select id="histogram-mode-select" class="histogram-mode-select"></select>'
+            "</div>"
+            '<div id="histogram-chips" class="histogram-chips"></div>'
+            '<div id="histogram-warning" class="histogram-warning" style="display:none"></div>'
+            '<div id="histogram-svg-wrapper" class="histogram-svg-wrapper" style="height:0px;overflow:hidden"></div>'
+        )
+        self._widgets = [
+            SelectionWidget(
+                widget_id="histogram",
+                location=self.location,
+                order=self.order,
+                width=self.width,
+                inner_html=inner_html,
+            )
+        ]
+
     @property
     def javascript(self):
-        initial_fields_js = str(self.initial_fields)  # Python list becomes JS array
+        container_id = self._widgets[0].get_container_id()
+        initial_fields_js = str(self.initial_fields)
 
         result = f"""
 // Histogram handler - Multi-field visualization
+const _histContainer = document.getElementById("{container_id}");
+if (_histContainer) _histContainer.style.display = "block"; // Always visible
+
 // Tableau 10 color palette
 const TABLEAU_COLORS = [
     '#4e79a7', '#f28e2c', '#e15759', '#76b7b2', '#59a14f',
     '#edc949', '#af7aa1', '#ff9da7', '#9c755f', '#bab0ab'
 ];
 
-// Helper to find stack container or drawer
-function findStackContainer(location) {{
-    let stack = document.getElementsByClassName("stack " + location)[0];
-    if (!stack && location.includes("drawer")) {{
-        const drawerDirection = location.replace("-drawer", "");
-        const drawer = document.querySelector(".drawer-container.drawer-" + drawerDirection);
-        if (drawer) {{
-            stack = drawer;
-        }}
-    }}
-    return stack;
-}}
-
-const histogramStackContainer = findStackContainer("{self.location}");
-const histogramContainer = document.createElement("div");
-histogramContainer.id = "histogram-container";
-histogramContainer.className = "container-box more-opaque stack-box";
-histogramContainer.dataset.order = "{self.order}";
-
-const histogramTitle = document.createElement("div");
-histogramTitle.className = "histogram-title";
-histogramTitle.textContent = "Distribution";
-histogramContainer.appendChild(histogramTitle);
-
-// Field selector controls wrapper
-const controlsWrapper = document.createElement("div");
-controlsWrapper.className = "histogram-controls";
-histogramContainer.appendChild(controlsWrapper);
-
-// Add field dropdown
-const fieldSelector = document.createElement("select");
-fieldSelector.id = "histogram-field-select";
-fieldSelector.className = "histogram-select";
-const defaultOption = document.createElement("option");
-defaultOption.value = "";
-defaultOption.textContent = "➕ Add field...";
-fieldSelector.appendChild(defaultOption);
-controlsWrapper.appendChild(fieldSelector);
-
-// Mode selector dropdown
-const modeSelector = document.createElement("select");
-modeSelector.id = "histogram-mode-select";
-modeSelector.className = "histogram-mode-select";
-controlsWrapper.appendChild(modeSelector);
-
-// Chip container
-const chipContainer = document.createElement("div");
-chipContainer.id = "histogram-chips";
-chipContainer.className = "histogram-chips";
-histogramContainer.appendChild(chipContainer);
-
-// Warning message area
-const warningContainer = document.createElement("div");
-warningContainer.id = "histogram-warning";
-warningContainer.className = "histogram-warning";
-warningContainer.style.display = "none";
-histogramContainer.appendChild(warningContainer);
-
-// Append container to DOM BEFORE creating D3 SVG
-histogramStackContainer.appendChild(histogramContainer);
-
-// Create SVG wrapper for animated resizing
-const svgWrapper = document.createElement("div");
-svgWrapper.id = "histogram-svg-wrapper";
-svgWrapper.className = "histogram-svg-wrapper";
-svgWrapper.style.height = "0px"; // Start collapsed
-svgWrapper.style.overflow = "hidden";
-histogramContainer.appendChild(svgWrapper);
+const fieldSelector = document.getElementById("histogram-field-select");
+const modeSelector = document.getElementById("histogram-mode-select");
+const chipContainer = document.getElementById("histogram-chips");
+const warningContainer = document.getElementById("histogram-warning");
+const svgWrapper = document.getElementById("histogram-svg-wrapper");
 
 const histogramSvg = d3.select("#histogram-svg-wrapper").append("svg")
     .attr("width", {self.width})
@@ -3488,8 +3855,9 @@ if (datamap.metaData) {{
 
     @property
     def css(self):
+        container_id = self._widgets[0].get_container_id()
         return f"""
-#histogram-container {{
+#{container_id} {{
     width: {self.width}px;
     padding: 12px;
     overflow: visible;
