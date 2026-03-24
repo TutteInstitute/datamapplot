@@ -806,7 +806,7 @@ Samples text items associated to the topic are:
 Please provide a concise summary of the selection of items. Be as specific as possible.
 The summary should be a few sentences long at most, and ideally just a single sentence.
 `;
-        cohereChat(prompt, apiKey).then(response => {{ summaryContainer.innerHTML = response.text }} );
+        cohereChat(prompt, apiKey).then(response => {{ summaryContainer.textContent = response.text }} );
     }}
 }}
 
@@ -994,6 +994,17 @@ class LLMSummary(SelectionHandlerBase):
             **kwargs,
         )
         self.providers = providers or list(_LLM_ALL_PROVIDERS)
+        unknown = set(self.providers) - set(_LLM_ALL_PROVIDERS)
+        if unknown:
+            raise ValueError(
+                f"Unknown LLM provider(s): {sorted(unknown)}. "
+                f"Supported providers are: {sorted(_LLM_ALL_PROVIDERS)}"
+            )
+        if default_provider not in self.providers:
+            raise ValueError(
+                f"default_provider {default_provider!r} is not in providers "
+                f"{self.providers}"
+            )
         self.default_provider = default_provider
         resolved_models = dict(_LLM_DEFAULT_MODELS)
         if models:
@@ -1056,11 +1067,16 @@ class LLMSummary(SelectionHandlerBase):
         # Build JS n_samples object
         n_samples_js = ", ".join(f'"{p}": {self.n_samples[p]}' for p in self.providers)
 
-        # Escape the prompt template for JS — convert {keywords} / {samples}
-        # to JS template literal interpolation ${keywords} / ${samples}
+        # Escape the prompt template for safe JS template literal embedding:
+        # 1. Escape backslashes and backticks for the template literal.
+        # 2. Neutralise any ${...} sequences in user input to prevent
+        #    arbitrary JS execution via template literal interpolation.
+        # 3. Then map the recognised placeholders {keywords}/{samples}
+        #    to their JS interpolation equivalents.
         js_prompt = (
             self.prompt_template.replace("\\", "\\\\")
             .replace("`", "\\`")
+            .replace("${", "\\${")
             .replace("{keywords}", "${keywords}")
             .replace("{samples}", "${samples}")
         )
@@ -1204,7 +1220,7 @@ async function _llmStreamResponse(response, container) {{
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    container.innerHTML = "";
+    container.textContent = "";
     while (true) {{
         const {{done, value}} = await reader.read();
         if (done) break;
@@ -1220,7 +1236,7 @@ async function _llmStreamResponse(response, container) {{
                 const parsed = JSON.parse(data);
                 const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
                 if (delta && delta.content) {{
-                    container.innerHTML += delta.content;
+                    container.appendChild(document.createTextNode(delta.content));
                 }}
             }} catch (e) {{
                 // Skip malformed JSON chunks
@@ -1258,10 +1274,10 @@ async function _callLLM(provider, message) {{
             await _llmStreamResponse(response, _llmSummaryContainer);
         }} else {{
             const json = await response.json();
-            _llmSummaryContainer.innerHTML = config.parseResponse(json);
+            _llmSummaryContainer.textContent = config.parseResponse(json);
         }}
     }} catch (err) {{
-        _llmSummaryContainer.innerHTML = `Error: ${{err.message}}`;
+        _llmSummaryContainer.textContent = "Error: " + err.message;
     }}
 }}
 

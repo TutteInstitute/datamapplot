@@ -331,7 +331,9 @@ class SelectionWidget(WidgetBase):
     const _swContainer = document.getElementById("{container_id}");
 
     // Append to the correct stack/drawer if not already placed by the template
-    if (_swContainer && !_swContainer.parentElement.classList.contains("stack")) {{
+    if (_swContainer && (!_swContainer.parentElement
+        || (!_swContainer.parentElement.classList.contains("stack")
+            && !_swContainer.parentElement.classList.contains("drawer-container")))) {{
         const stack = findStackContainer("{location}");
         if (stack) {{
             stack.appendChild(_swContainer);
