@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { waitForDeckGL, waitForCanvas } from '../utils/canvas';
+import { waitForDeckGL, waitForCanvas } from '../../utils/canvas';
 
 
-test.describe('Cord19 Canvas Tests', () => {
+test.describe('Cord19 Canvas Tests', { tag: '@slow' }, () => {
   test.beforeEach(async ({ page }, testInfo) => {
     // Extend timeout for all tests running this hook by 6 minutes.
     testInfo.setTimeout(testInfo.timeout + 360_000);

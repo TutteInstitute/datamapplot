@@ -629,3 +629,334 @@ def run_interactive_examples_script(
             raise RuntimeError(f"No HTML file was generated in {html_output_dir}")
 
         return html_output
+
+
+### Minimal Fixture Generation for Playwright Tests
+# These tests generate minimal HTML fixtures that are used by Playwright for UI testing.
+# The fixtures are small (100-300 points) to ensure fast loading times.
+
+
+def _generate_synthetic_data(n_points: int, n_clusters: int = 5, seed: int = 42):
+    """Generate synthetic point data with clusters."""
+    np.random.seed(seed)
+
+    points_per_cluster = n_points // n_clusters
+    remainder = n_points % n_clusters
+
+    all_points = []
+    all_labels = []
+
+    cluster_names = [
+        "Natural Language Processing",
+        "Computer Vision",
+        "Reinforcement Learning",
+        "Neural Networks",
+        "Data Mining",
+        "Machine Learning",
+        "Deep Learning",
+        "Optimization",
+        "Statistics",
+        "Robotics",
+    ][:n_clusters]
+
+    for i, cluster_name in enumerate(cluster_names):
+        n = points_per_cluster + (1 if i < remainder else 0)
+
+        center_x = np.random.uniform(-10, 10)
+        center_y = np.random.uniform(-10, 10)
+
+        points = np.column_stack(
+            [np.random.normal(center_x, 1.5, n), np.random.normal(center_y, 1.5, n)]
+        )
+
+        all_points.append(points)
+        all_labels.extend([cluster_name] * n)
+
+    data_map = np.vstack(all_points)
+    labels = np.array(all_labels)
+
+    return data_map, labels
+
+
+def _generate_hover_text(n_points: int, seed: int = 42):
+    """Generate synthetic hover text data."""
+    np.random.seed(seed)
+
+    titles = [
+        "A Study of Machine Learning Approaches",
+        "Deep Neural Networks for Classification",
+        "Reinforcement Learning in Robotics",
+        "Natural Language Understanding Systems",
+        "Computer Vision Applications",
+        "Optimization Techniques for ML",
+        "Statistical Methods in Data Science",
+        "Transfer Learning Approaches",
+        "Attention Mechanisms in NLP",
+        "Generative Models for Images",
+    ]
+
+    hover_text = []
+    for i in range(n_points):
+        title = np.random.choice(titles)
+        year = np.random.randint(2018, 2025)
+        hover_text.append(f"{title} ({year}) - Sample point {i}")
+
+    return np.array(hover_text)
+
+
+def _generate_dates(n_points: int, seed: int = 42):
+    """Generate synthetic date data."""
+    np.random.seed(seed)
+
+    start_date = pd.Timestamp("2018-01-01")
+    end_date = pd.Timestamp("2024-12-31")
+
+    date_range = (end_date - start_date).days
+    random_days = np.random.randint(0, date_range, n_points)
+
+    dates = [start_date + pd.Timedelta(days=int(d)) for d in random_days]
+    return pd.Series(dates)
+
+
+@pytest.mark.interactive
+class TestMinimalFixtureGeneration:
+    """
+    Generate minimal HTML fixtures for Playwright UI tests.
+
+    These fixtures are designed to be fast-loading (100-300 points) while
+    testing specific features of the interactive rendering.
+    """
+
+    def test_generate_minimal_basic(self, html_dir):
+        """Generate minimal_basic.html - for navigation tests (zoom, pan)."""
+        n_points = 100
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=4)
+        hover_text = _generate_hover_text(n_points)
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=hover_text,
+            title="Minimal Basic Test",
+            sub_title="For navigation tests (zoom, pan)",
+            font_family="Roboto",
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_basic.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+        html_content = output_path.read_text(encoding="utf-8")
+        validation = validate_html_structure(html_content)
+        assert validation["is_valid"], f"HTML validation failed: {validation}"
+
+    def test_generate_minimal_search(self, html_dir):
+        """Generate minimal_search.html - for search functionality tests."""
+        n_points = 200
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=5)
+
+        # Create searchable hover text with specific keywords
+        hover_text = []
+        keywords = ["neural", "learning", "vision", "language", "data"]
+        for i in range(n_points):
+            keyword = keywords[i % len(keywords)]
+            hover_text.append(f"Document about {keyword} - item {i}")
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=np.array(hover_text),
+            title="Minimal Search Test",
+            sub_title="For search functionality tests",
+            font_family="Roboto",
+            enable_search=True,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_search.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+        html_content = output_path.read_text(encoding="utf-8")
+        assert "text-search" in html_content  # Search input should be present
+
+    def test_generate_minimal_tooltip(self, html_dir):
+        """Generate minimal_tooltip.html - for tooltip tests."""
+        n_points = 100
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=4)
+
+        # Create rich hover text
+        hover_text = []
+        for i in range(n_points):
+            hover_text.append(
+                f"<b>Point {i}</b><br>Cluster: {labels[i]}<br>Value: {np.random.rand():.3f}"
+            )
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=np.array(hover_text),
+            title="Minimal Tooltip Test",
+            sub_title="For tooltip functionality tests",
+            font_family="Roboto",
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_tooltip.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+
+    def test_generate_minimal_selection(self, html_dir):
+        """Generate minimal_selection.html - for selection handler tests."""
+        from datamapplot.selection_handlers import DisplaySample
+
+        n_points = 200
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=5)
+        hover_text = _generate_hover_text(n_points)
+
+        selection_handler = DisplaySample(n_samples=10)
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=hover_text,
+            title="Minimal Selection Test",
+            sub_title="For selection handler tests",
+            font_family="Roboto",
+            selection_handler=selection_handler,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_selection.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+        html_content = output_path.read_text(encoding="utf-8")
+        assert "selection" in html_content.lower()
+
+    def test_generate_minimal_onclick(self, html_dir):
+        """Generate minimal_onclick.html - for on-click action tests."""
+        n_points = 100
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=4)
+        hover_text = _generate_hover_text(n_points)
+
+        # on_click that sets testable global variables
+        on_click = 'window.lastClickedPoint = "{hover_text}"; window.clickCount = (window.clickCount || 0) + 1;'
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=hover_text,
+            title="Minimal OnClick Test",
+            sub_title="For on-click action tests",
+            font_family="Roboto",
+            on_click=on_click,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_onclick.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+        html_content = output_path.read_text(encoding="utf-8")
+        assert "clickCount" in html_content
+
+    def test_generate_minimal_colormap(self, html_dir):
+        """Generate minimal_colormap.html - for colormap tests."""
+        n_points = 200
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=5)
+        hover_text = _generate_hover_text(n_points)
+
+        # Create data for colormap
+        np.random.seed(42)
+        colormap_data = {
+            "Value": np.random.rand(n_points),
+            "Category": np.random.choice(["A", "B", "C"], n_points),
+        }
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=hover_text,
+            title="Minimal Colormap Test",
+            sub_title="For colormap tests",
+            font_family="Roboto",
+            colormaps=colormap_data,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_colormap.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+
+    def test_generate_minimal_histogram(self, html_dir):
+        """Generate minimal_histogram.html - for histogram tests."""
+        n_points = 300
+        data_map, labels = _generate_synthetic_data(n_points, n_clusters=5)
+        hover_text = _generate_hover_text(n_points)
+        dates = _generate_dates(n_points)
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels,
+            hover_text=hover_text,
+            title="Minimal Histogram Test",
+            sub_title="For histogram tests",
+            font_family="Roboto",
+            histogram_data=dates,
+            histogram_group_datetime_by="month",
+            histogram_n_bins=20,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_histogram.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
+        html_content = output_path.read_text(encoding="utf-8")
+        assert "histogram" in html_content.lower()
+
+    def test_generate_minimal_topictree(self, html_dir):
+        """Generate minimal_topictree.html - for topic tree tests."""
+        n_points = 300
+        data_map, labels_layer0 = _generate_synthetic_data(n_points, n_clusters=8)
+
+        # Create hierarchical labels (coarser groupings)
+        labels_layer1 = np.array(
+            [
+                (
+                    "AI Research"
+                    if l
+                    in [
+                        "Natural Language Processing",
+                        "Computer Vision",
+                        "Neural Networks",
+                        "Deep Learning",
+                    ]
+                    else "Data Science"
+                )
+                for l in labels_layer0
+            ]
+        )
+
+        hover_text = _generate_hover_text(n_points)
+
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            labels_layer0,
+            labels_layer1,
+            hover_text=hover_text,
+            title="Minimal Topic Tree Test",
+            sub_title="For topic tree tests",
+            font_family="Roboto",
+            enable_topic_tree=True,
+            inline_data=True,
+        )
+
+        output_path = html_dir / "minimal_topictree.html"
+        plot.save(str(output_path))
+
+        assert output_path.exists()
