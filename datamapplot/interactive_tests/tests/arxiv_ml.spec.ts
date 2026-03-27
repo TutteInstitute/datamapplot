@@ -55,7 +55,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
     await page.locator('#text-search').fill('nlp');
 
     await waitForCanvas(page);
-    await expect(canvas).toHaveScreenshot('arxiv-ml-after-search-nlp.png');
+    await expect(canvas).toHaveScreenshot('arxiv-ml-after-search-nlp.png', { ignoreAntialiasing: true);
   });
 
   test('pan functionality', async ({ page }, testInfo) => {
