@@ -15,7 +15,6 @@ Semantic Map of GitHub
 .. image:: images/community/semantic_github_map.png
    :width: 720
    :alt: Semantic map of the top 10,000 most-starred GitHub repositories
-   :align: center
    :target: https://stevenfazzio.github.io/semantic-github-map/
 
 An interactive map of the top 10,000 most-starred GitHub repositories,
@@ -38,7 +37,6 @@ Semantic Map of HuggingFace Datasets
 .. image:: images/community/huggingface_dataset_map.png
    :width: 720
    :alt: Semantic map of HuggingFace datasets, clustered by topic
-   :align: center
    :target: https://stevenfazzio.github.io/huggingface-dataset-map/
 
 An interactive map of the top 5,000 HuggingFace datasets, positioned by
@@ -61,7 +59,6 @@ Claude Code Changelog Analysis
 .. image:: images/community/claude_code_changelog.png
    :width: 720
    :alt: Map of Claude Code changelog entries grouped by topic
-   :align: center
    :target: https://stevenfazzio.github.io/claude-code-changelog-analysis/map.html
 
 An interactive map of all entries in the Claude Code ``CHANGELOG.md``,
@@ -84,7 +81,6 @@ OEIS Semantic Map
 .. image:: images/community/oeis_semantic_map.png
    :width: 720
    :alt: Semantic map of integer sequences from the OEIS
-   :align: center
    :target: https://stevenfazzio.github.io/oeisdata-map/
 
 An interactive map of 25,000 curated integer sequences from the
@@ -108,7 +104,6 @@ AI & Mental Health Research
 .. image:: images/community/mh_ai_research.png
    :width: 720
    :alt: Semantic map of research papers at the intersection of AI and mental health
-   :align: center
    :target: https://stevenfazzio.github.io/mh-ai-research/
 
 An interactive map of five years of research papers at the intersection of
@@ -152,8 +147,7 @@ wherever fits best alongside the existing ones:
    .. image:: images/community/your_project.png
       :width: 720
       :alt: Brief alt text describing the visualization
-      :align: center
-      :target: https://your-live-map-url/
+         :target: https://your-live-map-url/
 
    One to three sentences describing what your project maps and what makes
    it interesting.
