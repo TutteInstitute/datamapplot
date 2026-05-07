@@ -135,6 +135,9 @@ Documentation
 Full documentation for DataMapPlot is available on
 `ReadTheDocs <https://datamapplot.readthedocs.io/>`_.
 
+See the `Community Projects gallery <https://datamapplot.readthedocs.io/en/latest/community_projects.html>`_
+for examples of interactive maps built with DataMapPlot by the community.
+
 ------------
 Installation
 ------------
