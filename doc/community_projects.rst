@@ -51,27 +51,27 @@ topic labels.*
 * `Live map <https://stevenfazzio.github.io/huggingface-dataset-map/>`__
 * `Source <https://github.com/stevenfazzio/huggingface-dataset-map>`__
 
-Claude Code Changelog Analysis
-------------------------------
+AI & Mental Health Research
+---------------------------
 
 *by* `Steven Fazzio <https://github.com/stevenfazzio>`__
 
-.. image:: images/community/claude_code_changelog.png
+.. image:: images/community/mh_ai_research.png
    :width: 720
-   :alt: Map of Claude Code changelog entries grouped by topic
-   :target: https://stevenfazzio.github.io/claude-code-changelog-analysis/map.html
+   :alt: Semantic map of research papers at the intersection of AI and mental health
+   :target: https://stevenfazzio.github.io/mh-ai-research/
 
-An interactive map of all entries in the Claude Code ``CHANGELOG.md``,
-positioned by semantic similarity of the entry text. An example of mapping
-a project's own development history rather than an external corpus, with
-LLM-classified category, change type, complexity, and audience all available
-as colormap layers.
+An interactive map of five years of research papers at the intersection of
+artificial intelligence and mental health, sourced from Semantic Scholar.
+Useful for surveying the landscape of AI applied to mental health, with
+bibliometric colormaps (citations, influential citations, h-index, year)
+for surfacing well-cited or recent work in any subfield.
 
-*Built with Cohere embed-v4.0 embeddings and Toponymy + Claude Sonnet for
-topic labels.*
+*Built with SPECTER v2 embeddings (purpose-built for scientific text) and
+Toponymy + GPT-4o for topic labels.*
 
-* `Live map <https://stevenfazzio.github.io/claude-code-changelog-analysis/map.html>`__
-* `Source <https://github.com/stevenfazzio/claude-code-changelog-analysis>`__
+* `Live map <https://stevenfazzio.github.io/mh-ai-research/>`__
+* `Source <https://github.com/stevenfazzio/mh-ai-research>`__
 
 OEIS Semantic Map
 -----------------
@@ -96,27 +96,70 @@ topic labels.*
 * `Live map <https://stevenfazzio.github.io/oeisdata-map/>`__
 * `Source <https://github.com/stevenfazzio/oeisdata-map>`__
 
-AI & Mental Health Research
----------------------------
+Claude Code Changelog Analysis
+------------------------------
 
 *by* `Steven Fazzio <https://github.com/stevenfazzio>`__
 
-.. image:: images/community/mh_ai_research.png
+.. image:: images/community/claude_code_changelog.png
    :width: 720
-   :alt: Semantic map of research papers at the intersection of AI and mental health
-   :target: https://stevenfazzio.github.io/mh-ai-research/
+   :alt: Map of Claude Code changelog entries grouped by topic
+   :target: https://stevenfazzio.github.io/claude-code-changelog-analysis/map.html
 
-An interactive map of five years of research papers at the intersection of
-artificial intelligence and mental health, sourced from Semantic Scholar.
-Useful for surveying the landscape of AI applied to mental health, with
-bibliometric colormaps (citations, influential citations, h-index, year)
-for surfacing well-cited or recent work in any subfield.
+An interactive map of all entries in the Claude Code ``CHANGELOG.md``,
+positioned by semantic similarity of the entry text. An example of mapping
+a project's own development history rather than an external corpus, with
+LLM-classified category, change type, complexity, and audience all available
+as colormap layers.
 
-*Built with SPECTER v2 embeddings (purpose-built for scientific text) and
-Toponymy + GPT-4o for topic labels.*
+*Built with Cohere embed-v4.0 embeddings and Toponymy + Claude Sonnet for
+topic labels.*
 
-* `Live map <https://stevenfazzio.github.io/mh-ai-research/>`__
-* `Source <https://github.com/stevenfazzio/mh-ai-research>`__
+* `Live map <https://stevenfazzio.github.io/claude-code-changelog-analysis/map.html>`__
+* `Source <https://github.com/stevenfazzio/claude-code-changelog-analysis>`__
+
+Every Video from One Hour on TikTok
+-----------------------------------
+
+*by* `Ben Steel <https://github.com/bendavidsteel>`__
+
+.. image:: images/community/tiktok_one_hour.png
+   :width: 720
+   :alt: Semantic map of every TikTok video posted between 5-6PM UTC on April 10, 2024
+   :target: https://bendavidsteel.github.io/1hour_toponymy_datamapplot
+
+A semantic map of every TikTok video posted between 5-6PM UTC on April 10,
+2024. The corpus is a "complete slice" of the platform, made possible by
+reverse-engineering the video-ID space.
+
+*Built with X-CLIP video embeddings (microsoft/xclip-base-patch32) and
+Toponymy for topic labels.*
+
+* `Live map <https://bendavidsteel.github.io/1hour_toponymy_datamapplot>`__
+* `Source <https://github.com/bendavidsteel/tiktok-slice/blob/main/scripts/topics/toponymy_datamap.py>`__
+* `Paper <https://journalqd.org/article/view/9514>`__
+
+Particle Lenia Explorer
+-----------------------
+
+*by* `Ben Steel <https://github.com/bendavidsteel>`__
+
+.. image:: images/community/particle_lenia_explorer.png
+   :width: 720
+   :alt: Map of Particle Lenia simulation states with parameter-space edges
+   :target: https://bendavidsteel.github.io/particle_lenia_datamap.html
+
+An interactive map of instantiations of Particle Lenia (a continuous cellular
+automaton), positioned in behaviour space with edges connecting
+parameter-space neighbors. Click any point to launch the corresponding live
+simulation.
+
+*Built with CLIP embeddings (openai/clip-vit-base-patch32) of simulation
+states and Toponymy for topic labels.*
+
+* `Live map <https://bendavidsteel.github.io/particle_lenia_datamap.html>`__
+* `Source <https://github.com/bendavidsteel/mysarum/blob/main/python/particlelife/create_datamap.py>`__
+* `Write-up <https://bendavidsteel.github.io/articles/ParticleLeniaExplorer>`__
 
 How to add your project
 -----------------------
@@ -147,7 +190,7 @@ wherever fits best alongside the existing ones:
    .. image:: images/community/your_project.png
       :width: 720
       :alt: Brief alt text describing the visualization
-         :target: https://your-live-map-url/
+      :target: https://your-live-map-url/
 
    One to three sentences describing what your project maps and what makes
    it interesting.
