@@ -42,6 +42,15 @@ dependencies = [
     "dask[complete]>=2026.1.2",
 ]
 
+[dependency-groups]
+cicd = [
+    "pytest", 
+    "pytest-azurepipelines", 
+    "pytest-cov", 
+    "pytest-mpl",
+    "dask[dataframe]",
+    ]
+
 [project.urls]
 Homepage = "https://github.com/TutteInstitute/datamapplot"
 
