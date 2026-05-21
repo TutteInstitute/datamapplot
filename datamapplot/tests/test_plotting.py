@@ -21,7 +21,7 @@ custom_style = {
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_cord19(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
+    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_cord19.py' matches baseline
@@ -40,14 +40,14 @@ def test_plot_cord19(
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_arxiv_ml(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
+    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_arxiv_ml.py' matches baseline
     """
     mock_image_requests(
         [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
         ]
     )
     fig = run_static_examples_script(
@@ -68,7 +68,7 @@ def test_plot_arxiv_ml_edge_bundle(
     """
     mock_image_requests(
         [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
         ]
     )
     fig = run_static_examples_script(
@@ -87,7 +87,7 @@ def test_plot_arxiv_ml_word_cloud(
     """
     mock_image_requests(
         [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
         ]
     )
     fig = run_static_examples_script(
@@ -113,7 +113,7 @@ def test_plot_wikipedia(
     """
     mock_image_requests(
         [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
         ]
     )
     fig = run_static_examples_script(
@@ -133,7 +133,7 @@ def test_plot_simple_arxiv(
     """
     mock_image_requests(
         [
-            "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/ArXiv_logo_2022.svg/320px-ArXiv_logo_2022.svg.png"
+            "https://upload.wikimedia.org/wikipedia/commons/7/7a/ArXiv_logo_2022.png",
         ]
     )
     fig = run_static_examples_script(

@@ -110,6 +110,7 @@ def change_np_load_path(monkeypatch):
 
     return _patch_load
 
+
 @pytest.fixture
 def examples_dir(request):
     """
