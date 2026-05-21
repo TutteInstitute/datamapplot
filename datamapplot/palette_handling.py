@@ -1,4 +1,5 @@
 import numpy as np
+import operator
 
 import colorspacious
 from matplotlib.colors import rgb2hex, to_rgb, ListedColormap
@@ -49,12 +50,14 @@ def palette_from_datamap(
                 if theta_high > np.pi:
                     theta_high -= 2 * np.pi
                 if theta_low < -np.pi:
-                    theta_low -= 2 * np.pi
+                    theta_low += 2 * np.pi
 
-                if theta_low > 0 and theta_high < 0:
-                    r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
-                else:
-                    r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
+                r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
+                # if theta_low > 0 and theta_high < 0:
+                #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                # else:
+                #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
 
                 mask_size = np.sum(r_mask)
                 if mask_size > 0:
@@ -84,19 +87,29 @@ def palette_from_datamap(
         sorted_lightness = []
         sorted_radii = []
         for theta in uniform_thetas:
-            theta_high = theta + theta_range
-            theta_low = theta - theta_range
-            if theta_high > np.pi:
-                theta_high -= 2 * np.pi
-            if theta_low < -np.pi:
-                theta_low -= 2 * np.pi
+            mask_size = 0
+            for theta_spread in np.linspace(theta_range, np.pi, num=16):
+                theta_high = theta + theta_spread
+                theta_low = theta - theta_spread
+                if theta_high > np.pi:
+                    theta_high -= 2 * np.pi
+                if theta_low < -np.pi:
+                    theta_low += 2 * np.pi
 
-            if theta_low > 0 and theta_high < 0:
-                r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
+                r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
+                # if theta_low > 0 and theta_high < 0:
+                #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                # else:
+                #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                mask_size = np.sum(r_mask)
+                if mask_size > 0:
+                    break
             else:
-                r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                raise RuntimeError(f"Cannot reference data for computing chroma and lightness for label at angle {theta}")
+            assert mask_size > 0
 
-            mask_size = np.sum(r_mask)
+            # mask_size = np.sum(r_mask)
             chroma = (
                 np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
             ) * 80 + 20
@@ -199,19 +212,27 @@ def palette_from_cmap_and_datamap(
     location_chroma = []
     location_lightness = []
     for i, (r, theta) in enumerate(zip(label_location_radii, label_location_thetas)):
-        theta_high = theta + theta_range
-        theta_low = theta - theta_range
-        if theta_high > np.pi:
-            theta_high -= 2 * np.pi
-        if theta_low < -np.pi:
-            theta_low -= 2 * np.pi
+        mask_size = 0
+        for theta_spread in np.linspace(theta_range, np.pi, num=16):
+            theta_high = theta + .5 * theta_spread
+            theta_low = theta - .5 * theta_spread
+            if theta_high > np.pi:
+                theta_high -= 2 * np.pi
+            if theta_low < -np.pi:
+                theta_low += 2 * np.pi
 
-        if theta_low > 0 and theta_high < 0:
-            r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+            between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
+            r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
+            #     r_mask_neg = (data_map_thetas < 0) & 
+            #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+            # else:
+            #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+            mask_size = np.sum(r_mask)
+            if mask_size > 0:
+                break
         else:
-            r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
-
-        mask_size = np.sum(r_mask)
+            raise RuntimeError(f"Cannot reference data for computing chroma and lightness for label at angle {theta}")
+        assert mask_size > 0
 
         chroma_scale = np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
         chroma = scaling_func(
