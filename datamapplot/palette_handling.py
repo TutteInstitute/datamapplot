@@ -1,10 +1,35 @@
+from dataclasses import dataclass
 import numpy as np
 import operator
+from typing import Optional
 
 import colorspacious
 from matplotlib.colors import rgb2hex, to_rgb, ListedColormap
 
 
+@dataclass
+class Polars:
+    radii: np.ndarray
+    thetas: np.ndarray
+    center: np.ndarray
+
+    @classmethod
+    def from_xy(cls, xy: np.ndarray, center: Optional[np.ndarray] = None) -> "Polars":
+        if center is None:
+            min_ = np.min(xy, axis=0)
+            max_ = np.max(xy, axis=0)
+            center_ = min_ + (max_ - min_) / 2
+        else:
+            center_ = np.asarray(center)
+
+        xy_centered = xy - center_
+        return cls(
+            radii=np.linalg.norm(xy_centered, axis=1),
+            thetas=np.arctan2(xy_centered.T[1], xy_centered.T[0]),
+            center=center_,
+        )
+
+    
 def palette_from_datamap(
     umap_coords,
     label_locations,
@@ -16,33 +41,23 @@ def palette_from_datamap(
     if label_locations.shape[0] == 0:
         return []
 
-    data_center = np.asarray(
-        umap_coords.min(axis=0)
-        + (umap_coords.max(axis=0) - umap_coords.min(axis=0)) / 2
-    )
-    centered_data = umap_coords - data_center
-    data_map_radii = np.linalg.norm(centered_data, axis=1)
-    data_map_thetas = np.arctan2(centered_data.T[1], centered_data.T[0])
-    centered_label_locations = label_locations - data_center
-    label_location_radii = np.linalg.norm(centered_label_locations, axis=1)
-    label_location_thetas = np.arctan2(
-        centered_label_locations.T[1], centered_label_locations.T[0]
-    )
+    pol_data = Polars.from_xy(umap_coords)
+    pol_labels = Polars.from_xy(label_locations, center=pol_data.center)
 
-    sorter = np.argsort(label_location_thetas)
-    weights = (label_location_radii**radius_weight_power)[sorter]
+    sorter = np.argsort(pol_labels.thetas)
+    weights = (pol_labels.radii**radius_weight_power)[sorter]
     hue = weights.cumsum()
     hue = (hue / hue.max()) * 360
 
     location_hue = np.interp(
-        label_location_thetas, np.sort(label_location_thetas), np.sort(hue)
+        pol_labels.thetas, np.sort(pol_labels.thetas), np.sort(hue)
     )
     location_hue = (location_hue + hue_shift) % 360
 
     location_chroma = []
     location_lightness = []
-    if label_location_thetas.shape[0] < 256:
-        for r, theta in zip(label_location_radii, label_location_thetas):
+    if pol_labels.thetas.shape[0] < 256:
+        for r, theta in zip(pol_labels.radii, pol_labels.thetas):
             # use increasing values of theta range to ensure that we find a mask containing some elements
             for i_theta_range in np.linspace(theta_range, np.pi, 16):
                 theta_high = theta + i_theta_range
@@ -53,11 +68,11 @@ def palette_from_datamap(
                     theta_low += 2 * np.pi
 
                 between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
-                r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
+                r_mask = between(pol_data.thetas > theta_low, pol_data.thetas < theta_high)
                 # if theta_low > 0 and theta_high < 0:
-                #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                #     r_mask = (pol_data.thetas < theta_low) & (pol_data.thetas > theta_high)
                 # else:
-                #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                #     r_mask = (pol_data.thetas > theta_low) & (pol_data.thetas < theta_high)
 
                 mask_size = np.sum(r_mask)
                 if mask_size > 0:
@@ -66,20 +81,20 @@ def palette_from_datamap(
                 raise ValueError("No mask found for theta range.")
 
             chroma = (
-                np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+                np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size
             ) * 80 + 20
             lightness = (
-                1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
+                1.0 - (np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size)
             ) * (80 - min_lightness) + min_lightness
             location_lightness.append(
                 np.interp(
                     r,
-                    np.sort(data_map_radii[r_mask]),
+                    np.sort(pol_data.radii[r_mask]),
                     np.sort(lightness)[::-1],
                 )
             )
             location_chroma.append(
-                np.interp(r, np.sort(data_map_radii[r_mask]), np.sort(chroma))
+                np.interp(r, np.sort(pol_data.radii[r_mask]), np.sort(chroma))
             )
     else:
         uniform_thetas = np.linspace(-np.pi, np.pi, 256)
@@ -97,11 +112,11 @@ def palette_from_datamap(
                     theta_low += 2 * np.pi
 
                 between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
-                r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
+                r_mask = between(pol_data.thetas > theta_low, pol_data.thetas < theta_high)
                 # if theta_low > 0 and theta_high < 0:
-                #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+                #     r_mask = (pol_data.thetas < theta_low) & (pol_data.thetas > theta_high)
                 # else:
-                #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+                #     r_mask = (pol_data.thetas > theta_low) & (pol_data.thetas < theta_high)
                 mask_size = np.sum(r_mask)
                 if mask_size > 0:
                     break
@@ -111,16 +126,16 @@ def palette_from_datamap(
 
             # mask_size = np.sum(r_mask)
             chroma = (
-                np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+                np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size
             ) * 80 + 20
             lightness = (
-                1.0 - (np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size)
+                1.0 - (np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size)
             ) * (80 - min_lightness) + min_lightness
             sorted_chroma.append(np.sort(chroma))
             sorted_lightness.append(np.sort(lightness)[::-1])
-            sorted_radii.append(np.sort(data_map_radii[r_mask]))
+            sorted_radii.append(np.sort(pol_data.radii[r_mask]))
 
-        for r, theta in zip(label_location_radii, label_location_thetas):
+        for r, theta in zip(pol_labels.radii, pol_labels.thetas):
             nearest_theta_idx = np.argmin(np.abs(uniform_thetas - theta))
             location_lightness.append(
                 np.interp(
@@ -183,26 +198,16 @@ def palette_from_cmap_and_datamap(
         )
         cyclic_cmap = ListedColormap(new_colors, name="generated_cyclic_cmap")
 
-    data_center = np.asarray(
-        umap_coords.min(axis=0)
-        + (umap_coords.max(axis=0) - umap_coords.min(axis=0)) / 2
-    )
-    centered_data = umap_coords - data_center
-    data_map_radii = np.linalg.norm(centered_data, axis=1)
-    data_map_thetas = np.arctan2(centered_data.T[1], centered_data.T[0])
-    centered_label_locations = label_locations - data_center
-    label_location_radii = np.linalg.norm(centered_label_locations, axis=1)
-    label_location_thetas = np.arctan2(
-        centered_label_locations.T[1], centered_label_locations.T[0]
-    )
+    pol_data = Polars.from_xy(umap_coords)
+    pol_labels = Polars.from_xy(label_locations, center=pol_data.center)
 
-    sorter = np.argsort(label_location_thetas)
-    weights = (label_location_radii**radius_weight_power)[sorter]
+    sorter = np.argsort(pol_labels.thetas)
+    weights = (pol_labels.radii**radius_weight_power)[sorter]
     weights = weights.cumsum()
     weights /= weights.max()
 
     location_base_vals = np.interp(
-        label_location_thetas, np.sort(label_location_thetas), np.sort(weights)
+        pol_labels.thetas, np.sort(pol_labels.thetas), np.sort(weights)
     )
     base_colors = cyclic_cmap(location_base_vals)[:, :3]
 
@@ -211,7 +216,7 @@ def palette_from_cmap_and_datamap(
     location_hue = base_colors_jch.T[2]
     location_chroma = []
     location_lightness = []
-    for i, (r, theta) in enumerate(zip(label_location_radii, label_location_thetas)):
+    for i, (r, theta) in enumerate(zip(pol_labels.radii, pol_labels.thetas)):
         mask_size = 0
         for theta_spread in np.linspace(theta_range, np.pi, num=16):
             theta_high = theta + .5 * theta_spread
@@ -222,11 +227,11 @@ def palette_from_cmap_and_datamap(
                 theta_low += 2 * np.pi
 
             between = operator.or_ if theta_low > 0 and theta_high < 0 else operator.and_
-            r_mask = between(data_map_thetas > theta_low, data_map_thetas < theta_high)
-            #     r_mask_neg = (data_map_thetas < 0) & 
-            #     r_mask = (data_map_thetas < theta_low) & (data_map_thetas > theta_high)
+            r_mask = between(pol_data.thetas > theta_low, pol_data.thetas < theta_high)
+            #     r_mask_neg = (pol_data.thetas < 0) & 
+            #     r_mask = (pol_data.thetas < theta_low) & (pol_data.thetas > theta_high)
             # else:
-            #     r_mask = (data_map_thetas > theta_low) & (data_map_thetas < theta_high)
+            #     r_mask = (pol_data.thetas > theta_low) & (pol_data.thetas < theta_high)
             mask_size = np.sum(r_mask)
             if mask_size > 0:
                 break
@@ -234,13 +239,13 @@ def palette_from_cmap_and_datamap(
             raise RuntimeError(f"Cannot reference data for computing chroma and lightness for label at angle {theta}")
         assert mask_size > 0
 
-        chroma_scale = np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+        chroma_scale = np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size
         chroma = scaling_func(
             chroma_scale, chroma_bounds[0], base_colors_jch[i, 1], chroma_bounds[1]
         )
 
         lightness_scale = 1.0 - (
-            np.argsort(np.argsort(data_map_radii[r_mask])) / mask_size
+            np.argsort(np.argsort(pol_data.radii[r_mask])) / mask_size
         )
         lightness = scaling_func(
             lightness_scale,
@@ -251,12 +256,12 @@ def palette_from_cmap_and_datamap(
         location_lightness.append(
             np.interp(
                 r,
-                np.sort(data_map_radii[r_mask]),
+                np.sort(pol_data.radii[r_mask]),
                 np.sort(lightness)[::-1],
             )
         )
         location_chroma.append(
-            np.interp(r, np.sort(data_map_radii[r_mask]), np.sort(chroma))
+            np.interp(r, np.sort(pol_data.radii[r_mask]), np.sort(chroma))
         )
 
     palette = np.clip(
