@@ -51,8 +51,8 @@ def palette_from_datamap(
         umap_coords=umap_coords,
         label_locations=label_locations,
         hue_shift=hue_shift,
-        chroma_bounds=(20, 100),
-        lightness_bounds=(min_lightness, 80 - min_lightness),
+        chroma_bounds=(20, 90),
+        lightness_bounds=(min_lightness, 80),
         theta_range=theta_range,
         radius_weight_power=radius_weight_power,
     )
