@@ -17,7 +17,9 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from warnings import warn
 
 DEFAULT_URLS = [
-    "https://unpkg.com/deck.gl@latest/dist.min.js",
+    # deck.gl pinned to 9.1 (see get_js_dependency_urls in interactive_helpers
+    # for the reason); keep this version in sync with that one.
+    "https://unpkg.com/deck.gl@9.1/dist.min.js",
     "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js",
     "https://unpkg.com/d3@latest/dist/d3.min.js",
     "https://unpkg.com/jquery@3.7.1/dist/jquery.min.js",
