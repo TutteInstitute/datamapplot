@@ -398,7 +398,11 @@ def get_js_dependency_urls(
         A list of URLs that point to the required JavaScript dependencies.
     """
     js_dependency_urls = [
-        f"https://{cdn_url}/deck.gl@latest/dist.min.js",
+        # deck.gl is pinned to 9.1: 9.2 regressed CollisionFilterExtension so
+        # that region labels are culled on the first render and only appear
+        # after a viewport change. Bisected 9.1 (good) -> 9.2 (bad); 9.3.x is
+        # still affected. Unpin once the upstream regression is fixed.
+        f"https://{cdn_url}/deck.gl@9.1/dist.min.js",
         f"https://{cdn_url}/apache-arrow@latest/Arrow.es2015.min.js",
     ]
 
