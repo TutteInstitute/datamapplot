@@ -654,7 +654,7 @@ class DataMap {
       elevation: 100,
       // CollideExtension options
       collisionEnabled: true,
-      getCollisionPriority: d => d.size,
+      getCollisionPriority: d => d.collision_priority ?? d.size,
       collisionTestProps: {
         sizeScale: this.textCollisionSizeScale,
         sizeMaxPixels: this.textMaxPixelSize * 2,

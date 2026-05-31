@@ -375,6 +375,7 @@ def create_interactive_plot(
     enable_topic_tree=False,
     offline_data_path=None,
     histogram_enable_click_persistence=False,
+    hierarchical_collision_priority=True,
     **render_html_kwds,
 ):
     """
@@ -494,6 +495,17 @@ def create_interactive_plot(
         ``offline_data_prefix`` parameter passed through ``render_html_kwds`` for backward
         compatibility.
 
+    hierarchical_collision_priority: bool (optional, default=True)
+        When more than one ``label_layers`` array is supplied, give labels from
+        coarser layers a higher collision priority than labels from finer layers,
+        so a coarse label always wins when it overlaps a finer one (cluster size
+        breaks ties within a layer). This works around a deck.gl
+        ``CollisionFilterExtension`` precision limitation that otherwise lets
+        labels flicker or pick the wrong winner across layers as you zoom (see
+        TutteInstitute/datamapplot#192, visgl/deck.gl#10346). Set to ``False`` to
+        fall back to the previous size-only collision behaviour. Has no effect on
+        single-layer maps.
+
     **render_html_kwds:
         All other keyword arguments will be passed through the `render_html` function. Please
         see the docstring of that function for further options that can control the
@@ -578,21 +590,28 @@ def create_interactive_plot(
         #
         label_lists[-1]["lowest_layer"] = True
 
+        # Tag each layer's labels with its original (non-reversed) position so
+        # collision priority can be spread across the hierarchy (#192).
+        for reverse_index, layer_frame in enumerate(label_lists):
+            layer_frame["layerIdx"] = len(label_layers) - 1 - reverse_index
         label_dataframe = pd.concat(label_lists)
     else:
-        label_dataframe = pd.concat(
-            [
-                label_text_and_polygon_dataframes(
-                    labels,
-                    data_map_coords,
-                    noise_label=noise_label,
-                    use_medoids=use_medoids,
-                    cluster_polygons=cluster_boundary_polygons,
-                    alpha=polygon_alpha,
-                )
-                for labels in label_layers
-            ]
-        )
+        label_lists = [
+            label_text_and_polygon_dataframes(
+                labels,
+                data_map_coords,
+                noise_label=noise_label,
+                use_medoids=use_medoids,
+                cluster_polygons=cluster_boundary_polygons,
+                alpha=polygon_alpha,
+            )
+            for labels in label_layers
+        ]
+        # Tag each layer's labels with its position so collision priority can be
+        # spread across the hierarchy (#192).
+        for layer_index, layer_frame in enumerate(label_lists):
+            layer_frame["layerIdx"] = layer_index
+        label_dataframe = pd.concat(label_lists)
 
     # remove_duplicate_chains(label_dataframe)
 
@@ -736,6 +755,7 @@ def create_interactive_plot(
         darkmode=darkmode,
         noise_color=noise_color,
         label_layers=label_layers,
+        hierarchical_collision_priority=hierarchical_collision_priority,
         cluster_colormap=color_map | {noise_label: noise_color},
         enable_topic_tree=enable_topic_tree,
         offline_data_path=offline_data_path,

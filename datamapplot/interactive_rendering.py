@@ -52,6 +52,7 @@ from datamapplot.interactive_helpers import (
     default_colormap_options,
     per_layer_cluster_colormaps,
     compute_point_scaling,
+    compute_collision_priority,
     compute_label_scaling,
     get_style_config,
     get_label_text_color,
@@ -507,6 +508,7 @@ def render_html(
     colormap_metadata=None,
     cluster_layer_colormaps=False,
     label_layers=None,
+    hierarchical_collision_priority=True,
     cluster_colormap=None,
     enable_topic_tree=False,
     topic_tree_kwds={},
@@ -834,6 +836,16 @@ def render_html(
         data is split into multiple layers, and you would like users to be able to select
         individual clustering resolutions to colour by.
 
+    hierarchical_collision_priority: bool (optional, default=True)
+        When the label data spans multiple hierarchy layers (carrying a ``layerIdx``
+        column), spread label collision priorities so coarser layers win over finer
+        layers on overlap, with cluster size breaking ties within a layer. This works
+        around a deck.gl ``CollisionFilterExtension`` precision limitation that
+        otherwise lets labels flicker or pick the wrong winner across layers as you
+        zoom (see TutteInstitute/datamapplot#192, visgl/deck.gl#10346). Set to
+        ``False`` for the previous size-only collision behaviour. Has no effect when
+        there is a single layer or no ``layerIdx`` column.
+
     enable_topic_tree: bool (optional, default=False)
         Whether to enable a topic tree that highlights label heirarchy and aids navigation in
         the datamap.
@@ -1024,6 +1036,8 @@ def render_html(
 
     # Compute label text scaling
     label_dataframe = compute_label_scaling(label_dataframe, min_fontsize, max_fontsize)
+    if hierarchical_collision_priority:
+        label_dataframe = compute_collision_priority(label_dataframe)
 
     # Prep data for inlining or storage
     enable_histogram = histogram_data is not None

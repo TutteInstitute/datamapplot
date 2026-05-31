@@ -1,11 +1,14 @@
 from datamapplot.interactive_rendering import InteractiveFigure, render_html
+from datamapplot.interactive_helpers import compute_collision_priority
 import datamapplot
 import sys
 import importlib.util
 from pathlib import Path
 import pytest
+import base64
 import bz2
 import gzip
+import json
 import re
 import numpy as np
 import pandas as pd
@@ -48,6 +51,19 @@ def validate_inline_data(html_content: str) -> dict:
     }
     results["is_valid"] = all(results.values())
     return results
+
+
+def decode_inline_label_data(html_content: str) -> list:
+    """Decode the inline (base64 + gzip + JSON) label records embedded in HTML.
+
+    Mirrors the encode path in ``encode_inline_data`` so tests can inspect the
+    per-label fields (e.g. ``layerIdx``, ``collision_priority``) that actually
+    reach the browser.
+    """
+    match = re.search(r'const labelDataEncoded = "([A-Za-z0-9+/=]+)"', html_content)
+    assert match, "inline labelDataEncoded payload not found in HTML"
+    raw = gzip.decompress(base64.b64decode(match.group(1)))
+    return json.loads(raw)
 
 
 def validate_offline_data_references(html_content: str, prefix: str) -> dict:
@@ -510,6 +526,167 @@ class TestCreateInteractivePlot:
         html_content = str(result)
         validation = validate_html_structure(html_content)
         assert validation["is_valid"], f"HTML validation failed: {validation}"
+
+    @staticmethod
+    def _three_layer_inputs():
+        """A small finest-first hierarchy (3 fine, 2 mid, 1 coarse cluster)."""
+        np.random.seed(0)
+        centers = [(5, 0), (5, 1), (-3, 3), (-3, -3), (4, -4), (-5, -1)]
+        fine_names = [f"fine-{i}" for i in range(6)]
+        mid_names = ["mid-A", "mid-A", "mid-B", "mid-B", "mid-C", "mid-C"]
+        coords, fine, mid, coarse = [], [], [], []
+        for center, fname, mname in zip(centers, fine_names, mid_names):
+            pts = np.array(center) + 0.4 * np.random.randn(40, 2)
+            coords.append(pts)
+            fine.extend([fname] * 40)
+            mid.extend([mname] * 40)
+            coarse.extend(["root"] * 40)
+        return (
+            np.vstack(coords),
+            np.array(fine),
+            np.array(mid),
+            np.array(coarse),
+        )
+
+    def test_hierarchical_priority_default_round_trip(self):
+        """layerIdx + collision_priority reach the inline HTML, coarse winning."""
+        coords, fine, mid, coarse = self._three_layer_inputs()
+        result = datamapplot.create_interactive_plot(
+            coords, fine, mid, coarse, inline_data=True
+        )
+        records = decode_inline_label_data(str(result))
+        labeled = [r for r in records if r.get("label") and r["label"] != "Unlabelled"]
+        assert labeled, "no labels survived to the inline payload"
+        assert all("layerIdx" in r for r in labeled)
+        assert all("collision_priority" in r for r in labeled)
+
+        priorities = {}
+        for r in labeled:
+            priorities.setdefault(r["layerIdx"], []).append(r["collision_priority"])
+        # layerIdx 0 = finest, 2 = coarsest; coarsest must rank highest.
+        assert min(priorities[2]) > max(priorities[1]) > max(priorities[0])
+
+    def test_hierarchical_priority_can_be_disabled(self):
+        """The escape hatch reproduces the legacy size-only behavior (no column)."""
+        coords, fine, mid, coarse = self._three_layer_inputs()
+        result = datamapplot.create_interactive_plot(
+            coords,
+            fine,
+            mid,
+            coarse,
+            inline_data=True,
+            hierarchical_collision_priority=False,
+        )
+        records = decode_inline_label_data(str(result))
+        labeled = [r for r in records if r.get("label") and r["label"] != "Unlabelled"]
+        assert labeled
+        assert all("collision_priority" not in r for r in labeled)
+
+    def test_single_layer_has_no_collision_priority(self):
+        """Single-layer maps never gain a collision_priority column."""
+        coords, fine, _, _ = self._three_layer_inputs()
+        result = datamapplot.create_interactive_plot(coords, fine, inline_data=True)
+        records = decode_inline_label_data(str(result))
+        labeled = [r for r in records if r.get("label") and r["label"] != "Unlabelled"]
+        assert labeled
+        assert all("collision_priority" not in r for r in labeled)
+
+
+class TestComputeCollisionPriority:
+    """Unit tests for the hierarchical collision-priority spread (#192).
+
+    These are pure-pandas and need no network or rendering, so they are not
+    marked ``interactive``.
+    """
+
+    @staticmethod
+    def _layer_frame(layer_sizes):
+        """Build a label frame from {layerIdx: [sizes]}."""
+        rows = []
+        for layer_idx, sizes in layer_sizes.items():
+            for i, size in enumerate(sizes):
+                rows.append(
+                    {
+                        "label": f"L{layer_idx}_{i}",
+                        "size": float(size),
+                        "layerIdx": layer_idx,
+                    }
+                )
+        return pd.DataFrame(rows)
+
+    def test_no_layeridx_column_is_noop(self):
+        """Without a layerIdx column the frame passes through untouched."""
+        df = pd.DataFrame({"label": ["a", "b"], "size": [18.0, 28.0]})
+        out = compute_collision_priority(df)
+        assert "collision_priority" not in out.columns
+        pd.testing.assert_frame_equal(out, df)
+
+    def test_single_layer_is_noop(self):
+        """A single hierarchy layer needs no spread (matches legacy behavior)."""
+        df = self._layer_frame({0: [18.0, 22.0, 28.0]})
+        out = compute_collision_priority(df)
+        assert "collision_priority" not in out.columns
+
+    def test_coarsest_layer_wins(self):
+        """layerIdx 0 is finest; the coarsest layer must get the top priority band."""
+        # 3 layers: 0 = finest, 2 = coarsest (DataMapPlot finest-first convention).
+        df = self._layer_frame(
+            {0: [18.0, 20.0, 22.0], 1: [22.0, 24.0], 2: [26.0, 28.0]}
+        )
+        out = compute_collision_priority(df)
+        gmin = out.groupby("layerIdx")["collision_priority"].min()
+        gmax = out.groupby("layerIdx")["collision_priority"].max()
+        # Coarsest (2) entirely above mid (1) entirely above finest (0).
+        assert gmin[2] > gmax[1] > gmin[1] > gmax[0]
+
+    def test_interlayer_gaps_clear_precision_threshold(self):
+        """Adjacent-layer gaps must clear deck.gl's ~3-unit precision band by a lot."""
+        df = self._layer_frame({0: [18.0, 28.0], 1: [18.0, 28.0], 2: [18.0, 28.0]})
+        out = compute_collision_priority(df)
+        gmin = out.groupby("layerIdx")["collision_priority"].min()
+        gmax = out.groupby("layerIdx")["collision_priority"].max()
+        assert gmin[2] - gmax[1] > 50
+        assert gmin[1] - gmax[0] > 50
+
+    def test_within_layer_size_breaks_ties(self):
+        """Inside one layer, a larger cluster size yields higher priority."""
+        df = self._layer_frame({0: [18.0, 28.0], 1: [18.0, 28.0]})
+        out = compute_collision_priority(df).set_index("label")["collision_priority"]
+        assert out["L0_1"] > out["L0_0"]  # size 28 beats size 18 within layer 0
+        assert out["L1_1"] > out["L1_0"]
+
+    def test_values_stay_in_clip_range(self):
+        """All priorities stay within deck.gl's clip-safe [-900, 900] band."""
+        # Many layers with extreme sizes is the stress case for clip overflow.
+        df = self._layer_frame({i: [10.0, 90.0] for i in range(8)})
+        out = compute_collision_priority(df)
+        assert out["collision_priority"].min() >= -900.0
+        assert out["collision_priority"].max() <= 900.0
+
+    def test_noncontiguous_layer_indices(self):
+        """Sparse/non-contiguous layerIdx values are dense-ranked and clip-safe."""
+        df = self._layer_frame({0: [18.0, 28.0], 5: [18.0, 28.0]})
+        out = compute_collision_priority(df)
+        gmin = out.groupby("layerIdx")["collision_priority"].min()
+        gmax = out.groupby("layerIdx")["collision_priority"].max()
+        # Higher index is coarser, so layer 5 outranks layer 0.
+        assert gmin[5] > gmax[0]
+        assert out["collision_priority"].abs().max() <= 900.0
+
+    def test_equal_sizes_do_not_crash(self):
+        """A layer whose labels all share one size has a zero tiebreaker, no error."""
+        df = self._layer_frame({0: [20.0, 20.0], 1: [20.0, 20.0]})
+        out = compute_collision_priority(df)
+        gmin = out.groupby("layerIdx")["collision_priority"].min()
+        gmax = out.groupby("layerIdx")["collision_priority"].max()
+        assert gmin[1] > gmax[0]
+
+    def test_does_not_mutate_input(self):
+        """The input frame is not modified in place when a spread is applied."""
+        df = self._layer_frame({0: [18.0, 28.0], 1: [18.0, 28.0]})
+        before = df.copy()
+        compute_collision_priority(df)
+        pd.testing.assert_frame_equal(df, before)
 
 
 ### Fixtures
