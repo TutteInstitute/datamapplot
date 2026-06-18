@@ -324,6 +324,27 @@ class TestRenderHtmlBasic:
         validation = validate_html_structure(html_content)
         assert validation["is_valid"], f"HTML validation failed: {validation}"
 
+    def test_render_html_scroll_zoom_speed(self, simple_point_data, simple_label_data):
+        """scroll_zoom_speed threads into the DataMap controller config."""
+        # Default preserves the previous hard-coded behaviour.
+        default_html = render_html(
+            simple_point_data, simple_label_data, inline_data=True
+        )
+        assert re.search(
+            r"scrollZoomSpeed:\s*0\.01", default_html
+        ), "default scroll_zoom_speed (0.01) not threaded into DataMap init"
+
+        # A custom value flows through to the init JS.
+        custom_html = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            scroll_zoom_speed=0.05,
+        )
+        assert re.search(
+            r"scrollZoomSpeed:\s*0\.05", custom_html
+        ), "custom scroll_zoom_speed (0.05) not threaded into DataMap init"
+
 
 @pytest.mark.interactive
 class TestRenderHtmlAdvanced:
@@ -526,6 +547,21 @@ class TestCreateInteractivePlot:
         html_content = str(result)
         validation = validate_html_structure(html_content)
         assert validation["is_valid"], f"HTML validation failed: {validation}"
+
+    def test_create_interactive_plot_scroll_zoom_speed(self):
+        """scroll_zoom_speed is forwarded through create_interactive_plot (**render_html_kwds)."""
+        n_points = 100
+        np.random.seed(42)
+        data_map = np.random.randn(n_points, 2)
+        labels = np.array(["A"] * 50 + ["B"] * 50)
+
+        result = datamapplot.create_interactive_plot(
+            data_map, labels, inline_data=True, scroll_zoom_speed=0.05
+        )
+        html_content = str(result)
+        assert re.search(
+            r"scrollZoomSpeed:\s*0\.05", html_content
+        ), "scroll_zoom_speed not forwarded to the rendered HTML"
 
     @staticmethod
     def _three_layer_inputs():
