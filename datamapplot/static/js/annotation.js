@@ -332,7 +332,7 @@ class AnnotationWidget {
         // Deck.gl controller
         this.datamap.deckgl.setProps({
             controller: {
-                scrollZoom: { speed: 0.01, smooth: true },
+                scrollZoom: { speed: this.datamap.scrollZoomSpeed ?? 0.01, smooth: true },
                 dragPan: !active,
                 dragRotate: !active,
             },
@@ -873,7 +873,7 @@ class AnnotationWidget {
 
         // Restore deck.gl controller
         this.datamap.deckgl.setProps({
-            controller: { scrollZoom: { speed: 0.01, smooth: true }, dragPan: true, dragRotate: true },
+            controller: { scrollZoom: { speed: this.datamap.scrollZoomSpeed ?? 0.01, smooth: true }, dragPan: true, dragRotate: true },
             getCursor: ({ isDragging }) => isDragging ? 'grabbing' : 'grab',
         });
 

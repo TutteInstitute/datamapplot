@@ -474,6 +474,7 @@ def render_html(
     point_line_width=0.001,
     cluster_boundary_line_width=1,
     initial_zoom_fraction=0.999,
+    scroll_zoom_speed=0.01,
     background_color=None,
     background_image=None,
     background_image_bounds=None,
@@ -682,6 +683,11 @@ def render_html(
         The fraction of of data that should be visible in the initial zoom lavel state. Sometimes
         data maps can have extreme outliers, and lowering this value to prune those out can result
         in a more useful initial view.
+
+    scroll_zoom_speed: float (optional, default=0.01)
+        The speed factor applied to scroll/wheel zooming in the interactive plot. Larger
+        values zoom faster per scroll step; smaller values zoom more gradually. The default
+        matches the previous hard-coded behaviour.
 
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
@@ -1538,6 +1544,7 @@ def render_html(
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,
         data_bounds=bounds,
+        scroll_zoom_speed=scroll_zoom_speed,
         n_data_chunks=n_chunks,
         on_click=on_click,
         enable_lasso_selection=enable_lasso_selection,
