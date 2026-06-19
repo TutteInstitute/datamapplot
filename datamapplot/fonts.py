@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import re
 import requests
+from urllib.parse import urlparse
 from warnings import warn
 
 
@@ -36,11 +37,24 @@ def query_google_fonts(fontname):
         return FontCollection("")
 
 
+TRUSTED_DOMAINS = {"fonts.googleapis.com", "fonts.gstatic.com"}
+
+
+def _is_trusted_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+        return parsed.scheme in ("http", "https") and parsed.netloc in TRUSTED_DOMAINS
+    except Exception:
+        return False
+
+
 @dataclass
 class Font:
     url: str
 
     def fetch(self):
+        if not _is_trusted_url(self.url):
+            raise ValueError(f"Untrusted font URL: {self.url}")
         return requests.get(self.url).content
 
 
