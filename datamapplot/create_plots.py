@@ -203,11 +203,18 @@ def create_plot(
         )
         unique_non_noise_labels = []
     else:
-        cluster_label_vector = np.asarray(labels)
+        cluster_label_vector = np.asarray(labels, dtype=object).copy()
+        empty_label_mask = np.asarray(
+            [isinstance(label, str) and label == "" for label in cluster_label_vector],
+            dtype=bool,
+        )
+        cluster_label_vector[empty_label_mask] = noise_label
         unique_non_noise_labels = [
             label for label in np.unique(cluster_label_vector) if label != noise_label
         ]
-        if use_medoids:
+        if len(unique_non_noise_labels) == 0:
+            label_locations = np.zeros((0, 2), dtype=np.float32)
+        elif use_medoids:
             label_locations = np.asarray(
                 [
                     medoid(data_map_coords[cluster_label_vector == i])
