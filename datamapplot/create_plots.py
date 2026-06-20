@@ -203,12 +203,14 @@ def create_plot(
         )
         unique_non_noise_labels = []
     else:
-        cluster_label_vector = np.asarray(labels, dtype=object).copy()
+        cluster_label_vector = np.asarray(labels)
         empty_label_mask = np.asarray(
             [isinstance(label, str) and label == "" for label in cluster_label_vector],
             dtype=bool,
         )
-        cluster_label_vector[empty_label_mask] = noise_label
+        if empty_label_mask.any():
+            cluster_label_vector = cluster_label_vector.astype(object, copy=True)
+            cluster_label_vector[empty_label_mask] = noise_label
         unique_non_noise_labels = [
             label for label in np.unique(cluster_label_vector) if label != noise_label
         ]
