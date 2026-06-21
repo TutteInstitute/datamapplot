@@ -217,6 +217,7 @@ class DataMap {
     this.searchItemId = searchItemId;
     this.lassoSelectionItemId = lassoSelectionItemId;
     this.scrollZoomSpeed = scrollZoomSpeed;
+    this.filterLabelsOnSearch = false;
     this.pointData = null;
     this.labelData = null;
     this.metaData = null;
@@ -1059,6 +1060,27 @@ class DataMap {
       layers: this.layers
     });
     this.pointLayer = updatedPointLayer;
+
+    // Update label visibility when search filter is active
+    if (this.labelLayer) {
+      const filteringSearch = itemId === this.searchItemId && this.filterLabelsOnSearch && hasSelectedIndices;
+      if (!this._allLabelData) {
+        this._allLabelData = this.labelLayer.props.data;
+      }
+      const filteredData = filteringSearch
+        ? this._allLabelData.filter(d => d.relatedPoints && d.relatedPoints.some(i => selectedIndices.has(i)))
+        : this._allLabelData;
+      const updatedLabelLayer = this.labelLayer.clone({
+        data: filteredData,
+        updateTriggers: { data: this.updateTriggerCounter },
+      });
+      const labelIdx = this.layers.indexOf(this.labelLayer);
+      if (labelIdx !== -1) {
+        this.layers = [...this.layers.slice(0, labelIdx), updatedLabelLayer, ...this.layers.slice(labelIdx + 1)];
+        this.deckgl.setProps({ layers: this.layers });
+        this.labelLayer = updatedLabelLayer;
+      }
+    }
 
     // Update histogram, if any
     if (this.histogramItem && itemId !== this.histogramItemId) {

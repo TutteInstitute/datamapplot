@@ -373,6 +373,13 @@ function loadMetaData() {
       if (searchItem) {
         searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
       }
+      const filterLabelsCheckbox = document.getElementById("filter-labels-checkbox");
+      if (filterLabelsCheckbox) {
+        filterLabelsCheckbox.addEventListener("change", event => {
+          datamap.filterLabelsOnSearch = event.target.checked;
+          datamap.searchText(searchItem ? searchItem.value : "");
+        });
+      }
       
       updateProgressBar('meta-data-progress', 100);
       checkAllDataLoaded();
