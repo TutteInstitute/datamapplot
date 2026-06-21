@@ -375,6 +375,7 @@ function loadMetaData() {
       }
       const filterLabelsCheckbox = document.getElementById("filter-labels-checkbox");
       if (filterLabelsCheckbox) {
+        filterLabelsCheckbox.checked = false;
         filterLabelsCheckbox.addEventListener("change", event => {
           datamap.filterLabelsOnSearch = event.target.checked;
           datamap.searchText(searchItem ? searchItem.value : "");
