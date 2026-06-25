@@ -38,8 +38,9 @@ stages:
     jobs:
       - job: RunPythonTests
         displayName: Run Python Tests
-        # Run on macOS and only interactive tests on Linux
-        condition: not(and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static')))
+        # Run static baseline + interactive on Linux; only interactive on Windows.
+        # Skip Windows when only static baselines are requested.
+        condition: not(and(eq(variables['Agent.OS'], 'Windows_NT'), eq('${{ parameters.runUpdates }}', 'static')))
 
         strategy:
           matrix: ${{ parameters.matrix }}
@@ -61,33 +62,26 @@ stages:
             uv sync --group cicd
           displayName: 'Install package and dependencies'
 
-        # Static tests only (macOS)
+        # Static tests only (Linux)
         - script: |
             export CI=true
             uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
           displayName: 'Run python mpl tests to generate new static baseline'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'static'))
+          condition: and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'static'))
 
-        # Static and interactive tests (macOS)
+        # Static and interactive tests (Linux)
         - script: |
             export CI=true
             uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
           displayName: 'Run python tests to generate static baseline and interactive html'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
+          condition: and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'all'))
 
-        # Interactive tests only (macOS)
+        # Interactive tests only (Linux)
         - script: |
             export CI=true
             uv run pytest datamapplot/tests -m interactive
-          displayName: 'Run python tests to generate interactive html'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
-
-        # Interactive tests only (Linux)
-        - bash: |
-            export CI=true
-            uv run pytest datamapplot/tests -m interactive
           displayName: 'Run python tests to generate interactive html (Linux)'
-          condition: eq(variables['Agent.OS'], 'Linux')
+          condition: and(eq(variables['Agent.OS'], 'Linux'), eq('${{ parameters.runUpdates }}', 'interactive'))
 
         # Interactive tests only (Windows)
         - powershell: |
@@ -102,15 +96,15 @@ stages:
             SourceFolder: '$(Build.SourcesDirectory)/datamapplot/tests/baseline'
             Contents: '*.png'
             TargetFolder: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
-          displayName: 'Copy updated mpl screenshots (Darwin)'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
+          displayName: 'Copy updated mpl screenshots (Linux)'
+          condition: and(eq(variables['Agent.OS'], 'Linux'), ne('${{ parameters.runUpdates }}', 'interactive'))
 
         - task: PublishPipelineArtifact@1
           inputs:
             targetPath: '$(Build.ArtifactStagingDirectory)/mpl-screenshots'
             artifact: 'updated-mpl-screenshots'
           displayName: 'Publish updated pytest mpl screenshots'
-          condition: and(eq(variables['Agent.OS'], 'Darwin'), ne('${{ parameters.runUpdates }}', 'interactive'))
+          condition: and(eq(variables['Agent.OS'], 'Linux'), ne('${{ parameters.runUpdates }}', 'interactive'))
 
         # Publish the html files for use in the next job
         - task: PublishPipelineArtifact@1
