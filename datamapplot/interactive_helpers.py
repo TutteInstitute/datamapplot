@@ -172,12 +172,9 @@ def _build_font_face_css(fontname, font_data):
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');"""
 
     if len(font_data["unicode_range"]) > 0:
-        return (
-            base_css
-            + f"""
+        return base_css + f"""
         unicode-range: {font_data["unicode_range"]};
     }}"""
-        )
     return base_css + "\n    }"
 
 
@@ -540,8 +537,21 @@ def default_colormap_options(values_dict):
 
 
 def cmap_name_to_color_list(cmap_name):
-    """Convert a matplotlib colormap name to a list of hex colors."""
-    cmap = get_cmap(cmap_name)
+    """Convert a matplotlib or colorcet colormap name to a list of hex colors."""
+    try:
+        cmap = get_cmap(cmap_name)
+    except (ValueError, KeyError):
+        # Fall back to colorcet for names like "cet_fire" that may not be
+        # registered with matplotlib (e.g. colorcet wasn't imported).
+        import colorcet
+
+        key = cmap_name[4:] if cmap_name.startswith("cet_") else cmap_name
+        palette = getattr(colorcet, "palette", {})
+        if key in palette:
+            return list(palette[key])
+        if cmap_name in palette:
+            return list(palette[cmap_name])
+        raise
     if hasattr(cmap, "colors"):
         return [rgb2hex(c) for c in cmap.colors]
     return [rgb2hex(cmap(i)) for i in np.linspace(0, 1, 128)]
@@ -738,7 +748,11 @@ def render_density_overview_image(
     if cmap_name is not None and values is not None:
         df = pd.DataFrame({"x": coords[:, 0], "y": coords[:, 1], "value": values})
         agg = canvas.points(df, "x", "y", agg=ds.mean("value"))
-        img = tf.shade(agg, cmap=cmap_name, how="eq_hist")
+        # datashader's ``cmap`` expects a list of colors or a matplotlib
+        # Colormap object, not a colormap *name* string (a bare string is
+        # interpreted as a single colour), so resolve the name to a colour list.
+        cmap_colors = cmap_name_to_color_list(cmap_name)
+        img = tf.shade(agg, cmap=cmap_colors, how="eq_hist")
         # img = tf.spread(img, px=1, how="over")
         return img.to_pil()
 
@@ -901,7 +915,7 @@ def render_and_encode_all_density_tiles(
         ``{field: [[tile_dicts], …]}`` ready for template consumption.
     """
     import os
-    from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+    from concurrent.futures import ThreadPoolExecutor
 
     coords = point_dataframe[["x", "y"]].values
 
@@ -991,8 +1005,17 @@ def render_and_encode_all_density_tiles(
     if n_jobs <= 1 or len(tasks) <= 1:
         results = [_render_and_encode_tile(*t) for t in tasks]
     else:
-        with ProcessPoolExecutor(max_workers=n_jobs) as pool:
-            results = list(pool.map(_render_and_encode_tile, *zip(*tasks)))
+        # Use threads rather than processes: the worker calls into
+        # datashader/numba and sklearn (MiniBatchKMeans), whose native
+        # multi-threaded runtimes are not fork-safe. A ``ProcessPoolExecutor``
+        # defaults to the ``fork`` start method on Linux, and forking a
+        # process that has already initialised those threaded runtimes can
+        # deadlock the workers (inherited locks that are never released).
+        # Datashader releases the GIL during aggregation and PNG encoding is
+        # largely I/O bound, so threads provide effective parallelism without
+        # the fork hazard.
+        with ThreadPoolExecutor(max_workers=n_jobs) as pool:
+            results = list(pool.map(lambda t: _render_and_encode_tile(*t), tasks))
 
     # Reassemble into {field: [[tile_dicts], …]} pyramid structure
     output = {}

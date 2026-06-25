@@ -759,6 +759,7 @@ class DataMap {
     this._densityOverviewTargetRadiusMin = targetRadiusMin;
     this._densityOverviewTargetLineWidthMin = targetLineWidthMin;
     this._densityOverviewLastT = null;
+    this._densityOverviewSuppressed = false;
     this._densityCurrentField = "none";
 
     const currentZoom = this.deckgl.viewManager
@@ -875,6 +876,11 @@ class DataMap {
 
   _updateDensityCrossfade(viewState) {
     if (!this._densityOverviewConfig) return;
+
+    // While a selection (e.g. search results) is active the overview is
+    // suppressed so that the selected points remain visible; skip crossfade
+    // updates entirely until the selection is cleared.
+    if (this._densityOverviewSuppressed) return;
 
     const { crossfadeStart, crossfadeEnd } = this._densityOverviewConfig;
     const zoom = viewState.zoom;
@@ -1036,6 +1042,22 @@ class DataMap {
 
     const sizeAdjust = 1 / (1 + (Math.sqrt(selectedIndices.size) / Math.log2(this.selected.length)));
 
+    // When a density overview is active and there is an active selection
+    // (e.g. search results) we must suppress the overview, which would
+    // otherwise occlude the selected points when zoomed out, and force the
+    // points to be fully visible regardless of the crossfade zoom state.
+    const overviewActive = !!this._densityOverviewConfig;
+    const suppressOverview = overviewActive && hasSelectedIndices;
+    const overviewSuppressionChanged =
+      overviewActive && this._densityOverviewSuppressed !== suppressOverview;
+    if (overviewActive) {
+      this._densityOverviewSuppressed = suppressOverview;
+    }
+
+    const pointOpacityOverride = suppressOverview
+      ? 1.0
+      : this.pointLayer.props.opacity;
+
     const updatedPointLayer = this.pointLayer.clone({
       data: {
         ...this.pointLayer.props.data,
@@ -1044,6 +1066,7 @@ class DataMap {
           getFilterValue: { value: this.selected, size: 1 }
         }
       },
+      opacity: pointOpacityOverride,
       radiusMinPixels: hasSelectedIndices ? 2 * (this.pointRadiusMinPixels + sizeAdjust) : this.pointRadiusMinPixels,
       updateTriggers: {
         getFilterValue: this.updateTriggerCounter,
@@ -1053,10 +1076,35 @@ class DataMap {
 
     const idx = this.layers.indexOf(this.pointLayer);
     this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
+    this.pointLayer = updatedPointLayer;
+
+    // Hide or restore the density overview tile layers depending on whether
+    // there is now an active selection to display.
+    if (suppressOverview) {
+      for (let i = 0; i < this._densityTileLayers.length; i++) {
+        const oldLayer = this._densityTileLayers[i];
+        const layerIdx = this.layers.indexOf(oldLayer);
+        if (layerIdx !== -1) {
+          const updated = oldLayer.clone({ opacity: 0 });
+          this.layers[layerIdx] = updated;
+          this._densityTileLayers[i] = updated;
+        }
+      }
+    }
+
     this.deckgl.setProps({
       layers: this.layers
     });
-    this.pointLayer = updatedPointLayer;
+
+    // When the selection has just been cleared, restore the overview to the
+    // appropriate crossfade state for the current zoom level.
+    if (overviewActive && overviewSuppressionChanged && !suppressOverview) {
+      this._densityOverviewLastT = null;
+      const viewState = this.deckgl.viewManager
+        ? this.deckgl.viewManager.getViewState()
+        : this.deckgl.props.initialViewState;
+      this._updateDensityCrossfade(viewState);
+    }
 
     // Update histogram, if any
     if (this.histogramItem && itemId !== this.histogramItemId) {
