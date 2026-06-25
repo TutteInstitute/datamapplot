@@ -211,10 +211,12 @@ class DataMap {
     bounds,
     searchItemId = "text-search",
     lassoSelectionItemId = "lasso-selection",
+    scrollZoomSpeed = 0.01,
   }) {
     this.container = container;
     this.searchItemId = searchItemId;
     this.lassoSelectionItemId = lassoSelectionItemId;
+    this.scrollZoomSpeed = scrollZoomSpeed;
     this.pointData = null;
     this.labelData = null;
     this.metaData = null;
@@ -228,7 +230,7 @@ class DataMap {
         longitude: dataCenter[0],
         zoom: zoomLevel
       },
-      controller: { scrollZoom: { speed: 0.01, smooth: true } },
+      controller: { scrollZoom: { speed: this.scrollZoomSpeed, smooth: true } },
     });
     this.updateTriggerCounter = 0;
     this.dataSelectionManager = new DataSelectionManager(lassoSelectionItemId);
@@ -654,7 +656,7 @@ class DataMap {
       elevation: 100,
       // CollideExtension options
       collisionEnabled: true,
-      getCollisionPriority: d => d.size,
+      getCollisionPriority: d => d.collision_priority ?? d.size,
       collisionTestProps: {
         sizeScale: this.textCollisionSizeScale,
         sizeMaxPixels: this.textMaxPixelSize * 2,

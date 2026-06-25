@@ -395,7 +395,11 @@ def get_js_dependency_urls(
         A list of URLs that point to the required JavaScript dependencies.
     """
     js_dependency_urls = [
-        f"https://{cdn_url}/deck.gl@latest/dist.min.js",
+        # deck.gl is pinned to 9.1: 9.2 regressed CollisionFilterExtension so
+        # that region labels are culled on the first render and only appear
+        # after a viewport change. Bisected 9.1 (good) -> 9.2 (bad); 9.3.x is
+        # still affected. Unpin once the upstream regression is fixed.
+        f"https://{cdn_url}/deck.gl@9.1/dist.min.js",
         f"https://{cdn_url}/apache-arrow@latest/Arrow.es2015.min.js",
     ]
 
@@ -2014,6 +2018,77 @@ def compute_point_scaling(point_dataframe, bounds, point_size_scale=None):
         point_size = -1
 
     return magic_number, point_size, point_dataframe
+
+
+def compute_collision_priority(label_dataframe, priority_range=900.0):
+    """Spread label collision priorities across hierarchy layers.
+
+    deck.gl's ``CollisionFilterExtension`` uses a 16-bit depth FBO, which gives
+    only ~32 buckets per unit of collision-priority gap; gaps below ~3 produce
+    noisy, non-monotonic label visibility (TutteInstitute/datamapplot#192,
+    visgl/deck.gl#10346). When labels come from multiple hierarchy layers we
+    spread the priorities so the layer index dominates and ``size`` is only a
+    within-layer tiebreaker, keeping adjacent-layer gaps well above the
+    precision threshold.
+
+    By DataMapPlot's label-layer convention the first layer passed
+    (``layerIdx`` 0) is the finest and the last is the coarsest, matching how
+    point colours and the topic tree are already derived. The coarsest layer is
+    given the highest priority so it wins collisions against finer overlapping
+    layers (the same coarse-beats-fine behaviour you get when zoomed out). All
+    values stay within ``[-priority_range, priority_range]`` to remain inside
+    deck.gl's clip-space-safe range.
+
+    This is a no-op (the frame is returned unchanged) when there is no
+    ``layerIdx`` column or only a single layer is present, so single-layer maps
+    and direct ``render_html`` callers are unaffected.
+
+    Parameters
+    ----------
+    label_dataframe : pandas.DataFrame
+        Label data with a ``size`` column (assumed already scaled by
+        ``compute_label_scaling``) and, for multi-layer maps, a ``layerIdx``
+        column tagging each label with its source layer.
+
+    priority_range : float (optional, default=900.0)
+        Half-width of the clip-safe priority band. Values are placed within
+        ``[-priority_range, priority_range]``.
+
+    Returns
+    -------
+    label_dataframe : pandas.DataFrame
+        The input frame, with an added ``collision_priority`` column when the
+        spread was applied.
+    """
+    if "layerIdx" not in label_dataframe.columns:
+        return label_dataframe
+
+    present_layers = sorted(label_dataframe["layerIdx"].dropna().unique())
+    n_layers = len(present_layers)
+    if n_layers <= 1:
+        return label_dataframe
+
+    label_dataframe = label_dataframe.copy()
+    step = (2.0 * priority_range) / n_layers
+    dense_rank = {layer: rank for rank, layer in enumerate(present_layers)}
+    layer_rank = label_dataframe["layerIdx"].map(dense_rank)
+
+    # Center each layer's band. layerIdx 0 is the finest layer, so invert the
+    # rank to give the coarsest layer (highest layerIdx) the highest priority.
+    inverted_rank = (n_layers - 1) - layer_rank
+    base = priority_range - (inverted_rank + 0.5) * step
+
+    # Keep the size tiebreaker within (-step/4, step/4) so layers never overlap.
+    size = label_dataframe["size"]
+    size_min = size.min()
+    size_max = size.max()
+    if size_max > size_min:
+        tiebreaker = ((size - size_min) / (size_max - size_min) - 0.5) * (step / 2.0)
+    else:
+        tiebreaker = 0.0
+
+    label_dataframe["collision_priority"] = base + tiebreaker
+    return label_dataframe
 
 
 def compute_label_scaling(label_dataframe, min_fontsize, max_fontsize):

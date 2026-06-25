@@ -64,6 +64,7 @@ and followed by guides on basic usage, through to the more complicated options a
 
    configuration
    auto_examples/index
+   community_projects
    api
    faq
 

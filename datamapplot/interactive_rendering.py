@@ -52,6 +52,7 @@ from datamapplot.interactive_helpers import (
     default_colormap_options,
     per_layer_cluster_colormaps,
     compute_point_scaling,
+    compute_collision_priority,
     compute_label_scaling,
     get_style_config,
     get_label_text_color,
@@ -473,6 +474,7 @@ def render_html(
     point_line_width=0.001,
     cluster_boundary_line_width=1,
     initial_zoom_fraction=0.999,
+    scroll_zoom_speed=0.01,
     background_color=None,
     background_image=None,
     background_image_bounds=None,
@@ -507,6 +509,7 @@ def render_html(
     colormap_metadata=None,
     cluster_layer_colormaps=False,
     label_layers=None,
+    hierarchical_collision_priority=True,
     cluster_colormap=None,
     enable_topic_tree=False,
     topic_tree_kwds={},
@@ -681,6 +684,11 @@ def render_html(
         data maps can have extreme outliers, and lowering this value to prune those out can result
         in a more useful initial view.
 
+    scroll_zoom_speed: float (optional, default=0.01)
+        The speed factor applied to scroll/wheel zooming in the interactive plot. Larger
+        values zoom faster per scroll step; smaller values zoom more gradually. The default
+        matches the previous hard-coded behaviour.
+
     background_color: str or None (optional, default=None)
         A background colour (as a hex-string) for the data map. If ``None`` a background
         colour will be chosen automatically based on whether ``darkmode`` is set.
@@ -833,6 +841,16 @@ def render_html(
         dropdown will be created for each layer of the label data. This is useful when the label
         data is split into multiple layers, and you would like users to be able to select
         individual clustering resolutions to colour by.
+
+    hierarchical_collision_priority: bool (optional, default=True)
+        When the label data spans multiple hierarchy layers (carrying a ``layerIdx``
+        column), spread label collision priorities so coarser layers win over finer
+        layers on overlap, with cluster size breaking ties within a layer. This works
+        around a deck.gl ``CollisionFilterExtension`` precision limitation that
+        otherwise lets labels flicker or pick the wrong winner across layers as you
+        zoom (see TutteInstitute/datamapplot#192, visgl/deck.gl#10346). Set to
+        ``False`` for the previous size-only collision behaviour. Has no effect when
+        there is a single layer or no ``layerIdx`` column.
 
     enable_topic_tree: bool (optional, default=False)
         Whether to enable a topic tree that highlights label heirarchy and aids navigation in
@@ -1024,6 +1042,8 @@ def render_html(
 
     # Compute label text scaling
     label_dataframe = compute_label_scaling(label_dataframe, min_fontsize, max_fontsize)
+    if hierarchical_collision_priority:
+        label_dataframe = compute_collision_priority(label_dataframe)
 
     # Prep data for inlining or storage
     enable_histogram = histogram_data is not None
@@ -1524,6 +1544,7 @@ def render_html(
         cluster_boundary_polygons="polygon" in label_dataframe.columns,
         cluster_boundary_line_width=cluster_boundary_line_width,
         data_bounds=bounds,
+        scroll_zoom_speed=scroll_zoom_speed,
         n_data_chunks=n_chunks,
         on_click=on_click,
         enable_lasso_selection=enable_lasso_selection,

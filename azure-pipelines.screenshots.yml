@@ -6,11 +6,11 @@ parameters:
   type: object
   default:
 
-    mac_py311:
-      imageName: 'macOS-latest'
-      python.version: '3.11'
-      browsers: 'chromium firefox'
-      browserProjects: '--project=chromium --project=firefox --project=mobile-chrome'
+    # mac_py311:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.11'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox --project=mobile-chrome'
     linux_py311:
       imageName: 'ubuntu-latest'
       python.version: '3.11'
@@ -56,63 +56,43 @@ stages:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
-        - task: Cache@2
-          inputs:
-            key: 'pip | "$(Agent.OS)" | "$(Build.SourcesDirectory)/test-requirements.txt"'
-            restoreKeys: |
-              pip | "$(Agent.OS)"
-            path: $(PIP_CACHE_DIR)
-          displayName: 'Cache pip dependencies'
-
         - script: |
-            python -m pip install --upgrade pip wheel
-          displayName: 'Upgrade pip'
-
-        # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
-        - script: |
-            python -m pip install "setuptools<78.0.0"
-          displayName: 'Install setuptools'
-
-        - script: |
-            pip install -r test-requirements.txt
-          displayName: 'Install pip dependencies'
-
-        - script: |
-            pip install -e .
-          displayName: 'Install local package'
+            python -m pip install -U uv
+            uv sync --group cicd
+          displayName: 'Install package and dependencies'
 
         # Static tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
+            uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
           displayName: 'Run python mpl tests to generate new static baseline'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'static'))
 
         # Static and interactive tests (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
+            uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
           displayName: 'Run python tests to generate static baseline and interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'all'))
 
         # Interactive tests only (macOS)
         - script: |
             export CI=true
-            pytest datamapplot/tests -m interactive
+            uv run pytest datamapplot/tests -m interactive
           displayName: 'Run python tests to generate interactive html'
           condition: and(eq(variables['Agent.OS'], 'Darwin'), eq('${{ parameters.runUpdates }}', 'interactive'))
 
         # Interactive tests only (Linux)
         - bash: |
             export CI=true
-            pytest datamapplot/tests -m interactive
+            uv run pytest datamapplot/tests -m interactive
           displayName: 'Run python tests to generate interactive html (Linux)'
           condition: eq(variables['Agent.OS'], 'Linux')
 
         # Interactive tests only (Windows)
         - powershell: |
             $env:CI = "true"
-            pytest datamapplot/tests -m interactive
+            uv run pytest datamapplot/tests -m interactive
           displayName: 'Run python tests to generate interactive html (Windows)'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
 
@@ -208,9 +188,9 @@ stages:
           condition: eq(variables['Agent.OS'], 'Windows_NT')
 
 
-        - task: NodeTool@0
+        - task: NodeTool@1
           inputs:
-            versionSpec: '22'
+            version: '22'
           displayName: 'Use Node.js for frontend tests'
 
         - script: |

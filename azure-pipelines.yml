@@ -92,6 +92,21 @@ parameters:
       python.version: '3.13'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
+    # mac_py314:
+    #   imageName: 'macOS-latest'
+    #   python.version: '3.14'
+    #   browsers: 'chromium firefox'
+    #   browserProjects: '--project=chromium --project=firefox'
+    linux_py314:
+      imageName: 'ubuntu-latest'
+      python.version: '3.14'
+      browsers: 'chromium webkit'
+      browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
+    windows_py314:
+      imageName: 'windows-latest'
+      python.version: '3.14'
+      browsers: 'chromium firefox'
+      browserProjects: '--project=chromium --project=firefox'
 
 variables:
   triggeredByPullRequest: $[eq(variables['Build.Reason'], 'PullRequest')]
@@ -114,31 +129,10 @@ stages:
             versionSpec: '$(python.version)'
           displayName: 'Use Python $(python.version)'
 
-        - task: Cache@2
-          inputs:
-            key: 'pip | "$(Build.SourcesDirectory)/test-requirements.txt" | "$(Build.SourcesDirectory)/setup.cfg"'
-            restoreKeys: |
-              pip |
-            path: $(PIP_CACHE_DIR)
-          displayName: 'Cache pip dependencies'
-
         - script: |
-            python -m pip install --upgrade pip wheel
-          displayName: 'Upgrade pip'
-
-        # temporarily cap setuptools version. Pyqtree is incompatible with setuptools 78.0.0 https://github.com/karimbahgat/Pyqtree/pull/21
-        - script: |
-            python -m pip install "setuptools<78.0.0"
-          displayName: 'Install setuptools'
-
-        - script: |
-            pip install -r test-requirements.txt
-
-          displayName: 'Install pip dependencies'
-
-        - script: |
-            pip install -e .
-          displayName: 'Install local package'
+            python -m pip install -U uv
+            uv sync --group cicd
+          displayName: 'Install package and dependencies'
 
         # # Debugging import datashader
         # - script: |
@@ -154,7 +148,7 @@ stages:
         - bash: |
             export CI=true
             mkdir -p $(Build.ArtifactStagingDirectory)/mpl
-            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+            uv run pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
                 --cov=datamapplot/ --cov-report=html \
                 --mpl-generate-summary=html \
                 --mpl-results-path=$(Build.ArtifactStagingDirectory)/mpl
@@ -164,7 +158,7 @@ stages:
         - powershell: |
             $env:CI = "true"
             New-Item -ItemType Directory -Force -Path "$(Build.ArtifactStagingDirectory)\mpl"
-            pytest datamapplot/tests --mpl --show-capture=no --disable-warnings `
+            uv run pytest datamapplot/tests --mpl --show-capture=no --disable-warnings `
                 --cov=datamapplot/ --cov-report=html `
                 --mpl-generate-summary=html `
                 --mpl-results-path="$(Build.ArtifactStagingDirectory)\mpl"
@@ -222,9 +216,9 @@ stages:
           displayName: 'Start HTTP server (Windows)'
           condition: eq(variables['Agent.OS'], 'Windows_NT')
 
-        - task: NodeTool@0
+        - task: NodeTool@1
           inputs:
-            versionSpec: '22'
+            version: '22'
           displayName: 'Use Node.js for frontend tests'
 
         - script: |
@@ -296,25 +290,21 @@ stages:
         steps:
         - task: UsePythonVersion@0
           inputs:
-            versionSpec: '3.10'
-          displayName: 'Use Python 3.10'
+            versionSpec: '3.13'
+          displayName: 'Use Python 3.13'
 
         - script: |
             python -m pip install --upgrade pip
-            pip install wheel
+            python -m pip install -U uv
+            uv sync
           displayName: 'Install dependencies'
 
         - script: |
-            pip install -e .
-          displayName: 'Install package locally'
-
-        - script: |
-            pip install build
-            python -m build --wheel --sdist --outdir dist/ .
+            uv build --no-sources --sdist --wheel
           displayName: 'Build package'
 
         - bash: |
-            export PACKAGE_VERSION="$(python setup.py --version)"
+            export PACKAGE_VERSION="$(uv version --short)"
             echo "Package Version: ${PACKAGE_VERSION}"
             echo "##vso[task.setvariable variable=packageVersionFormatted;]release-${PACKAGE_VERSION}"
           displayName: 'Get package version'
@@ -329,11 +319,11 @@ stages:
           name: PYPIRC_CONFIG
           displayName: 'Download pypirc'
           inputs:
-            secureFile: 'pypirc'
+            secureFile: 'pypirc'  
 
         - script: |
-            pip install twine
-            twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/*
+            uvx twine check dist/*
+            uvx twine upload --repository pypi --config-file $(PYPIRC_CONFIG.secureFilePath) dist/*
           displayName: 'Upload to PyPI'
           condition: and(succeeded(), eq(variables['Build.SourceBranchName'], variables['packageVersionFormatted']))
 
