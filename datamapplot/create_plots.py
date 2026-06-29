@@ -569,12 +569,7 @@ def create_interactive_plot(
             }
         )
     elif enable_topic_tree:
-        include_related_points = (
-            True
-            if render_html_kwds.get("topic_tree_kwds", {}).get("button_on_click")
-            is not None
-            else False
-        )
+        include_related_points = True
         # This method of allowing label_text_and_polygon_dataframes to edit parents is unsavory,
         # but means that the function has the same return statement each time and we can still use
         # list comprehension.
@@ -613,6 +608,7 @@ def create_interactive_plot(
                 use_medoids=use_medoids,
                 cluster_polygons=cluster_boundary_polygons,
                 alpha=polygon_alpha,
+                include_related_points=True,
             )
             for labels in label_layers
         ]
