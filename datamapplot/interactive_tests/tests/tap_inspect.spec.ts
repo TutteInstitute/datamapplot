@@ -50,8 +50,21 @@ const tapElement = async (page: Page, cal: TouchCal, selector: string) => {
   await tapAt(page, cal, rect!.x, rect!.y);
 };
 
+// Title of the one test that runs on desktop projects; every other test in
+// this suite is touch-only. Used to skip mismatched project/test pairs in
+// beforeEach, before paying for the fixture load. The in-test skip guards
+// stay as the source of truth if titles drift.
+const DESKTOP_TEST = 'mouse hover and click are unchanged on desktop';
+
 test.describe('Tap-to-inspect', () => {
   test.beforeEach(async ({ page }, testInfo) => {
+    const isMobile = testInfo.project.name.includes('mobile');
+    if (isMobile) {
+      test.skip(testInfo.title === DESKTOP_TEST, 'desktop-only regression check');
+    } else {
+      test.skip(testInfo.title !== DESKTOP_TEST, 'touch-only behavior');
+    }
+
     // Extend timeout for all tests running this hook by 4 minutes.
     testInfo.setTimeout(testInfo.timeout + 240_000);
 
@@ -67,6 +80,17 @@ test.describe('Tap-to-inspect', () => {
     // Tap targets need the point metadata (hover text) to be loaded.
     await page.waitForFunction(
       () => (window as any).datamap?.metaData?.hover_text?.length > 0,
+      undefined,
+      { timeout: 180_000 },
+    );
+
+    // deck.gl creates its view manager on the first animation frame, which
+    // can lag the data-loaded signal on slow (software-GL) CI machines.
+    await page.waitForFunction(
+      () => {
+        const vp = (window as any).datamap?.deckgl?.viewManager?.getViewports?.()[0];
+        return !!vp && vp.width > 0;
+      },
       undefined,
       { timeout: 180_000 },
     );
