@@ -90,9 +90,15 @@ test.describe('Tap-to-inspect', () => {
     // can lag the data-loaded signal on slow (software-GL) CI machines.
     await page.waitForFunction(
       () => {
-        const dg = (window as any).datamap?.deckgl;
-        const vp = dg?.viewManager?.getViewports?.()[0] || dg?.getViewports?.()[0];
-        return !!vp && vp.width > 0;
+        // deck.getViewports() asserts while the view manager is still null;
+        // treat that (and any other init-time throw) as "not ready yet".
+        try {
+          const dg = (window as any).datamap?.deckgl;
+          const vp = dg?.viewManager?.getViewports?.()[0] || dg?.getViewports?.()[0];
+          return !!vp && vp.width > 0;
+        } catch (e) {
+          return false;
+        }
       },
       undefined,
       { timeout: 180_000, polling: 100 },
