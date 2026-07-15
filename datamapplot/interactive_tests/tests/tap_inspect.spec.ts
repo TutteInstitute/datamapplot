@@ -78,28 +78,31 @@ test.describe('Tap-to-inspect', () => {
     await waitForDeckGL(page, testInfo);
 
     // Tap targets need the point metadata (hover text) to be loaded.
+    // Interval polling: the default rAF polling stalls forever on headless
+    // Firefox in CI, which throttles rAF for occluded pages once idle.
     await page.waitForFunction(
       () => (window as any).datamap?.metaData?.hover_text?.length > 0,
       undefined,
-      { timeout: 180_000 },
+      { timeout: 180_000, polling: 100 },
     );
 
     // deck.gl creates its view manager on the first animation frame, which
     // can lag the data-loaded signal on slow (software-GL) CI machines.
     await page.waitForFunction(
       () => {
-        const vp = (window as any).datamap?.deckgl?.viewManager?.getViewports?.()[0];
+        const dg = (window as any).datamap?.deckgl;
+        const vp = dg?.viewManager?.getViewports?.()[0] || dg?.getViewports?.()[0];
         return !!vp && vp.width > 0;
       },
       undefined,
-      { timeout: 180_000 },
+      { timeout: 180_000, polling: 100 },
     );
 
     // Zoom in around the data center so individual points are several pixels
     // wide and reliably pickable at their projected positions.
     await page.evaluate(() => {
       const dm = (window as any).datamap;
-      const vp = dm.deckgl.viewManager?.getViewports()[0];
+      const vp = dm.deckgl.viewManager?.getViewports?.()[0] || dm.deckgl.getViewports?.()[0];
       const viewState = {
         latitude: vp.latitude,
         longitude: vp.longitude,
@@ -117,7 +120,7 @@ test.describe('Tap-to-inspect', () => {
   const findTapTargets = async (page: Page) => {
     const targets = await page.evaluate(() => {
       const dm = (window as any).datamap;
-      const vp = dm.deckgl.viewManager?.getViewports()[0];
+      const vp = dm.deckgl.viewManager?.getViewports?.()[0] || dm.deckgl.getViewports?.()[0];
       const cx = vp.width / 2;
       const cy = vp.height / 2;
 
