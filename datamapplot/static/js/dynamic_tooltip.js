@@ -18,6 +18,7 @@ class DynamicTooltipManager {
             tooltipClassName: 'container-box deck-tooltip',
             initialHtml: '<p>Initializing...</p>',
             useCache: true,
+            suppressTouchHover: false,
             ...config // Override defaults with user-provided config
         };
 
@@ -42,8 +43,8 @@ class DynamicTooltipManager {
     _bindDeckHandlers() {
         const checkMetaDataAndBind = () => {
             if (this.datamap?.metaData) {
-                this.datamap?.deckgl.setProps({
-                    onHover: this._handleHover.bind(this),
+                this.datamap.onHover('dynamicTooltip', this._handleHover.bind(this));
+                this.datamap.deckgl.setProps({
                     getTooltip: null
                 });
                 if (this.tooltipElement.innerHTML === this.config.initialHtml) {
@@ -57,6 +58,12 @@ class DynamicTooltipManager {
     }
 
     async _handleHover(info, event) {
+        // With tap-to-inspect active, touch taps render through its card
+        // instead of this hover tooltip.
+        if (this.config.suppressTouchHover &&
+            (event?.pointerType ?? event?.srcEvent?.pointerType) === 'touch') {
+            return;
+        }
 
         const identifier = this.config.getIdentifier(info);
         if (!identifier || info.index === undefined || info.index === null) {
@@ -119,6 +126,29 @@ class DynamicTooltipManager {
                  this.tooltipElement.style.display = 'block';
                  this.tooltipElement.style.opacity = '1';
              }
+        }
+    }
+
+    // Fetch and format content for a picked point, reusing the cache.
+    // Used by tap-to-inspect to render the same content in its card.
+    async fetchContent(info) {
+        const identifier = this.config.getIdentifier(info);
+        if (!identifier) {
+            return null;
+        }
+        try {
+            let data;
+            if (this.config.useCache && this.cache.has(identifier)) {
+                data = this.cache.get(identifier);
+            } else {
+                data = await this.config.fetchData(identifier);
+                if (this.config.useCache) {
+                    this.cache.set(identifier, data);
+                }
+            }
+            return { html: this.config.formatContent(data) };
+        } catch (error) {
+            return { html: this.config.formatError(error, identifier) };
         }
     }
 

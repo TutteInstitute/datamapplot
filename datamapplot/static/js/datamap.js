@@ -238,10 +238,12 @@ class DataMap {
     // Widget registry for inter-widget communication
     this.widgetRegistry = new WidgetRegistry();
 
-    // Centralised view-state-change dispatch.
+    // Centralised view-state-change and pointer-event dispatch.
     // A single permanent handler on deck.gl fans out to all registered
     // listeners, replacing the fragile capture-and-wrap chain pattern.
     this._viewStateListeners = new Map();
+    this._hoverListeners = new Map();
+    this._clickListeners = new Map();
     this.deckgl.setProps({
       onViewStateChange: (params) => {
         for (const handler of this._viewStateListeners.values()) {
@@ -250,6 +252,20 @@ class DataMap {
           }
         }
         return params.viewState;
+      },
+      onHover: (info, event) => {
+        for (const handler of this._hoverListeners.values()) {
+          try { handler(info, event); } catch (e) {
+            console.error('Error in hover listener:', e);
+          }
+        }
+      },
+      onClick: (info, event) => {
+        for (const handler of this._clickListeners.values()) {
+          try { handler(info, event); } catch (e) {
+            console.error('Error in click listener:', e);
+          }
+        }
       },
     });
   }
@@ -284,6 +300,40 @@ class DataMap {
         console.error('Error in viewStateChange listener:', e);
       }
     }
+  }
+
+  /**
+   * Register a named hover listener, called on every deck.gl hover event.
+   * @param {string} id   Unique key (e.g. 'dynamicTooltip', 'tapToInspect').
+   * @param {Function} handler  Called with the deck.gl (info, event) pair.
+   */
+  onHover(id, handler) {
+    this._hoverListeners.set(id, handler);
+  }
+
+  /**
+   * Remove a previously registered hover listener by id.
+   * @param {string} id  The key used when registering.
+   */
+  offHover(id) {
+    this._hoverListeners.delete(id);
+  }
+
+  /**
+   * Register a named click listener, called on every deck.gl click event.
+   * @param {string} id   Unique key (e.g. 'metaDataOnClick', 'tapToInspect').
+   * @param {Function} handler  Called with the deck.gl (info, event) pair.
+   */
+  onClick(id, handler) {
+    this._clickListeners.set(id, handler);
+  }
+
+  /**
+   * Remove a previously registered click listener by id.
+   * @param {string} id  The key used when registering.
+   */
+  offClick(id) {
+    this._clickListeners.delete(id);
   }
 
   addPoints(pointData, {
@@ -713,16 +763,25 @@ class DataMap {
     this.onClickFunction = onClickFunction;
     this.searchField = searchField;
 
-    // If hover_text is present, add a tooltip
+    // If hover_text is present, add a tooltip. With tap-to-inspect active
+    // the hover tooltip stays mouse/pen-only; touch taps show the same
+    // content in the tap-to-inspect card instead.
     if (this.metaData.hasOwnProperty('hover_text')) {
       this.deckgl.setProps({
-        getTooltip: this.tooltipFunction,
+        getTooltip: this._tapInspect
+          ? this._tapInspect.wrapTooltip(this.tooltipFunction)
+          : this.tooltipFunction,
       });
     }
 
     if (this.onClickFunction) {
-      this.deckgl.setProps({
-        onClick: this.onClickFunction,
+      this.onClick('metaDataOnClick', (info, event) => {
+        // With tap-to-inspect active, touch taps open the card and expose
+        // on_click as its action button rather than firing it directly.
+        if (this._tapInspect && this._tapInspect.shouldSuppressUserClick(info, event)) {
+          return;
+        }
+        this.onClickFunction(info, event);
       });
     }
 
