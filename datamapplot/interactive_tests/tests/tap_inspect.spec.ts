@@ -9,13 +9,12 @@ import { waitForDeckGL, waitForCanvas } from '../utils/canvas';
 
 const CARD = '.tap-inspect-card';
 
-// The fixtures ship no <meta name="viewport">, so mobile WebKit lays the page
-// out at ~980px and scales it down to the 844px visual viewport. Playwright
-// dispatches touch taps in visual-viewport coordinates while all our geometry
-// (deck.gl projections, getBoundingClientRect) is in layout coordinates, so
-// taps land short of their target. Calibrate the ratio empirically with one
-// throwaway tap: it is exactly 1 on Chromium, and will become 1 on WebKit too
-// once the output emits a viewport meta tag.
+// Playwright dispatches touch taps in visual-viewport coordinates while all
+// our geometry (deck.gl projections, getBoundingClientRect) is in layout
+// coordinates. Since the output ships a viewport meta tag the two coincide
+// and this calibration measures ~1 everywhere; it stays as cheap insurance
+// for any environment that still renders through a scaled layout viewport
+// (as mobile WebKit did before the meta tag, scaling ~980px down to 844px).
 const calibrateTouch = async (page: Page) => {
   await page.evaluate(() => {
     (window as any).__tapCal = new Promise((resolve) => {
@@ -166,25 +165,30 @@ test.describe('Tap-to-inspect', () => {
         }
       }
 
-      // Empty spot: the grid cell in the mid/lower canvas band with the
-      // largest clearance from any projected point, verified by picking.
+      // Empty spot: the grid cell in the middle canvas band with the largest
+      // clearance from any projected point, verified by picking. The band
+      // stays below the top-left overlay stack and above the bottom-sheet
+      // card (which covers the lower part of a phone viewport once open).
+      // No minimum-clearance cutoff: at device-width viewports the points
+      // project densely enough that a fixed threshold can rule out every
+      // cell -- the pick check below is what actually guarantees emptiness.
       const candidates: Array<[number, number, number]> = [];
-      for (let gy = Math.round(vp.height * 0.3); gy < vp.height * 0.9; gy += 24) {
+      for (let gy = Math.round(vp.height * 0.3); gy < vp.height * 0.7; gy += 24) {
         for (let gx = 12; gx < vp.width - 12; gx += 24) {
           let minD = Infinity;
           for (const [px, py] of projected) {
             const d = (px - gx) ** 2 + (py - gy) ** 2;
             if (d < minD) {
               minD = d;
-              if (minD < 1600) break;
+              if (minD < 64) break;
             }
           }
-          if (minD >= 1600) candidates.push([minD, gx, gy]);
+          candidates.push([minD, gx, gy]);
         }
       }
       candidates.sort((a, b) => b[0] - a[0]);
       let empty = null;
-      for (const [, gx, gy] of candidates.slice(0, 5)) {
+      for (const [, gx, gy] of candidates.slice(0, 20)) {
         const pick = dm.deckgl.pickObject({ x: gx, y: gy, radius: 8 });
         if (!pick || !pick.picked) {
           empty = { x: gx, y: gy };
