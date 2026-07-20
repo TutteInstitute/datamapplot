@@ -108,8 +108,25 @@
         formatContent: {{ tooltip_format_js }},
         formatLoading: {{ tooltip_loading_js }},
         formatError: {{ tooltip_error_js }},
+        {%- if enable_tap_inspect %}
+        suppressTouchHover: true,
+        {%- endif %}
       }
     );
+    {%- endif %}
+
+    {%- if enable_tap_inspect %}
+    const tapToInspect = new TapToInspectManager(datamap, {
+      actionLabel: {{ on_click_label | tojson }},
+      {%- if enable_api_tooltip %}
+      useHoverPath: false,
+      contentProvider: (info) => tooltip.fetchContent(info),
+      loadingContent: (info) => ({ html: tooltip.config.formatLoading(tooltip.config.getIdentifier(info)) }),
+      {%- endif %}
+    });
+
+    // Make tap-to-inspect accessible for widgets and custom JS
+    window.tapToInspect = tapToInspect;
     {%- endif %}
     
     {%- if custom_js %}

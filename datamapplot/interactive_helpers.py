@@ -209,6 +209,7 @@ def get_js_dependency_sources(
     colormap_selector,
     enable_topic_tree,
     enable_dynamic_tooltip,
+    enable_tap_to_inspect=False,
     enable_drawers=False,
     widget_js_dependencies=None,
 ):
@@ -231,6 +232,8 @@ def get_js_dependency_sources(
         Whether to include JS dependencies for the topic tree functionality.
     enable_dynamic_tooltip : bool
         Whether to include JS dependencies for the API tooltip functionality.
+    enable_tap_to_inspect : bool, optional
+        Whether to include JS dependencies for the touch tap-to-inspect card.
     enable_drawers : bool, optional
         Whether to include JS dependencies for drawer panels.
     widget_js_dependencies : set, optional
@@ -261,6 +264,9 @@ def get_js_dependency_sources(
 
     if enable_dynamic_tooltip:
         js_dependencies.append("dynamic_tooltip.js")
+
+    if enable_tap_to_inspect:
+        js_dependencies.append("tap_inspect.js")
 
     if enable_drawers:
         js_dependencies.append("drawer.js")

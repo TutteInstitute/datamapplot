@@ -42,6 +42,67 @@
   .deck-tooltip {
       {{ tooltip_css }}
   }
+  {%- if enable_tap_inspect %}
+  /* Sizes are in em so the whole card scales with its font-size, which
+     tap_inspect.js bumps on pages rendered through a scaled-down mobile
+     layout viewport (no viewport meta tag). */
+  .tap-inspect-card {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 36em;
+    max-height: 50vh;
+    max-height: 50dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    box-sizing: border-box;
+    padding: 1.1em 3.9em calc(1.1em + env(safe-area-inset-bottom)) 1.1em;
+    border-radius: 1.1em 1.1em 0 0;
+    z-index: 90;
+    pointer-events: auto;
+    font-size: 0.9em;
+    font-family: {{ tooltip_font_family }};
+    font-weight: {{ tooltip_font_weight }};
+    color: {{ title_font_color }};
+    background-color: {{ title_background[:-2] + "ee" }};
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -2px 12px {{ shadow_color }};
+  }
+  .tap-inspect-card.visible {
+    display: block;
+  }
+  .tap-inspect-close {
+    position: absolute;
+    top: 0.3em;
+    right: 0.3em;
+    min-width: 3em;
+    min-height: 3em;
+    border: none;
+    background: transparent;
+    color: {{ title_font_color }};
+    font-size: 1.5em;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .tap-inspect-action {
+    display: block;
+    margin-top: 0.85em;
+    min-height: 3em;
+    width: 100%;
+    border-radius: 0.85em;
+    border: none;
+    background: {{ title_font_color }};
+    color: {{ title_background[:-2] }};
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  {%- endif %}
   input {
     margin: 2px;
     padding: 4px;

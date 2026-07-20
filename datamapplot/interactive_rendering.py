@@ -503,6 +503,8 @@ def render_html(
     histogram_range=None,
     histogram_settings={},
     on_click=None,
+    tap_to_inspect=True,
+    on_click_label="Open",
     selection_handler=None,
     colormaps=None,
     colormap_rawdata=None,
@@ -807,6 +809,19 @@ def render_html(
         can reference ``{hover_text}`` or columns from ``extra_point_data``. For example one
         could provide ``"window.open(`http://google.com/search?q=\"{hover_text}\"`)"`` to
         open a new window with a google search for the hover_text of the clicked point.
+
+    tap_to_inspect: bool (optional, default=True)
+        Whether tapping a point on a touch device shows its hover content in a
+        bottom-sheet card (touch devices have no hover). Tapping empty space, or the
+        card's close button, dismisses the card. If ``on_click`` is provided, the card
+        shows an action button (labelled by ``on_click_label``) that triggers it, and
+        a tap alone no longer fires ``on_click`` on touch devices. Only active when
+        there is hover content to show; mouse and pen behavior is unchanged.
+
+    on_click_label: str (optional, default="Open")
+        The label of the action button in the tap-to-inspect card that triggers the
+        ``on_click`` action on touch devices. Only relevant when ``on_click`` is
+        provided and ``tap_to_inspect`` is enabled.
 
     selection_handler: instance of datamapplot.selection_handlers.SelectionHandlerBase or None (optional, default=None)
         A selection handler to be used to handle selections in the data map. If None, the
@@ -1276,6 +1291,11 @@ def render_html(
     tooltip_loading_js = dynamic_tooltip_config["tooltip_loading_js"]
     tooltip_error_js = dynamic_tooltip_config["tooltip_error_js"]
 
+    # Tap-to-inspect is only active when there is hover content to show
+    enable_tap_inspect = bool(tap_to_inspect) and (
+        get_tooltip != "null" or enable_dynamic_tooltip
+    )
+
     # ==========================================================================
     # Widget System Processing
     # ==========================================================================
@@ -1431,6 +1451,7 @@ def render_html(
             enable_colormap_selector,
             enable_topic_tree,
             enable_dynamic_tooltip,
+            enable_tap_to_inspect=enable_tap_inspect,
             enable_drawers=enable_drawers,
             widget_js_dependencies=widget_js_deps,
         ),
@@ -1588,6 +1609,10 @@ def render_html(
         tooltip_format_js=tooltip_format_js,
         tooltip_loading_js=tooltip_loading_js,
         tooltip_error_js=tooltip_error_js,
+        enable_tap_inspect=enable_tap_inspect,
+        on_click_label=on_click_label,
+        tooltip_font_family=tooltip_font_family or font_family,
+        tooltip_font_weight=tooltip_font_weight,
         # Widget system context
         use_widget_system=use_widget_system,
         widgets_by_location=widgets_by_location,

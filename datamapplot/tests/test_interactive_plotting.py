@@ -347,6 +347,109 @@ class TestRenderHtmlBasic:
 
 
 @pytest.mark.interactive
+class TestTapToInspect:
+    """Unit tests for the touch tap-to-inspect card in render_html output."""
+
+    @pytest.fixture
+    def simple_point_data(self):
+        """Create simple point data for testing."""
+        n_points = 100
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "x": np.random.randn(n_points),
+                "y": np.random.randn(n_points),
+                "r": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "g": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "b": np.random.randint(0, 255, n_points, dtype=np.uint8),
+                "a": np.full(n_points, 255, dtype=np.uint8),
+                "hover_text": [f"Point {i}" for i in range(n_points)],
+            }
+        )
+
+    @pytest.fixture
+    def simple_label_data(self):
+        """Create simple label data for testing."""
+        n_labels = 5
+        np.random.seed(42)
+        return pd.DataFrame(
+            {
+                "x": np.random.randn(n_labels),
+                "y": np.random.randn(n_labels),
+                "r": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "g": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "b": np.random.randint(0, 255, n_labels, dtype=np.uint8),
+                "a": np.full(n_labels, 255, dtype=np.uint8),
+                "label": [f"Cluster {i}" for i in range(n_labels)],
+                "size": np.random.uniform(10, 100, n_labels),
+            }
+        )
+
+    def test_enabled_by_default_with_hover_text(
+        self, simple_point_data, simple_label_data
+    ):
+        """Tap-to-inspect is bundled and initialized when hover text exists."""
+        html_content = render_html(
+            simple_point_data, simple_label_data, inline_data=True
+        )
+
+        assert "class TapToInspectManager" in html_content
+        assert "new TapToInspectManager(" in html_content
+        assert 'actionLabel: "Open"' in html_content
+        assert ".tap-inspect-card" in html_content
+
+    def test_disabled_by_flag(self, simple_point_data, simple_label_data):
+        """tap_to_inspect=False removes the feature from the output entirely."""
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            tap_to_inspect=False,
+        )
+
+        assert "TapToInspectManager" not in html_content
+
+    def test_disabled_without_hover_content(self, simple_point_data, simple_label_data):
+        """Without hover content there is nothing to show, so it is omitted."""
+        point_data = simple_point_data.drop(columns=["hover_text"])
+        html_content = render_html(point_data, simple_label_data, inline_data=True)
+
+        assert "TapToInspectManager" not in html_content
+
+    def test_custom_on_click_label(self, simple_point_data, simple_label_data):
+        """on_click_label threads through to the card's action button."""
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            inline_data=True,
+            on_click="window.open(`http://example.com/{hover_text}`)",
+            on_click_label="Search Google",
+        )
+
+        assert 'actionLabel: "Search Google"' in html_content
+
+    def test_enabled_with_dynamic_tooltip(self, simple_point_data, simple_label_data):
+        """With a dynamic tooltip, the card uses its content pipeline."""
+        point_data = simple_point_data.drop(columns=["hover_text"])
+        html_content = render_html(
+            point_data,
+            simple_label_data,
+            inline_data=True,
+            dynamic_tooltip={
+                "identifier_js": "({index}) => `item-${index}`",
+                "fetch_js": "async (id) => ({t: id})",
+                "format_js": "(d) => `<p>${d.t}</p>`",
+                "loading_js": "(id) => `loading ${id}`",
+                "error_js": "(e, id) => `error`",
+            },
+        )
+
+        assert "new TapToInspectManager(" in html_content
+        assert "useHoverPath: false" in html_content
+        assert "suppressTouchHover: true" in html_content
+
+
+@pytest.mark.interactive
 class TestRenderHtmlAdvanced:
     """Advanced tests for render_html with more features."""
 
