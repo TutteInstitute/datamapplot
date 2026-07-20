@@ -33,7 +33,9 @@
   }
   #deck-container {
     width: 100vw;
-    height: 100vh;  
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
   }
   #deck-container canvas {
     z-index: 1;
@@ -116,6 +118,13 @@
   }
   input:focus {
     border: 2px inset #555;
+  }
+  @media (pointer: coarse) {
+    /* iOS Safari auto-zooms (and stays zoomed) when a focused input's
+       effective font-size is below 16px. */
+    input, textarea, select {
+      font-size: 16px;
+    }
   }
   {%- if logo %}
   img {

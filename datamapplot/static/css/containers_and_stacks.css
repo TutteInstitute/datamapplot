@@ -11,6 +11,7 @@
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   min-height: calc(100vh - 16px);
+  min-height: calc(100dvh - 16px);
   /* Account for padding */
   pointer-events: none;
   /* pass pointer events through */
@@ -23,6 +24,7 @@
   padding: 0;
   pointer-events: none;
   max-height: 50vh;
+  max-height: 50dvh;
   overflow-y: visible;
 }
 
@@ -130,6 +132,7 @@
 
   .stack {
     max-height: 40vh;
+    max-height: 40dvh;
   }
 }
 
@@ -149,6 +152,7 @@
 
   .top-left {
     max-height: 30vh;
+    max-height: 30dvh;
     overflow-y: auto;
   }
 
@@ -171,5 +175,6 @@
 
   .stack {
     max-height: 25vh;
+    max-height: 25dvh;
   }
 }
