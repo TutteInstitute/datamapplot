@@ -150,12 +150,6 @@
     display: none;
   }
 
-  .top-left {
-    max-height: 30vh;
-    max-height: 30dvh;
-    overflow-y: auto;
-  }
-
   /* Container boxes should be more compact */
   .container-box {
     margin: 4px 8px;

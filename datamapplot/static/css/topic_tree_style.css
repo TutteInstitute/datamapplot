@@ -185,3 +185,12 @@ li {
     background: none;
     color: inherit;
 }
+/* Small screens: cap the tree body so an expanded tree cannot cover the
+   whole map; the body already scrolls (title and search above it stay
+   fully visible now that the stack itself is no longer height-capped). */
+@media screen and (max-width: 768px) {
+    #topic-tree-body {
+        max-height: 30vh;
+        max-height: 30dvh;
+    }
+}
