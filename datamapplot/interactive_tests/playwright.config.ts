@@ -2,10 +2,13 @@ import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
 const htmlDir = path.resolve(__dirname, '../tests/html');
+const fixturesDir = path.resolve(__dirname, 'fixtures');
+const interactiveTestsDir = path.resolve(__dirname);
 const projDir = path.resolve(__dirname, '../..');
 
 console.log(`Resolved htmlDir: ${htmlDir}`);
-console.log(`Resolved htmlDir: ${projDir}`);
+console.log(`Resolved fixturesDir: ${fixturesDir}`);
+console.log(`Resolved projDir: ${projDir}`);
 
 export default defineConfig({
   use: {
@@ -63,7 +66,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `python -m http.server 8000 -d ${htmlDir}`,
+    // Serve from datamapplot directory to access both tests/html and interactive_tests/fixtures
+    command: `python -m http.server 8000 -d ${path.resolve(__dirname, '..')}`,
     url: 'http://localhost:8000',
     reuseExistingServer: true,
     timeout: 120000
