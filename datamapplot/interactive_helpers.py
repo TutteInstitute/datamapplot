@@ -30,6 +30,7 @@ from scipy.spatial import Delaunay
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from scipy.spatial import KDTree
 import datetime as dt
+from warnings import warn
 
 from datamapplot.alpha_shapes import create_boundary_polygons, smooth_polygon
 from datamapplot.fonts import can_reach_google_fonts, query_google_fonts
@@ -137,6 +138,14 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
                 _build_font_face_css(fontname, font_data) for font_data in encoded_fonts
             ]
             return "<style>\n" + "\n".join(font_descriptions) + "\n    </style>\n"
+        warn(
+            f"Offline mode is enabled but the font {fontname!r} is not in the "
+            f"DataMapPlot font cache, so the plot will fall back to a default "
+            f"font. Include it when building the cache:\n\n"
+            f'    dmp_offline_cache --refresh --font_names "{fontname}" ...\n\n'
+            f"--font_names replaces the cached font set rather than adding to "
+            f"it, so name every font you need in the one command."
+        )
         return ""
 
     if can_reach_google_fonts(timeout=10.0):
@@ -2917,6 +2926,8 @@ def prepare_offline_mode_data(
     offline_mode,
     offline_mode_js_data_file,
     offline_mode_font_data_file,
+    js_dependency_urls=None,
+    css_dependency_urls=None,
 ):
     """
     Prepare offline mode data by loading cached JS, CSS, and font files.
@@ -2929,12 +2940,24 @@ def prepare_offline_mode_data(
         Path to the cached JS data file.
     offline_mode_font_data_file : str or Path or None
         Path to the cached font data file.
+    js_dependency_urls : list of str, optional
+        The JavaScript dependency URLs this plot requires. When given, the
+        cache is checked for them and an ``OfflineCacheError`` is raised if any
+        are missing.
+    css_dependency_urls : list of str, optional
+        The CSS dependency URLs this plot requires. When given, the cache is
+        checked for them and a warning is issued if any are missing.
 
     Returns
     -------
     dict
         Dictionary with 'offline_mode_data', 'offline_mode_css_data', and
         'offline_mode_font_data_file' keys.
+
+    Raises
+    ------
+    OfflineCacheError
+        If ``js_dependency_urls`` is given and the cache is missing any of them.
     """
     import platformdirs
     from datamapplot import offline_mode_caching
@@ -2958,6 +2981,16 @@ def prepare_offline_mode_data(
         with open(offline_mode_js_data_file, "r") as f:
             offline_mode_data = json.load(f)
 
+    # Fail here rather than emitting a plot that hangs on its loading screen.
+    # This runs before the CSS cache is touched, since a missing CSS cache
+    # triggers a network fetch that has nothing useful to say about this.
+    if js_dependency_urls is not None:
+        offline_mode_caching.check_js_cache_coverage(
+            offline_mode_data,
+            js_dependency_urls,
+            cache_file=offline_mode_js_data_file,
+        )
+
     # Load CSS cache
     data_directory = platformdirs.user_data_dir("datamapplot")
     offline_mode_css_data_file = Path(data_directory) / "datamapplot_css_encoded.json"
@@ -2965,6 +2998,13 @@ def prepare_offline_mode_data(
         offline_mode_caching.cache_css_files()
     with offline_mode_css_data_file.open("r") as f:
         offline_mode_css_data_encoded = json.load(f)
+
+    if css_dependency_urls is not None:
+        offline_mode_caching.check_css_cache_coverage(
+            offline_mode_css_data_encoded,
+            css_dependency_urls,
+            cache_file=offline_mode_css_data_file,
+        )
 
     # Decode the base64 CSS content for direct embedding in <style> tags
     offline_mode_css_data = {}
@@ -3031,18 +3071,32 @@ def prepare_fonts(
 
     if tooltip_font_family is not None:
         api_tooltip_fontname = tooltip_font_family.replace(" ", "+")
-        resp = requests.get(
-            f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
-            timeout=30,
-        )
-        if not resp.ok:
-            api_tooltip_fontname = None
-        else:
-            font_data += get_google_font_for_embedding(
+        if offline_mode:
+            # Resolve from the cache alone; probing Google Fonts here would
+            # defeat the point of offline mode. Mirrors the main font above:
+            # an unavailable font drops the Google Fonts <link> from the output.
+            tooltip_font_data = get_google_font_for_embedding(
                 tooltip_font_family,
-                offline_mode=offline_mode,
-                offline_font_file=offline_mode_font_data_file if offline_mode else None,
+                offline_mode=True,
+                offline_font_file=offline_mode_font_data_file,
             )
+            if tooltip_font_data == "":
+                api_tooltip_fontname = None
+            else:
+                font_data += tooltip_font_data
+        else:
+            resp = requests.get(
+                f"https://fonts.googleapis.com/css?family={api_tooltip_fontname}",
+                timeout=30,
+            )
+            if not resp.ok:
+                api_tooltip_fontname = None
+            else:
+                font_data += get_google_font_for_embedding(
+                    tooltip_font_family,
+                    offline_mode=False,
+                    offline_font_file=None,
+                )
     else:
         api_tooltip_fontname = None
 

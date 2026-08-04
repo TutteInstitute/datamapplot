@@ -24,6 +24,7 @@ from datamapplot.widget_helpers import (
     merge_widget_configs,
     create_widget_from_config,
 )
+from datamapplot.offline_mode_caching import OfflineCacheError
 from datamapplot.selection_handlers import (
     SelectionHandlerBase,
     DisplaySample,
@@ -78,4 +79,6 @@ __all__ = [
     "ExportSelection",
     "Statistics",
     "Histogram",
+    # Offline mode
+    "OfflineCacheError",
 ]

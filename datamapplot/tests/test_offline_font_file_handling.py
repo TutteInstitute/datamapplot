@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import datamapplot
+from datamapplot import offline_mode_caching
 from datamapplot.interactive_rendering import get_google_font_for_embedding
 
 
@@ -96,28 +97,15 @@ class TestOfflineFontFileHandling(unittest.TestCase):
                 ]
             }
 
-            # Need all required JS files for offline mode
+            # Need all required JS files for offline mode. Derived from
+            # DEFAULT_URLS so that pinning a dependency to a new version does
+            # not leave this cache stale, which is the failure behind #205.
             mock_js_data = {
-                "https://unpkg.com/deck.gl@latest/dist.min.js": {
-                    "encoded_content": "ZGVja2dsX2NvbnRlbnQ=",
-                    "name": "unpkg_com_deck_gl_latest_dist_min_js",
-                },
-                "https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js": {
-                    "encoded_content": "YXJyb3dfY29udGVudA==",
-                    "name": "unpkg_com_apache_arrow_latest_Arrow_es2015_min_js",
-                },
-                "https://unpkg.com/d3@latest/dist/d3.min.js": {
-                    "encoded_content": "ZDNfY29udGVudA==",
-                    "name": "unpkg_com_d3_latest_dist_d3_min_js",
-                },
-                "https://unpkg.com/jquery@3.7.1/dist/jquery.min.js": {
-                    "encoded_content": "anF1ZXJ5X2NvbnRlbnQ=",
-                    "name": "unpkg_com_jquery_3_7_1_dist_jquery_min_js",
-                },
-                "https://unpkg.com/d3-cloud@1.2.7/build/d3.layout.cloud.js": {
-                    "encoded_content": "ZDNfY2xvdWRfY29udGVudA==",
-                    "name": "unpkg_com_d3_cloud_1_2_7_build_d3_layout_cloud_js",
-                },
+                url: {
+                    "encoded_content": "ZmFrZV9jb250ZW50",
+                    "name": "".join(c if c.isalnum() else "_" for c in url),
+                }
+                for url in offline_mode_caching.DEFAULT_URLS
             }
 
             with open(font_cache_path, "w") as f:

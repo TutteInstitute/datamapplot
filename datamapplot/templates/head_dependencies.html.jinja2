@@ -66,7 +66,7 @@
     loadBase64Script({{ offline_mode_data[url]["name"] }});
     {% else -%}
     console.error('Offline mode error: URL not found in cache: {{ url }}');
-    console.error('Please regenerate the offline cache by running: python -m datamapplot.offline_mode_caching');
+    console.error('Please regenerate the offline cache by running: dmp_offline_cache --refresh');
     {% endif -%}
   {% endfor -%}
 </script>
