@@ -65,6 +65,125 @@ DEFAULT_CACHE_FILES = {
     "fonts": f"{_DATA_DIRECTORY}/datamapplot_fonts_encoded.json",
 }
 
+_REFRESH_INSTRUCTIONS = """\
+The cache is keyed by exact URL, so a cache built by an older version of
+DataMapPlot has no entry for a dependency whose URL has changed since (for
+example when a dependency gets pinned to a specific version). Refresh it with:
+
+    dmp_offline_cache --refresh
+
+If this machine has no internet access, build the cache on a connected machine
+and carry it across:
+
+    dmp_offline_cache --export dmp-cache.zip   # on the connected machine
+    dmp_offline_cache --import dmp-cache.zip   # on this machine\
+"""
+
+
+class OfflineCacheError(Exception):
+    """Raised when offline mode is requested but the cache cannot satisfy it.
+
+    Attributes
+    ----------
+    missing_urls : list of str
+        The dependency URLs that had no entry in the cache.
+    """
+
+    def __init__(self, message: str, missing_urls: Sequence[str]) -> None:
+        super().__init__(message)
+        self.missing_urls = list(missing_urls)
+
+
+def missing_cache_entries(cache, urls):
+    """List the URLs that have no entry in a loaded cache dictionary.
+
+    Parameters
+    ----------
+    cache : dict or None
+        A loaded cache dictionary, keyed by dependency URL.
+    urls : iterable of str
+        The dependency URLs that are required for rendering.
+
+    Returns
+    -------
+    list of str
+        The required URLs that are absent from the cache, in the given order.
+    """
+    if not cache:
+        return list(urls)
+    return [url for url in urls if url not in cache]
+
+
+def _describe_missing(missing, kind, cache_file):
+    location = f" at\n{cache_file}" if cache_file is not None else ""
+    count = (
+        f"1 required {kind} dependency is"
+        if len(missing) == 1
+        else f"{len(missing)} required {kind} dependencies are"
+    )
+    listing = "\n".join(f"    {url}" for url in missing)
+    return (
+        f"Offline mode is enabled but {count} missing from the "
+        f"DataMapPlot cache{location}:\n\n{listing}"
+    )
+
+
+def check_js_cache_coverage(js_cache, js_urls, cache_file=None):
+    """Verify that every required JavaScript dependency is cached.
+
+    A JavaScript dependency that is missing from the cache is fatal: the
+    rendered plot loads none of it and hangs on the loading screen, so this
+    raises rather than letting a broken plot be written out.
+
+    Parameters
+    ----------
+    js_cache : dict or None
+        The loaded JavaScript cache, keyed by dependency URL.
+    js_urls : iterable of str
+        The JavaScript dependency URLs required for this plot.
+    cache_file : str or Path, optional
+        Path of the cache file, used to make the error message actionable.
+
+    Raises
+    ------
+    OfflineCacheError
+        If any required URL is absent from the cache.
+    """
+    missing = missing_cache_entries(js_cache, js_urls)
+    if not missing:
+        return
+    raise OfflineCacheError(
+        f"{_describe_missing(missing, 'JavaScript', cache_file)}\n\n"
+        f"The rendered plot would not load, so nothing has been written.\n\n"
+        f"{_REFRESH_INSTRUCTIONS}",
+        missing,
+    )
+
+
+def check_css_cache_coverage(css_cache, css_urls, cache_file=None):
+    """Warn about any required CSS dependency that is not cached.
+
+    Unlike JavaScript, missing CSS only degrades appearance, so this warns and
+    lets rendering continue.
+
+    Parameters
+    ----------
+    css_cache : dict or None
+        The loaded CSS cache, keyed by dependency URL.
+    css_urls : iterable of str
+        The CSS dependency URLs required for this plot.
+    cache_file : str or Path, optional
+        Path of the cache file, used to make the warning message actionable.
+    """
+    missing = missing_cache_entries(css_cache, css_urls)
+    if not missing:
+        return
+    warn(
+        f"{_describe_missing(missing, 'CSS', cache_file)}\n\n"
+        f"The plot will still load, but the affected components will be "
+        f"unstyled.\n\n{_REFRESH_INSTRUCTIONS}"
+    )
+
 
 def fetch_js_content(url):
     response = requests.get(url)
@@ -497,8 +616,7 @@ class ConfirmInteractiveStdio(EquivalenceClass):
         return confirmed
 
     def print_help(self) -> None:
-        print(
-            """\
+        print("""\
 
 Type the number of an item to select it: 2
 
@@ -516,8 +634,7 @@ Type Enter to make the command happen, forcing the selection menu to refresh.
 
 You can type multiple commands ahead of Enter: 1 3 2-4 7 .
 selects items 1, 2, 4 and 7 (3 was selected, then deselected by the interval),
-then proceeds."""
-        )
+then proceeds.""")
 
 
 class ConfirmYes(EquivalenceClass):

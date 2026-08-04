@@ -1477,6 +1477,8 @@ def render_html(
         offline_mode,
         offline_mode_js_data_file,
         offline_mode_font_data_file,
+        js_dependency_urls=dependencies_ctx["js_dependency_urls"],
+        css_dependency_urls=dependencies_ctx["css_dependency_urls"],
     )
     offline_mode_data = offline_result["offline_mode_data"]
     offline_mode_css_data = offline_result["offline_mode_css_data"]
