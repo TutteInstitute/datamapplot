@@ -83,6 +83,10 @@
       {% if search and not use_widget_system %}
       <div id="search-container" class="container-box interactive-element">
         <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
+        <label id="filter-labels-label" style="font-size:0.8em; display:flex; align-items:center; gap:4px; margin-top:4px; cursor:pointer;">
+          <input type="checkbox" id="filter-labels-checkbox" />
+          Filter labels
+        </label>
       </div>
       {% endif %}
       
