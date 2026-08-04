@@ -185,3 +185,18 @@ li {
     background: none;
     color: inherit;
 }
+/* Small screens: cap the tree body so an expanded tree cannot cover the
+   whole map (the body already scrolls; title and search above it stay
+   fully visible now that the stack itself is no longer height-capped),
+   and let labels use the full width and wrap. The !important is needed
+   because topic_tree.js sets max-width/max-height/text-wrap as inline
+   styles; its 30vw max-width is a skinny 117px on a 390px phone, and
+   nowrap labels clip at that edge with no visible scrollbar. */
+@media screen and (max-width: 768px) {
+    #topic-tree-body {
+        max-width: none !important;
+        text-wrap: wrap !important;
+        max-height: 30vh !important;
+        max-height: 30dvh !important;
+    }
+}
