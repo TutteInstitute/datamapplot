@@ -6,7 +6,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
     // Extend timeout for all tests running this hook by 4 minutes.
     testInfo.setTimeout(testInfo.timeout + 240_000);
 
-    const response = await page.goto('http://localhost:8000/arxiv_ml.html', { timeout: 60_000 });
+    const response = await page.goto('http://localhost:8000/tests/html/arxiv_ml.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
     console.log('Waiting for initial load:', testInfo.project.name);
@@ -25,7 +25,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
     return canvas;
   };
 
-  test('zoom functionality', async ({ page }, testInfo ) => {
+  test('zoom functionality', async ({ page }, testInfo) => {
     if (testInfo.project.name === 'mobile-safari') {
       test.skip('page.mouse.wheel is not supported on mobile webkit');
     } else {
@@ -66,7 +66,7 @@ test.describe('Arxiv ML Canvas Tests', () => {
       return { width: canvasSelector.width, height: canvasSelector.height };
     });
     const startX = 100;
-    const startY =  360;
+    const startY = 360;
     const move = Math.min(size.width / 4, 300); // Move either quarter canvas width or 300px, whichever is smaller
 
     // Handle hover/tap based on device
