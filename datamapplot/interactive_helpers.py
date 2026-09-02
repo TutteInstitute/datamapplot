@@ -1862,45 +1862,59 @@ def _find_parent_id(cluster_mask, parents, label_num):
         return label_id, parent_id
 
 
-def remove_duplicate_chains(df):
-    grouped = df.groupby(["x", "y"])
-    id_to_chain_root = {}
+def dedupe_topic_tree_parents(df):
+    """
+    Reroute topic-tree ``parent`` pointers around nodes whose label duplicates
+    their own parent's label, so the topic tree widget doesn't show the same
+    topic name twice in a row when a coarser layer's cluster didn't actually
+    split into a differently-named topic.
 
-    for (x, y), group in grouped:
-        if len(group) == 1:
-            continue
+    This only rewrites the ``parent`` column, which is consumed solely by the
+    topic tree widget; every row is left in place so on-map labels for each
+    layer are unaffected. A duplicate node's own ``parent`` is set to ``None``
+    (hiding it from the tree), and any of its children are rewired to attach
+    to the nearest non-duplicate ancestor instead, recursively skipping over
+    runs of consecutive duplicates.
 
-        duplicate_ids = set(group["id"].values)
-        id_to_parent = dict(zip(group["id"], group["parent"]))
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The label dataframe. Must contain ``id``, ``parent``, and ``label``
+        columns (only populated when building the topic tree).
 
-        # Find the root of the chain (the one whose parent is not in the duplicate set)
-        chain_root = None
-        for node_id in duplicate_ids:
-            parent_id = id_to_parent[node_id]
-            if pd.isna(parent_id) or parent_id not in duplicate_ids:
-                chain_root = node_id
-                break
+    Returns
+    -------
+    pd.DataFrame
+        The same dataframe with the ``parent`` column rewritten in place.
+    """
+    id_to_label = dict(zip(df["id"], df["label"]))
+    id_to_parent = dict(zip(df["id"], df["parent"]))
 
-        if chain_root is None:
-            chain_root = group["id"].iloc[0]
+    def is_duplicate(node_id):
+        parent_id = id_to_parent.get(node_id)
+        return parent_id in id_to_label and id_to_label[parent_id] == id_to_label[node_id]
 
-        for node_id in duplicate_ids:
-            id_to_chain_root[node_id] = chain_root
+    resolved_ancestor = {}
 
-    # Rewrite parent references
-    def get_new_parent(row):
-        old_parent = row["parent"]
-        current_id = row["id"]
-        if (
-            current_id in id_to_chain_root
-            and id_to_chain_root[current_id] != current_id
-        ):
+    def nearest_non_duplicate_ancestor(node_id):
+        if node_id not in resolved_ancestor:
+            if is_duplicate(node_id):
+                resolved_ancestor[node_id] = nearest_non_duplicate_ancestor(
+                    id_to_parent[node_id]
+                )
+            else:
+                resolved_ancestor[node_id] = node_id
+        return resolved_ancestor[node_id]
+
+    def new_parent(row):
+        if is_duplicate(row["id"]):
             return None
-        if pd.notna(old_parent) and old_parent in id_to_chain_root:
-            return id_to_chain_root[old_parent]
-        return old_parent
+        parent_id = row["parent"]
+        if parent_id in id_to_label:
+            return nearest_non_duplicate_ancestor(parent_id)
+        return parent_id
 
-    df["parent"] = df.apply(get_new_parent, axis=1)
+    df["parent"] = df.apply(new_parent, axis=1)
 
     return df
 

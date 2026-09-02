@@ -27,7 +27,7 @@ from datamapplot.interactive_rendering import (
     label_text_and_polygon_dataframes,
     InteractiveFigure,
 )
-from datamapplot.interactive_helpers import remove_duplicate_chains
+from datamapplot.interactive_helpers import dedupe_topic_tree_parents
 from datamapplot.config import ConfigManager
 
 
@@ -382,6 +382,7 @@ def create_interactive_plot(
     cvd_safer=False,
     jupyterhub_api_token=None,
     enable_topic_tree=False,
+    prune_duplicate_topic_labels=True,
     offline_data_path=None,
     histogram_enable_click_persistence=False,
     hierarchical_collision_priority=True,
@@ -497,6 +498,17 @@ def create_interactive_plot(
     enable_topic_tree: bool (optional, default=False)
         Whether to build and display a topic tree with the label heirarchy.
 
+    prune_duplicate_topic_labels: bool (optional, default=True)
+        When building the topic tree, a coarser layer's cluster can have the same
+        label text as one of its children (the split didn't produce a new topic
+        name). If ``True``, such a child is hidden from the *tree widget* and its
+        own children are attached directly to the (grand)parent, so the same topic
+        name doesn't appear twice in a row when expanding the tree. This only
+        affects how the tree widget is structured; on-map labels for every layer
+        are unaffected. Set to ``False`` to show every layer's label as its own
+        tree node, duplicates included. Has no effect unless ``enable_topic_tree``
+        is ``True``.
+
     offline_data_path: str, pathlib.Path, or None (optional, default=None)
         If ``inline_data=False``, this specifies the path (including directory) where data
         files will be saved. Can be a string path or pathlib.Path object. The directory
@@ -599,6 +611,8 @@ def create_interactive_plot(
         for reverse_index, layer_frame in enumerate(label_lists):
             layer_frame["layerIdx"] = len(label_layers) - 1 - reverse_index
         label_dataframe = pd.concat(label_lists)
+        if prune_duplicate_topic_labels:
+            label_dataframe = dedupe_topic_tree_parents(label_dataframe)
     else:
         label_lists = [
             label_text_and_polygon_dataframes(
@@ -617,8 +631,6 @@ def create_interactive_plot(
         for layer_index, layer_frame in enumerate(label_lists):
             layer_frame["layerIdx"] = layer_index
         label_dataframe = pd.concat(label_lists)
-
-    # remove_duplicate_chains(label_dataframe)
 
     # Split out the noise labels (placeholders for topic tree) so we can make color palettes.
     noise_label_dataframe = label_dataframe[label_dataframe["label"] == noise_label]

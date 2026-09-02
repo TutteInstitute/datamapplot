@@ -1,5 +1,8 @@
 from datamapplot.interactive_rendering import InteractiveFigure, render_html
-from datamapplot.interactive_helpers import compute_collision_priority
+from datamapplot.interactive_helpers import (
+    compute_collision_priority,
+    dedupe_topic_tree_parents,
+)
 import datamapplot
 import sys
 import importlib.util
@@ -729,6 +732,302 @@ class TestCreateInteractivePlot:
         labeled = [r for r in records if r.get("label") and r["label"] != "Unlabelled"]
         assert labeled
         assert all("collision_priority" not in r for r in labeled)
+
+    @staticmethod
+    def _duplicate_label_inputs():
+        """One region's fine label duplicates its mid label; another region's don't.
+
+        Note: label_text_and_polygon_dataframes clusters by label *text*, so this
+        is a single physical region whose fine- and mid-layer names happen to be
+        identical (the genuine parent/child "didn't split" case) alongside one
+        unrelated region with distinct names -- there are no same-named siblings
+        here, since two blobs sharing a name would just be one merged cluster.
+        """
+        np.random.seed(1)
+        centers = [(5, 0), (-5, -1)]
+        fine_names = ["Same Topic", "fine-C"]
+        mid_names = ["Same Topic", "mid-B"]
+        coords, fine, mid = [], [], []
+        for center, fname, mname in zip(centers, fine_names, mid_names):
+            pts = np.array(center) + 0.4 * np.random.randn(80, 2)
+            coords.append(pts)
+            fine.extend([fname] * 80)
+            mid.extend([mname] * 80)
+        return np.vstack(coords), np.array(fine), np.array(mid)
+
+    def test_duplicate_topic_labels_pruned_from_tree_by_default(self):
+        """A child sharing its parent's label is hidden from the tree (parent=None).
+
+        This is an end-to-end run through create_interactive_plot, so the tree
+        below isn't written by hand (see TestDedupeTopicTreeParents for that) --
+        it's what the real pipeline actually produces for _duplicate_label_inputs,
+        confirmed by decoding the inline label payload:
+
+            base
+            +-- base_0   "Same Topic" (mid, real node)
+            |   +-- base_0_0 "Same Topic" (fine, DUPLICATE -> parent=None, hidden)
+            +-- base_1   "mid-B"      (mid, real node)
+                +-- base_1_1 "fine-C"     (fine, parent=base_1, untouched)
+        """
+        coords, fine, mid = self._duplicate_label_inputs()
+        result = datamapplot.create_interactive_plot(
+            coords, fine, mid, inline_data=True, enable_topic_tree=True
+        )
+        records = decode_inline_label_data(str(result))
+        by_label_parent = {r["label"]: r["parent"] for r in records}
+        by_label_id = {r["label"]: r["id"] for r in records}
+
+        matching = [r for r in records if r.get("label") == "Same Topic"]
+        assert len(matching) == 2, "expected one mid-layer and one fine-layer 'Same Topic' row"
+        parents = {r["parent"] for r in matching}
+        # The fine-layer duplicate must be hidden from the tree (parent None);
+        # the mid-layer node it duplicates keeps its own real parent.
+        assert None in parents
+        assert parents != {None}, "the mid-layer node itself must not be hidden"
+
+        # Control branch: distinct fine/mid names are never touched.
+        assert by_label_parent["mid-B"] is not None
+        assert by_label_parent["fine-C"] == by_label_id["mid-B"], "fine-C must stay parented to mid-B"
+
+    def test_prune_duplicate_topic_labels_can_be_disabled(self):
+        """The escape hatch keeps every layer's label as its own tree node."""
+        coords, fine, mid = self._duplicate_label_inputs()
+        result = datamapplot.create_interactive_plot(
+            coords,
+            fine,
+            mid,
+            inline_data=True,
+            enable_topic_tree=True,
+            prune_duplicate_topic_labels=False,
+        )
+        records = decode_inline_label_data(str(result))
+        by_label = [r for r in records if r.get("label") == "Same Topic"]
+        assert len(by_label) == 2
+        assert all(r["parent"] is not None for r in by_label)
+
+
+class TestDedupeTopicTreeParents:
+    """Unit tests for topic-tree duplicate-label pruning.
+
+    These are pure-pandas and need no network or rendering, so they are not
+    marked ``interactive``.
+    """
+
+    @staticmethod
+    def _tree_frame(rows):
+        """Build a minimal id/parent/label frame. ``rows`` is (id, parent, label)."""
+        return pd.DataFrame(rows, columns=["id", "parent", "label"])
+
+    def test_duplicate_child_is_hidden_from_tree(self):
+        """A child whose label matches its parent's label gets parent=None.
+
+        Tree:                        After dedup:
+            base_0 "Topic A"             base_0 (parent=base, untouched)
+            +-- base_0_0 "Topic A" (dup)     base_0_0 -> parent=None (hidden)
+        """
+        df = self._tree_frame(
+            [
+                ("base_0", "base", "Topic A"),
+                ("base_0_0", "base_0", "Topic A"),  # duplicate of its parent
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["base_0"] == "base"
+        assert out["base_0_0"] is None
+
+    def test_grandchild_reattached_past_duplicate(self):
+        """A non-duplicate grandchild is reparented up past the hidden duplicate.
+
+        Tree:                           After dedup:
+            base_0 "Topic A"                base_0 (untouched)
+            +-- base_0_0 "Topic A" (dup)        base_0_0 -> parent=None (hidden)
+                +-- base_0_0_0 "Topic B"            base_0_0_0 -> parent=base_0 (promoted)
+        """
+        df = self._tree_frame(
+            [
+                ("base_0", "base", "Topic A"),
+                ("base_0_0", "base_0", "Topic A"),  # duplicate, pruned
+                ("base_0_0_0", "base_0_0", "Topic B"),  # not a duplicate
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["base_0_0"] is None
+        assert out["base_0_0_0"] == "base_0"
+
+    def test_chain_of_duplicates_is_fully_skipped(self):
+        """A run of several consecutive duplicates is all skipped at once.
+
+        Tree:                    After dedup:
+            r "Topic A"              r (untouched)
+            +-- a "Topic A" (dup)        a -> parent=None (hidden)
+                +-- b "Topic A" (dup)        b -> parent=None (hidden)
+                    +-- c "Topic B"              c -> parent=r (promoted past both a and b)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "Topic A"),
+                ("a", "r", "Topic A"),  # duplicate
+                ("b", "a", "Topic A"),  # duplicate
+                ("c", "b", "Topic B"),  # not a duplicate
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["a"] is None
+        assert out["b"] is None
+        assert out["c"] == "r"
+
+    def test_root_is_never_pruned(self):
+        """A top-level node is never compared against 'base' (which has no label).
+
+        Tree:
+            base
+            +-- r "Topic A"   (r.parent stays "base"; 'base' has no label to match)
+        """
+        df = self._tree_frame([("r", "base", "Topic A")])
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r"] == "base"
+
+    def test_non_duplicate_siblings_untouched(self):
+        """Children with distinct labels from their parent are left alone.
+
+        Tree:
+            r "Topic A"
+            +-- r_0 "Topic B"   (untouched, distinct label)
+            +-- r_1 "Topic C"   (untouched, distinct label)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "Topic A"),
+                ("r_0", "r", "Topic B"),
+                ("r_1", "r", "Topic C"),
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] == "r"
+        assert out["r_1"] == "r"
+
+    # The following mirror corner cases from Toponymy's
+    # prune_duplicate_children tests (toponymy/tests/test_topic_tree.py),
+    # adapted to our flat id/parent/label representation.
+
+    def test_allows_sibling_duplicates(self):
+        """Siblings sharing a name with each other (not the parent) are untouched.
+
+        Tree:
+            r "different_parent"
+            +-- r_0 "same_name"   (untouched -- doesn't match r's label)
+            +-- r_1 "same_name"   (untouched -- siblings are never compared to each other)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "different_parent"),
+                ("r_0", "r", "same_name"),
+                ("r_1", "r", "same_name"),
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] == "r"
+        assert out["r_1"] == "r"
+
+    def test_multiple_children_duplicate_same_parent(self):
+        """Every duplicate child of one parent is hidden, non-duplicate sibling kept.
+
+        Tree:                    After dedup:
+            r "topic_a"              r
+            +-- r_0 "topic_a" (dup)      r_0 -> parent=None (hidden)
+            +-- r_1 "topic_a" (dup)      r_1 -> parent=None (hidden)
+            +-- r_2 "unique"             r_2 -> parent=r (untouched)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "topic_a"),
+                ("r_0", "r", "topic_a"),  # duplicate
+                ("r_1", "r", "topic_a"),  # duplicate
+                ("r_2", "r", "unique"),  # not a duplicate
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] is None
+        assert out["r_1"] is None
+        assert out["r_2"] == "r"
+
+    def test_promotion_leaves_sibling_untouched(self):
+        """A duplicate's own child is promoted; an unrelated sibling is unaffected.
+
+        Tree:                       After dedup:
+            r "topic_x"                 r
+            +-- r_0 "topic_x" (dup)         r_0 -> parent=None (hidden)
+            |   +-- r_0_0 "grandchild"          r_0_0 -> parent=r (promoted)
+            +-- r_1 "unique"                r_1 -> parent=r (untouched)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "topic_x"),
+                ("r_0", "r", "topic_x"),  # duplicate of r
+                ("r_0_0", "r_0", "grandchild"),  # promoted up to r
+                ("r_1", "r", "unique"),  # untouched sibling
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] is None
+        assert out["r_0_0"] == "r"
+        assert out["r_1"] == "r"
+
+    def test_mixed_duplicate_and_non_duplicate_children(self):
+        """A parent with one duplicate (with its own child) and one plain child.
+
+        Tree:                    After dedup:
+            r "dup"                  r
+            +-- r_0 "dup" (dup)          r_0 -> parent=None (hidden)
+            |   +-- r_0_0 "a"                r_0_0 -> parent=r (promoted)
+            +-- r_1 "unique"             r_1 -> parent=r
+                +-- r_1_0 "b"                r_1_0 -> parent=r_1 (unaffected, no duplicate here)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "dup"),
+                ("r_0", "r", "dup"),  # duplicate, has its own child
+                ("r_0_0", "r_0", "a"),
+                ("r_1", "r", "unique"),  # plain child
+                ("r_1_0", "r_1", "b"),
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] is None
+        assert out["r_0_0"] == "r"  # promoted past the duplicate
+        assert out["r_1"] == "r"
+        assert out["r_1_0"] == "r_1"  # unaffected, no duplicate in this branch
+
+    def test_all_children_duplicate_parent_promotes_all_grandchildren(self):
+        """If every child of a parent is a duplicate, all their children promote up.
+
+        Tree:                  After dedup:
+            r "same"               r
+            +-- r_0 "same" (dup)       r_0 -> parent=None (hidden)
+            |   +-- r_0_0 "leaf0"          r_0_0 -> parent=r (promoted)
+            +-- r_1 "same" (dup)       r_1 -> parent=None (hidden)
+                +-- r_1_0 "leaf1"          r_1_0 -> parent=r (promoted)
+        """
+        df = self._tree_frame(
+            [
+                ("r", "base", "same"),
+                ("r_0", "r", "same"),  # duplicate
+                ("r_0_0", "r_0", "leaf0"),
+                ("r_1", "r", "same"),  # duplicate
+                ("r_1_0", "r_1", "leaf1"),
+            ]
+        )
+        out = dedupe_topic_tree_parents(df).set_index("id")["parent"]
+        assert out["r_0"] is None
+        assert out["r_1"] is None
+        assert out["r_0_0"] == "r"
+        assert out["r_1_0"] == "r"
+
+    def test_empty_dataframe(self):
+        """An empty frame passes through without error."""
+        df = self._tree_frame([])
+        out = dedupe_topic_tree_parents(df)
+        assert len(out) == 0
 
 
 class TestComputeCollisionPriority:
