@@ -137,6 +137,9 @@ ENV/
 env.bak/
 venv.bak/
 
+# uv lockfile: intentionally untracked (avoid dependabot lockfile alerts)
+uv.lock
+
 # Spyder project settings
 .spyderproject
 .spyproject
