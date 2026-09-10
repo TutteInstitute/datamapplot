@@ -2,6 +2,7 @@ import numpy as np
 import os
 from pathlib import Path
 import pytest
+import matplotlib
 import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -100,7 +101,6 @@ def test_plot_arxiv_ml_word_cloud(
 @pytest.mark.mpl_image_compare(
     baseline_dir="baseline", style=custom_style, tolerance=35
 )
-# @pytest.mark.xfail(os.environ.get('TF_BUILD') == 'True', reason="Image dimensions differ slightly in CI", strict=False)
 def test_plot_wikipedia(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
 ):
@@ -124,7 +124,6 @@ def test_plot_wikipedia(
 
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style=custom_style)
-# @pytest.mark.xfail(os.environ.get('TF_BUILD') == 'True', reason="Image dimensions differ slightly in CI", strict=False)
 def test_plot_simple_arxiv(
     examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path
 ):
@@ -166,8 +165,15 @@ def run_static_examples_script(
     module = importlib.util.module_from_spec(spec)
     sys.modules[script_name] = module
 
-    # Run the script with the necessary test fixtures
-    with change_np_load_path(script_dir), mock_savefig():
+    # The example scripts set savefig.bbox = "tight" at module level. That is
+    # right for the standalone scripts, but pytest-mpl saves the figure itself,
+    # and a tight crop sizes the image from the rendered text extents rather
+    # than figsize * dpi. Fonts are fetched from Google Fonts at render time and
+    # fall back when unreachable, so the crop -- and therefore the image
+    # dimensions -- varied between CI runs, failing the comparison on shape
+    # before the tolerance was ever consulted. rc_context keeps the scripts'
+    # rcParams changes from escaping into the comparison.
+    with matplotlib.rc_context(), change_np_load_path(script_dir), mock_savefig():
         spec.loader.exec_module(module)
 
     return plt.gcf()
