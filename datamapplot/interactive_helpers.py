@@ -13,6 +13,8 @@ import base64
 import gzip
 import io
 import json
+import warnings
+from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -27,6 +29,7 @@ from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
 from rcssmin import cssmin
 from rjsmin import jsmin
 from scipy.spatial import Delaunay
+from scipy.spatial import QhullError
 from sklearn.cluster import KMeans, MiniBatchKMeans
 from scipy.spatial import KDTree
 import datetime as dt
@@ -181,9 +184,12 @@ def _build_font_face_css(fontname, font_data):
         src: url(data:font/{font_data["type"]};base64,{font_data["content"]}) format('{font_data["type"]}');"""
 
     if len(font_data["unicode_range"]) > 0:
-        return base_css + f"""
+        return (
+            base_css
+            + f"""
         unicode-range: {font_data["unicode_range"]};
     }}"""
+        )
     return base_css + "\n    }"
 
 
@@ -1723,6 +1729,7 @@ def label_text_and_polygon_dataframes(
     points_bounds = []
     label_ids = []
     parent_ids = []
+    skipped_polygons = defaultdict(list)
 
     for i, label in enumerate(unique_non_noise_labels):
         cluster_mask = cluster_idx_vector == i
@@ -1736,7 +1743,10 @@ def label_text_and_polygon_dataframes(
         cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
 
         if cluster_polygons:
-            polygons.append(_compute_cluster_polygon(cluster_points, alpha))
+            polygon, skip_reason = _compute_cluster_polygon(cluster_points, alpha)
+            polygons.append(polygon)
+            if skip_reason is not None:
+                skipped_polygons[skip_reason].append(label)
         else:
             polygons.append(None)
 
@@ -1759,6 +1769,8 @@ def label_text_and_polygon_dataframes(
         else:
             label_ids.append(None)
             parent_ids.append(None)
+
+    _warn_about_skipped_polygons(skipped_polygons)
 
     if parents is not None:
         unlabelled_mask = cluster_idx_vector == -1
@@ -1824,18 +1836,56 @@ def label_text_and_polygon_dataframes(
     return df
 
 
+_TOO_FEW_POINTS = "have fewer than three points"
+_DEGENERATE = "are degenerate (all points collinear or coincident)"
+_NO_BOUNDARY = "produced no usable boundary at this polygon_alpha"
+
+
 def _compute_cluster_polygon(cluster_points, alpha):
-    """Compute a smoothed boundary polygon for a cluster."""
+    """Compute a smoothed boundary polygon for a cluster.
+
+    Clusters of fewer than three points (or degenerate ones, such as collinear
+    or coincident points) have no boundary to draw, so they get no polygon.
+
+    Returns
+    -------
+    tuple
+        The polygon (or None if none could be built) and, when no polygon could
+        be built, a description of why, for the caller to report.
+    """
+    if len(cluster_points) < 3:
+        return None, _TOO_FEW_POINTS
+
     try:
         simplices = Delaunay(cluster_points, qhull_options="Qbb Qc Qz Q12 Q7").simplices
-        boundary_polys = create_boundary_polygons(
-            cluster_points, simplices, alpha=alpha
+    except (QhullError, ValueError):
+        # Degenerate point sets that Qhull cannot triangulate.
+        return None, _DEGENERATE
+
+    boundary_polys = create_boundary_polygons(cluster_points, simplices, alpha=alpha)
+    if len(boundary_polys) == 0:
+        return None, _NO_BOUNDARY
+
+    smoothed = smooth_polygon(boundary_polys[0])
+    if len(smoothed) < 3:
+        return None, _DEGENERATE
+
+    return [smoothed.tolist()], None
+
+
+def _warn_about_skipped_polygons(skipped_polygons, max_labels_listed=5):
+    """Report, once per layer, any clusters that got no boundary polygon."""
+    for reason, labels in skipped_polygons.items():
+        listed = ", ".join(str(label) for label in labels[:max_labels_listed])
+        if len(labels) > max_labels_listed:
+            listed += f", ... ({len(labels) - max_labels_listed} more)"
+        warnings.warn(
+            f"No cluster boundary polygon could be generated for "
+            f"{len(labels)} cluster(s) that {reason}; these clusters will be "
+            f"drawn without a boundary. Affected clusters: {listed}.",
+            UserWarning,
+            stacklevel=3,
         )
-        if len(boundary_polys) > 0:
-            return [smooth_polygon(boundary_polys[0]).tolist()]
-        return None
-    except Exception:
-        return None
 
 
 def _compute_label_bounds(cluster_points):
