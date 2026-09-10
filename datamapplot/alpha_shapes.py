@@ -114,10 +114,17 @@ def smooth_polygon(p, point_multipler=4, spline_coeff=0.0001):
 
     spline_degree = min(3, len(vertices) - 1)
 
-    dist = np.sqrt(np.sum((vertices[:-1] - vertices[1:]) ** 2, axis=1))
+    # splprep(per=True) treats the data as one full period, so it has to be
+    # handed the closed ring: the wrap-around vertex and the length of the
+    # closing edge. Passing the open list leaves the parameterisation short by
+    # that edge, which makes the fit ill-conditioned and, for small polygons,
+    # produces coordinates that overflow to nan.
+    closed = np.vstack([vertices, vertices[0]])
+
+    dist = np.sqrt(np.sum(np.diff(closed, axis=0) ** 2, axis=1))
     dist_along = np.concatenate(([0], dist.cumsum()))
     spline, u = splprep(
-        vertices.T, u=dist_along, s=spline_coeff, per=True, k=spline_degree
+        closed.T, u=dist_along, s=spline_coeff, per=True, k=spline_degree
     )
 
     interp_d = np.linspace(dist_along[0], dist_along[-1], len(p) * point_multipler)
@@ -130,15 +137,21 @@ def _distinct_vertices(p):
     """The open vertex list of a polygon, with consecutive duplicates removed.
 
     Spline fitting requires strictly increasing distances along the polygon, so
-    repeated points (including the repeated closing vertex) have to go.
+    repeated points (including any repeated closing vertices) have to go.
     """
     if len(p) == 0:
         return p.reshape(0, 2)
 
-    vertices = p[:-1] if len(p) > 1 and np.array_equal(p[0], p[-1]) else p
-    keep = np.ones(len(vertices), dtype=bool)
-    keep[1:] = np.any(np.diff(vertices, axis=0) != 0, axis=1)
-    return vertices[keep]
+    keep = np.ones(len(p), dtype=bool)
+    keep[1:] = np.any(np.diff(p, axis=0) != 0, axis=1)
+    vertices = p[keep]
+
+    # Boundary polygons arrive closed, and can repeat the starting vertex more
+    # than once, so trim from the end until the ring is genuinely open.
+    end = len(vertices)
+    while end > 1 and np.array_equal(vertices[0], vertices[end - 1]):
+        end -= 1
+    return vertices[:end]
 
 
 def _close_polygon(vertices):
