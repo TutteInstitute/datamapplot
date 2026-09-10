@@ -30,6 +30,7 @@ class TopicTree {
             maxHeight: "42vh",
             fontSize: "12pt",
             colorBullets: false,
+            resizable: true,
         }
     ) {
         this.container = topicTreeContainer;
@@ -39,6 +40,7 @@ class TopicTree {
         this.maxHeight = options.maxHeight;
         this.title = options.title;
         this.fontSize = options.fontSize;
+        this.resizable = options.resizable !== false;
         this.elements = datamap.labelData;
         this.rootLayerNo = Math.max(...datamap.labelData.map(e => e.layer_no));
         this.parentChildMap = this.buildParentChildMap();
@@ -80,6 +82,9 @@ class TopicTree {
         this.setupCaretHandlers();
         this.setupLabelHandlers(datamap);
         this.setupExpandAllHandler();
+        if (this.resizable) {
+            this.setupResizeHandle();
+        }
         this.setupShowHideHandler();
         this.initializeSpanCache();
         this.initializeParentChainCache();
@@ -262,21 +267,141 @@ class TopicTree {
         });
     }
 
+    setupResizeHandle() {
+        const MIN_WIDTH = 160;
+        const MIN_HEIGHT = 80;
+        const VIEWPORT_MARGIN = 16;
+        const KEY_STEP = 20;
+
+        this.topicTreeContainer.style.position = 'relative';
+
+        // Inside a drawer the container width is forced to 100%, so only allow
+        // vertical resizing there.
+        this.verticalOnly = Boolean(this.container.closest('.drawer-container'));
+
+        const handle = document.createElement('div');
+        handle.classList.add('topic-tree-resize-handle');
+        if (this.verticalOnly) {
+            handle.classList.add('vertical-only');
+        }
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-label', 'Resize topic tree');
+        handle.setAttribute('tabindex', '0');
+        handle.setAttribute('title', 'Drag to resize, double-click to reset');
+        this.topicTreeContainer.appendChild(handle);
+        this.resizeHandle = handle;
+
+        const body = this.topicTreeBody;
+
+        const clampedSize = (width, height) => {
+            const rect = body.getBoundingClientRect();
+            const maxWidth = Math.max(
+                MIN_WIDTH, window.innerWidth - rect.left - VIEWPORT_MARGIN
+            );
+            const maxHeight = Math.max(
+                MIN_HEIGHT, window.innerHeight - rect.top - VIEWPORT_MARGIN
+            );
+            return {
+                width: Math.min(Math.max(width, MIN_WIDTH), maxWidth),
+                height: Math.min(Math.max(height, MIN_HEIGHT), maxHeight),
+            };
+        };
+
+        const applySize = (width, height) => {
+            const size = clampedSize(width, height);
+            // The inline max-width/max-height caps would otherwise block growth.
+            if (!this.verticalOnly) {
+                body.style.maxWidth = 'none';
+                body.style.width = `${size.width}px`;
+            }
+            body.style.maxHeight = 'none';
+            body.style.height = `${size.height}px`;
+        };
+
+        let startX = 0;
+        let startY = 0;
+        let startWidth = 0;
+        let startHeight = 0;
+
+        handle.addEventListener('pointerdown', (event) => {
+            // Keep the drag away from deck.gl, which would otherwise pan the map.
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = body.getBoundingClientRect();
+            startX = event.clientX;
+            startY = event.clientY;
+            startWidth = rect.width;
+            startHeight = rect.height;
+            body.classList.add('resizing');
+            handle.setPointerCapture(event.pointerId);
+        });
+
+        handle.addEventListener('pointermove', (event) => {
+            if (!handle.hasPointerCapture(event.pointerId)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            applySize(
+                startWidth + (event.clientX - startX),
+                startHeight + (event.clientY - startY)
+            );
+        });
+
+        const endDrag = (event) => {
+            if (!handle.hasPointerCapture(event.pointerId)) return;
+            handle.releasePointerCapture(event.pointerId);
+            body.classList.remove('resizing');
+        };
+        handle.addEventListener('pointerup', endDrag);
+        handle.addEventListener('pointercancel', endDrag);
+
+        handle.addEventListener('dblclick', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.resetSize();
+        });
+
+        handle.addEventListener('keydown', (event) => {
+            const deltas = {
+                ArrowLeft: [-KEY_STEP, 0],
+                ArrowRight: [KEY_STEP, 0],
+                ArrowUp: [0, -KEY_STEP],
+                ArrowDown: [0, KEY_STEP],
+            };
+            const delta = deltas[event.key];
+            if (!delta) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = body.getBoundingClientRect();
+            applySize(rect.width + delta[0], rect.height + delta[1]);
+        });
+    }
+
+    resetSize() {
+        const body = this.topicTreeBody;
+        body.style.width = '';
+        body.style.height = '';
+        body.style.maxWidth = this.maxWidth;
+        body.style.maxHeight = this.maxHeight;
+    }
+
     setupShowHideHandler() {
         const topicTreeBody = this.topicTreeBody;
         const header = this.header;
         const heading = this.heading;
         const expandAllBtn = this.expandAllBtn;
         const topicTreeContainer = this.topicTreeContainer;
+        const resizeHandle = this.resizeHandle;
         this.showHideButton.addEventListener('click', function () {
             const hidden = topicTreeContainer.hidden;
             if (hidden) {
                 $(topicTreeContainer).animate({ height: 'show', width: 'show', opacity: 'show' }, 250);
                 topicTreeContainer.hidden = false;
                 topicTreeBody.style.overflowX = 'auto';
+                if (resizeHandle) resizeHandle.classList.remove('hidden');
                 this.classList.remove('closed');
             } else {
                 topicTreeBody.style.overflowX = 'hidden';
+                if (resizeHandle) resizeHandle.classList.add('hidden');
                 const carets = document.querySelectorAll('.caret');
                 carets.forEach(caret => {
                     const nestedList = getNextSibling(caret, '.nested');

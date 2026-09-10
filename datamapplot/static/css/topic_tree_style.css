@@ -8,6 +8,8 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    /* Leave room for the resize handle in the bottom right corner */
+    padding-bottom: 10px;
     /* max-height: 42vh;
     max-width: 30vw; */
 }
@@ -184,4 +186,51 @@ li {
     margin: -2px;
     background: none;
     color: inherit;
+}
+/* Resize handle */
+.topic-tree-resize-handle {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    touch-action: none;
+    opacity: 0.35;
+    transition: opacity 0.3s ease;
+    color: inherit;
+    line-height: 14px;
+    text-align: right;
+    font-size: 12px;
+    user-select: none;
+}
+
+.topic-tree-resize-handle::before {
+    content: "\25E2";
+}
+
+.topic-tree-resize-handle:hover,
+.topic-tree-resize-handle:focus {
+    opacity: 1.0;
+    outline: none;
+}
+
+.topic-tree-resize-handle.vertical-only {
+    cursor: ns-resize;
+    left: 0;
+    right: 0;
+    width: auto;
+    text-align: center;
+}
+
+.topic-tree-resize-handle.vertical-only::before {
+    content: "\2261";
+}
+
+.topic-tree-resize-handle.hidden {
+    display: none;
+}
+
+#topic-tree-body.resizing {
+    user-select: none;
 }
