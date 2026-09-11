@@ -215,6 +215,7 @@ _TOPIC_TREE_DEFAULT_KWDS = {
     "color_bullets": False,
     "button_on_click": None,
     "button_icon": "&#128194",
+    "resizable": True,
 }
 
 # Legacy template - loaded directly as a string
@@ -871,7 +872,7 @@ def render_html(
         Whether to enable a topic tree that highlights label heirarchy and aids navigation in
         the datamap.
 
-    topic_tree_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194"})
+    topic_tree_kwds: dict (optional, default={"title":"Topic Tree", "font_size":"12pt", "max_width":"30vw", "max_height":"42vh", "color_bullets":False, "button_on_click":None, "button_icon":"&#128194", "resizable":True})
         A dictionary containing custom settings for the topic tree. The dictionary can include
         the following keys:
           * "title": str

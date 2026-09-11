@@ -792,6 +792,12 @@ class TestTopicTreeWidgetExtended:
         assert widget.max_height == "42vh"
         assert widget.color_bullets is False
         assert widget.button_on_click is None
+        assert widget.resizable is True
+
+    def test_resizable_javascript(self):
+        """Test that the resizable option is passed through to the JS component."""
+        assert "resizable: true" in TopicTreeWidget().javascript
+        assert "resizable: false" in TopicTreeWidget(resizable=False).javascript
 
     def test_html_output_contains_container(self):
         """Test that HTML contains the topic-tree container."""
@@ -1524,6 +1530,12 @@ class TestLegacyWidgetFlags:
         widgets = [TopicTreeWidget(title="My Tree", font_size="14pt")]
         result = legacy_widget_flags_from_widgets(widgets)
         assert result[2] is True  # enable_topic_tree
+
+    def test_topic_tree_resizable_round_trip(self):
+        """Test that the resizable setting survives the legacy flag round trip."""
+        widgets = [TopicTreeWidget(resizable=False)]
+        result = legacy_widget_flags_from_widgets(widgets)
+        assert result[5]["resizable"] is False
 
     def test_with_mixed_widgets(self):
         """Test with multiple widget types."""

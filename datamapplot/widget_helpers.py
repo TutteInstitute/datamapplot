@@ -342,6 +342,7 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
                 color_bullets=topic_tree_kwds.get("color_bullets", False),
                 button_on_click=topic_tree_kwds.get("button_on_click"),
                 button_icon=topic_tree_kwds.get("button_icon", "&#128194;"),
+                resizable=topic_tree_kwds.get("resizable", True),
             )
         )
 
@@ -610,6 +611,7 @@ def legacy_widget_flags_from_widgets(widgets):
                 "color_bullets": w.color_bullets,
                 "button_on_click": w.button_on_click,
                 "button_icon": w.button_icon,
+                "resizable": w.resizable,
             }
             break
 

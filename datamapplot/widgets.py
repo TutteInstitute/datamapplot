@@ -558,6 +558,10 @@ class TopicTreeWidget(WidgetBase):
     button_icon : str, optional
         Icon/text for tree buttons. Default is "&#128194;".
 
+    resizable : bool, optional
+        Whether the tree can be resized by dragging the handle in its bottom
+        right corner. Default is True.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -574,6 +578,7 @@ class TopicTreeWidget(WidgetBase):
         color_bullets=False,
         button_on_click=None,
         button_icon="&#128194;",
+        resizable=True,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "topic-tree")
@@ -588,6 +593,7 @@ class TopicTreeWidget(WidgetBase):
         self.color_bullets = color_bullets
         self.button_on_click = button_on_click
         self.button_icon = button_icon
+        self.resizable = resizable
 
     @property
     def html(self):
@@ -639,6 +645,7 @@ class TopicTreeWidget(WidgetBase):
                 maxHeight: {json.dumps(self.max_height)},
                 fontSize: {json.dumps(self.font_size)},
                 colorBullets: {str(self.color_bullets).lower()},
+                resizable: {str(self.resizable).lower()},
             }}
         );
         {button_handlers}
