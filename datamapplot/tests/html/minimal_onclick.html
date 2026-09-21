@@ -1,0 +1,540 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Minimal OnClick Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+  rel="stylesheet"
+/>
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<style>
+b"@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 300;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 700;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 900;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf) format('truetype');\n}\n"
+</style>
+
+<link
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+  rel="stylesheet"
+/>
+
+<script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+<script src="https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"></script>
+
+<style>
+  .content-wrapper{top:0;left:0;width:100%;height:100%;z-index:1;padding:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;min-height:calc(100vh - 16px);pointer-events:none}.stack{display:flex;flex-direction:column;gap:0;padding:0;pointer-events:none;max-height:50vh;overflow-y:visible}.top-left{grid-column:1;grid-row:1;justify-self:start;align-self:start;align-items:start}.bottom-left{grid-column:1;grid-row:2;justify-self:start;align-self:end;align-items:start;display:flex;flex-direction:column-reverse;transform:scaleY(-1);z-index:2}.top-right{grid-column:2;grid-row:1;justify-self:end;justify-items:end;align-self:start;align-items:end}.bottom-right{grid-column:2;grid-row:2;justify-self:end;justify-items:end;align-self:end;align-items:end;display:flex;flex-direction:column-reverse;transform:scaleY(-1)}.stack.bottom-left .stack-box{transform:scaleY(-1)}.stack.bottom-right .stack-box{transform:scaleY(-1)}#loading{width:100%;height:100%;top:0px;left:0px;position:absolute;display:block;z-index:99}#loading-image{position:absolute;top:45%;left:47.5%;z-index:100}#title-container{top:0;left:0}
+</style><style>
+  .datamapplot-progress-container{position:absolute;bottom:0;left:50%;transform:translate(-50%,0);width:512px;z-index:101}.datamapplot-progress-bar{width:100%;background-color:#e0e0e044;padding:3px;border-radius:6px;box-shadow:inset 0 1px 3px rgba(128,128,128,.2);margin-bottom:10px}.datamapplot-progress-bar-fill{display:block;height:12px;background-color:#659cef;border-radius:4px;transition:width 500ms ease-in-out}.datamapplot-progress-bar-text{color:white;text-align:center;line-height:12px;font-size:10px;overflow-x:visible;white-space:nowrap;vertical-align:top}
+</style>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: Roboto;
+    color: #000000;
+  }
+  .container-box {
+    margin: 8px 16px 8px 16px;
+    padding: 12px;
+    border-radius: 16px;
+    line-height: 0.95;
+    width: fit-content;
+    height: fit-content;
+    z-index: 2;
+    backdrop-filter: blur(3px);
+    background: #ffffffaa;
+    box-shadow: 2px 3px 10px #aaaaaa44;
+    position: relative;
+    pointer-events: auto;
+  }
+  .more-opaque {
+    backdrop-filter: blur(6px);
+    background-color: #ffffffee;
+  }
+  #deck-container {
+    width: 100vw;
+    height: 100vh;  
+  }
+  #deck-container canvas {
+    z-index: 1;
+    background: #ffffff;
+  }
+  .deck-tooltip {
+      
+            font-size: 0.8em;
+            font-family: Roboto;
+            font-weight: 300;
+            color: #000000 !important;
+            background-color: #ffffffee !important;
+            border-radius: 12px;
+            backdrop-filter: blur(6px);
+            box-shadow: 2px 3px 10px #aaaaaa44;
+            max-width: 25%;
+  }
+  input {
+    margin: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    color: #000000;
+    background: #ffffffdd;
+    border: 2px inset #77777744;
+    transition: 0.5s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input:focus {
+    border: 2px inset #555;
+  }
+</style>
+  </head>
+  
+  <body>
+<div id="loading">
+  <img
+    id="loading-image"
+    src=""
+    alt="Loading..."
+    width="5%"
+  />
+</div>
+<div style="isolation: isolate; position: relative;">
+  <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  <div class="content-wrapper" style="position: relative; z-index: 1;">
+    
+    <div class="stack top-left">
+      
+      <div id="title-container" class="container-box">
+        <span
+          id="main-title"
+          style="font-family:Roboto;font-size:36pt;font-weight:;color:#000000"
+        >
+          Minimal OnClick Test
+        </span>
+        <br />
+        <span
+          style="font-family:Roboto;font-size:18pt;color:#777777"
+        >
+          For on-click action tests
+        </span>
+      </div>
+      
+
+      
+      
+    </div>
+    
+    
+    <div class="stack top-right">
+      
+    </div>
+    
+    
+    <div class="stack bottom-right">
+    </div>
+    
+    
+    <div class="stack bottom-left"></div>
+  </div>
+  
+  
+  
+</div>
+
+
+
+<div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+  <div id="point-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+    </span>
+  </div>
+  <div id="label-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+    </span>
+  </div>
+  <div id="meta-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+    </span>
+  </div>
+</div>
+  </body>
+  <script>
+    LAYER_ORDER=['imageLayer','dataPointLayer','boundaryLayer','labelLayer'];function getLayerIndex(object){return LAYER_ORDER.indexOf(object.id);}
+function isFontLoaded(fontName){return document.fonts.check(`12px "${fontName}"`);}
+function waitForFont(fontName,maxWait=500){return new Promise((resolve,reject)=>{if(isFontLoaded(fontName)){resolve();}else{const startTime=Date.now();const interval=setInterval(()=>{if(isFontLoaded(fontName)){clearInterval(interval);resolve();}else if(Date.now()-startTime>maxWait){clearInterval(interval);reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));}},50);}});}
+function getInitialViewportSize(){const width=document.documentElement.clientWidth;const height=document.documentElement.clientHeight;return{viewportWidth:width,viewportHeight:height};}
+function calculateZoomLevel(bounds,viewportWidth,viewportHeight,padding=0.5){const lngRange=bounds[1]-bounds[0];const latRange=bounds[3]-bounds[2];const centerLng=(bounds[0]+bounds[1])/2;const centerLat=(bounds[2]+bounds[3])/2;const zoomX=Math.log2(360/(lngRange/(viewportWidth/256)));const zoomY=Math.log2(180/(latRange/(viewportHeight/256)));const zoom=Math.min(zoomX,zoomY)-padding;return{zoomLevel:zoom,dataCenter:[centerLng,centerLat]};}
+class DataMap{constructor({container,bounds,searchItemId="text-search",lassoSelectionItemId="lasso-selection",}){this.container=container;this.searchItemId=searchItemId;this.lassoSelectionItemId=lassoSelectionItemId;this.pointData=null;this.labelData=null;this.metaData=null;this.layers=[];const{viewportWidth,viewportHeight}=getInitialViewportSize();const{zoomLevel,dataCenter}=calculateZoomLevel(bounds,viewportWidth,viewportHeight);this.deckgl=new deck.DeckGL({container:container,initialViewState:{latitude:dataCenter[1],longitude:dataCenter[0],zoom:zoomLevel},controller:{scrollZoom:{speed:0.01,smooth:true}},});this.updateTriggerCounter=0;this.dataSelectionManager=new DataSelectionManager(lassoSelectionItemId);}
+addPoints(pointData,{pointSize,pointOutlineColor=[250,250,250,128],pointLineWidth=0.001,pointHoverColor=[170,0,0,187],pointLineWidthMaxPixels=3,pointLineWidthMinPixels=0.001,pointRadiusMaxPixels=16,pointRadiusMinPixels=0.2,}){const numPoints=pointData.x.length;const positions=new Float32Array(numPoints*2);const colors=new Uint8Array(numPoints*4);const variableSize=pointSize<0;let sizes;if(variableSize){sizes=new Float32Array(numPoints);}else{sizes=null;}
+for(let i=0;i<numPoints;i++){positions[i*2]=pointData.x[i];positions[i*2+1]=pointData.y[i];colors[i*4]=pointData.r[i];colors[i*4+1]=pointData.g[i];colors[i*4+2]=pointData.b[i];colors[i*4+3]=pointData.a[i];if(variableSize){sizes[i]=pointData.size[i];}}
+this.originalColors=colors;this.selected=new Float32Array(numPoints).fill(1.0);this.pointSize=pointSize;this.pointOutlineColor=pointOutlineColor;this.pointLineWidth=pointLineWidth;this.pointHoverColor=pointHoverColor;this.pointLineWidthMaxPixels=pointLineWidthMaxPixels;this.pointLineWidthMinPixels=pointLineWidthMinPixels;this.pointRadiusMaxPixels=pointRadiusMaxPixels;this.pointRadiusMinPixels=pointRadiusMinPixels;let scatterAttributes={getPosition:{value:positions,size:2},getFillColor:{value:colors,size:4},getFilterValue:{value:this.selected,size:1}};if(variableSize){scatterAttributes.getRadius={value:sizes,size:1};}
+this.pointLayer=new deck.ScatterplotLayer({id:'dataPointLayer',data:{length:numPoints,attributes:scatterAttributes},getRadius:this.pointSize,getLineColor:this.pointOutlineColor,getLineWidth:this.pointLineWidth,highlightColor:this.pointHoverColor,lineWidthMaxPixels:this.pointLineWidthMaxPixels,lineWidthMinPixels:this.pointLineWidthMinPixels,radiusMaxPixels:this.pointRadiusMaxPixels,radiusMinPixels:this.pointRadiusMinPixels,radiusUnits:"common",lineWidthUnits:"common",autoHighlight:true,pickable:true,stroked:true,extensions:[new deck.DataFilterExtension({filterSize:1})],filterRange:[-0.5,1.5],filterSoftRange:[0.75,1.25],updateTriggers:{getFilterValue:this.updateTriggerCounter},instanceCount:numPoints,parameters:{depthTest:false}});this.layers.push(this.pointLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addEdges(edgeData,{edgeWidth=0.05,edgeOpacity=0.8,}){const numEdges=edgeData.r.length;this.edgeWidth=edgeWidth;this.edgeOpacity=edgeOpacity;const sourcePosition=new Float32Array(numEdges*2);const targetPosition=new Float32Array(numEdges*2);const colors=new Uint8Array(numEdges*4);let lineAttributes={getSourcePosition:{value:sourcePosition,size:2},getTargetPosition:{value:targetPosition,size:2},getColor:{value:colors,size:4},};for(let i=0;i<numEdges;i++){sourcePosition[i*2]=edgeData.x1[i];sourcePosition[i*2+1]=edgeData.y1[i];targetPosition[i*2]=edgeData.x2[i];targetPosition[i*2+1]=edgeData.y2[i];colors[i*4]=edgeData.r[i];colors[i*4+1]=edgeData.g[i];colors[i*4+2]=edgeData.b[i];colors[i*4+3]=180;}
+this.edgeLayer=new deck.LineLayer({id:'edgeLayer',data:{length:numEdges,attributes:lineAttributes},getSourcePosition:d=>[d.source.x,d.source.y],getTargetPosition:d=>[d.target.x,d.target.y],getWidth:this.edgeWidth,});this.layers.push(this.edgeLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addLabels(labelData,{labelTextColor=d=>[d.r,d.g,d.b],textMinPixelSize=18,textMaxPixelSize=36,textOutlineWidth=8,textOutlineColor=[238,238,238,221],textBackgroundColor=[255,255,255,64],fontFamily="Roboto",fontWeight=900,lineSpacing=0.95,textCollisionSizeScale=3.0,noiseLabel="Unlabelled",pickable=false,}){const numLabels=labelData.length;this.labelTextColor=labelTextColor;this.textMinPixelSize=textMinPixelSize;this.textMaxPixelSize=textMaxPixelSize;this.textOutlineWidth=textOutlineWidth;this.textOutlineColor=textOutlineColor;this.textBackgroundColor=textBackgroundColor;this.fontFamily=fontFamily;this.fontWeight=fontWeight;this.lineSpacing=lineSpacing;this.textCollisionSizeScale=textCollisionSizeScale;waitForFont(this.fontFamily);this.labelLayer=new deck.TextLayer({id:'labelLayer',data:labelData.filter(d=>d.label!==noiseLabel),pickable:pickable,getPosition:d=>[d.x,d.y],getText:d=>d.label,getColor:this.labelTextColor,getSize:d=>d.size,sizeScale:1,sizeMinPixels:this.textMinPixelSize,sizeMaxPixels:this.textMaxPixelSize,outlineWidth:this.textOutlineWidth,outlineColor:this.textOutlineColor,getBackgroundColor:this.textBackgroundColor,getBackgroundPadding:[15,15,15,15],background:true,characterSet:"auto",fontFamily:this.fontFamily,fontWeight:this.fontWeight,lineHeight:this.lineSpacing,fontSettings:{"sdf":true},getTextAnchor:"middle",getAlignmentBaseline:"center",lineHeight:0.95,elevation:100,collisionEnabled:true,getCollisionPriority:d=>d.size,collisionTestProps:{sizeScale:this.textCollisionSizeScale,sizeMaxPixels:this.textMaxPixelSize*2,sizeMinPixels:this.textMinPixelSize*2},extensions:[new deck.CollisionFilterExtension()],instanceCount:numLabels,parameters:{depthTest:false}});this.layers.push(this.labelLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addBoundaries(boundaryData,{clusterBoundaryLineWidth=0.5}){const numBoundaries=boundaryData.length;this.clusterBoundaryLineWidth=clusterBoundaryLineWidth;this.boundaryLayer=new deck.PolygonLayer({id:'boundaryLayer',data:boundaryData,stroked:true,filled:false,getLineColor:d=>[d.r,d.g,d.b,d.a],getPolygon:d=>d.polygon,lineWidthUnits:"common",getLineWidth:d=>d.size*d.size,lineWidthScale:this.clusterBoundaryLineWidth*5e-5,lineJointRounded:true,lineWidthMaxPixels:4,lineWidthMinPixels:0.0,instanceCount:numBoundaries,parameters:{depthTest:false}});this.layers.push(this.boundaryLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addMetaData(metaData,{tooltipFunction=({index})=>this.metaData.hover_text[index],onClickFunction=null,searchField=null,}){this.metaData=metaData;this.tooltipFunction=tooltipFunction;this.onClickFunction=onClickFunction;this.searchField=searchField;if(this.metaData.hasOwnProperty('hover_text')){this.deckgl.setProps({getTooltip:this.tooltipFunction,});}
+if(this.onClickFunction){this.deckgl.setProps({onClick:this.onClickFunction,});}
+if(this.searchField){this.searchArray=this.metaData[this.searchField].map(d=>d.toLowerCase());}}
+connectHistogram(histogramItem){this.histogramItem=histogramItem;this.histogramItemId=histogramItem.state.chart.chartContainerId;}
+addBackgroundImage(image,bounds){this.imageLayer=new deck.BitmapLayer({id:'imageLayer',bounds:bounds,image:image,parameters:{depthTest:false}});this.layers.push(this.imageLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+async addSelectionHandler(callback,selectionKind="lasso-selection",timeoutMs=60000){const startTime=Date.now();if(selectionKind==="lasso-selection"){while(!this.lassoSelector){if(Date.now()-startTime>timeoutMs){throw new Error('Timeout: lassoSelector did not become available within the specified timeout period');}
+await new Promise(resolve=>setTimeout(resolve,1000));}
+this.lassoSelector.registerSelectionHandler(callback);}else{if(!this.selectionCallbacks){this.selectionCallbacks={};}
+if(this.selectionCallbacks[selectionKind]){this.selectionCallbacks[selectionKind].push(callback);}
+this.selectionCallbacks[selectionKind]=[callback];}}
+highlightPoints(itemId){const selectedIndices=this.dataSelectionManager.getSelectedIndices();const semiSelectedIndices=this.dataSelectionManager.getBasicSelectedIndices();const hasSelectedIndices=selectedIndices.size!==0;const hasSemiSelectedIndices=semiSelectedIndices.size!==0;const hasLassoSelection=this.dataSelectionManager.hasSpecialSelection();if(hasLassoSelection){if(hasSelectedIndices){if(hasSemiSelectedIndices){this.selected.fill(-1.0);for(let i of semiSelectedIndices){this.selected[i]=0.0;}}else{this.selected.fill(0.0);}
+for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}else{if(hasSelectedIndices){this.selected.fill(-1.0);for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}
+this.updateTriggerCounter++;const sizeAdjust=1/(1+(Math.sqrt(selectedIndices.size)/Math.log2(this.selected.length)));const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFilterValue:{value:this.selected,size:1}}},radiusMinPixels:hasSelectedIndices?2*(this.pointRadiusMinPixels+sizeAdjust):this.pointRadiusMinPixels,updateTriggers:{getFilterValue:this.updateTriggerCounter,radiusMinPixels:this.updateTriggerCounter,}});const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;if(this.histogramItem&&itemId!==this.histogramItemId){if(hasSelectedIndices){this.histogramItem.drawChartWithSelection(selectedIndices);}else{this.histogramItem.removeChartWithSelection(selectedIndices);}}}
+addSelection(selectedIndices,selectionKind){this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+removeSelection(selectionKind){this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+getSelectedIndices(){return this.dataSelectionManager.getSelectedIndices();}
+searchText(searchTerm){const searchTermLower=searchTerm.toLowerCase();const selectedIndices=this.searchArray.reduce((indices,d,i)=>{if(d.indexOf(searchTermLower)>=0){indices.push(i);}
+return indices;},[]);if(searchTerm===""){this.dataSelectionManager.removeSelectedIndicesOfItem(this.searchItemId);}else{this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,this.searchItemId);}
+if(this.selectionCallbacks&&this.selectionCallbacks[this.searchItemId]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[this.searchItemId]){callback(currentSelectedIndices);}}
+this.highlightPoints(this.searchItemId);}
+recolorPoints(colorData,fieldName){if(!this.hasOwnProperty(`${fieldName}Colors`)){const numPoints=colorData[`${fieldName}_r`].length;const colors=new Uint8Array(numPoints*4);for(let i=0;i<numPoints;i++){colors[i*4]=colorData[`${fieldName}_r`][i];colors[i*4+1]=colorData[`${fieldName}_g`][i];colors[i*4+2]=colorData[`${fieldName}_b`][i];colors[i*4+3]=colorData[`${fieldName}_a`][i];}
+this[`${fieldName}Colors`]=colors;}
+const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this[`${fieldName}Colors`],size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}
+resetPointColors(){const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this.originalColors,size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}}
+  </script>
+  <script>
+    class DataSelectionManager{constructor(specialItem){this.excludeItem=specialItem;this.selectedIndicesByItem={};this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();}
+addOrUpdateSelectedIndicesOfItem(indices,itemId){const isNewItem=!this.selectedIndicesByItem.hasOwnProperty(itemId);this.selectedIndicesByItem[itemId]=new Set(indices);this.#updateSelectedIndicesCommon(isNewItem?itemId:null);}
+removeSelectedIndicesOfItem(itemId){if(this.selectedIndicesByItem.hasOwnProperty(itemId)){delete this.selectedIndicesByItem[itemId];this.#updateSelectedIndicesCommon();}}
+getSelectedIndices(){return this.selectedIndicesCommon;}
+getBasicSelectedIndices(){return this.selectedIndicesBasicCommon;}
+hasSpecialSelection(){return this.selectedIndicesByItem.hasOwnProperty(this.excludeItem);}#updateSelectedIndicesCommon(newItem=null){const sets=Object.values(this.selectedIndicesByItem);if(sets.length===0){this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();return;}
+if(sets.length===1){this.selectedIndicesCommon=sets[0];if(Object.keys(this.selectedIndicesByItem)[0]!==this.excludeItem){this.selectedIndicesBasicCommon=sets[0];}else{this.selectedIndicesBasicCommon=new Set();}
+return;}
+if(newItem){const newSet=this.selectedIndicesByItem[newItem];this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(newSet);if(newItem!==this.excludeItem){this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(newSet);}
+return;}
+this.selectedIndicesCommon=sets[0];for(let i=1;i<sets.length;i++){this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(sets[i]);if(this.selectedIndicesCommon.size===0){break;}}
+const otherSelectionItems=Object.keys(this.selectedIndicesByItem).filter(key=>key!==this.excludeItem);this.selectedIndicesBasicCommon=this.selectedIndicesByItem[otherSelectionItems[0]];for(let i=1;i<otherSelectionItems.length;i++){const otherSelection=this.selectedIndicesByItem[otherSelectionItems[i]];this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(otherSelection);}}}
+  </script><script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    
+function debounce(func, timeout = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+  };
+}
+
+async function simpleArrowParser(arrow_bytes) {
+  const table = await Arrow.tableFromIPC(arrow_bytes);
+  const result = {};
+  table.schema.fields.forEach((field) => {
+    result[field.name] = table.getChild(field.name).toArray();
+  });
+  return result;
+}
+
+function mergeTypedArrays(arrays) {
+  let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  let result = new arrays[0].constructor(totalLength);
+  let currentLength = 0;
+  for (let arr of arrays) {
+    result.set(arr, currentLength);
+    currentLength += arr.length;
+  }
+  return result;
+}
+
+
+
+function updateProgressBar(id, progress) {
+  const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+  const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+  if (progressBar && progressText) {
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+  }
+}
+
+function checkAllDataLoaded() {
+  const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+  const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+  if (allLoaded) {
+    const loadingEl = document.getElementById("loading");
+    const progressEl = document.getElementById("progress-container");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (progressEl) progressEl.style.display = "none";
+  }
+}
+    
+    
+
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    
+
+
+
+
+const pointDataEncoded = "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";
+const hoverDataEncoded = "H4sIAIMAYGkC/61YTY/TMBT8K1ZPIIEUO/7kttqVEFJb0HbhghAyrbu1aJyQuAsL4r+TpCtx8Kvkj7310PG8Z8+bjP1ncWgfTP/Vm19+8QZ9Xmy89nbwdquPaGX8od0NyDp0o71Gm601bmvQC1IR/BK9RhvddEeDutY6j6rFK7S467Ub9qZHS6N7Z909uuq6vtXbgxlmHAlweMJdt0138iPukx1s6ybUcazBj7/POBrgyIR7a5zpx789GLRqd+Y4oH3bo3eNvn/iqwJcPeFi2wzhNLNNNuHW2p/6kXKp3f1prBF9dDvTD1673bTI5nHwprlUOJ9WeN9529jf886gO7M9OPvjZM5tr5YXuMWEvDGmQ2sz86+N/9n238+w66MeBrt/2u4LpyvjyLEKkCrmfLEMdVFFHXAdAmdFXXlv3FzoaixUOzs08xGvlx8uEcYpKtwbPEvq1lg3/nVrmpH3vzBGytv2WztK7SKcpigSwLOIfgE9YR41eQBQpBQMTLyMKTiceKzKdUyqGG4AhxO5gUkgJEaYAK6OGiEASBNNB+iblYmT8Ci/BOxdJAxVaALkrDG08afdI2r3aDWSWWcuVgCU/gxyq6vUNcJWahxp/AA019LqOvtjU9PySanZM6zBE8UPbJ+IEi8AlGVTU6sYlwp5aW4Io6n2BkwsJZk2Res8T6Y0Bgc0y9K8AcgKlCccMISPUhYElJl+SlW8nwK8LE5ZYVhguIw3V1QsJedDeJonSsbKlMHiPpgAcWrKh8iTfCsUGVOZ/sOrogjNcaZRc1KkTp6S/IGuaRk7y5wNzsuOmYuyOzTPvABwFRNngIZFirxCXoHLZlqQxCgCXOHr4jQjaOZLi2Bl9z3By9svVJyQRbcJocrzqKzy0oqMjf/Aow0pFo2so24QoWgkzZtxWR7OJM97EJEi75MvZSafShF1eDYqN5MpnHe9UCTzLU8lfCehJ0SaGXoVi3y2BEpONC1oCZEoZaBzWfyCo9Tiy99/oYtQLugXAAA=";
+const labelDataEncoded = "H4sIAIMAYGkC/3XQy2rDMBAF0F8Js3aERjN6brsNoXTRTdOFElRjkshFtumL/nsT12lLTXaXC8PhzsMHHOI2HSDATXt8HvpUFvdN17QZKniFsCTBRlny6BEreINgBJFkx4ZQV9A17wmCIiErKBC8PocaAo3NFoK25xBPdyzkZ/XLrWM/lHhYrGKuh1inTb4t7S51XZPrb1sLQ5bRoTU00iy8JmTtT/6MZppopyfa4TU6jfI69S9t2XfTUinIeGmdYWVGjoT3bDSjsX7GOTdx/sKhkle8u9Tkp7bs0jHlfpNXKZb8s3KJwkltpKSLu0QtlHXKsZWs5j/G/0PJ/YUfvwBEgsQl1AEAAA==";
+
+
+
+
+
+const parsingWorkerBlob = new Blob([`
+  self.onmessage = async function(event) {
+  const { encodedData, JSONParse } = event.data;
+    // Function to parse base64 to Uint8Array
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
+    async function decodeBase64WithProgress(base64) {
+      const totalLength = base64.length;
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+      let offset = 0;
+
+      for (let i = 0; i < totalLength; i += chunkSize) {
+        const chunk = base64.slice(i, i + chunkSize);
+        const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        decodedArray.set(decodedChunk, offset);
+        offset += decodedChunk.length;
+
+        const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+        self.postMessage({ type: 'progress', progress: progress });
+
+        // Allow other operations to occur
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      return decodedArray.slice(0, offset);
+    }
+    const decodedData = await decodeBase64WithProgress(encodedData);
+    const decompressedData = await DecompressBytes(decodedData);
+    if (JSONParse) {
+      const parsedData = JSON.parse(new TextDecoder("utf-8").decode(decompressedData));
+      self.postMessage({ type: "data", data: parsedData });
+    } else {
+      self.postMessage({ type: "data", data: decompressedData });
+    }
+  }
+`], { type: 'application/javascript' });
+
+
+
+const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    
+const searchItemId = "text-search";
+const histogramItemId = "d3histogram-container";
+const selectionItemId = "lasso-select";
+let histogramItem = null;
+
+const container = document.getElementById('deck-container');
+
+const datamap = new DataMap({
+  container: container,
+  bounds: [-10.588197100621498, 10.344919462216634, -19.063189509007767, 10.936810490992235],
+  searchItemId: searchItemId,
+  lassoSelectionItemId: selectionItemId,      
+});
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    
+
+
+
+
+
+
+
+
+// =============================================================================
+// Point Data Loading
+// =============================================================================
+
+function loadPointDataLayer() {
+  const pointDataWorker = new Worker(workerUrl);
+  pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+  pointDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('point-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = await simpleArrowParser(data);
+
+
+      const pointData = parsedData;
+      
+      datamap.addPoints(pointData, {
+        pointSize: 0.10023919368272226,
+        pointOutlineColor: [250, 250, 250, 128],
+        pointLineWidth: 0.001,
+        pointHoverColor: [170, 0, 0, 187],
+        pointLineWidthMaxPixels: 3,
+        pointLineWidthMinPixels: 0.001,
+        pointRadiusMaxPixels: 24,
+        pointRadiusMinPixels: 0.01,
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('point-data-progress', 100);
+      checkAllDataLoaded();
+      
+      
+    }
+  };
+
+  
+  
+  
+}
+
+
+
+
+
+// =============================================================================
+// Label Data Loading
+// =============================================================================
+
+function loadLabelDataLayer() {
+  const labelDataWorker = new Worker(workerUrl);
+  labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+  labelDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('label-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const labelData = parsedData;
+      
+      datamap.labelData = labelData;
+      
+      datamap.addLabels(
+        
+        labelData
+        ,
+        {
+          labelTextColor: d => [d.r, d.g, d.b],
+          textMinPixelSize: 18,
+          textMaxPixelSize: 36,
+          textOutlineWidth: 8,
+          textOutlineColor: [238, 238, 238, 221],
+          textBackgroundColor: [255, 255, 255, 64],
+          fontFamily: "Roboto",
+          fontWeight: 600,
+          lineSpacing: 0.95,
+          textCollisionSizeScale: 3,
+          noiseLabel: "Unlabelled",
+          pickable: false,
+        }
+      );
+
+      
+      
+      
+      
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('label-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+// =============================================================================
+// Meta Data Loading
+// =============================================================================
+
+function loadMetaData() {
+  const metaDataWorker = new Worker(workerUrl);
+  metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+  metaDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('meta-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const hoverData = parsedData;
+      
+      datamap.addMetaData(hoverData, {
+        tooltipFunction: ({index}) => hoverData.hover_text[index],
+        onClickFunction: ({index, picked, layer}, event) => { if (picked) {window.lastClickedPoint = "${hoverData.hover_text[index]}"; window.clickCount = (window.clickCount || 0) + 1; } },
+        searchField: "hover_text",
+      });
+
+      
+      
+      updateProgressBar('meta-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+  </script>
+</html>

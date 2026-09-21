@@ -1,0 +1,671 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Minimal Histogram Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+  rel="stylesheet"
+/>
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<style>
+b"@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 300;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 700;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 900;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf) format('truetype');\n}\n"
+</style>
+
+<link
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+  rel="stylesheet"
+/>
+
+<script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+<script src="https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"></script>
+<script src="https://unpkg.com/d3@latest/dist/d3.min.js"></script>
+
+<style>
+  .content-wrapper{top:0;left:0;width:100%;height:100%;z-index:1;padding:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;min-height:calc(100vh - 16px);pointer-events:none}.stack{display:flex;flex-direction:column;gap:0;padding:0;pointer-events:none;max-height:50vh;overflow-y:visible}.top-left{grid-column:1;grid-row:1;justify-self:start;align-self:start;align-items:start}.bottom-left{grid-column:1;grid-row:2;justify-self:start;align-self:end;align-items:start;display:flex;flex-direction:column-reverse;transform:scaleY(-1);z-index:2}.top-right{grid-column:2;grid-row:1;justify-self:end;justify-items:end;align-self:start;align-items:end}.bottom-right{grid-column:2;grid-row:2;justify-self:end;justify-items:end;align-self:end;align-items:end;display:flex;flex-direction:column-reverse;transform:scaleY(-1)}.stack.bottom-left .stack-box{transform:scaleY(-1)}.stack.bottom-right .stack-box{transform:scaleY(-1)}#loading{width:100%;height:100%;top:0px;left:0px;position:absolute;display:block;z-index:99}#loading-image{position:absolute;top:45%;left:47.5%;z-index:100}#title-container{top:0;left:0}
+</style><style>
+  #d3histogram-container{position:relative;margin:16px;padding:12px;border-radius:16px;z-index:2}#d3histogram-title,#d3histogram-subtitle{position:absolute;top:5px;font-size:small}#d3histogram-subtitle{right:15px}.d3histogram-axis{font-family:inherit}.d3histogram-axis path{display:none}.d3histogram-axis .tick>line{stroke-width:0.5}#d3histogram-interactioncontainer>.selection{fill:#c2c2c2;stroke:#cecece;stroke-width:0.5}
+</style><style>
+  .datamapplot-progress-container{position:absolute;bottom:0;left:50%;transform:translate(-50%,0);width:512px;z-index:101}.datamapplot-progress-bar{width:100%;background-color:#e0e0e044;padding:3px;border-radius:6px;box-shadow:inset 0 1px 3px rgba(128,128,128,.2);margin-bottom:10px}.datamapplot-progress-bar-fill{display:block;height:12px;background-color:#659cef;border-radius:4px;transition:width 500ms ease-in-out}.datamapplot-progress-bar-text{color:white;text-align:center;line-height:12px;font-size:10px;overflow-x:visible;white-space:nowrap;vertical-align:top}
+</style>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: Roboto;
+    color: #000000;
+  }
+  .container-box {
+    margin: 8px 16px 8px 16px;
+    padding: 12px;
+    border-radius: 16px;
+    line-height: 0.95;
+    width: fit-content;
+    height: fit-content;
+    z-index: 2;
+    backdrop-filter: blur(3px);
+    background: #ffffffaa;
+    box-shadow: 2px 3px 10px #aaaaaa44;
+    position: relative;
+    pointer-events: auto;
+  }
+  .more-opaque {
+    backdrop-filter: blur(6px);
+    background-color: #ffffffee;
+  }
+  #deck-container {
+    width: 100vw;
+    height: 100vh;  
+  }
+  #deck-container canvas {
+    z-index: 1;
+    background: #ffffff;
+  }
+  .deck-tooltip {
+      
+            font-size: 0.8em;
+            font-family: Roboto;
+            font-weight: 300;
+            color: #000000 !important;
+            background-color: #ffffffee !important;
+            border-radius: 12px;
+            backdrop-filter: blur(6px);
+            box-shadow: 2px 3px 10px #aaaaaa44;
+            max-width: 25%;
+  }
+  input {
+    margin: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    color: #000000;
+    background: #ffffffdd;
+    border: 2px inset #77777744;
+    transition: 0.5s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input:focus {
+    border: 2px inset #555;
+  }
+</style>
+  </head>
+  
+  <body>
+<div id="loading">
+  <img
+    id="loading-image"
+    src=""
+    alt="Loading..."
+    width="5%"
+  />
+</div>
+<div style="isolation: isolate; position: relative;">
+  <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  <div class="content-wrapper" style="position: relative; z-index: 1;">
+    
+    <div class="stack top-left">
+      
+      <div id="title-container" class="container-box">
+        <span
+          id="main-title"
+          style="font-family:Roboto;font-size:36pt;font-weight:;color:#000000"
+        >
+          Minimal Histogram Test
+        </span>
+        <br />
+        <span
+          style="font-family:Roboto;font-size:18pt;color:#777777"
+        >
+          For histogram tests
+        </span>
+      </div>
+      
+
+      
+      
+    </div>
+    
+    
+    <div class="stack top-right">
+      
+    </div>
+    
+    
+    <div class="stack bottom-right">
+    </div>
+    
+    
+    <div class="stack bottom-left">
+      <div id="d3histogram-container" class="container-box stack-box"></div></div>
+  </div>
+  
+  
+  
+</div>
+
+
+
+<div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+  <div id="point-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+    </span>
+  </div>
+  <div id="label-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+    </span>
+  </div>
+  <div id="meta-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+    </span>
+  </div>
+  <div id="histogram-bin-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Histogram Bin Data: 0%</span>
+    </span>
+  </div>
+  <div id="histogram-index-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Histogram Index Data: 0%</span>
+    </span>
+  </div>
+</div>
+  </body>
+  <script>
+    LAYER_ORDER=['imageLayer','dataPointLayer','boundaryLayer','labelLayer'];function getLayerIndex(object){return LAYER_ORDER.indexOf(object.id);}
+function isFontLoaded(fontName){return document.fonts.check(`12px "${fontName}"`);}
+function waitForFont(fontName,maxWait=500){return new Promise((resolve,reject)=>{if(isFontLoaded(fontName)){resolve();}else{const startTime=Date.now();const interval=setInterval(()=>{if(isFontLoaded(fontName)){clearInterval(interval);resolve();}else if(Date.now()-startTime>maxWait){clearInterval(interval);reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));}},50);}});}
+function getInitialViewportSize(){const width=document.documentElement.clientWidth;const height=document.documentElement.clientHeight;return{viewportWidth:width,viewportHeight:height};}
+function calculateZoomLevel(bounds,viewportWidth,viewportHeight,padding=0.5){const lngRange=bounds[1]-bounds[0];const latRange=bounds[3]-bounds[2];const centerLng=(bounds[0]+bounds[1])/2;const centerLat=(bounds[2]+bounds[3])/2;const zoomX=Math.log2(360/(lngRange/(viewportWidth/256)));const zoomY=Math.log2(180/(latRange/(viewportHeight/256)));const zoom=Math.min(zoomX,zoomY)-padding;return{zoomLevel:zoom,dataCenter:[centerLng,centerLat]};}
+class DataMap{constructor({container,bounds,searchItemId="text-search",lassoSelectionItemId="lasso-selection",}){this.container=container;this.searchItemId=searchItemId;this.lassoSelectionItemId=lassoSelectionItemId;this.pointData=null;this.labelData=null;this.metaData=null;this.layers=[];const{viewportWidth,viewportHeight}=getInitialViewportSize();const{zoomLevel,dataCenter}=calculateZoomLevel(bounds,viewportWidth,viewportHeight);this.deckgl=new deck.DeckGL({container:container,initialViewState:{latitude:dataCenter[1],longitude:dataCenter[0],zoom:zoomLevel},controller:{scrollZoom:{speed:0.01,smooth:true}},});this.updateTriggerCounter=0;this.dataSelectionManager=new DataSelectionManager(lassoSelectionItemId);}
+addPoints(pointData,{pointSize,pointOutlineColor=[250,250,250,128],pointLineWidth=0.001,pointHoverColor=[170,0,0,187],pointLineWidthMaxPixels=3,pointLineWidthMinPixels=0.001,pointRadiusMaxPixels=16,pointRadiusMinPixels=0.2,}){const numPoints=pointData.x.length;const positions=new Float32Array(numPoints*2);const colors=new Uint8Array(numPoints*4);const variableSize=pointSize<0;let sizes;if(variableSize){sizes=new Float32Array(numPoints);}else{sizes=null;}
+for(let i=0;i<numPoints;i++){positions[i*2]=pointData.x[i];positions[i*2+1]=pointData.y[i];colors[i*4]=pointData.r[i];colors[i*4+1]=pointData.g[i];colors[i*4+2]=pointData.b[i];colors[i*4+3]=pointData.a[i];if(variableSize){sizes[i]=pointData.size[i];}}
+this.originalColors=colors;this.selected=new Float32Array(numPoints).fill(1.0);this.pointSize=pointSize;this.pointOutlineColor=pointOutlineColor;this.pointLineWidth=pointLineWidth;this.pointHoverColor=pointHoverColor;this.pointLineWidthMaxPixels=pointLineWidthMaxPixels;this.pointLineWidthMinPixels=pointLineWidthMinPixels;this.pointRadiusMaxPixels=pointRadiusMaxPixels;this.pointRadiusMinPixels=pointRadiusMinPixels;let scatterAttributes={getPosition:{value:positions,size:2},getFillColor:{value:colors,size:4},getFilterValue:{value:this.selected,size:1}};if(variableSize){scatterAttributes.getRadius={value:sizes,size:1};}
+this.pointLayer=new deck.ScatterplotLayer({id:'dataPointLayer',data:{length:numPoints,attributes:scatterAttributes},getRadius:this.pointSize,getLineColor:this.pointOutlineColor,getLineWidth:this.pointLineWidth,highlightColor:this.pointHoverColor,lineWidthMaxPixels:this.pointLineWidthMaxPixels,lineWidthMinPixels:this.pointLineWidthMinPixels,radiusMaxPixels:this.pointRadiusMaxPixels,radiusMinPixels:this.pointRadiusMinPixels,radiusUnits:"common",lineWidthUnits:"common",autoHighlight:true,pickable:true,stroked:true,extensions:[new deck.DataFilterExtension({filterSize:1})],filterRange:[-0.5,1.5],filterSoftRange:[0.75,1.25],updateTriggers:{getFilterValue:this.updateTriggerCounter},instanceCount:numPoints,parameters:{depthTest:false}});this.layers.push(this.pointLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addEdges(edgeData,{edgeWidth=0.05,edgeOpacity=0.8,}){const numEdges=edgeData.r.length;this.edgeWidth=edgeWidth;this.edgeOpacity=edgeOpacity;const sourcePosition=new Float32Array(numEdges*2);const targetPosition=new Float32Array(numEdges*2);const colors=new Uint8Array(numEdges*4);let lineAttributes={getSourcePosition:{value:sourcePosition,size:2},getTargetPosition:{value:targetPosition,size:2},getColor:{value:colors,size:4},};for(let i=0;i<numEdges;i++){sourcePosition[i*2]=edgeData.x1[i];sourcePosition[i*2+1]=edgeData.y1[i];targetPosition[i*2]=edgeData.x2[i];targetPosition[i*2+1]=edgeData.y2[i];colors[i*4]=edgeData.r[i];colors[i*4+1]=edgeData.g[i];colors[i*4+2]=edgeData.b[i];colors[i*4+3]=180;}
+this.edgeLayer=new deck.LineLayer({id:'edgeLayer',data:{length:numEdges,attributes:lineAttributes},getSourcePosition:d=>[d.source.x,d.source.y],getTargetPosition:d=>[d.target.x,d.target.y],getWidth:this.edgeWidth,});this.layers.push(this.edgeLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addLabels(labelData,{labelTextColor=d=>[d.r,d.g,d.b],textMinPixelSize=18,textMaxPixelSize=36,textOutlineWidth=8,textOutlineColor=[238,238,238,221],textBackgroundColor=[255,255,255,64],fontFamily="Roboto",fontWeight=900,lineSpacing=0.95,textCollisionSizeScale=3.0,noiseLabel="Unlabelled",pickable=false,}){const numLabels=labelData.length;this.labelTextColor=labelTextColor;this.textMinPixelSize=textMinPixelSize;this.textMaxPixelSize=textMaxPixelSize;this.textOutlineWidth=textOutlineWidth;this.textOutlineColor=textOutlineColor;this.textBackgroundColor=textBackgroundColor;this.fontFamily=fontFamily;this.fontWeight=fontWeight;this.lineSpacing=lineSpacing;this.textCollisionSizeScale=textCollisionSizeScale;waitForFont(this.fontFamily);this.labelLayer=new deck.TextLayer({id:'labelLayer',data:labelData.filter(d=>d.label!==noiseLabel),pickable:pickable,getPosition:d=>[d.x,d.y],getText:d=>d.label,getColor:this.labelTextColor,getSize:d=>d.size,sizeScale:1,sizeMinPixels:this.textMinPixelSize,sizeMaxPixels:this.textMaxPixelSize,outlineWidth:this.textOutlineWidth,outlineColor:this.textOutlineColor,getBackgroundColor:this.textBackgroundColor,getBackgroundPadding:[15,15,15,15],background:true,characterSet:"auto",fontFamily:this.fontFamily,fontWeight:this.fontWeight,lineHeight:this.lineSpacing,fontSettings:{"sdf":true},getTextAnchor:"middle",getAlignmentBaseline:"center",lineHeight:0.95,elevation:100,collisionEnabled:true,getCollisionPriority:d=>d.size,collisionTestProps:{sizeScale:this.textCollisionSizeScale,sizeMaxPixels:this.textMaxPixelSize*2,sizeMinPixels:this.textMinPixelSize*2},extensions:[new deck.CollisionFilterExtension()],instanceCount:numLabels,parameters:{depthTest:false}});this.layers.push(this.labelLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addBoundaries(boundaryData,{clusterBoundaryLineWidth=0.5}){const numBoundaries=boundaryData.length;this.clusterBoundaryLineWidth=clusterBoundaryLineWidth;this.boundaryLayer=new deck.PolygonLayer({id:'boundaryLayer',data:boundaryData,stroked:true,filled:false,getLineColor:d=>[d.r,d.g,d.b,d.a],getPolygon:d=>d.polygon,lineWidthUnits:"common",getLineWidth:d=>d.size*d.size,lineWidthScale:this.clusterBoundaryLineWidth*5e-5,lineJointRounded:true,lineWidthMaxPixels:4,lineWidthMinPixels:0.0,instanceCount:numBoundaries,parameters:{depthTest:false}});this.layers.push(this.boundaryLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addMetaData(metaData,{tooltipFunction=({index})=>this.metaData.hover_text[index],onClickFunction=null,searchField=null,}){this.metaData=metaData;this.tooltipFunction=tooltipFunction;this.onClickFunction=onClickFunction;this.searchField=searchField;if(this.metaData.hasOwnProperty('hover_text')){this.deckgl.setProps({getTooltip:this.tooltipFunction,});}
+if(this.onClickFunction){this.deckgl.setProps({onClick:this.onClickFunction,});}
+if(this.searchField){this.searchArray=this.metaData[this.searchField].map(d=>d.toLowerCase());}}
+connectHistogram(histogramItem){this.histogramItem=histogramItem;this.histogramItemId=histogramItem.state.chart.chartContainerId;}
+addBackgroundImage(image,bounds){this.imageLayer=new deck.BitmapLayer({id:'imageLayer',bounds:bounds,image:image,parameters:{depthTest:false}});this.layers.push(this.imageLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+async addSelectionHandler(callback,selectionKind="lasso-selection",timeoutMs=60000){const startTime=Date.now();if(selectionKind==="lasso-selection"){while(!this.lassoSelector){if(Date.now()-startTime>timeoutMs){throw new Error('Timeout: lassoSelector did not become available within the specified timeout period');}
+await new Promise(resolve=>setTimeout(resolve,1000));}
+this.lassoSelector.registerSelectionHandler(callback);}else{if(!this.selectionCallbacks){this.selectionCallbacks={};}
+if(this.selectionCallbacks[selectionKind]){this.selectionCallbacks[selectionKind].push(callback);}
+this.selectionCallbacks[selectionKind]=[callback];}}
+highlightPoints(itemId){const selectedIndices=this.dataSelectionManager.getSelectedIndices();const semiSelectedIndices=this.dataSelectionManager.getBasicSelectedIndices();const hasSelectedIndices=selectedIndices.size!==0;const hasSemiSelectedIndices=semiSelectedIndices.size!==0;const hasLassoSelection=this.dataSelectionManager.hasSpecialSelection();if(hasLassoSelection){if(hasSelectedIndices){if(hasSemiSelectedIndices){this.selected.fill(-1.0);for(let i of semiSelectedIndices){this.selected[i]=0.0;}}else{this.selected.fill(0.0);}
+for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}else{if(hasSelectedIndices){this.selected.fill(-1.0);for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}
+this.updateTriggerCounter++;const sizeAdjust=1/(1+(Math.sqrt(selectedIndices.size)/Math.log2(this.selected.length)));const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFilterValue:{value:this.selected,size:1}}},radiusMinPixels:hasSelectedIndices?2*(this.pointRadiusMinPixels+sizeAdjust):this.pointRadiusMinPixels,updateTriggers:{getFilterValue:this.updateTriggerCounter,radiusMinPixels:this.updateTriggerCounter,}});const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;if(this.histogramItem&&itemId!==this.histogramItemId){if(hasSelectedIndices){this.histogramItem.drawChartWithSelection(selectedIndices);}else{this.histogramItem.removeChartWithSelection(selectedIndices);}}}
+addSelection(selectedIndices,selectionKind){this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+removeSelection(selectionKind){this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+getSelectedIndices(){return this.dataSelectionManager.getSelectedIndices();}
+searchText(searchTerm){const searchTermLower=searchTerm.toLowerCase();const selectedIndices=this.searchArray.reduce((indices,d,i)=>{if(d.indexOf(searchTermLower)>=0){indices.push(i);}
+return indices;},[]);if(searchTerm===""){this.dataSelectionManager.removeSelectedIndicesOfItem(this.searchItemId);}else{this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,this.searchItemId);}
+if(this.selectionCallbacks&&this.selectionCallbacks[this.searchItemId]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[this.searchItemId]){callback(currentSelectedIndices);}}
+this.highlightPoints(this.searchItemId);}
+recolorPoints(colorData,fieldName){if(!this.hasOwnProperty(`${fieldName}Colors`)){const numPoints=colorData[`${fieldName}_r`].length;const colors=new Uint8Array(numPoints*4);for(let i=0;i<numPoints;i++){colors[i*4]=colorData[`${fieldName}_r`][i];colors[i*4+1]=colorData[`${fieldName}_g`][i];colors[i*4+2]=colorData[`${fieldName}_b`][i];colors[i*4+3]=colorData[`${fieldName}_a`][i];}
+this[`${fieldName}Colors`]=colors;}
+const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this[`${fieldName}Colors`],size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}
+resetPointColors(){const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this.originalColors,size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}}
+  </script>
+  <script>
+    class DataSelectionManager{constructor(specialItem){this.excludeItem=specialItem;this.selectedIndicesByItem={};this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();}
+addOrUpdateSelectedIndicesOfItem(indices,itemId){const isNewItem=!this.selectedIndicesByItem.hasOwnProperty(itemId);this.selectedIndicesByItem[itemId]=new Set(indices);this.#updateSelectedIndicesCommon(isNewItem?itemId:null);}
+removeSelectedIndicesOfItem(itemId){if(this.selectedIndicesByItem.hasOwnProperty(itemId)){delete this.selectedIndicesByItem[itemId];this.#updateSelectedIndicesCommon();}}
+getSelectedIndices(){return this.selectedIndicesCommon;}
+getBasicSelectedIndices(){return this.selectedIndicesBasicCommon;}
+hasSpecialSelection(){return this.selectedIndicesByItem.hasOwnProperty(this.excludeItem);}#updateSelectedIndicesCommon(newItem=null){const sets=Object.values(this.selectedIndicesByItem);if(sets.length===0){this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();return;}
+if(sets.length===1){this.selectedIndicesCommon=sets[0];if(Object.keys(this.selectedIndicesByItem)[0]!==this.excludeItem){this.selectedIndicesBasicCommon=sets[0];}else{this.selectedIndicesBasicCommon=new Set();}
+return;}
+if(newItem){const newSet=this.selectedIndicesByItem[newItem];this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(newSet);if(newItem!==this.excludeItem){this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(newSet);}
+return;}
+this.selectedIndicesCommon=sets[0];for(let i=1;i<sets.length;i++){this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(sets[i]);if(this.selectedIndicesCommon.size===0){break;}}
+const otherSelectionItems=Object.keys(this.selectedIndicesByItem).filter(key=>key!==this.excludeItem);this.selectedIndicesBasicCommon=this.selectedIndicesByItem[otherSelectionItems[0]];for(let i=1;i<otherSelectionItems.length;i++){const otherSelection=this.selectedIndicesByItem[otherSelectionItems[i]];this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(otherSelection);}}}
+  </script>
+  <script>
+    const D3Histogram=(()=>{isTypedArray=arr=>{return arr instanceof Float32Array||arr instanceof Float64Array||arr instanceof Int8Array||arr instanceof Uint8Array||arr instanceof Uint8ClampedArray||arr instanceof Int16Array||arr instanceof Uint16Array||arr instanceof Int32Array||arr instanceof Uint32Array;}
+isValidDataType=data=>{return typeof data[0]==='number'||typeof data[0]==='string'||data[0]instanceof Date||isValidDateStr(data[0]);};isValidDateStr=dateStr=>!isNaN((new Date(dateStr)).getTime());class D3Histogram{static DATA_TYPE_E=Object.freeze({NUMERICAL:'number',CATEGORICAL:'string',TEMPORAL:'date'});static CLIP_BOUNDS_ID="d3histogram-clipBounds";static BIN_RECT_CLASS_ID="d3histogram-bin";static BIN_FOCUS_GROUP_ID="d3histogram-focuscontainer";static BIN_FOCUS_RECT_CLASS_ID="d3histogram-binFocus";static BIN_MIN_WIDTH=10;static BIN_MAX_WIDTH=30;static AXIS_CLASS_ID='d3histogram-axis';static XAXIS_GROUP_ID='d3histogram-xaxis';static YAXIS_GROUP_ID='d3histogram-yaxis';static XAXIS_TICKS_NB=4;static YAXIS_TICKS_NB=2;static INTERACTION_CONTAINER_ID="d3histogram-interactioncontainer";static create({data,chartContainerId,chartWidth=300,chartHeight=70,title='',binCount=-1,binDefaultFillColor="#6290C3",binSelectedFillColor="#2EBFA5",binUnselectedFillColor="#9E9E9E",binContextFillColor="#E6E6E6",logScale=false,enableClickPersistence=false,chartSelectionCallback=()=>{}}){if(!chartContainerId){console.error("Error: chart container ID was not provided.");return null;}
+try{return new D3Histogram({data,chartContainerId,chartDimensions:{width:chartWidth,height:chartHeight,margin:{top:20,right:5,bottom:20,left:20}},title,binCount,binDefaultFillColor,binSelectedFillColor,binUnselectedFillColor,binContextFillColor,logScale,enableClickPersistence,chartSelectionCallback});}catch(error){console.error("Error creating D3Histogram:",error);return null;}}
+constructor({data,chartContainerId,chartDimensions,title,binCount,binDefaultFillColor,binSelectedFillColor,binUnselectedFillColor,binContextFillColor,logScale,enableClickPersistence,chartSelectionCallback}){const{width,height,margin:{top,right,bottom,left}}=chartDimensions;const boundedWidth=width-left-right;const boundedHeight=height-top-bottom;this.state={data:{dataType:null,rawData:data,binsData:new Map(),indicesData:new Int16Array(),rawFocusData:null,binsFocusData:null,binCount:binCount!=-1?binCount:null,overallBinMin:null,overallBinMax:null,},chart:{chartContainerId:chartContainerId,dimensions:{...chartDimensions,boundedHeight,boundedWidth},wrapper:null,bounds:null,binDefaultFillColor,binSelectedFillColor,binUnselectedFillColor,binContextFillColor,logScale,binFocusDefaultFillColor:binDefaultFillColor,binFocusSelectedFillColor:binSelectedFillColor,binFocusUnselectedFillColor:binUnselectedFillColor,chartSelectionCallback},peripherals:{header:{title:title.length!==0?title:"DataMap Distribution",subtitle:null,titleDiv:null,subtitleDiv:null,},axes:{xAccessor:()=>{},yAccessor:()=>{},xScale:()=>{},yScale:()=>{},xAxis:()=>{},yAxis:()=>{},originalXScaleRange:null,}},interactions:{isBrushingActive:false,brush:null,prevBrushedDomain:null,isPanningActive:false,prevPanX:0,prevHoveredBinId:-1,prevZoomK:1,isClickPersistenceEnabled:enableClickPersistence,clickedBinId:-1,isClickActive:false,clickJustDeactivated:false}};this.#parseData();this.#drawCanvas();this.#drawChart();this.#initInteractions();}
+drawChartWithSelection(selectedIndices){this.#parseFocusData(selectedIndices);this.#drawFocusChart();this.#reset();}
+removeChartWithSelection(){const{BIN_FOCUS_GROUP_ID:binsFocusGroupId}=D3Histogram;const{bounds}=this.state.chart;this.#clearFocusData();bounds.select(`#${binsFocusGroupId}`).remove();this.#reset();}#parseData(){const{DATA_TYPE_E}=D3Histogram;let{dataType}=this.state.data;let{binsData,indicesData}=this.state.data;const{rawData}=this.state.data;const{rawBinData,rawIndexData}=rawData;const value=rawBinData[0].mean_value;if(typeof value==='number'){dataType=DATA_TYPE_E.NUMERICAL;}
+else if(isValidDateStr(value)){dataType=DATA_TYPE_E.TEMPORAL;}
+else{dataType=DATA_TYPE_E.CATEGORICAL;}
+rawBinData.forEach(bin=>{const parsedBin={id:bin.id,min:dataType===DATA_TYPE_E.TEMPORAL?new Date(bin.min_value):bin.min_value,max:dataType===DATA_TYPE_E.TEMPORAL?new Date(bin.max_value):bin.max_value,mean:dataType===DATA_TYPE_E.CATEGORICAL?bin.id:bin.mean_value,label:bin.mean_value,indices:new Set(bin.indices)};binsData.set(bin.id,parsedBin);});indicesData=new Int16Array(rawIndexData["bin_id"]);this.state.data.dataType=dataType;this.state.data.binsData=binsData;this.state.data.indicesData=indicesData;this.state.data.binCount=binsData.size;}#parseFocusData(selectedIndices){const{binsData,indicesData}=this.state.data;const rawFocusData=new Map();binsData.forEach(bin=>{const focusBin={indices:new Set(),binId:bin.id,min:bin.min,max:bin.max,mean:bin.mean,label:bin.label};rawFocusData.set(bin.id,focusBin);});const selectedSet=new Set(selectedIndices);indicesData.forEach((binId,index)=>{if(selectedSet.has(index)){const bin=rawFocusData.get(binId);bin.indices.add(index);}});const binsFocusData=rawFocusData;this.state.data.rawFocusData=rawFocusData;this.state.data.binsFocusData=binsFocusData;}#clearFocusData(){let{rawFocusData,binsFocusData}=this.state.data;rawFocusData=null;binsFocusData=null;this.state.data.rawFocusData=rawFocusData;this.state.data.binsFocusData=binsFocusData;}#drawCanvas(){const{chartContainerId,dimensions,}=this.state.chart;let{wrapper,bounds}=this.state.chart;wrapper=d3.select(`#${chartContainerId}`).append("svg").attr("width",dimensions.width).attr("height",dimensions.height);bounds=wrapper.append("g").style("transform",`translate(${dimensions.margin.left}px, ${dimensions.margin.top}px)`);this.state.chart.wrapper=wrapper;this.state.chart.bounds=bounds;}#drawChart(){const{CLIP_BOUNDS_ID,BIN_RECT_CLASS_ID,AXIS_CLASS_ID,XAXIS_GROUP_ID,YAXIS_GROUP_ID,XAXIS_TICKS_NB,YAXIS_TICKS_NB}=D3Histogram;const{dimensions,chartContainerId,bounds,binDefaultFillColor,logScale}=this.state.chart;const{title}=this.state.peripherals.header;const binsData=Array.from(this.state.data.binsData.values());let{overallBinMin,overallBinMax}=this.state.data;const xAccessor=d=>d.mean;const yAccessor=d=>d.indices.size;const xScale=d3.scaleBand().domain(binsData.map(d=>xAccessor(d))).range([0,dimensions.boundedWidth]).padding(0.1);xScale.invert=function(_){const scale=this;const domain=scale.domain;const paddingOuter=scale.paddingOuter();const step=scale.step();const range=scale.range();var domainIndex,n=domain().length,reverse=range[1]<range[0],start=range[reverse-0],stop=range[1-reverse];if(_<start+paddingOuter*step)domainIndex=0;else if(_>stop-paddingOuter*step)domainIndex=n-1;else domainIndex=Math.floor((_-start-paddingOuter*step)/step);return domain()[domainIndex];};let yScale=null;if(logScale){yScale=d3.scaleSymlog().domain([0,d3.max(binsData,yAccessor)]).range([dimensions.boundedHeight,0]);}else{yScale=d3.scaleLinear().domain([0,d3.max(binsData,yAccessor)]).range([dimensions.boundedHeight,0]);}
+this.state.peripherals.axes.originalXScaleRange=xScale.range();this.state.peripherals.axes.xAccessor=xAccessor;this.state.peripherals.axes.yAccessor=yAccessor;this.state.peripherals.axes.xScale=xScale;this.state.peripherals.axes.yScale=yScale;bounds.append("defs").append("clipPath").attr("id",CLIP_BOUNDS_ID).append("rect").attr("width",dimensions.boundedWidth).attr("height",dimensions.boundedHeight);const binsGroup=bounds.append("g");const binGroups=binsGroup.selectAll("g").data(binsData).join("g");const binRects=binGroups.append("rect").attr("id",(_,i)=>`${BIN_RECT_CLASS_ID}${i}`).attr("class",BIN_RECT_CLASS_ID).attr("x",d=>xScale(xAccessor(d))).attr("y",d=>yScale(yAccessor(d))).attr("width",xScale.bandwidth()).attr("height",d=>dimensions.boundedHeight-yScale(yAccessor(d))).attr("fill",binDefaultFillColor).attr("clip-path",`url(#${CLIP_BOUNDS_ID})`);const yAxisTickFormat=d3.format(".1s");const yAxis=d3.axisRight(yScale).ticks(logScale?2*YAXIS_TICKS_NB:YAXIS_TICKS_NB).tickFormat(d=>d===yScale.domain()[0]?'':yAxisTickFormat(d));bounds.append("g").attr("id",YAXIS_GROUP_ID).attr("class",AXIS_CLASS_ID).style("transform",`translate(-${dimensions.margin.left * .5}px, 0px)`).call(yAxis);const xAxis=d3.axisBottom(xScale).tickValues(this.#getAxisTickValues(xScale,XAXIS_TICKS_NB)).tickFormat(d=>this.#getFormattedAxisTickValue(d));bounds.append("g").attr("id",XAXIS_GROUP_ID).attr("class",AXIS_CLASS_ID).attr("transform",`translate(0,${dimensions.boundedHeight})`).call(xAxis);const chartDiv=document.getElementById(chartContainerId);const titleDiv=document.createElement('div');titleDiv.id="d3histogram-title";chartDiv.appendChild(titleDiv);d3.select(`#${titleDiv.id}`).html(`<b>${title}</b>`)
+const subtitleDiv=document.createElement('div');subtitleDiv.id="d3histogram-subtitle";chartDiv.appendChild(subtitleDiv);overallBinMin=Infinity;overallBinMax=-Infinity;binsData.forEach((binInfo,binId,map)=>{const{min,max}=binInfo;overallBinMin=Math.min(overallBinMin,min);overallBinMax=Math.max(overallBinMax,max);});const subtitle=this.#getSubtitle([overallBinMin,overallBinMax]);d3.select(`#${subtitleDiv.id}`).html(subtitle);this.state.data.overallBinMin=overallBinMin;this.state.data.overallBinMax=overallBinMax;this.state.peripherals.axes.xAxis=xAxis;this.state.peripherals.axes.yAxis=yAxis;this.state.peripherals.header.title=title;this.state.peripherals.header.subtitle=subtitle;this.state.peripherals.header.titleDiv=titleDiv;this.state.peripherals.header.subtitleDiv=subtitleDiv;}#drawFocusChart(){const{CLIP_BOUNDS_ID,BIN_FOCUS_GROUP_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{xAccessor,yAccessor,xScale,yScale}=this.state.peripherals.axes;const{binFocusDefaultFillColor,dimensions,bounds}=this.state.chart;let binsFocusData=Array.from(this.state.data.binsFocusData.values());bounds.select(`#${BIN_FOCUS_GROUP_ID}`).remove();const binsFocusGroup=bounds.append("g").attr("id",BIN_FOCUS_GROUP_ID);const binsFocusGroups=binsFocusGroup.selectAll("g").data(binsFocusData).join("g");const binFocusRects=binsFocusGroups.append("rect").attr("id",(_,i)=>`${BIN_FOCUS_RECT_CLASS_ID}${i}`).attr("class",BIN_FOCUS_RECT_CLASS_ID).attr("x",d=>xScale(xAccessor(d))).attr("y",d=>yScale(yAccessor(d))).attr("width",xScale.bandwidth()).attr("height",d=>dimensions.boundedHeight-yScale(yAccessor(d))).attr("fill",binFocusDefaultFillColor).attr("clip-path",`url(#${CLIP_BOUNDS_ID})`);}#hasFocusChart=_=>this.state.data.rawFocusData!==null;#reset(preserveClick=false){const{BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID,YAXIS_GROUP_ID,INTERACTION_CONTAINER_ID}=D3Histogram;const{overallBinMin,overallBinMax}=this.state.data;const{subtitleDiv}=this.state.peripherals.header;const{brush}=this.state.interactions;const{binDefaultFillColor,binContextFillColor,binFocusDefaultFillColor,chartSelectionCallback}=this.state.chart;let{isBrushingActive,prevBrushedDomain,isPanningActive,prevPanX,prevHoveredBinId,isClickActive,clickedBinId}=this.state.interactions;if(preserveClick&&isClickActive){d3.select(`#${INTERACTION_CONTAINER_ID}`).call(brush.clear);prevBrushedDomain=null;isBrushingActive=false;isPanningActive=false;prevHoveredBinId=-1;prevPanX=0;d3.select(`#${YAXIS_GROUP_ID}`).raise();d3.select(`#${INTERACTION_CONTAINER_ID}`).raise();this.state.interactions.isBrushingActive=isBrushingActive;this.state.interactions.prevBrushedDomain=prevBrushedDomain;this.state.interactions.prevHoveredBinId=prevHoveredBinId;this.state.interactions.isPanningActive=isPanningActive;this.state.interactions.prevPanX=prevPanX;return;}
+d3.selectAll(`.${BIN_RECT_CLASS_ID}`).style("fill",this.#hasFocusChart()?binContextFillColor:binDefaultFillColor);d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`).style("fill",binFocusDefaultFillColor);chartSelectionCallback(null);let subtitle=this.#getSubtitle([overallBinMin,overallBinMax]);d3.select(`#${subtitleDiv.id}`).html(subtitle);d3.select(`#${INTERACTION_CONTAINER_ID}`).call(brush.clear);prevBrushedDomain=null;isBrushingActive=false;isPanningActive=false;prevHoveredBinId=-1;prevPanX=0;isClickActive=false;clickedBinId=-1;d3.select(`#${YAXIS_GROUP_ID}`).raise();d3.select(`#${INTERACTION_CONTAINER_ID}`).raise();this.state.interactions.isBrushingActive=isBrushingActive;this.state.interactions.prevBrushedDomain=prevBrushedDomain;this.state.interactions.prevHoveredBinId=prevHoveredBinId;this.state.interactions.isPanningActive=isPanningActive;this.state.interactions.prevPanX=prevPanX;this.state.interactions.isClickActive=isClickActive;this.state.interactions.clickedBinId=clickedBinId;}#initInteractions(){const{INTERACTION_CONTAINER_ID,BIN_MAX_WIDTH}=D3Histogram;const{dimensions,bounds}=this.state.chart;const{binCount}=this.state.data;let{brush}=this.state.interactions;brush=d3.brushX().extent([[0,0],[dimensions.boundedWidth,dimensions.boundedHeight]]).filter(event=>{return event.shiftKey||event.type==='mousedown'&&event.detail>1;}).on("brush",e=>this.#handleBrush(e)).on("end",e=>this.#handleBrushEnd(e));bounds.append("g").attr("id",INTERACTION_CONTAINER_ID).call(brush);d3.select(`#${INTERACTION_CONTAINER_ID}`).on('mousedown',e=>this.#handleMouseDown(e)).on('mouseup',e=>this.#handleMouseUp(e)).on('mousemove',e=>this.#handleMouseMove(e)).on('mouseleave',e=>this.#handleMouseLeave(e)).on('click',e=>this.#handleClick(e));const maxK=(binCount*BIN_MAX_WIDTH)/dimensions.boundedWidth;const zoom=d3.zoom().scaleExtent([1,maxK]).translateExtent([[0,0],[dimensions.boundedWidth,dimensions.boundedHeight]]).extent([[0,0],[dimensions.boundedWidth,dimensions.boundedHeight]]).filter(event=>event.type==='wheel').on("zoom",e=>this.#handleZoom(e));d3.select(`#${INTERACTION_CONTAINER_ID}`).call(zoom);this.state.interactions.brush=brush;}#handleBrush(e){const{DATA_TYPE_E,BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{binSelectedFillColor,binUnselectedFillColor,binContextFillColor,binFocusSelectedFillColor,binFocusUnselectedFillColor,chartSelectionCallback}=this.state.chart;const{xAccessor,xScale}=this.state.peripherals.axes;const{subtitleDiv}=this.state.peripherals.header;const{dataType,binsData,binsFocusData}=this.state.data;let{isBrushingActive,prevBrushedDomain}=this.state.interactions;if(dataType===DATA_TYPE_E.CATEGORICAL){this.#removeBrush();return;}
+if(!e.sourceEvent||!e.selection){return;}
+isBrushingActive=true;const brushedDomain=e.selection.map(xScale.invert,xScale);const data=this.#hasFocusChart()?binsFocusData:binsData;const brushedDomainBinned=[Infinity,-Infinity];let brushedBins=[];data.forEach((d,i)=>{if(xAccessor(d)>=brushedDomain[0]&&xAccessor(d)<=brushedDomain[1]){brushedBins.push(d);brushedDomainBinned[0]=Math.min(brushedDomainBinned[0],d.min);brushedDomainBinned[1]=Math.max(brushedDomainBinned[1],d.max);}});const brushedBinIds=brushedBins.map(b=>b.id);if(prevBrushedDomain!=null&&prevBrushedDomain[0]===brushedDomainBinned[0]&&prevBrushedDomain[1]===brushedDomainBinned[1]){return;}
+prevBrushedDomain=brushedDomainBinned;d3.selectAll(`.${BIN_RECT_CLASS_ID}`).style("fill",this.#hasFocusChart()?binContextFillColor:(_,i)=>brushedBinIds.includes(i)?binSelectedFillColor:binUnselectedFillColor);d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`).style("fill",(_,i)=>brushedBinIds.includes(i)?binFocusSelectedFillColor:binFocusUnselectedFillColor);const subtitle=this.#getSubtitle(brushedDomainBinned);d3.select(`#${subtitleDiv.id}`).html(subtitle);let brushedIndices=new Set();brushedBins.forEach(b=>{brushedIndices=brushedIndices.union(b.indices);});chartSelectionCallback(brushedIndices);this.state.interactions.isBrushingActive=isBrushingActive;this.state.interactions.prevBrushedDomain=prevBrushedDomain;}#handleBrushEnd(e){const{DATA_TYPE_E}=D3Histogram;const{dataType}=this.state.data;if(dataType!==DATA_TYPE_E.CATEGORICAL&&e.sourceEvent&&!e.selection){this.#reset();}}#removeBrush(){const{INTERACTION_CONTAINER_ID}=D3Histogram;d3.select(`#${INTERACTION_CONTAINER_ID}`).selectAll(".handle").style("display","none");d3.select(`#${INTERACTION_CONTAINER_ID}`).selectAll(".selection").style("display","none");}#handleMouseDown(e){const{isBrushingActive}=this.state.interactions;let{isPanningActive,prevPanX}=this.state.interactions;if(isBrushingActive||e.button!=1){return;}
+isPanningActive=true;prevPanX=e.clientX;this.state.interactions.isPanningActive=isPanningActive;this.state.interactions.prevPanX=prevPanX;}#handleMouseUp(e){const{isBrushingActive}=this.state.interactions;let{isPanningActive,prevPanX}=this.state.interactions;if(isBrushingActive||e.button!=1){return;}
+isPanningActive=false;this.state.interactions.isPanningActive=isPanningActive;}#handleMouseMove(e){const{isBrushingActive,isPanningActive}=this.state.interactions;if(isBrushingActive){return;}
+if(isPanningActive){this.#handlePan(e);}
+else{this.#handleHover(e);}}#handleMouseLeave(_){const{isBrushingActive,isClickActive}=this.state.interactions;if(!isBrushingActive&&!isClickActive){this.#reset();}else{}}#handleHover(e){const{BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{binSelectedFillColor,binUnselectedFillColor,binContextFillColor,binFocusSelectedFillColor,binFocusUnselectedFillColor,chartSelectionCallback}=this.state.chart;const{xAccessor,xScale}=this.state.peripherals.axes;const{subtitleDiv}=this.state.peripherals.header;const{binsData,binsFocusData}=this.state.data;let{prevHoveredBinId,isClickActive,clickedBinId}=this.state.interactions;if(isClickActive||this.state.interactions.clickJustDeactivated){return;}
+const data=this.#hasFocusChart()?binsFocusData:binsData;const xCoord=d3.pointer(e)[0];let hoveredBinId=-1;data.forEach((d,i)=>{if(xCoord>xScale(xAccessor(d))&&xCoord<=xScale(xAccessor(d))+xScale.bandwidth()){hoveredBinId=i;}});if(hoveredBinId===-1||hoveredBinId===prevHoveredBinId){return;}
+prevHoveredBinId=hoveredBinId;const binClassId=this.#hasFocusChart()?BIN_FOCUS_RECT_CLASS_ID:BIN_RECT_CLASS_ID;const hoveredBin=d3.select(`#${binClassId}${hoveredBinId}`).data()[0];const subtitle=this.#getSubtitle([hoveredBin.min,hoveredBin.max]);d3.select(`#${subtitleDiv.id}`).html(subtitle);d3.selectAll(`.${BIN_RECT_CLASS_ID}`).style("fill",(_,i)=>this.#hasFocusChart()?binContextFillColor:i==hoveredBinId?binSelectedFillColor:binUnselectedFillColor);d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`).style("fill",(_,i)=>i==hoveredBinId?binFocusSelectedFillColor:binFocusUnselectedFillColor);chartSelectionCallback(hoveredBin.indices);this.state.interactions.prevHoveredBinId=prevHoveredBinId;}#handlePan(e){const{XAXIS_GROUP_ID,YAXIS_GROUP_ID,BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{originalXScaleRange,xAccessor,yAccessor,xAxis,yAxis}=this.state.peripherals.axes;const{dimensions,wrapper}=this.state.chart;const{binsData}=this.state.data;let{xScale,yScale}=this.state.peripherals.axes;let{prevPanX}=this.state.interactions;const dX=e.clientX-prevPanX;prevPanX=e.clientX;let pannedRange=xScale.range().map(d=>d+dX);if(pannedRange[1]<originalXScaleRange[1]){pannedRange=[pannedRange[0]+originalXScaleRange[1]-pannedRange[1],originalXScaleRange[1]];}else if(pannedRange[0]>originalXScaleRange[0]){pannedRange=[originalXScaleRange[0],pannedRange[1]-pannedRange[0]-originalXScaleRange[0]];}
+xScale.range(pannedRange);wrapper.select(`#${XAXIS_GROUP_ID}`).call(xAxis);const pannedDomain=originalXScaleRange.map(xScale.invert,xScale);const pannedBinsData=Array.from(binsData.values()).filter(d=>xAccessor(d)>=pannedDomain[0]&&xAccessor(d)<=pannedDomain[1]);yScale.domain([0,d3.max(pannedBinsData,yAccessor)]);wrapper.select(`#${YAXIS_GROUP_ID}`).transition().call(yAxis);wrapper.selectAll(`.${BIN_RECT_CLASS_ID}, .${BIN_FOCUS_RECT_CLASS_ID}`).attr("x",d=>xScale(xAccessor(d))).transition().attr("y",d=>yScale(yAccessor(d))).attr("height",d=>dimensions.boundedHeight-yScale(yAccessor(d)));this.state.interactions.prevPanX=prevPanX;}#handleZoom(e){const{isBrushingActive}=this.state.interactions;const{dimensions,wrapper}=this.state.chart;const{binsData}=this.state.data;const{XAXIS_GROUP_ID,YAXIS_GROUP_ID,XAXIS_TICKS_NB,BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{originalXScaleRange,xAccessor,yAccessor,xScale,yScale,xAxis,yAxis}=this.state.peripherals.axes;let{prevZoomK}=this.state.interactions;if(isBrushingActive||e.sourceEvent.type!=="wheel"||prevZoomK==e.transform.k)return;prevZoomK=e.transform.k;xScale.range([0,dimensions.boundedWidth].map(d=>e.transform.applyX(d)));xAxis.tickValues(this.#getAxisTickValues(xScale,XAXIS_TICKS_NB*e.transform.k));wrapper.select(`#${XAXIS_GROUP_ID}`).transition().call(xAxis);const zoomedDomain=originalXScaleRange.map(xScale.invert,xScale);const zoomedData=Array.from(binsData.values()).filter(d=>xAccessor(d)>=zoomedDomain[0]&&xAccessor(d)<=zoomedDomain[1]);yScale.domain([0,d3.max(zoomedData,yAccessor)]);wrapper.select(`#${YAXIS_GROUP_ID}`).transition().call(yAxis);wrapper.selectAll(`.${BIN_RECT_CLASS_ID}, .${BIN_FOCUS_RECT_CLASS_ID}`).transition().attr("x",d=>xScale(xAccessor(d))).attr("y",d=>yScale(yAccessor(d))).attr("width",xScale.bandwidth()).attr("height",d=>dimensions.boundedHeight-yScale(yAccessor(d)))
+this.state.interactions.prevZoomK=prevZoomK;}#handleClick(e){const{isClickPersistenceEnabled}=this.state.interactions;if(!isClickPersistenceEnabled)return;const{BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{chartSelectionCallback}=this.state.chart;const{xAccessor,xScale}=this.state.peripherals.axes;const{binsData,binsFocusData}=this.state.data;let{clickedBinId,isClickActive}=this.state.interactions;const data=this.#hasFocusChart()?binsFocusData:binsData;const xCoord=d3.pointer(e)[0];let newClickedBinId=-1;data.forEach((d,i)=>{if(xCoord>xScale(xAccessor(d))&&xCoord<=xScale(xAccessor(d))+xScale.bandwidth()){newClickedBinId=i;}});if(newClickedBinId===-1)return;if(clickedBinId===newClickedBinId&&isClickActive){isClickActive=false;clickedBinId=-1;this.state.interactions.isClickActive=isClickActive;this.state.interactions.clickedBinId=clickedBinId;this.state.interactions.clickJustDeactivated=true;chartSelectionCallback(null);this.#reset();setTimeout(()=>{this.state.interactions.clickJustDeactivated=false;},100);}else{isClickActive=true;clickedBinId=newClickedBinId;this.state.interactions.isClickActive=isClickActive;this.state.interactions.clickedBinId=clickedBinId;const binClassId=this.#hasFocusChart()?BIN_FOCUS_RECT_CLASS_ID:BIN_RECT_CLASS_ID;const clickedBin=d3.select(`#${binClassId}${clickedBinId}`).data()[0];chartSelectionCallback(clickedBin.indices);this.#updateBinColors(clickedBinId);const{subtitleDiv}=this.state.peripherals.header;const subtitle=this.#getSubtitle([clickedBin.min,clickedBin.max]);d3.select(`#${subtitleDiv.id}`).html(subtitle);}}#updateBinColors(selectedBinId){const{BIN_RECT_CLASS_ID,BIN_FOCUS_RECT_CLASS_ID}=D3Histogram;const{binSelectedFillColor,binUnselectedFillColor,binContextFillColor,binFocusSelectedFillColor,binFocusUnselectedFillColor}=this.state.chart;d3.selectAll(`.${BIN_RECT_CLASS_ID}`).style("fill",(_,i)=>this.#hasFocusChart()?binContextFillColor:i==selectedBinId?binSelectedFillColor:binUnselectedFillColor);d3.selectAll(`.${BIN_FOCUS_RECT_CLASS_ID}`).style("fill",(_,i)=>i==selectedBinId?binFocusSelectedFillColor:binFocusUnselectedFillColor);}#getAxisTickValues=(scale,numTicks)=>{const domain=scale.domain();const ticksInterval=Math.max(1,Math.floor(domain.length/numTicks));let tickValues;if(domain.length<=numTicks){tickValues=domain;}else{tickValues=domain.filter((_,i)=>i%ticksInterval===0);while(tickValues.length<numTicks){tickValues.push(domain[domain.length-1]);}}
+return tickValues;};#getFormattedAxisTickValue(value){const{DATA_TYPE_E}=D3Histogram;const{dataType}=this.state.data;let formattedValue=value;if(dataType===DATA_TYPE_E.NUMERICAL){formattedValue=this.#formatNumericalValue(value);}
+else if(dataType===DATA_TYPE_E.CATEGORICAL){formattedValue=this.#formatCategoricalValue(value);}
+else if(dataType===DATA_TYPE_E.TEMPORAL){formattedValue=this.#formatTemporalValue(value);}
+return formattedValue;}#getSubtitle(range){const{DATA_TYPE_E}=D3Histogram;const{dataType,binsData}=this.state.data;if(dataType===DATA_TYPE_E.CATEGORICAL){return range[0]===range[1]?`<b>${binsData.get(range[0]).label}</b>`:'';}
+let formattedRange=null;if(dataType===DATA_TYPE_E.NUMERICAL){formattedRange=range.map(d=>this.#formatNumericalValue(d));}
+else{formattedRange=range.map(d=>this.#formatTemporalValue(d));}
+return`<b>${formattedRange[0]} — ${formattedRange[1]}</b>`;}#formatCategoricalValue(value){const{xAccessor}=this.state.peripherals.axes;const{binsData}=this.state.data;const tickBin=Array.from(binsData.values()).filter(b=>xAccessor(b)===value)[0];const firstWhiteSpaceIndex=tickBin.label.indexOf(' ');return firstWhiteSpaceIndex!==-1?tickBin.label.slice(0,firstWhiteSpaceIndex):tickBin.label;}#formatNumericalValue(value){const formatWithSI=d3.format(".4s");let formattedValue=formatWithSI(value);formattedValue=formattedValue.replace('µ','u');return formattedValue.replace(/(\.[0-9]*[1-9])0+|\.0*([a-zA-Z]*)$/,'$1$2');}#formatTemporalValue(value){const formatTime=d3.utcFormat("%b %Y");return formatTime(new Date(value));}}
+return D3Histogram;})();
+  </script><script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    
+function debounce(func, timeout = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+  };
+}
+
+async function simpleArrowParser(arrow_bytes) {
+  const table = await Arrow.tableFromIPC(arrow_bytes);
+  const result = {};
+  table.schema.fields.forEach((field) => {
+    result[field.name] = table.getChild(field.name).toArray();
+  });
+  return result;
+}
+
+function mergeTypedArrays(arrays) {
+  let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  let result = new arrays[0].constructor(totalLength);
+  let currentLength = 0;
+  for (let arr of arrays) {
+    result.set(arr, currentLength);
+    currentLength += arr.length;
+  }
+  return result;
+}
+
+
+
+function updateProgressBar(id, progress) {
+  const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+  const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+  if (progressBar && progressText) {
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+  }
+}
+
+function checkAllDataLoaded() {
+  const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+  const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+  if (allLoaded) {
+    const loadingEl = document.getElementById("loading");
+    const progressEl = document.getElementById("progress-container");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (progressEl) progressEl.style.display = "none";
+  }
+}
+    
+    
+
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    
+
+
+
+
+const pointDataEncoded = "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";
+const hoverDataEncoded = "H4sIAIQAYGkC/61bTW8kRQz9K62cQAKp7PrmttqVEFIS0GbhghBqks6mRaZnmOksLIj/zsxUJA7tkaqe+zaHcbtc9eyy/Vz/XD1tPw37X+fhr/nqm+7nq7u5n8fDPN73z93NMD9tHw7dOHXv+rnv7u7HYbofui/YMH3Zfd3d9Zvd89DttuM0d+bqq+7qw76fDo/Dvrse+v00Th+7N7vdftvfPw2Hsxwv5Ogk93a72b3MR7mfxsO4nU5Sz8c1zMffRc4t5Pgk9+0wDfvj3z4N3c32YXg+dI/bfffdpv/4qs8s5OxJrtbMpbgDzfQnudt+ftkfVV7308eX4xq7H6eHYX+Y++nh9JG7z4d52FxaeDh94fvdPG7Gv887030Y7p+m8Y+XoZh9c31BdzxJvhuGXXc7nPXfDvOf2/3vReztc384jI+v233hdFOdcsoLyVxzvpSWuDBVB2yXgmdEvZnnYTov9Oa40H4aD5vzEd9e/3BJYR2ilntDZ0i9H8bp+Nf7YXPU+z8wjirfb3/bHqF2Udy1IFKQ9xX2CniiUOV5gmBsWbDg8almwUuPp6zHMZsa3YIcNeoWPIG5BpiCnK1yIUHQNQYdwW6vAyeHqngphPfY4FTLIMAFY93d/PLwuds+djdHZeM0XFyBsPQV4GZN6zeWpliqDPyCKBrSrIUvG+v0nmL9Ct8IjeAXti9WgVcQTDqvsbkmSi31OjQJc63hTfBYx2CYchaLyc7VyAnG+rbYIOQKLjQcsCRfhSxJMIHx1OX6eCro9XXIWiYLnnR6UVD5ljxfkncYKL3XIcPXXZiC4tYsX1LeFLeWIPMZjD/BqFLoQGCgDqxCZ2jJ/AWrnU67B30jBN0xh6iroQNYAIRck84IBscWeC31RtL5dOTGVEQo4a06m4kO7LREr6v3YtCbr0RcTKpqImZ9PpoMlq2k2vRfaNqwGjTJVlUQS9Akh/l40idnKWANkRSxKz8lUF9uAfXybDKak2XCyovMYC8vN9yTUgvRgUlv9pVtS2HJjUFL+kRshLJgeVJ3cHLWJcJkjCpLIUNwB5jBKomMVW89Gafv/5CpRKDU7jQB3rhG5ElNXpNazRc6vSbDTXyj7IoT6VIGIgbDK1Ej+qTDL6wA1IEjaiSbJPRTgLuORFF9hxMlhf1ZR8gUkkBF1lEhDAB+kpiVq7dKz2GHEmgevKep0AS65gVxRNed9N1P4oweuNWGOluFNclyy+r8guwKd20hDRoiphB1bFU7RIoXVtnNJRtBCta21KWSfFZXeFRHGkhmOwJ7lVS4AhU9R87ChTE5p+oHkEM5dxewLgC5qGcSySV9H4MKk1Cx74L5HqTfqdAIOsB41gcZX8XFi9rRIpYKpYAXYIVSUO6djo6nNmZB+kDG89EmdkGSJ7QSKPyCsogKVn9+ofWCldbhdYlpoR1wHIe4wj6kKv+VQKAsKiLY/6VI6GRlXCHgRQuyBhSdcsO8/rhjgFe/QgslphWqmpjBDjwVxgEa2qREupCZ6lp3kmaLd8ySW6GQKwwEwDJSIR6QOiyh8yCEkg+UMr7P2aCYzHBbJPMKzlSICCSWFg4CMtmDOe8KFARldISNclJx5pRX4EzZGN2kAhuCixU26LyusXDgZePAjjkb/X3JJsDao2KjE0h0sEEHjrjwC8i7k0IsqHouTLzCN6zKQZkc2L1h8isM4hMMNYqqOoIJnaFkJbHAjN6bXEknCEBnhiWtMvgyOEPJ7NGAwAFM3pijmrTjdiJBgDdneGiBLToAzhZl6blwCAqYWAvW5GydjuNl68F0lG2AFx2xRgDbhF5Zr+8JNI0AdkY9xceOUO+se1wg2e6sOotm52DtHrYYf+/JhSxQDQCwax09kqxHB3bZG9XEGDfzBcIuetbvQOELdFUr+zXe8TXnbELQa2USRGOiivJkn0AGhr3uCQwXGkFFdHMgPSHATa8WpEUoK4dWMkFcg0czlQCneIVAQEqOkFbwnpCxkWiORh/OI6GPiCOjdWK0YKYT0cIherTYieDQOK9AFHBMKxxw1tcvyaCVcSI0KideYd1WN8DDSfcSi1d4tcBJ3+7lFPGkMSXlHmR9lpIN6IV1TxoE6GRWz3pyRh/JcHbgzBpnHRnPOYAhtjAKiKdnuH7N+eqXf/8DofvPk6xIAAA=";
+const labelDataEncoded = "H4sIAIQAYGkC/3XQzU7DMBAE4FepfA7Wrtf22rnCsVSIAxfKwa1MFJE6yEnFn3h30jShSKW30crS55nHL9GETWxEKa7b3eu+j3nxUHd1m0Qh3kWppDXA3mvwuhAfogTJHkFrMOwL0dWfcXhEEgqRRclwCJUoEdQhbYaE4y2I0moJ38XJuwl9WNzWqU7V0bpiaRCMYUtkRmy4WOfBoEPCMw3BTpzDSdN4AVuFfp9Ds1iGVO1DFdfpLrfb2HW/upKErAk842h7SY4RLdn/is6y8XNPcJfoOMqr2L+1+aWbug4fZcPDjhrs7ClSyhmlzpuinzzWk+cucfexTs9t3sZdTP06LWPIp4lJWnTAqDzxcWFE6VARMZLmM1i7yfVmdumv+/QDTqzcZ0ACAAA=";
+
+const histogramBinDataEncoded = "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";
+const histogramIndexDataEncoded = "H4sIAIQAYGkC/+2V3U4TURSFVwFr1QJVAQVJgCGAItQWtFQEsYL8FAStGkmMIQMdtVqmzVAUQrj3kmfxCXwc30K/MzOBgnrnpSfpzD77Z621z9kMuUJh7XVa+sn60CAlZNZFtSiqc4phsSJNx/44z6bQ/yNibML8jD/G08Ri2N/D2DfeB1bJLTp7G1uV8u62u2NN9r45sD7hw7I8233vWCO9lmtvOzjc3XKZ3U7N9mpsU75dqWKOp4KNYzbpw7dsAsQNH94JgU/jvCs55eLGaV/Vdov2zkZtv2qc1q5b2qoUAw2729X940Bl86OzVTP+badmF+2ajffAclzSS+57k/Lq5fxo1jqsE3NahbVZQl7ROqukzn9GTcmtpTO/azl210kx7QTMnmPXKp6vrlza9Gxv39RU923Pq3wxVZ8db6dUcY13LJ1MJVPW4Ql1fTA5nhyzDsXtS0E4uN82mdlo426jOu/fdiKciUiDefcquG+zTG3QXzATMSpiQSiSCHPMvH0NceXPT0c4cXEfXY1Nus5rvSFMYOKuh/NlZm9KwayORHS8GvT3tV4XjJypM6tbwxpQv+5pQa26CUdK87BNqFOrSmtNQ+rRigaJSstoaSV7lr4foPuKHuqWxtSOZxGkNV3VU+zz/EbAGQWtE968Humu+mBK65qeaZyOo8qBsqIu/uZuEVvRJdT0s89Ts0TPCVhn6W6EusdUDsIUR1kzuXH485pDdVTT5CdAvU/tPIrGUZwCMUFmN5lRWeSksK/gbdQMmS+ontBlIoPKgnWXWksZuHL8MjAZxiUl6WEYvEme18C4Q68X0dvBO8eppdE2xfM52MPsO1AgYnkQu+FZA8ucbxa2LNXLuoGeJpR16gJ9RFGzwKkNYBVgaeeknvkqxsjKgp3Ak+Eu2lFZwF4E5R7TMEndKnPUB8+sboPc4p/XBNwD4C/qCXYb2Bkq7tB3DJ2N+Kfh7Oa0e4ifQ2czyrvgm6HbQWagGa5Woq2cyARnnKe357DPca9daO4BpwWrnfMbotubYBbocR5NFvEXdGbmXOGsxlER9Sc8Ecw4nU35dSff0b1wTo/+MLf6/w3+/w3+R9/gI+Yq5//v/wXUAtebAggAAA==";
+
+
+
+
+
+const parsingWorkerBlob = new Blob([`
+  self.onmessage = async function(event) {
+  const { encodedData, JSONParse } = event.data;
+    // Function to parse base64 to Uint8Array
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
+    async function decodeBase64WithProgress(base64) {
+      const totalLength = base64.length;
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+      let offset = 0;
+
+      for (let i = 0; i < totalLength; i += chunkSize) {
+        const chunk = base64.slice(i, i + chunkSize);
+        const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        decodedArray.set(decodedChunk, offset);
+        offset += decodedChunk.length;
+
+        const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+        self.postMessage({ type: 'progress', progress: progress });
+
+        // Allow other operations to occur
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      return decodedArray.slice(0, offset);
+    }
+    const decodedData = await decodeBase64WithProgress(encodedData);
+    const decompressedData = await DecompressBytes(decodedData);
+    if (JSONParse) {
+      const parsedData = JSON.parse(new TextDecoder("utf-8").decode(decompressedData));
+      self.postMessage({ type: "data", data: parsedData });
+    } else {
+      self.postMessage({ type: "data", data: decompressedData });
+    }
+  }
+`], { type: 'application/javascript' });
+
+
+
+const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    
+const searchItemId = "text-search";
+const histogramItemId = "d3histogram-container";
+const selectionItemId = "lasso-select";
+let histogramItem = null;
+
+const container = document.getElementById('deck-container');
+
+const datamap = new DataMap({
+  container: container,
+  bounds: [-12.359618293799338, 8.291828548769788, -15.255438563597313, 14.744561436402684],
+  searchItemId: searchItemId,
+  lassoSelectionItemId: selectionItemId,      
+});
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    
+
+
+
+
+
+
+
+
+// =============================================================================
+// Point Data Loading
+// =============================================================================
+
+function loadPointDataLayer() {
+  const pointDataWorker = new Worker(workerUrl);
+  pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+  pointDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('point-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = await simpleArrowParser(data);
+
+
+      const pointData = parsedData;
+      
+      datamap.addPoints(pointData, {
+        pointSize: 0.09956251545854584,
+        pointOutlineColor: [250, 250, 250, 128],
+        pointLineWidth: 0.001,
+        pointHoverColor: [170, 0, 0, 187],
+        pointLineWidthMaxPixels: 3,
+        pointLineWidthMinPixels: 0.001,
+        pointRadiusMaxPixels: 24,
+        pointRadiusMinPixels: 0.01,
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('point-data-progress', 100);
+      checkAllDataLoaded();
+      
+      
+    }
+  };
+
+  
+  
+  
+}
+
+
+
+
+
+// =============================================================================
+// Label Data Loading
+// =============================================================================
+
+function loadLabelDataLayer() {
+  const labelDataWorker = new Worker(workerUrl);
+  labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+  labelDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('label-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const labelData = parsedData;
+      
+      datamap.labelData = labelData;
+      
+      datamap.addLabels(
+        
+        labelData
+        ,
+        {
+          labelTextColor: d => [d.r, d.g, d.b],
+          textMinPixelSize: 18,
+          textMaxPixelSize: 36,
+          textOutlineWidth: 8,
+          textOutlineColor: [238, 238, 238, 221],
+          textBackgroundColor: [255, 255, 255, 64],
+          fontFamily: "Roboto",
+          fontWeight: 600,
+          lineSpacing: 0.95,
+          textCollisionSizeScale: 3,
+          noiseLabel: "Unlabelled",
+          pickable: false,
+        }
+      );
+
+      
+      
+      
+      
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('label-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+// =============================================================================
+// Meta Data Loading
+// =============================================================================
+
+function loadMetaData() {
+  const metaDataWorker = new Worker(workerUrl);
+  metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+  metaDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('meta-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const hoverData = parsedData;
+      
+      datamap.addMetaData(hoverData, {
+        tooltipFunction: ({index}) => hoverData.hover_text[index],
+        onClickFunction: null,
+        searchField: "hover_text",
+      });
+
+      
+      
+      updateProgressBar('meta-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+// =============================================================================
+// Histogram Data Loading
+// =============================================================================
+
+function loadHistogramBinData() {
+  return new Promise((resolve, reject) => {
+    const histogramBinDataWorker = new Worker(workerUrl);
+    histogramBinDataWorker.postMessage({encodedData: histogramBinDataEncoded, JSONParse: true});
+
+    histogramBinDataWorker.onmessage = async function(event) {
+      if (event.data.type === "progress") {
+        updateProgressBar('histogram-bin-data-progress', event.data.progress);
+      } else {
+        const { data } = event.data;
+        
+
+  const parsedData = data;
+
+
+        const histogramBinData = parsedData;
+        resolve(histogramBinData);
+        updateProgressBar('histogram-bin-data-progress', 100);
+        checkAllDataLoaded();
+      }
+    };
+  });
+}
+
+function loadHistogramIndexData() {
+  return new Promise((resolve, reject) => {
+    const histogramIndexDataWorker = new Worker(workerUrl);
+    histogramIndexDataWorker.postMessage({encodedData: histogramIndexDataEncoded, JSONParse: false});
+
+    histogramIndexDataWorker.onmessage = async function(event) {
+      if (event.data.type === "progress") {
+        updateProgressBar('histogram-index-data-progress', event.data.progress);
+      } else {
+        const { data } = event.data;
+        
+        const histogramIndexData = await simpleArrowParser(data);
+        
+        resolve(histogramIndexData);
+        updateProgressBar('histogram-index-data-progress', 100);
+        checkAllDataLoaded();
+      }
+    };
+  });
+}
+
+function loadHistogramData() {
+  const chartSelectionCallback = chartSelectedIndices => {
+    if (chartSelectedIndices === null) {
+      datamap.removeSelection(histogramItemId);
+    } else {
+      datamap.addSelection(chartSelectedIndices, histogramItemId);
+    }
+  };
+
+  Promise.all([loadHistogramBinData(), loadHistogramIndexData()]).then(([histogramBinData, histogramIndexData]) => {
+    const histogramData = { rawBinData: histogramBinData, rawIndexData: histogramIndexData };
+    histogramItem = D3Histogram.create({
+      data: histogramData, 
+      chartContainerId: histogramItemId,
+      
+      
+      
+      
+      enableClickPersistence: false,
+      
+      
+      
+      
+      
+      chartSelectionCallback: chartSelectionCallback,
+    });
+
+    datamap.connectHistogram(histogramItem);
+  });
+}
+
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+    loadHistogramData();
+  </script>
+</html>

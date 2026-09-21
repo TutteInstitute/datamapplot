@@ -1,0 +1,552 @@
+<!doctype html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <title>Minimal Search Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+  rel="stylesheet"
+/>
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<link rel="preload" href="https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf" as="font" crossorigin="anonymous" type="font/ttf" />
+<style>
+b"@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 300;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuaabVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 400;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 700;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuYjalmUiA8.ttf) format('truetype');\n}\n@font-face {\n  font-family: 'Roboto';\n  font-style: normal;\n  font-weight: 900;\n  font-stretch: normal;\n  src: url(https://fonts.gstatic.com/s/roboto/v50/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWuZtalmUiA8.ttf) format('truetype');\n}\n"
+</style>
+
+<link
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css"
+  rel="stylesheet"
+/>
+<link
+  href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css"
+  rel="stylesheet"
+/>
+
+<script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
+<script src="https://unpkg.com/apache-arrow@latest/Arrow.es2015.min.js"></script>
+
+<style>
+  .content-wrapper{top:0;left:0;width:100%;height:100%;z-index:1;padding:0;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;min-height:calc(100vh - 16px);pointer-events:none}.stack{display:flex;flex-direction:column;gap:0;padding:0;pointer-events:none;max-height:50vh;overflow-y:visible}.top-left{grid-column:1;grid-row:1;justify-self:start;align-self:start;align-items:start}.bottom-left{grid-column:1;grid-row:2;justify-self:start;align-self:end;align-items:start;display:flex;flex-direction:column-reverse;transform:scaleY(-1);z-index:2}.top-right{grid-column:2;grid-row:1;justify-self:end;justify-items:end;align-self:start;align-items:end}.bottom-right{grid-column:2;grid-row:2;justify-self:end;justify-items:end;align-self:end;align-items:end;display:flex;flex-direction:column-reverse;transform:scaleY(-1)}.stack.bottom-left .stack-box{transform:scaleY(-1)}.stack.bottom-right .stack-box{transform:scaleY(-1)}#loading{width:100%;height:100%;top:0px;left:0px;position:absolute;display:block;z-index:99}#loading-image{position:absolute;top:45%;left:47.5%;z-index:100}#title-container{top:0;left:0}
+</style><style>
+  .datamapplot-progress-container{position:absolute;bottom:0;left:50%;transform:translate(-50%,0);width:512px;z-index:101}.datamapplot-progress-bar{width:100%;background-color:#e0e0e044;padding:3px;border-radius:6px;box-shadow:inset 0 1px 3px rgba(128,128,128,.2);margin-bottom:10px}.datamapplot-progress-bar-fill{display:block;height:12px;background-color:#659cef;border-radius:4px;transition:width 500ms ease-in-out}.datamapplot-progress-bar-text{color:white;text-align:center;line-height:12px;font-size:10px;overflow-x:visible;white-space:nowrap;vertical-align:top}
+</style>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: Roboto;
+    color: #000000;
+  }
+  .container-box {
+    margin: 8px 16px 8px 16px;
+    padding: 12px;
+    border-radius: 16px;
+    line-height: 0.95;
+    width: fit-content;
+    height: fit-content;
+    z-index: 2;
+    backdrop-filter: blur(3px);
+    background: #ffffffaa;
+    box-shadow: 2px 3px 10px #aaaaaa44;
+    position: relative;
+    pointer-events: auto;
+  }
+  .more-opaque {
+    backdrop-filter: blur(6px);
+    background-color: #ffffffee;
+  }
+  #deck-container {
+    width: 100vw;
+    height: 100vh;  
+  }
+  #deck-container canvas {
+    z-index: 1;
+    background: #ffffff;
+  }
+  .deck-tooltip {
+      
+            font-size: 0.8em;
+            font-family: Roboto;
+            font-weight: 300;
+            color: #000000 !important;
+            background-color: #ffffffee !important;
+            border-radius: 12px;
+            backdrop-filter: blur(6px);
+            box-shadow: 2px 3px 10px #aaaaaa44;
+            max-width: 25%;
+  }
+  input {
+    margin: 2px;
+    padding: 4px;
+    border-radius: 8px;
+    color: #000000;
+    background: #ffffffdd;
+    border: 2px inset #77777744;
+    transition: 0.5s;
+    outline: none;
+    box-sizing: border-box;
+  }
+  input:focus {
+    border: 2px inset #555;
+  }
+  #search-container{
+    width: fit-content;
+  }
+</style>
+  </head>
+  
+  <body>
+<div id="loading">
+  <img
+    id="loading-image"
+    src=""
+    alt="Loading..."
+    width="5%"
+  />
+</div>
+<div style="isolation: isolate; position: relative;">
+  <div id="deck-container" style="position: fixed; z-index: -1; top: 0; left: 0; width: 100%; height: 100%;"></div>
+  <div class="content-wrapper" style="position: relative; z-index: 1;">
+    
+    <div class="stack top-left">
+      
+      <div id="title-container" class="container-box">
+        <span
+          id="main-title"
+          style="font-family:Roboto;font-size:36pt;font-weight:;color:#000000"
+        >
+          Minimal Search Test
+        </span>
+        <br />
+        <span
+          style="font-family:Roboto;font-size:18pt;color:#777777"
+        >
+          For search functionality tests
+        </span>
+      </div>
+      
+
+      
+      <div id="search-container" class="container-box">
+        <input autocomplete="off" type="search" id="text-search" placeholder="🔍" />
+      </div>
+      
+      
+    </div>
+    
+    
+    <div class="stack top-right">
+      
+    </div>
+    
+    
+    <div class="stack bottom-right">
+    </div>
+    
+    
+    <div class="stack bottom-left"></div>
+  </div>
+  
+  
+  
+</div>
+
+
+
+<div id="progress-container" class="datamapplot-progress-container container-box" style="width: 500px; position: absolute;">
+  <div id="point-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Point Data: 0%</span>
+    </span>
+  </div>
+  <div id="label-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Label Data: 0%</span>
+    </span>
+  </div>
+  <div id="meta-data-progress" class="datamapplot-progress-bar">
+    <span class="datamapplot-progress-bar-fill" style="width: 0%;">
+      <span class="datamapplot-progress-bar-text">Meta Data: 0%</span>
+    </span>
+  </div>
+</div>
+  </body>
+  <script>
+    LAYER_ORDER=['imageLayer','dataPointLayer','boundaryLayer','labelLayer'];function getLayerIndex(object){return LAYER_ORDER.indexOf(object.id);}
+function isFontLoaded(fontName){return document.fonts.check(`12px "${fontName}"`);}
+function waitForFont(fontName,maxWait=500){return new Promise((resolve,reject)=>{if(isFontLoaded(fontName)){resolve();}else{const startTime=Date.now();const interval=setInterval(()=>{if(isFontLoaded(fontName)){clearInterval(interval);resolve();}else if(Date.now()-startTime>maxWait){clearInterval(interval);reject(new Error(`Font ${fontName} did not load within ${maxWait}ms`));}},50);}});}
+function getInitialViewportSize(){const width=document.documentElement.clientWidth;const height=document.documentElement.clientHeight;return{viewportWidth:width,viewportHeight:height};}
+function calculateZoomLevel(bounds,viewportWidth,viewportHeight,padding=0.5){const lngRange=bounds[1]-bounds[0];const latRange=bounds[3]-bounds[2];const centerLng=(bounds[0]+bounds[1])/2;const centerLat=(bounds[2]+bounds[3])/2;const zoomX=Math.log2(360/(lngRange/(viewportWidth/256)));const zoomY=Math.log2(180/(latRange/(viewportHeight/256)));const zoom=Math.min(zoomX,zoomY)-padding;return{zoomLevel:zoom,dataCenter:[centerLng,centerLat]};}
+class DataMap{constructor({container,bounds,searchItemId="text-search",lassoSelectionItemId="lasso-selection",}){this.container=container;this.searchItemId=searchItemId;this.lassoSelectionItemId=lassoSelectionItemId;this.pointData=null;this.labelData=null;this.metaData=null;this.layers=[];const{viewportWidth,viewportHeight}=getInitialViewportSize();const{zoomLevel,dataCenter}=calculateZoomLevel(bounds,viewportWidth,viewportHeight);this.deckgl=new deck.DeckGL({container:container,initialViewState:{latitude:dataCenter[1],longitude:dataCenter[0],zoom:zoomLevel},controller:{scrollZoom:{speed:0.01,smooth:true}},});this.updateTriggerCounter=0;this.dataSelectionManager=new DataSelectionManager(lassoSelectionItemId);}
+addPoints(pointData,{pointSize,pointOutlineColor=[250,250,250,128],pointLineWidth=0.001,pointHoverColor=[170,0,0,187],pointLineWidthMaxPixels=3,pointLineWidthMinPixels=0.001,pointRadiusMaxPixels=16,pointRadiusMinPixels=0.2,}){const numPoints=pointData.x.length;const positions=new Float32Array(numPoints*2);const colors=new Uint8Array(numPoints*4);const variableSize=pointSize<0;let sizes;if(variableSize){sizes=new Float32Array(numPoints);}else{sizes=null;}
+for(let i=0;i<numPoints;i++){positions[i*2]=pointData.x[i];positions[i*2+1]=pointData.y[i];colors[i*4]=pointData.r[i];colors[i*4+1]=pointData.g[i];colors[i*4+2]=pointData.b[i];colors[i*4+3]=pointData.a[i];if(variableSize){sizes[i]=pointData.size[i];}}
+this.originalColors=colors;this.selected=new Float32Array(numPoints).fill(1.0);this.pointSize=pointSize;this.pointOutlineColor=pointOutlineColor;this.pointLineWidth=pointLineWidth;this.pointHoverColor=pointHoverColor;this.pointLineWidthMaxPixels=pointLineWidthMaxPixels;this.pointLineWidthMinPixels=pointLineWidthMinPixels;this.pointRadiusMaxPixels=pointRadiusMaxPixels;this.pointRadiusMinPixels=pointRadiusMinPixels;let scatterAttributes={getPosition:{value:positions,size:2},getFillColor:{value:colors,size:4},getFilterValue:{value:this.selected,size:1}};if(variableSize){scatterAttributes.getRadius={value:sizes,size:1};}
+this.pointLayer=new deck.ScatterplotLayer({id:'dataPointLayer',data:{length:numPoints,attributes:scatterAttributes},getRadius:this.pointSize,getLineColor:this.pointOutlineColor,getLineWidth:this.pointLineWidth,highlightColor:this.pointHoverColor,lineWidthMaxPixels:this.pointLineWidthMaxPixels,lineWidthMinPixels:this.pointLineWidthMinPixels,radiusMaxPixels:this.pointRadiusMaxPixels,radiusMinPixels:this.pointRadiusMinPixels,radiusUnits:"common",lineWidthUnits:"common",autoHighlight:true,pickable:true,stroked:true,extensions:[new deck.DataFilterExtension({filterSize:1})],filterRange:[-0.5,1.5],filterSoftRange:[0.75,1.25],updateTriggers:{getFilterValue:this.updateTriggerCounter},instanceCount:numPoints,parameters:{depthTest:false}});this.layers.push(this.pointLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addEdges(edgeData,{edgeWidth=0.05,edgeOpacity=0.8,}){const numEdges=edgeData.r.length;this.edgeWidth=edgeWidth;this.edgeOpacity=edgeOpacity;const sourcePosition=new Float32Array(numEdges*2);const targetPosition=new Float32Array(numEdges*2);const colors=new Uint8Array(numEdges*4);let lineAttributes={getSourcePosition:{value:sourcePosition,size:2},getTargetPosition:{value:targetPosition,size:2},getColor:{value:colors,size:4},};for(let i=0;i<numEdges;i++){sourcePosition[i*2]=edgeData.x1[i];sourcePosition[i*2+1]=edgeData.y1[i];targetPosition[i*2]=edgeData.x2[i];targetPosition[i*2+1]=edgeData.y2[i];colors[i*4]=edgeData.r[i];colors[i*4+1]=edgeData.g[i];colors[i*4+2]=edgeData.b[i];colors[i*4+3]=180;}
+this.edgeLayer=new deck.LineLayer({id:'edgeLayer',data:{length:numEdges,attributes:lineAttributes},getSourcePosition:d=>[d.source.x,d.source.y],getTargetPosition:d=>[d.target.x,d.target.y],getWidth:this.edgeWidth,});this.layers.push(this.edgeLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addLabels(labelData,{labelTextColor=d=>[d.r,d.g,d.b],textMinPixelSize=18,textMaxPixelSize=36,textOutlineWidth=8,textOutlineColor=[238,238,238,221],textBackgroundColor=[255,255,255,64],fontFamily="Roboto",fontWeight=900,lineSpacing=0.95,textCollisionSizeScale=3.0,noiseLabel="Unlabelled",pickable=false,}){const numLabels=labelData.length;this.labelTextColor=labelTextColor;this.textMinPixelSize=textMinPixelSize;this.textMaxPixelSize=textMaxPixelSize;this.textOutlineWidth=textOutlineWidth;this.textOutlineColor=textOutlineColor;this.textBackgroundColor=textBackgroundColor;this.fontFamily=fontFamily;this.fontWeight=fontWeight;this.lineSpacing=lineSpacing;this.textCollisionSizeScale=textCollisionSizeScale;waitForFont(this.fontFamily);this.labelLayer=new deck.TextLayer({id:'labelLayer',data:labelData.filter(d=>d.label!==noiseLabel),pickable:pickable,getPosition:d=>[d.x,d.y],getText:d=>d.label,getColor:this.labelTextColor,getSize:d=>d.size,sizeScale:1,sizeMinPixels:this.textMinPixelSize,sizeMaxPixels:this.textMaxPixelSize,outlineWidth:this.textOutlineWidth,outlineColor:this.textOutlineColor,getBackgroundColor:this.textBackgroundColor,getBackgroundPadding:[15,15,15,15],background:true,characterSet:"auto",fontFamily:this.fontFamily,fontWeight:this.fontWeight,lineHeight:this.lineSpacing,fontSettings:{"sdf":true},getTextAnchor:"middle",getAlignmentBaseline:"center",lineHeight:0.95,elevation:100,collisionEnabled:true,getCollisionPriority:d=>d.size,collisionTestProps:{sizeScale:this.textCollisionSizeScale,sizeMaxPixels:this.textMaxPixelSize*2,sizeMinPixels:this.textMinPixelSize*2},extensions:[new deck.CollisionFilterExtension()],instanceCount:numLabels,parameters:{depthTest:false}});this.layers.push(this.labelLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addBoundaries(boundaryData,{clusterBoundaryLineWidth=0.5}){const numBoundaries=boundaryData.length;this.clusterBoundaryLineWidth=clusterBoundaryLineWidth;this.boundaryLayer=new deck.PolygonLayer({id:'boundaryLayer',data:boundaryData,stroked:true,filled:false,getLineColor:d=>[d.r,d.g,d.b,d.a],getPolygon:d=>d.polygon,lineWidthUnits:"common",getLineWidth:d=>d.size*d.size,lineWidthScale:this.clusterBoundaryLineWidth*5e-5,lineJointRounded:true,lineWidthMaxPixels:4,lineWidthMinPixels:0.0,instanceCount:numBoundaries,parameters:{depthTest:false}});this.layers.push(this.boundaryLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+addMetaData(metaData,{tooltipFunction=({index})=>this.metaData.hover_text[index],onClickFunction=null,searchField=null,}){this.metaData=metaData;this.tooltipFunction=tooltipFunction;this.onClickFunction=onClickFunction;this.searchField=searchField;if(this.metaData.hasOwnProperty('hover_text')){this.deckgl.setProps({getTooltip:this.tooltipFunction,});}
+if(this.onClickFunction){this.deckgl.setProps({onClick:this.onClickFunction,});}
+if(this.searchField){this.searchArray=this.metaData[this.searchField].map(d=>d.toLowerCase());}}
+connectHistogram(histogramItem){this.histogramItem=histogramItem;this.histogramItemId=histogramItem.state.chart.chartContainerId;}
+addBackgroundImage(image,bounds){this.imageLayer=new deck.BitmapLayer({id:'imageLayer',bounds:bounds,image:image,parameters:{depthTest:false}});this.layers.push(this.imageLayer);this.layers.sort((a,b)=>getLayerIndex(a)-getLayerIndex(b));this.deckgl.setProps({layers:[...this.layers]});}
+async addSelectionHandler(callback,selectionKind="lasso-selection",timeoutMs=60000){const startTime=Date.now();if(selectionKind==="lasso-selection"){while(!this.lassoSelector){if(Date.now()-startTime>timeoutMs){throw new Error('Timeout: lassoSelector did not become available within the specified timeout period');}
+await new Promise(resolve=>setTimeout(resolve,1000));}
+this.lassoSelector.registerSelectionHandler(callback);}else{if(!this.selectionCallbacks){this.selectionCallbacks={};}
+if(this.selectionCallbacks[selectionKind]){this.selectionCallbacks[selectionKind].push(callback);}
+this.selectionCallbacks[selectionKind]=[callback];}}
+highlightPoints(itemId){const selectedIndices=this.dataSelectionManager.getSelectedIndices();const semiSelectedIndices=this.dataSelectionManager.getBasicSelectedIndices();const hasSelectedIndices=selectedIndices.size!==0;const hasSemiSelectedIndices=semiSelectedIndices.size!==0;const hasLassoSelection=this.dataSelectionManager.hasSpecialSelection();if(hasLassoSelection){if(hasSelectedIndices){if(hasSemiSelectedIndices){this.selected.fill(-1.0);for(let i of semiSelectedIndices){this.selected[i]=0.0;}}else{this.selected.fill(0.0);}
+for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}else{if(hasSelectedIndices){this.selected.fill(-1.0);for(let i of selectedIndices){this.selected[i]=1.0;}}else{this.selected.fill(1.0);}}
+this.updateTriggerCounter++;const sizeAdjust=1/(1+(Math.sqrt(selectedIndices.size)/Math.log2(this.selected.length)));const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFilterValue:{value:this.selected,size:1}}},radiusMinPixels:hasSelectedIndices?2*(this.pointRadiusMinPixels+sizeAdjust):this.pointRadiusMinPixels,updateTriggers:{getFilterValue:this.updateTriggerCounter,radiusMinPixels:this.updateTriggerCounter,}});const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;if(this.histogramItem&&itemId!==this.histogramItemId){if(hasSelectedIndices){this.histogramItem.drawChartWithSelection(selectedIndices);}else{this.histogramItem.removeChartWithSelection(selectedIndices);}}}
+addSelection(selectedIndices,selectionKind){this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+removeSelection(selectionKind){this.dataSelectionManager.removeSelectedIndicesOfItem(selectionKind);this.highlightPoints(selectionKind);if(this.selectionCallbacks&&this.selectionCallbacks[selectionKind]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[selectionKind]){callback(currentSelectedIndices);}}}
+getSelectedIndices(){return this.dataSelectionManager.getSelectedIndices();}
+searchText(searchTerm){const searchTermLower=searchTerm.toLowerCase();const selectedIndices=this.searchArray.reduce((indices,d,i)=>{if(d.indexOf(searchTermLower)>=0){indices.push(i);}
+return indices;},[]);if(searchTerm===""){this.dataSelectionManager.removeSelectedIndicesOfItem(this.searchItemId);}else{this.dataSelectionManager.addOrUpdateSelectedIndicesOfItem(selectedIndices,this.searchItemId);}
+if(this.selectionCallbacks&&this.selectionCallbacks[this.searchItemId]){const currentSelectedIndices=Array.from(this.dataSelectionManager.getSelectedIndices());for(let callback of this.selectionCallbacks[this.searchItemId]){callback(currentSelectedIndices);}}
+this.highlightPoints(this.searchItemId);}
+recolorPoints(colorData,fieldName){if(!this.hasOwnProperty(`${fieldName}Colors`)){const numPoints=colorData[`${fieldName}_r`].length;const colors=new Uint8Array(numPoints*4);for(let i=0;i<numPoints;i++){colors[i*4]=colorData[`${fieldName}_r`][i];colors[i*4+1]=colorData[`${fieldName}_g`][i];colors[i*4+2]=colorData[`${fieldName}_b`][i];colors[i*4+3]=colorData[`${fieldName}_a`][i];}
+this[`${fieldName}Colors`]=colors;}
+const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this[`${fieldName}Colors`],size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}
+resetPointColors(){const updatedPointLayer=this.pointLayer.clone({data:{...this.pointLayer.props.data,attributes:{...this.pointLayer.props.data.attributes,getFillColor:{value:this.originalColors,size:4}}},transitions:{getFillColor:{duration:1500,easing:d3.easeCubicInOut}}});this.updateTriggerCounter++;const idx=this.layers.indexOf(this.pointLayer);this.layers=[...this.layers.slice(0,idx),updatedPointLayer,...this.layers.slice(idx+1)];this.deckgl.setProps({layers:this.layers});this.pointLayer=updatedPointLayer;}}
+  </script>
+  <script>
+    class DataSelectionManager{constructor(specialItem){this.excludeItem=specialItem;this.selectedIndicesByItem={};this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();}
+addOrUpdateSelectedIndicesOfItem(indices,itemId){const isNewItem=!this.selectedIndicesByItem.hasOwnProperty(itemId);this.selectedIndicesByItem[itemId]=new Set(indices);this.#updateSelectedIndicesCommon(isNewItem?itemId:null);}
+removeSelectedIndicesOfItem(itemId){if(this.selectedIndicesByItem.hasOwnProperty(itemId)){delete this.selectedIndicesByItem[itemId];this.#updateSelectedIndicesCommon();}}
+getSelectedIndices(){return this.selectedIndicesCommon;}
+getBasicSelectedIndices(){return this.selectedIndicesBasicCommon;}
+hasSpecialSelection(){return this.selectedIndicesByItem.hasOwnProperty(this.excludeItem);}#updateSelectedIndicesCommon(newItem=null){const sets=Object.values(this.selectedIndicesByItem);if(sets.length===0){this.selectedIndicesCommon=new Set();this.selectedIndicesBasicCommon=new Set();return;}
+if(sets.length===1){this.selectedIndicesCommon=sets[0];if(Object.keys(this.selectedIndicesByItem)[0]!==this.excludeItem){this.selectedIndicesBasicCommon=sets[0];}else{this.selectedIndicesBasicCommon=new Set();}
+return;}
+if(newItem){const newSet=this.selectedIndicesByItem[newItem];this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(newSet);if(newItem!==this.excludeItem){this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(newSet);}
+return;}
+this.selectedIndicesCommon=sets[0];for(let i=1;i<sets.length;i++){this.selectedIndicesCommon=this.selectedIndicesCommon.intersection(sets[i]);if(this.selectedIndicesCommon.size===0){break;}}
+const otherSelectionItems=Object.keys(this.selectedIndicesByItem).filter(key=>key!==this.excludeItem);this.selectedIndicesBasicCommon=this.selectedIndicesByItem[otherSelectionItems[0]];for(let i=1;i<otherSelectionItems.length;i++){const otherSelection=this.selectedIndicesByItem[otherSelectionItems[i]];this.selectedIndicesBasicCommon=this.selectedIndicesBasicCommon.intersection(otherSelection);}}}
+  </script><script type="module">
+    // =========================================================================
+    // Utility Functions
+    // =========================================================================
+    
+    
+function debounce(func, timeout = 250) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { func.apply(this, args); }, timeout);
+  };
+}
+
+async function simpleArrowParser(arrow_bytes) {
+  const table = await Arrow.tableFromIPC(arrow_bytes);
+  const result = {};
+  table.schema.fields.forEach((field) => {
+    result[field.name] = table.getChild(field.name).toArray();
+  });
+  return result;
+}
+
+function mergeTypedArrays(arrays) {
+  let totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  let result = new arrays[0].constructor(totalLength);
+  let currentLength = 0;
+  for (let arr of arrays) {
+    result.set(arr, currentLength);
+    currentLength += arr.length;
+  }
+  return result;
+}
+
+
+
+function updateProgressBar(id, progress) {
+  const progressBar = document.querySelector(`#${id} .datamapplot-progress-bar-fill`);
+  const progressText = document.querySelector(`#${id} .datamapplot-progress-bar-text`);
+  if (progressBar && progressText) {
+    progressBar.style.width = `${progress}%`;
+    progressText.textContent = `${id.replace('-progress', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${progress}%`;
+  }
+}
+
+function checkAllDataLoaded() {
+  const progressBars = document.querySelectorAll('.datamapplot-progress-bar-fill');
+  const allLoaded = Array.from(progressBars).every(bar => bar.style.width === '100%');
+  if (allLoaded) {
+    const loadingEl = document.getElementById("loading");
+    const progressEl = document.getElementById("progress-container");
+    if (loadingEl) loadingEl.style.display = "none";
+    if (progressEl) progressEl.style.display = "none";
+  }
+}
+    
+    
+
+
+    // =========================================================================
+    // Browser Compatibility Check
+    // =========================================================================
+    
+    if (!("CompressionStream" in window)) {
+      throw new Error(
+        "Your browser doesn't support the Compression Streams API " +
+        "https://developer.mozilla.org/docs/Web/API/Compression_Streams_API#browser_compatibility"
+      );
+    }
+
+    // =========================================================================
+    // Data Setup
+    // =========================================================================
+    
+    
+
+
+
+
+const pointDataEncoded = "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";
+const hoverDataEncoded = "H4sIAIMAYGkC/43ZzWrbQBiF4VsRWjcwZ/6n695FCEFthWtIZHBlEwi596y8SDCcd60PMzwYed7P7/O/03U9P+/r2z7/nB7nX6c/l9d126fl9+myT9t6OS8v08N03NfXKcw/pu8TL+ty3o7b4TajOzPX4//jabtNxHufsmyHy3JYbzPpzszfZV9uz/Od51/PWsBZqz1rA2ft5qzDnlUI1suK0MrZyuOK6MrzivjKAcsLRyIcwXeXCEcnHL1wJMLRC0ciHJ1w9MKJCCcvnNDrwQknL5yIcPLCiQgnJ5y8cCbC2QtnIpztG9gLZyKcvXAmwtkJZy9ciHDxwoUIFydcwI8cES5euBDh4oSLF65EuHrhSoSrE65euKJ7hBeuRLg64eqFGxFuXrgR4eaEmxduRLiBqxoRbk64eeFOhLsX7kS4O+HuhTsR7l64o9uwE+5eeBDh4YUHER5OeHjhQYSHFx5EeNjgIMWBkiOA5ggoOoKtjgCyI6DuCCA8AiqPYNMjAGuYd8CaBZ4vPJJ4rPFI5LHK85kHOk8o9BRJSyNr23oCsSdUewK5J9R7ssEnUHxCySfQfEpscWGtQfYJdZ9A+AmVn2z6CbSfUPwJ1J9Q/in7LRGwRgUokIBCDSgbgQIVKJSBAh0oFIKyJahCVnLIGsSgUA3K5qBADwoFoUARCiWhbBMKRKEq238Ca9SFsmEoUIZCaSjQhkJxKFuHAnko1IdqZNmMrG0iCjSiUCQKVKJQJsp2okAoCpWiQCqqs82+tQa1KJSLAr0oFIyyxSiQjELNKBCNQtWo4f9GGfPTxycFhNCkEhwAAA==";
+const labelDataEncoded = "H4sIAIMAYGkC/3XRPU/DMBAG4L8SeU4t2+ezz1lhLBViYKEMbmWiiNZBTiK+xH/HpIYiRfX0LtZz997DJzv4XTiwhl31x5dpDKm674auj6xmb6xZSU5WO7JOoKvZO2sEJwRFVpHQNRu6j8AaBVzULLFGnlKbk5zTLietfpJnjdFcfNVn8dqPvrrpYhfbk+a4AiOtFmj0jCkulXYgwAEtMLDFsrpQ9pK08eOU/KFa+9hOvg3beJv6fRiGP3oFHLRBlKjJzLbhSIBgwDi1XFSogmssuDGX8DDbmzC+9ul5KJ7jYMEomR/O3io3hsaCRWnVUiRdQFIFBLgA3oUuPvVpH44hjtu4Dj6dO0YOSI4MCmdnN3/OfedBFC07JiyqE7/nlO4/+/gNDps7y0ICAAA=";
+
+
+
+
+
+const parsingWorkerBlob = new Blob([`
+  self.onmessage = async function(event) {
+  const { encodedData, JSONParse } = event.data;
+    // Function to parse base64 to Uint8Array
+    async function DecompressBytes(bytes) {
+      const blob = new Blob([bytes]);
+      const decompressedStream = blob.stream().pipeThrough(
+        new DecompressionStream("gzip")
+      );
+      const arr = await new Response(decompressedStream).arrayBuffer()
+      return new Uint8Array(arr);
+    }
+    async function decodeBase64WithProgress(base64) {
+      const totalLength = base64.length;
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let decodedArray = new Uint8Array(Math.ceil(totalLength * 3 / 4));
+      let offset = 0;
+
+      for (let i = 0; i < totalLength; i += chunkSize) {
+        const chunk = base64.slice(i, i + chunkSize);
+        const decodedChunk = Uint8Array.from(atob(chunk), c => c.charCodeAt(0));
+        decodedArray.set(decodedChunk, offset);
+        offset += decodedChunk.length;
+
+        const progress = Math.min(100, Math.round((i + chunkSize) / totalLength * 100));
+        self.postMessage({ type: 'progress', progress: progress });
+
+        // Allow other operations to occur
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      return decodedArray.slice(0, offset);
+    }
+    const decodedData = await decodeBase64WithProgress(encodedData);
+    const decompressedData = await DecompressBytes(decodedData);
+    if (JSONParse) {
+      const parsedData = JSON.parse(new TextDecoder("utf-8").decode(decompressedData));
+      self.postMessage({ type: "data", data: parsedData });
+    } else {
+      self.postMessage({ type: "data", data: decompressedData });
+    }
+  }
+`], { type: 'application/javascript' });
+
+
+
+const workerUrl = URL.createObjectURL(parsingWorkerBlob);
+
+    // =========================================================================
+    // DataMap Initialization
+    // =========================================================================
+    
+    
+const searchItemId = "text-search";
+const histogramItemId = "d3histogram-container";
+const selectionItemId = "lasso-select";
+let histogramItem = null;
+
+const container = document.getElementById('deck-container');
+
+const datamap = new DataMap({
+  container: container,
+  bounds: [-16.843317522518475, 13.156682477481521, -16.57203942711521, 12.527657967099305],
+  searchItemId: searchItemId,
+  lassoSelectionItemId: selectionItemId,      
+});
+
+    // =========================================================================
+    // Data Loading Functions
+    // =========================================================================
+    
+    
+
+
+
+
+
+
+
+
+// =============================================================================
+// Point Data Loading
+// =============================================================================
+
+function loadPointDataLayer() {
+  const pointDataWorker = new Worker(workerUrl);
+  pointDataWorker.postMessage({encodedData: pointDataEncoded, JSONParse: false});
+
+  pointDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('point-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = await simpleArrowParser(data);
+
+
+      const pointData = parsedData;
+      
+      datamap.addPoints(pointData, {
+        pointSize: 0.11818567912070806,
+        pointOutlineColor: [250, 250, 250, 128],
+        pointLineWidth: 0.001,
+        pointHoverColor: [170, 0, 0, 187],
+        pointLineWidthMaxPixels: 3,
+        pointLineWidthMinPixels: 0.001,
+        pointRadiusMaxPixels: 24,
+        pointRadiusMinPixels: 0.01,
+      });
+
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('point-data-progress', 100);
+      checkAllDataLoaded();
+      
+      
+    }
+  };
+
+  
+  
+  
+}
+
+
+
+
+
+// =============================================================================
+// Label Data Loading
+// =============================================================================
+
+function loadLabelDataLayer() {
+  const labelDataWorker = new Worker(workerUrl);
+  labelDataWorker.postMessage({encodedData: labelDataEncoded, JSONParse: true});
+
+  labelDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('label-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const labelData = parsedData;
+      
+      datamap.labelData = labelData;
+      
+      datamap.addLabels(
+        
+        labelData
+        ,
+        {
+          labelTextColor: d => [d.r, d.g, d.b],
+          textMinPixelSize: 18,
+          textMaxPixelSize: 36,
+          textOutlineWidth: 8,
+          textOutlineColor: [238, 238, 238, 221],
+          textBackgroundColor: [255, 255, 255, 64],
+          fontFamily: "Roboto",
+          fontWeight: 600,
+          lineSpacing: 0.95,
+          textCollisionSizeScale: 3,
+          noiseLabel: "Unlabelled",
+          pickable: false,
+        }
+      );
+
+      
+      
+      
+      
+      document.getElementById("loading").style.display = "none";
+      updateProgressBar('label-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+// =============================================================================
+// Meta Data Loading
+// =============================================================================
+
+function loadMetaData() {
+  const metaDataWorker = new Worker(workerUrl);
+  metaDataWorker.postMessage({encodedData: hoverDataEncoded, JSONParse: true});
+
+  metaDataWorker.onmessage = async function(event) {
+    if (event.data.type === "progress") {
+      updateProgressBar('meta-data-progress', event.data.progress);
+    } else {
+      const { data } = event.data;
+      
+
+  const parsedData = data;
+
+
+      const hoverData = parsedData;
+      
+      datamap.addMetaData(hoverData, {
+        tooltipFunction: ({index}) => hoverData.hover_text[index],
+        onClickFunction: null,
+        searchField: "hover_text",
+      });
+
+      
+      const searchItem = document.getElementById(searchItemId);
+      if (searchItem) {
+        searchItem.addEventListener("input", debounce(event => datamap.searchText(event.target.value)));
+      }
+      
+      
+      updateProgressBar('meta-data-progress', 100);
+      checkAllDataLoaded();
+    }
+  };
+}
+
+
+
+    // =========================================================================
+    // Initialization
+    // =========================================================================
+
+    loadPointDataLayer();
+    loadLabelDataLayer();
+    loadMetaData();
+  </script>
+</html>
