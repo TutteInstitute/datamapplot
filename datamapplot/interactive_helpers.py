@@ -1295,6 +1295,11 @@ def array_to_colors(values, cmap_name, metadata, color_list=None):
     np.ndarray
         Array of RGBA color values (0-255).
     """
+    # NumPy has no timezone-aware datetime dtype, so np.asarray would turn
+    # timezone-aware pandas datetimes into an object array of Timestamps.
+    # Convert them to naive UTC datetimes first.
+    if isinstance(getattr(values, "dtype", None), pd.DatetimeTZDtype):
+        values = pd.DatetimeIndex(values).tz_convert(None)
     values = np.asarray(values)
 
     # Handle colormap setup
