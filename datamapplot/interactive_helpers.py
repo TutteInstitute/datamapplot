@@ -2561,7 +2561,9 @@ def prepare_colormap_data(
             colormap_rawdata, colormap_metadata, cluster_colors
         )
         return color_metadata, color_data, True, colormap_rawdata
-    elif colormaps is not None:
+    elif colormaps is not None or cluster_layer_colormaps:
+        # cluster_layer_colormaps also works on its own, without other colormaps
+        colormaps = colormaps if colormaps is not None else {}
         colormap_metadata = default_colormap_options(colormaps)
         colormap_rawdata = list(colormaps.values())
         cielab_colors = cspace_convert(
