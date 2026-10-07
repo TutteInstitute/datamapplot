@@ -1450,6 +1450,9 @@ def _numeric_to_colors(values, cmap, vmin, vmax, metadata, get_valid_mask):
     colors_array[~valid_mask] = [0, 0, 0, 0]
 
     metadata["valueRange"] = [float(vmin), float(vmax)]
+    # JavaScript cannot tell 1.0 from 1, so record here whether the data
+    # really is integer valued; the colorbar uses it to format its ticks
+    metadata["integerData"] = bool(np.all(np.mod(valid_values, 1) == 0))
     metadata["kind"] = "continuous"
 
     return (colors_array * 255).astype(np.uint8)
