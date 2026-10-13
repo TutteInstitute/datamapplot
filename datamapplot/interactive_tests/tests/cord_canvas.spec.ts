@@ -7,7 +7,7 @@ test.describe('Cord19 Canvas Tests', () => {
     // Extend timeout for all tests running this hook by 6 minutes.
     testInfo.setTimeout(testInfo.timeout + 360_000);
 
-    const response = await page.goto('http://localhost:8000/cord19.html', { timeout: 60_000 });
+    const response = await page.goto('http://localhost:8000/tests/html/cord19.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
     console.log('Waiting for initial load...', testInfo.project.name);
@@ -68,7 +68,7 @@ test.describe('Cord19 Canvas Tests', () => {
       return { width: canvasSelector.width, height: canvasSelector.height };
     });
     const startX = 100;
-    const startY =  360;
+    const startY = 360;
     const move = Math.min(size.width / 4, 300); // Move either quarter canvas width or 300px, whichever is smaller
 
     // Handle hover/tap based on device
