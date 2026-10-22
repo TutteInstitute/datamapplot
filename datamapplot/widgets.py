@@ -808,8 +808,14 @@ class HistogramWidget(WidgetBase):
         kwargs.setdefault("order", 1)
         super().__init__(**kwargs)
         if self.resizable:
-            # The chart is drawn at a fixed size and cannot redraw yet.
-            warnings.warn("HistogramWidget does not support resizable=True yet; ignoring.")
+            # Unlike the minimap (canvas redraw) or HTML widgets (reflow), the
+            # D3 chart bakes its size into scales, axes, clip path, brush and
+            # zoom extents at construction and has no resize/teardown method.
+            # Zoom/pan/brush state is also in pixels. Needs an in-place
+            # D3Histogram.resize() before this can be supported.
+            warnings.warn(
+                "HistogramWidget does not support resizable=True yet; ignoring."
+            )
             self.resizable = False
 
         self.histogram_data = histogram_data
@@ -829,7 +835,8 @@ class HistogramWidget(WidgetBase):
 
     @property
     def resize_javascript(self):
-        # Not supported yet, even if enabled later through a layout config.
+        # Not supported yet (see __init__), even if enabled later through a
+        # layout config.
         return ""
 
     @property
