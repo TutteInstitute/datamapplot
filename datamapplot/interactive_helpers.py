@@ -213,6 +213,7 @@ WIDGET_JS_FILES = {
     "dynamic_tooltip": "dynamic_tooltip.js",
     "drawer": "drawer.js",
     "collapsible": "collapsible.js",
+    "resizable": "resizable.js",
 }
 
 
@@ -275,6 +276,7 @@ def get_js_dependency_sources(
         js_dependencies.append("colormap_selector.js")
 
     if enable_topic_tree:
+        js_dependencies.append("resizable.js")
         js_dependencies.append("topic_tree.js")
 
     if enable_dynamic_tooltip:
@@ -314,6 +316,7 @@ WIDGET_CSS_FILES = {
     "topic_tree": "topic_tree_style.css",
     "drawer": "drawer_style.css",
     "collapsible": "collapsible.css",
+    "resizable": "resizable.css",
 }
 
 
@@ -366,6 +369,7 @@ def get_css_dependency_sources(
         css_dependencies.append("colormap_selector_style.css")
 
     if enable_topic_tree:
+        css_dependencies.append("resizable.css")
         css_dependencies.append("topic_tree_style.css")
 
     if enable_drawers:

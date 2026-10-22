@@ -160,11 +160,16 @@ class SelectionHandlerBase:
     dependencies : list, optional
         A list of URLs for external dependencies required by the selection handler. Default is an empty list.
 
+    resizable : bool, optional
+        Whether the user can resize the handler's display container by dragging
+        a handle in its corner. Default is False.
+
     """
 
-    def __init__(self, location=None, order=50, **kwargs):
+    def __init__(self, location=None, order=50, resizable=False, **kwargs):
         self.location = normalize_location(location)
         self.order = order if order is not None else 50
+        self.resizable = resizable
         if "dependencies" in kwargs:
             self.dependencies = kwargs["dependencies"]
         else:
@@ -245,6 +250,7 @@ class DisplaySample(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="selection",
                 location=self.location,
                 order=self.order,
@@ -456,6 +462,7 @@ class WordCloud(SelectionHandlerBase):
 
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="word-cloud",
                 location=self.location,
                 order=self.order,
@@ -722,6 +729,7 @@ class CohereSummary(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="cohere-summary",
                 location=self.location,
                 order=self.order,
@@ -1050,6 +1058,7 @@ class LLMSummary(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="llm-summary",
                 title="LLM Summary",
                 location=self.location,
@@ -1451,6 +1460,7 @@ class TagSelection(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="tag",
                 location=self.location,
                 order=self.order,
@@ -1779,6 +1789,7 @@ class DataTable(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="data-table",
                 location=self.location,
                 order=self.order,
@@ -1798,6 +1809,34 @@ if (_dtContainer) _dtContainer.style.display = "block"; // Always visible
 // Table state
 let dataTable = null;
 let tableColumns = {columns_js};
+
+// Fit the table's scrolling rows to the container after the user resizes it
+const _dtContent = document.getElementById("{container_id}-content");
+let _dtDefaultScrollHeight = null;
+function fitTableToContainer() {{
+    if (!dataTable || !_dtContent) return;
+    const scrollBody = _dtContent.querySelector('.dataTables_scrollBody');
+    if (!scrollBody) return;
+    if (_dtContent.style.height) {{
+        // Height of everything in the content area except the scrolling rows
+        const contentHeight = [..._dtContent.children].reduce((total, el) => {{
+            const style = getComputedStyle(el);
+            return total + el.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom);
+        }}, 0);
+        const overhead = contentHeight - scrollBody.offsetHeight;
+        // The stack may squash the container below the size the user chose
+        const visibleHeight = Math.min(
+            _dtContent.clientHeight,
+            _dtContainer.getBoundingClientRect().bottom - _dtContent.getBoundingClientRect().top
+                - parseFloat(getComputedStyle(_dtContainer).paddingBottom)
+        );
+        scrollBody.style.maxHeight = `${{Math.max(60, visibleHeight - overhead - 2)}}px`;
+    }} else if (_dtDefaultScrollHeight) {{
+        scrollBody.style.maxHeight = _dtDefaultScrollHeight;
+    }}
+    dataTable.columns.adjust();
+}}
+if (_dtContent) _dtContent.addEventListener('widgetresize', fitTableToContainer);
 
 // Helper: Convert array of objects to CSV
 function arrayToCSV(data, columns) {{
@@ -1971,6 +2010,8 @@ async function dataTableCallback(selectedPoints) {{
             }}
         ]
     }});
+    _dtDefaultScrollHeight = scrollHeight;
+    if (_dtContent && _dtContent.style.height) fitTableToContainer();
     
     // Open drawer if in drawer location
     if ("{self.location}".startsWith("drawer-") && window.drawerManager) {{
@@ -2145,6 +2186,7 @@ class ExportSelection(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="export",
                 title="Export Selection",
                 location=self.location,
@@ -2422,6 +2464,7 @@ class Statistics(SelectionHandlerBase):
         inner_html = '<div id="stats-content" class="stats-content"></div>'
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="stats",
                 title="Selection Statistics",
                 location=self.location,
@@ -2832,6 +2875,7 @@ class Histogram(SelectionHandlerBase):
         )
         self._widgets = [
             SelectionWidget(
+                resizable=self.resizable,
                 widget_id="histogram",
                 location=self.location,
                 order=self.order,
