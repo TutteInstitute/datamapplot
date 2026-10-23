@@ -16,6 +16,7 @@ class MiniMap {
             pointColor: options.pointColor || '#666666',
             pointSize: options.pointSize || 2,
             mirrorY: options.mirrorY || false,
+            resizable: options.resizable || false,
         };
 
         this.canvas = null;
@@ -28,6 +29,14 @@ class MiniMap {
         this.throttledUpdate = this.throttle(this.updateViewport.bind(this), this.options.updateThrottle);
 
         this.render();
+        if (this.options.resizable && typeof makeResizable === 'function') {
+            this.resizer = makeResizable(this.container, {
+                minWidth: 100,
+                minHeight: 75,
+                label: 'Resize minimap',
+                onResize: () => this.resizeToContainer(),
+            });
+        }
         this.attachEventListeners();
         this.initialize();
     }
@@ -350,6 +359,21 @@ class MiniMap {
                 }, remaining);
             }
         };
+    }
+
+    // Match the canvas to the container after the user resizes it
+    resizeToContainer() {
+        const style = getComputedStyle(this.container);
+        const width = Math.round(parseFloat(style.width));
+        const height = Math.round(parseFloat(style.height));
+        if (!width || !height) return;
+        if (width === this.options.width && height === this.options.height) return;
+
+        this.options.width = width;
+        this.options.height = height;
+        this.canvas.width = width;
+        this.canvas.height = height;
+        this.refresh();
     }
 
     // Public method to refresh the minimap

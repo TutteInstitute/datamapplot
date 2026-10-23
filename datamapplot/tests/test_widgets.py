@@ -2050,3 +2050,180 @@ class TestCollapsibleSystem:
         """Test WidgetConfig collapsible defaults to False."""
         config = WidgetConfig(widget_id="test")
         assert config.collapsible is False
+
+
+class TestResizableSystem:
+    """Tests for the resizable widget system."""
+
+    def test_resizable_default_false(self):
+        """Test that resizable defaults to False on the base class."""
+        widget = WidgetBase(widget_id="test")
+        assert widget.resizable is False
+        assert widget.resize_javascript == ""
+
+    def test_resizable_in_get_config(self):
+        """Test that resizable is included in get_config output."""
+        widget = WidgetBase(widget_id="test", resizable=True)
+        assert widget.get_config()["resizable"] is True
+
+    def test_resize_javascript_targets_container(self):
+        """Test that the generic resize JS attaches to the widget container."""
+        widget = WidgetBase(widget_id="test", resizable=True)
+        js = widget.resize_javascript
+        assert "makeResizable(" in js
+        assert '"test-container"' in js
+        assert js in widget.render()["javascript"]
+
+    def test_resize_javascript_min_sizes(self):
+        """Test that resize_options min sizes are passed to the JS."""
+
+        class SmallWidget(WidgetBase):
+            def resize_options(self):
+                return {"min_width": 50, "min_height": 40}
+
+        js = SmallWidget(widget_id="small", resizable=True).resize_javascript
+        assert '"minWidth": 50' in js
+        assert '"minHeight": 40' in js
+
+    def test_other_widget_defaults_unchanged(self):
+        """Test that only the topic tree is resizable by default."""
+        for widget in [
+            TitleWidget(title="T"),
+            SearchWidget(),
+            HistogramWidget(),
+            LegendWidget(),
+            MiniMapWidget(),
+            RESTSearchWidget(endpoint_url="http://example.com"),
+        ]:
+            assert widget.resizable is False, type(widget).__name__
+        assert TopicTreeWidget().resizable is True
+
+    def test_legend_resizable(self):
+        """Test that the legend uses the generic resize JS when enabled."""
+        widget = LegendWidget(resizable=True)
+        assert "makeResizable(" in widget.resize_javascript
+
+    def test_selection_widget_resizes_content(self):
+        """Test that SelectionWidget resizes its scrolling content area."""
+        from datamapplot.widgets import SelectionWidget
+
+        widget = SelectionWidget(widget_id="sel", resizable=True)
+        assert '"#sel-container-content"' in widget.resize_javascript
+        assert SelectionWidget(widget_id="sel").resize_javascript == ""
+
+    def test_topic_tree_attaches_own_handle(self):
+        """Test that the topic tree does not get a second, generic handle."""
+        widget = TopicTreeWidget()
+        assert widget.resizable is True
+        assert widget.resize_javascript == ""
+        assert widget.get_config()["resizable"] is True
+
+    def test_minimap_resizable_javascript(self):
+        """Test that the minimap passes resizable to its JS component."""
+        assert "resizable: false" in MiniMapWidget().javascript
+        widget = MiniMapWidget(resizable=True)
+        assert "resizable: true" in widget.javascript
+        assert widget.resize_javascript == ""
+
+    def test_histogram_resizable_not_supported(self):
+        """Test that HistogramWidget warns and ignores resizable=True."""
+        with pytest.warns(UserWarning, match="resizable"):
+            widget = HistogramWidget(resizable=True)
+        assert widget.resizable is False
+        widget.resizable = True
+        assert widget.resize_javascript == ""
+
+    def test_selection_handler_passes_resizable(self):
+        """Test that selection handlers pass resizable to their widget."""
+        from datamapplot.selection_handlers import DisplaySample, DataTable
+
+        assert DisplaySample().widgets[0].resizable is False
+        assert DisplaySample(resizable=True).widgets[0].resizable is True
+        assert DataTable(resizable=True).widgets[0].resizable is True
+
+    def test_collect_dependencies_includes_resizable_when_needed(self):
+        """Test that resizable JS/CSS deps are auto-included when needed."""
+        deps = collect_widget_dependencies([WidgetBase(widget_id="t", resizable=True)])
+        assert "resizable" in deps["js_files"]
+        assert "resizable" in deps["css_files"]
+
+    def test_collect_dependencies_excludes_resizable_when_not_needed(self):
+        """Test that resizable deps are not included when nothing is resizable."""
+        deps = collect_widget_dependencies(
+            [WidgetBase(widget_id="t"), TopicTreeWidget(resizable=False)]
+        )
+        assert "resizable" not in deps["js_files"]
+        assert "resizable" not in deps["css_files"]
+
+    def test_collect_dependencies_topic_tree_default(self):
+        """Test that the default topic tree pulls in the resizable deps."""
+        deps = collect_widget_dependencies([TopicTreeWidget()])
+        assert "resizable" in deps["js_files"]
+        assert "resizable" in deps["css_files"]
+
+    def test_legacy_topic_tree_includes_resizable_sources(self):
+        """Test that the legacy topic tree path embeds resizable.js/css."""
+        from datamapplot.interactive_helpers import (
+            get_js_dependency_sources,
+            get_css_dependency_sources,
+        )
+
+        js = get_js_dependency_sources(
+            minify=False,
+            enable_search=False,
+            enable_histogram=False,
+            enable_lasso_selection=False,
+            colormap_selector=False,
+            enable_topic_tree=True,
+            enable_dynamic_tooltip=False,
+        )
+        assert "resizable.js" in js
+        assert list(js).index("resizable.js") < list(js).index("topic_tree.js")
+        css = get_css_dependency_sources(
+            minify=False,
+            enable_histogram=False,
+            show_loading_progress=False,
+            enable_colormap_selector=False,
+            enable_topic_tree=True,
+        )
+        assert "resizable.css" in css
+
+    def test_widget_config_resizable_defaults_none(self):
+        """Test WidgetConfig resizable defaults to None (keep widget default)."""
+        assert WidgetConfig(widget_id="test").resizable is None
+
+    def test_resizable_propagated_from_layout(self):
+        """Test that a layout config can turn resizing on or off."""
+        legend = LegendWidget()
+        tree = TopicTreeWidget()
+        layout = {
+            "legend": WidgetConfig(widget_id="legend", location="top-right", resizable=True),
+            "topic-tree": WidgetConfig(widget_id="topic-tree", resizable=False),
+        }
+        group_widgets_by_location([legend, tree], layout)
+        assert legend.resizable is True
+        assert tree.resizable is False
+
+    def test_layout_without_resizable_keeps_default(self):
+        """Test that a layout entry without resizable keeps the widget default."""
+        tree = TopicTreeWidget()
+        layout = {"topic-tree": WidgetConfig(widget_id="topic-tree", order=3)}
+        group_widgets_by_location([tree], layout)
+        assert tree.resizable is True
+
+    def test_create_widget_from_config_resizable(self):
+        """Test that create_widget_from_config passes resizable through."""
+        widget = create_widget_from_config(
+            "legend", config={"location": "top-right", "resizable": True}
+        )
+        assert widget.resizable is True
+        widget = create_widget_from_config("topic_tree", config={"order": 2})
+        assert widget.resizable is True
+
+    def test_data_table_fits_on_resize(self):
+        """Test that DataTable refits its scrolling rows when resized."""
+        from datamapplot.selection_handlers import DataTable
+
+        js = DataTable(resizable=True).javascript
+        assert "addEventListener('widgetresize', fitTableToContainer)" in js
+        assert "data-table-container-content" in js

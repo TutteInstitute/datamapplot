@@ -51,6 +51,10 @@ class WidgetConfig:
     collapsible : bool
         Whether widget can be collapsed by user
 
+    resizable : bool or None
+        Whether widget can be resized by user. None keeps the widget's own
+        default.
+
     _positional_only : bool
         Flag to indicate if widget should only be override positional parameters
         (e.g. from legacy params) and not be added as a new widget
@@ -65,6 +69,7 @@ class WidgetConfig:
     order: int = 0
     visible: bool = True
     collapsible: bool = False
+    resizable: Optional[bool] = None
     _positional_only: bool = field(
         default=False, repr=False
     )  # Internal flag for positional-only widgets
@@ -281,6 +286,8 @@ def create_widget_from_config(
         kwargs.setdefault("order", config_dict.get("order"))
         kwargs.setdefault("visible", config_dict.get("visible"))
         kwargs.setdefault("collapsible", config_dict.get("collapsible"))
+        if config_dict.get("resizable") is not None:
+            kwargs.setdefault("resizable", config_dict["resizable"])
 
         # Merge custom params
         if "custom_params" in config_dict:
@@ -442,6 +449,8 @@ def group_widgets_by_location(
             widget.location = location
             widget.order = order
             widget.collapsible = config.collapsible
+            if config.resizable is not None:
+                widget.resizable = config.resizable
         else:
             location = widget.location
             order = widget.order
@@ -544,10 +553,13 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
     }
 
     has_collapsible = False
+    has_resizable = False
 
     for widget in widgets:
         if getattr(widget, "collapsible", False):
             has_collapsible = True
+        if getattr(widget, "resizable", False):
+            has_resizable = True
 
         if widget.dependencies:
             for dep in widget.dependencies:
@@ -572,6 +584,11 @@ def collect_widget_dependencies(widgets: List[WidgetBase]) -> Dict[str, set]:
     if has_collapsible:
         dependencies["js_files"].add("collapsible")
         dependencies["css_files"].add("collapsible")
+
+    # Auto-include resizable JS/CSS when any widget is resizable
+    if has_resizable:
+        dependencies["js_files"].add("resizable")
+        dependencies["css_files"].add("resizable")
 
     return dependencies
 

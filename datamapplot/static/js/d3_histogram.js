@@ -162,7 +162,9 @@ const D3Histogram = (() => {
             enableClickPersistence,
             chartSelectionCallback
         }) {
-            // Define chart dimensions
+            // Define chart dimensions. These are fixed for the chart's lifetime:
+            // scales, axes, clip path and brush/zoom extents are all built from
+            // them, and there is no resize method, so the widget can't be resizable yet.
             const { width, height, margin: { top, right, bottom, left } } = chartDimensions;
             const boundedWidth = width - left - right;
             const boundedHeight = height - top - bottom;
