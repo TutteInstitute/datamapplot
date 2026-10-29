@@ -9,7 +9,8 @@ class Colorbar {
             numTicks: options.numTicks || 5,
             colormap: options.colormap || ['blue', 'red'],
             label: options.label || '',
-            dateFormat: options.dateFormat || 'short'
+            dateFormat: options.dateFormat || 'short',
+            integerData: options.integerData
         };
 
         this.isDateScale = this.options.min instanceof Date ||
@@ -51,7 +52,13 @@ class Colorbar {
 
     analyzeNumericRange() {
         const { min, max } = this.options;
-        this.isIntegerData = Number.isInteger(min) && Number.isInteger(max);
+        // Prefer the flag computed in Python from all values: whole-number
+        // floats like 0.0 and 1.0 look like integers in JavaScript.
+        if (typeof this.options.integerData === 'boolean') {
+            this.isIntegerData = this.options.integerData;
+        } else {
+            this.isIntegerData = Number.isInteger(min) && Number.isInteger(max);
+        }
 
         // Determine the scale of the data
         const maxAbs = Math.max(Math.abs(min), Math.abs(max));
@@ -440,7 +447,7 @@ class ColormapSelectorTool {
             if ((colorMap.kind === "categorical") && ((colorMap.colors.length <= 20) || colorMap.showLegend) && Object.hasOwn(colorMap, "colorMapping")) {
                 new ColorLegend(this.legends[colorMap.field], this.datamap, this.colorData, colorMap.field, { colormap: colorMap.colorMapping });
             } else if (colorMap.kind === "continuous") {
-                new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1] });
+                new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: colorMap.valueRange[0], max: colorMap.valueRange[1], integerData: colorMap.integerData });
             } else if (colorMap.kind === "datetime") {
                 new Colorbar(this.legends[colorMap.field], { colormap: colorMap.colors, label: colorMap.description, min: new Date(colorMap.valueRange[0]), max: new Date(colorMap.valueRange[1]), dateFormat: colorMap.dateFormat });
             }
