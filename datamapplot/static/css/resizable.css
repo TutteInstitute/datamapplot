@@ -1,0 +1,72 @@
+/* Resize handle shared by resizable widgets (see resizable.js) */
+.widget-resize-handle {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 14px;
+    height: 14px;
+    cursor: nwse-resize;
+    touch-action: none;
+    opacity: 0.35;
+    transition: opacity 0.3s ease;
+    color: inherit;
+    line-height: 14px;
+    text-align: right;
+    font-size: 12px;
+    user-select: none;
+    z-index: 2;
+}
+
+.widget-resize-handle::before {
+    content: "\25E2";
+}
+
+/* Handle corner in DOM terms; see makeResizable for how it is chosen */
+.widget-resize-handle.dom-top {
+    top: 2px;
+    bottom: auto;
+}
+
+.widget-resize-handle.dom-left {
+    left: 2px;
+    right: auto;
+    text-align: left;
+}
+
+.widget-resize-handle.dom-left::before {
+    content: "\25E3";
+}
+
+.widget-resize-handle.dom-top::before {
+    content: "\25E5";
+}
+
+.widget-resize-handle.dom-top.dom-left::before {
+    content: "\25E4";
+}
+
+.widget-resize-handle:hover,
+.widget-resize-handle:focus {
+    opacity: 1.0;
+    outline: none;
+}
+
+.widget-resize-handle.vertical-only {
+    cursor: ns-resize;
+    left: 0;
+    right: 0;
+    width: auto;
+    text-align: center;
+}
+
+.widget-resize-handle.vertical-only::before {
+    content: "\2261";
+}
+
+.widget-resize-handle.hidden {
+    display: none;
+}
+
+.widget-resizing {
+    user-select: none;
+}

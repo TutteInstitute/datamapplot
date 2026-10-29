@@ -6,6 +6,9 @@ adding modular UI components to interactive data map plots. Widgets can be
 placed in corner quadrants or slide-out drawers.
 """
 
+import json
+import warnings
+
 from datamapplot.config import ConfigManager
 
 cfg = ConfigManager()
@@ -93,6 +96,10 @@ class WidgetBase:
     visible : bool, optional
         Whether the widget is visible by default. Default is True.
 
+    resizable : bool, optional
+        Whether the user can resize the widget by dragging a handle in its
+        bottom right corner. Default is False.
+
     dependencies : list, optional
         A list of URLs for external dependencies required by the widget.
         Default is an empty list.
@@ -109,6 +116,7 @@ class WidgetBase:
         order=0,
         collapsible=False,
         visible=True,
+        resizable=False,
         dependencies=None,
         **kwargs,
     ):
@@ -118,6 +126,7 @@ class WidgetBase:
         self.order = order
         self.collapsible = collapsible
         self.visible = visible
+        self.resizable = resizable
         # Use instance dependencies if provided, otherwise fall back to class-level dependencies
         if dependencies is not None:
             self.dependencies = dependencies
@@ -160,6 +169,59 @@ class WidgetBase:
         """
         return ""
 
+    def resize_options(self):
+        """Get the options used to make this widget resizable.
+
+        Subclasses can override this to resize an inner element rather than
+        the whole container, e.g. a scrolling content area.
+
+        Returns
+        -------
+        dict
+            Dictionary that may contain the keys ``"width_target"`` and
+            ``"height_target"`` (CSS selectors, relative to the container,
+            for the elements that receive the width and height), and
+            ``"min_width"`` and ``"min_height"`` (in pixels).
+        """
+        return {}
+
+    @property
+    def resize_javascript(self):
+        """Return the JavaScript that attaches a resize handle to the widget.
+
+        Widgets that build their own DOM in JavaScript (and so need to
+        attach the handle themselves) should override this to return ``""``.
+
+        Returns
+        -------
+        str
+            JavaScript string, empty if the widget is not resizable
+        """
+        if not self.resizable:
+            return ""
+
+        opts = self.resize_options()
+        container_id = self.get_container_id()
+        width_target = json.dumps(opts.get("width_target"))
+        height_target = json.dumps(opts.get("height_target"))
+        resize_kwds = {}
+        if "min_width" in opts:
+            resize_kwds["minWidth"] = opts["min_width"]
+        if "min_height" in opts:
+            resize_kwds["minHeight"] = opts["min_height"]
+        return f"""
+(function() {{
+    const container = document.getElementById({json.dumps(container_id)});
+    if (!container || typeof makeResizable !== 'function') return;
+    const find = (selector) => selector ? container.querySelector(selector) : null;
+    makeResizable(find({height_target}) || container, {{
+        ...{json.dumps(resize_kwds)},
+        handleParent: container,
+        widthTarget: find({width_target}) || container,
+    }});
+}})();
+"""
+
     def get_container_id(self):
         """Get the HTML container ID for this widget.
 
@@ -185,6 +247,7 @@ class WidgetBase:
             "order": self.order,
             "collapsible": self.collapsible,
             "visible": self.visible,
+            "resizable": self.resizable,
         }
 
     def render(self, **context):
@@ -206,7 +269,7 @@ class WidgetBase:
         return {
             "html": self.html,
             "css": self.css,
-            "javascript": self.javascript,
+            "javascript": self.javascript + self.resize_javascript,
         }
 
 
@@ -320,6 +383,10 @@ class SelectionWidget(WidgetBase):
     max-height: {self.max_height};
 }}
 """
+
+    def resize_options(self):
+        # Resize the scrolling content area so the title stays in view.
+        return {"height_target": f"#{self.get_container_id()}-content"}
 
     @property
     def javascript(self):
@@ -584,7 +651,7 @@ class TopicTreeWidget(WidgetBase):
         kwargs.setdefault("widget_id", "topic-tree")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 2)
-        super().__init__(**kwargs)
+        super().__init__(resizable=resizable, **kwargs)
 
         self.tree_title = title
         self.font_size = font_size
@@ -593,11 +660,15 @@ class TopicTreeWidget(WidgetBase):
         self.color_bullets = color_bullets
         self.button_on_click = button_on_click
         self.button_icon = button_icon
-        self.resizable = resizable
 
     @property
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box"></div>'
+
+    @property
+    def resize_javascript(self):
+        # TopicTree builds its own DOM and attaches the resize handle itself.
+        return ""
 
     @property
     def javascript(self):
@@ -736,6 +807,16 @@ class HistogramWidget(WidgetBase):
         kwargs.setdefault("location", "bottom-left")
         kwargs.setdefault("order", 1)
         super().__init__(**kwargs)
+        if self.resizable:
+            # Unlike the minimap (canvas redraw) or HTML widgets (reflow), the
+            # D3 chart bakes its size into scales, axes, clip path, brush and
+            # zoom extents at construction and has no resize/teardown method.
+            # Zoom/pan/brush state is also in pixels. Needs an in-place
+            # D3Histogram.resize() before this can be supported.
+            warnings.warn(
+                "HistogramWidget does not support resizable=True yet; ignoring."
+            )
+            self.resizable = False
 
         self.histogram_data = histogram_data
         self.histogram_width = histogram_width
@@ -751,6 +832,12 @@ class HistogramWidget(WidgetBase):
     @property
     def html(self):
         return f'<div id="{self.get_container_id()}" class="container-box stack-box"></div>'
+
+    @property
+    def resize_javascript(self):
+        # Not supported yet (see __init__), even if enabled later through a
+        # layout config.
+        return ""
 
     @property
     def javascript(self):
@@ -1274,7 +1361,8 @@ class MiniMapWidget(WidgetBase):
         Size of data points in pixels. Default is 2.
 
     **kwargs
-        Additional keyword arguments passed to WidgetBase
+        Additional keyword arguments passed to WidgetBase, e.g.
+        ``resizable=True`` to let the user resize the minimap.
     """
 
     dependencies = ["js:minimap", "css:minimap"]
@@ -1311,6 +1399,11 @@ class MiniMapWidget(WidgetBase):
         return f'<div id="{self.get_container_id()}" class="container-box"></div>'
 
     @property
+    def resize_javascript(self):
+        # MiniMap rebuilds its container and attaches the resize handle itself.
+        return ""
+
+    @property
     def javascript(self):
         """Generate JS to instantiate MiniMap."""
         import json
@@ -1341,7 +1434,8 @@ class MiniMapWidget(WidgetBase):
                 backgroundColor: {json.dumps(self.background_color)},
                 pointColor: {json.dumps(self.point_color)},
                 pointSize: {self.point_size},
-                mirrorY: {str("bottom" in self.location and "drawer" not in self.location).lower()}
+                mirrorY: {str("bottom" in self.location and "drawer" not in self.location).lower()},
+                resizable: {str(self.resizable).lower()},
             }}
         );
         

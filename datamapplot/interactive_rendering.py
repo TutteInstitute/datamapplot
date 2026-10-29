@@ -1404,6 +1404,9 @@ def render_html(
                 widget_css += widget.css + "\n"
             if widget.javascript:
                 widget_js += widget.javascript + "\n"
+            resize_js = getattr(widget, "resize_javascript", "")
+            if resize_js:
+                widget_js += resize_js + "\n"
 
         # Collect widget dependencies
         widget_deps = collect_widget_dependencies(all_widgets)
