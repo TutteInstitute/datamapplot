@@ -44,8 +44,11 @@ class TapToInspectManager {
     }
 
     // mjolnir.js events carry pointerType directly; fall back to the source
-    // browser event for anything that doesn't.
+    // browser event for anything that doesn't. Chromium follows a tap with
+    // compatibility mouse events (pointerType 'mouse'); sourceCapabilities
+    // marks them as touch-derived so the hover fallback still sees a tap.
     _pointerType(event) {
+        if (event?.srcEvent?.sourceCapabilities?.firesTouchEvents) return 'touch';
         return (
             event?.pointerType ??
             event?.srcEvent?.pointerType ??

@@ -10,6 +10,7 @@ import importlib.util
 import requests
 import sys
 import pytest
+from packaging.version import Version
 
 custom_style = {
     "figure.constrained_layout.use": True,
@@ -18,11 +19,24 @@ custom_style = {
     "figure.constrained_layout.w_pad": 0.05,
 }
 
+# Baselines are rendered with matplotlib>=3.11; 3.10 output differs far beyond
+# tolerance (RMS ~30-37). Python 3.10 can't install matplotlib 3.11, so these
+# tests skip there rather than fail. Tests with looser tolerances still run.
+requires_baseline_matplotlib = pytest.mark.skipif(
+    Version(matplotlib.__version__) < Version("3.11"),
+    reason="image baselines rendered with matplotlib>=3.11",
+)
 
+
+@requires_baseline_matplotlib
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_cord19(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
+    examples_dir,
+    mock_plt_show,
+    mock_image_requests,
+    mock_savefig,
+    change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_cord19.py' matches baseline
@@ -38,10 +52,15 @@ def test_plot_cord19(
     return fig
 
 
+@requires_baseline_matplotlib
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_arxiv_ml(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
+    examples_dir,
+    mock_plt_show,
+    mock_image_requests,
+    mock_savefig,
+    change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_arxiv_ml.py' matches baseline
@@ -78,6 +97,7 @@ def test_plot_arxiv_ml_edge_bundle(
     return fig
 
 
+@requires_baseline_matplotlib
 @pytest.mark.skipif(sys.platform == "win32", reason="Test has glitches on Windows CI")
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default", tolerance=20)
 def test_plot_arxiv_ml_word_cloud(
@@ -122,6 +142,7 @@ def test_plot_wikipedia(
     return fig
 
 
+@requires_baseline_matplotlib
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style=custom_style)
 def test_plot_simple_arxiv(
