@@ -130,7 +130,7 @@ test.describe('Tap-to-inspect', () => {
   // Find a point that deck.gl confirms as pickable at its projected screen
   // position, plus an empty spot where a pick returns nothing.
   const findTapTargets = async (page: Page) => {
-    const targets = await page.evaluate(() => {
+    const search = () => page.evaluate(() => {
       const dm = (window as any).datamap;
       const vp = dm.deckgl.viewManager?.getViewports?.()[0] || dm.deckgl.getViewports?.()[0];
       const cx = vp.width / 2;
@@ -194,6 +194,14 @@ test.describe('Tap-to-inspect', () => {
 
       return { point, empty };
     });
+    // Retry: on slow software-GL CI machines the pick buffer can lag the
+    // zoom in beforeEach, so a single search intermittently finds no point.
+    let targets = await search();
+    const deadline = Date.now() + 30_000;
+    while ((!targets.point || !targets.empty) && Date.now() < deadline) {
+      await page.waitForTimeout(500);
+      targets = await search();
+    }
     expect(targets.point, 'no pickable point found').toBeTruthy();
     expect(targets.empty, 'no empty spot found').toBeTruthy();
     return targets as {
