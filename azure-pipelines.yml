@@ -32,6 +32,11 @@ parameters:
   displayName: Pool Image and Python Version Matrix
   type: object
   default:
+    # Windows is pinned to windows-2022: on windows-2025 image 20261021.299
+    # (OS build 26100.33650) Playwright's Firefox 134 dies on launch, failing
+    # every Firefox test with "Target page, context or browser has been closed".
+    # Image 20261013.288 passed with the same Playwright/Firefox. Revisit when
+    # @playwright/test is upgraded (needs screenshot baselines regenerated).
     # mac_py310:
     #   imageName: 'macOS-latest'
     #   python.version: '3.10'
@@ -43,7 +48,7 @@ parameters:
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     windows_py310:
-      imageName: 'windows-latest'
+      imageName: 'windows-2022'
       python.version: '3.10'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
@@ -58,7 +63,7 @@ parameters:
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     windows_py311:
-      imageName: 'windows-latest'
+      imageName: 'windows-2022'
       python.version: '3.11'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
@@ -73,7 +78,7 @@ parameters:
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     windows_py312:
-      imageName: 'windows-latest'
+      imageName: 'windows-2022'
       python.version: '3.12'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
@@ -88,7 +93,7 @@ parameters:
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     windows_py313:
-      imageName: 'windows-latest'
+      imageName: 'windows-2022'
       python.version: '3.13'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
@@ -103,7 +108,7 @@ parameters:
       browsers: 'chromium webkit'
       browserProjects: '--project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari'
     windows_py314:
-      imageName: 'windows-latest'
+      imageName: 'windows-2022'
       python.version: '3.14'
       browsers: 'chromium firefox'
       browserProjects: '--project=chromium --project=firefox'
