@@ -32,7 +32,11 @@ requires_baseline_matplotlib = pytest.mark.skipif(
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_cord19(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
+    examples_dir,
+    mock_plt_show,
+    mock_image_requests,
+    mock_savefig,
+    change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_cord19.py' matches baseline
@@ -52,7 +56,11 @@ def test_plot_cord19(
 @pytest.mark.static
 @pytest.mark.mpl_image_compare(baseline_dir="baseline", style="default")
 def test_plot_arxiv_ml(
-    examples_dir, mock_plt_show, mock_image_requests, mock_savefig, change_np_load_path,
+    examples_dir,
+    mock_plt_show,
+    mock_image_requests,
+    mock_savefig,
+    change_np_load_path,
 ):
     """
     Test that the output figure from 'examples/plot_arxiv_ml.py' matches baseline
