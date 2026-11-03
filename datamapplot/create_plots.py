@@ -749,7 +749,7 @@ def create_interactive_plot(
     point_dataframe["a"] = np.uint8(180)
     if marker_alpha_array is not None:
         if (marker_alpha_array <= 1).all():
-            marker_alpha_array *= 255
+            marker_alpha_array = marker_alpha_array * 255
         point_dataframe["a"] = marker_alpha_array.astype(np.uint8)
 
     html_str = render_html(
