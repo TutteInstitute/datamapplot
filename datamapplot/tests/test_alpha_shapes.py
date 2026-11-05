@@ -36,6 +36,27 @@ def test_create_boundary_polygons_alpha_too_low_still_raises():
         create_boundary_polygons(points, simplices, alpha=1e-8)
 
 
+def test_create_boundary_polygons_no_reflected_set_warning():
+    """Issue #90: no numba deprecation warning for passing a Python set."""
+    from numba.core.errors import NumbaPendingDeprecationWarning
+    from scipy.spatial import Delaunay
+
+    from datamapplot.alpha_shapes import build_polygons
+
+    rng = np.random.default_rng(0)
+    points = rng.normal(size=(200, 2))
+    simplices = Delaunay(points).simplices
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", NumbaPendingDeprecationWarning)
+        polygons = create_boundary_polygons(points, simplices, alpha=1.0)
+
+    assert len(polygons) == 1
+    # numba warns only on first compile, so also check no signature takes a set
+    arg_types = [arg for sig in build_polygons.signatures for arg in sig]
+    assert not any(getattr(arg, "reflected", False) for arg in arg_types)
+
+
 @pytest.mark.parametrize(
     "polygon",
     [
