@@ -25,20 +25,32 @@ from datamapplot.fonts import (
 # =============================================================================
 
 
+_google_font_files = {}
+
+
 def download_google_font(fontname):
     """
     Download and register a Google Font for use with matplotlib.
+
+    A font whose files are still registered with matplotlib is not downloaded again.
 
     Parameters
     ----------
     fontname : str
         The name of the Google Font to download.
     """
+    registered_files = {font.fname for font in font_manager.fontManager.ttflist}
+    known_files = _google_font_files.get(fontname)
+    if known_files and registered_files.issuperset(known_files):
+        return
+    downloaded_files = []
     for font in query_google_fonts(fontname):
         f = NamedTemporaryFile(delete=False, suffix=".ttf")
         f.write(font.fetch())
         f.close()
         font_manager.fontManager.addfont(f.name)
+        downloaded_files.append(f.name)
+    _google_font_files[fontname] = downloaded_files
 
 
 def setup_fonts(
