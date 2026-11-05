@@ -105,6 +105,14 @@ def medoid(data, max_points=5000, max_iter=1000, arm_budget=20):
         )
         pull_arms(data, current_active_arms, num_pulls_per_arm, estimates, pull_counts)
 
+        if estimates.max() == estimates.min():
+            exact_costs = np.sum(
+                chunked_parallel_pairwise_distances(
+                    data[current_active_arms], np.ascontiguousarray(data)
+                ),
+                axis=1,
+            )
+            return data[current_active_arms[np.argmin(exact_costs)]]
         median = np.median(estimates)
         mask = estimates <= median
         current_active_arms = current_active_arms[mask]
@@ -115,6 +123,6 @@ def medoid(data, max_points=5000, max_iter=1000, arm_budget=20):
 
     if current_active_arms.shape[0] > 1:
         # if there are multiple arms left, return the one with the smallest estimate
-        return data[current_active_arms[np.argmin(estimates[current_active_arms])]]
+        return data[current_active_arms[np.argmin(estimates)]]
     else:
         return data[current_active_arms[0]]
