@@ -58,11 +58,24 @@ class TapToInspectManager {
 
     // Capture-phase listeners run before deck.gl's own canvas handlers, so
     // lastPointerType and isDrag are always current when deck callbacks fire.
+    //
+    // Touch taps on the map are recognized here rather than through
+    // deck.gl's onClick: deck's click is a hammer Tap recognizer that fails
+    // when pointerup is processed more than 250ms after pointerdown, and
+    // deck runs a synchronous GPU pick on every pointerdown, so on slow
+    // devices (or software-GL CI browsers) taps were silently dropped.
     _bindPointerTracking() {
         const container = this.datamap.container;
         const threshold = this.config.dragThresholdPx * this.config.dragThresholdPx;
+        this._activeTouches = new Set();
+        this._isMultiTouch = false;
         this._onPointerDown = (e) => {
             this.lastPointerType = e.pointerType || 'mouse';
+            if (e.pointerType === 'touch') {
+                this._activeTouches.add(e.pointerId);
+                if (this._activeTouches.size > 1) this._isMultiTouch = true;
+                else if (this._activeTouches.size === 1) this._isMultiTouch = false;
+            }
             this._dragStart = { x: e.clientX, y: e.clientY };
             this.isDrag = false;
         };
@@ -75,27 +88,63 @@ class TapToInspectManager {
                 this.isDrag = true;
             }
         };
-        this._onPointerUp = () => {
+        this._onPointerUp = (e) => {
+            const dragStart = this._dragStart;
             this._dragStart = null;
+            if (e.pointerType !== 'touch') return;
+            this._activeTouches.delete(e.pointerId);
+            if (!dragStart || this._isMultiTouch) return;
+            const dx = e.clientX - dragStart.x;
+            const dy = e.clientY - dragStart.y;
+            if (this.isDrag || dx * dx + dy * dy > threshold) return;
+            this._handleTouchTap(e);
+        };
+        this._onPointerCancel = (e) => {
+            this._dragStart = null;
+            this._activeTouches.delete(e.pointerId);
         };
         container.addEventListener('pointerdown', this._onPointerDown, { capture: true, passive: true });
         container.addEventListener('pointermove', this._onPointerMove, { capture: true, passive: true });
         container.addEventListener('pointerup', this._onPointerUp, { capture: true, passive: true });
+        container.addEventListener('pointercancel', this._onPointerCancel, { capture: true, passive: true });
     }
 
     _bindDeckHandlers() {
         if (this.config.useHoverPath) {
-            // A tap synthesizes a pointermove, so hover fires on taps that
-            // deck.gl's click recognizer sometimes misses.
             this.datamap.onHover('tapToInspect', this._handleHover.bind(this));
         }
-        this.datamap.onClick('tapToInspect', this._handleClick.bind(this));
+    }
+
+    // Only taps that land on the deck.gl canvas itself (not overlaid UI
+    // inside the container) inspect or dismiss, mirroring what deck sees.
+    _handleTouchTap(e) {
+        const deckgl = this.datamap.deckgl;
+        const canvas = deckgl?.canvas;
+        if (!canvas || e.target !== canvas || typeof deckgl.pickObject !== 'function') return;
+        const rect = canvas.getBoundingClientRect();
+        let info;
+        try {
+            info = deckgl.pickObject({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+                radius: deckgl.props?.pickingRadius || 0,
+            });
+        } catch (err) {
+            return;
+        }
+        if (info && info.picked) {
+            this.show(info, e);
+        } else {
+            this.hide();
+        }
     }
 
     _bindDocumentDismiss() {
         this._onDocumentClick = (e) => {
             if (!this.card || !this.card.classList.contains('visible')) return;
             if (this.card.contains(e.target)) return;
+            // Touch taps on the map canvas are handled by _handleTouchTap.
+            if (this.lastPointerType === 'touch' && e.target === this.datamap.deckgl?.canvas) return;
             // The tap that opened the card also bubbles a click to the
             // document; ignore clicks inside the guard window.
             if (Date.now() - this.lastOpenTime < this.config.selfCloseGuardMs) return;
@@ -119,15 +168,6 @@ class TapToInspectManager {
         if (this.isDrag) return;
         if (info && info.picked) {
             this.show(info, event);
-        }
-    }
-
-    _handleClick(info, event) {
-        if (this._pointerType(event) !== 'touch') return;
-        if (info && info.picked) {
-            this.show(info, event);
-        } else {
-            this.hide();
         }
     }
 
@@ -290,11 +330,11 @@ class TapToInspectManager {
 
     destroy() {
         this.datamap.offHover('tapToInspect');
-        this.datamap.offClick('tapToInspect');
         const container = this.datamap.container;
         container.removeEventListener('pointerdown', this._onPointerDown, { capture: true });
         container.removeEventListener('pointermove', this._onPointerMove, { capture: true });
         container.removeEventListener('pointerup', this._onPointerUp, { capture: true });
+        container.removeEventListener('pointercancel', this._onPointerCancel, { capture: true });
         document.removeEventListener('click', this._onDocumentClick);
         if (this.card && this.card.parentNode) {
             this.card.parentNode.removeChild(this.card);

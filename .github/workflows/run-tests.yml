@@ -1,0 +1,162 @@
+name: Run tests
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches:
+    - main
+  pull_request:
+    branches:
+    - main
+    paths-ignore:
+    - doc/**
+    - README.rst
+  # Run nightly at 00:00
+  schedule:
+  - cron: 0 0 * * * 
+concurrency:
+  # Cancel if a new commit is made and things are still running
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  RunAllTests-run_platform_tests:
+    runs-on:
+      - "${{ matrix.image-name }}"
+    strategy:
+      # Don't stop other jobs if one fails
+      fail-fast: false
+      matrix:
+        image-name: [ubuntu-latest, windows-latest, macos-latest, ubuntu-26.04-arm]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
+        include:
+          - image-name: ubuntu-latest
+            browsers: chromium webkit
+            browserProjects: --project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari
+          - image-name: windows-latest
+            browsers: chromium firefox
+            browserProjects: --project=chromium --project=firefox
+          - image-name: macos-latest
+            browsers: chromium firefox
+            browserProjects: --project=chromium --project=firefox
+          - image-name: ubuntu-26.04-arm
+            browsers: chromium webkit
+            browserProjects: --project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari
+    steps:
+    - name: checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+    - name: Install uv and set python version to "${{ matrix.python-version }}"
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        python-version: "${{ matrix.python-version }}"
+    - name: Install package and dependencies
+      run: |-
+        uv sync --group cicd
+    # - name: Run tests
+    #   run: uv run pytest datamapplot/tests --show-capture=no -v --disable-warnings
+    - name: Run python tests (Unix)
+      if: runner.os != 'Windows'
+      run: |-
+        export CI=true
+        mkdir -p ${{ runner.temp }}/mpl
+        uv run pytest datamapplot/tests --mpl --show-capture=no --disable-warnings \
+            --cov=datamapplot/ --cov-report=html \
+            --mpl-generate-summary=html \
+            --mpl-results-path=${{ runner.temp }}/mpl
+      shell: bash
+    - name: Run python tests (Windows)
+      if: runner.os == 'Windows'
+      run: |-
+        $env:CI = "true"
+        New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\mpl"
+        uv run pytest datamapplot/tests --mpl --show-capture=no --disable-warnings `
+            --cov=datamapplot/ --cov-report=html `
+            --mpl-generate-summary=html `
+            --mpl-results-path="${{ runner.temp }}\mpl"
+      shell: powershell
+    - name: List contents of ${{ runner.temp }}/mpl
+      if: runner.os != 'Windows'
+      run: |-
+        echo "Listing contents of ${{ runner.temp }}/mpl:"
+        ls -la ${{ runner.temp }}/mpl
+    - name: Publish MPL Test Artifacts
+      if: always()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 #v7.0.2
+      with:
+        name: mpl-test-results-${{ github.run_id }}-${{ runner.os }}-py${{ matrix.python-version }}
+        path: "${{ runner.temp }}/mpl"
+    - name: List contents of html dir
+      if: runner.os != 'Windows'
+      run: |-
+        echo "Listing contents of html dir:"
+        ls -la ${{ github.workspace }}/datamapplot/tests/html
+    - name: Start HTTP server (Unix)
+      if: runner.os != 'Windows'
+      run: python -m http.server 8000 -d ${{ github.workspace }}/datamapplot/tests/html &
+    - name: Start HTTP server (Windows)
+      if: runner.os == 'Windows'
+      run: |-
+        $serverJob = Start-Process python -ArgumentList "-m", "http.server", "8000", "-d", "$env:GITHUB_WORKSPACE\datamapplot\tests\html" -PassThru -NoNewWindow
+        Start-Sleep -Seconds 5
+        $retry = 0
+        $success = $false
+        do {
+            try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:8000" -Method Head -UseBasicParsing
+                if ($response.StatusCode -eq 200) {
+                    Write-Host "Server started successfully"
+                    $success = $true
+                    break
+                }
+            } catch {
+                Write-Host "Waiting for server to start... Attempt $retry"
+            }
+            Start-Sleep -Seconds 2
+            $retry++
+        } while ($retry -lt 5)
+        if (-not $success) {
+            Write-Error "Server failed to start after multiple attempts"
+            exit 1
+        }
+      shell: powershell
+    - name: Install node
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: lts/*
+    - name: Install npm dependencies
+      run: npm ci
+      working-directory: "${{ github.workspace }}/datamapplot/interactive_tests"
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps ${{ matrix.browsers }}
+      working-directory: "${{ github.workspace }}/datamapplot/interactive_tests"
+    - name: Run Playwright tests (Unix)
+      if: success() && runner.os != 'Windows'
+      env:
+        CI: 'true'
+      run: |-
+        if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+          npx playwright test ${{ matrix.browserProjects }} --grep-invert @slow
+        else
+          npx playwright test ${{ matrix.browserProjects }}
+        fi
+      shell: bash
+      working-directory: "${{ github.workspace }}/datamapplot/interactive_tests"
+    - name: Run Playwright tests (Windows)
+      if: success() && runner.os == 'Windows'
+      env:
+        CI: 'true'
+      run: |-
+        if ("${{ github.event_name }}" -eq "pull_request") {
+          npx playwright test ${{ matrix.browserProjects }} --grep-invert '@slow'
+        } else {
+          npx playwright test ${{ matrix.browserProjects }}
+        }
+      shell: powershell
+      working-directory: "${{ github.workspace }}/datamapplot/interactive_tests"
+    - name: Publish Playwright Test Report
+      if: success() || failure()
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 #v7.0.2
+      with:
+        name: playwright-report-${{ github.run_id }}-${{ runner.os }}-py${{ matrix.python-version }}
+        path: "${{ github.workspace }}/datamapplot/interactive_tests/playwright-report"

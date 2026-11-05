@@ -1,0 +1,166 @@
+name: Update screenshot baselines
+
+on:
+  workflow_dispatch:
+    inputs:
+      runUpdates:
+        description: Select which baseline images to update
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - interactive
+          - static
+
+concurrency:
+  group: screenshots-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate-baselines:
+    name: Generate Python baselines (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.14"
+            os-key: linux
+          - os: windows-latest
+            python-version: "3.14"
+            os-key: windows
+    steps:
+      - name: Checkout
+        if: inputs.runUpdates != 'static' || matrix.os == 'ubuntu-latest'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv and set Python version
+        if: inputs.runUpdates != 'static' || matrix.os == 'ubuntu-latest'
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package and dependencies
+        if: inputs.runUpdates != 'static' || matrix.os == 'ubuntu-latest'
+        run: uv sync --group cicd
+
+      - name: Generate static and interactive Python baselines (Linux)
+        if: runner.os == 'Linux' && inputs.runUpdates == 'all'
+        env:
+          CI: "true"
+        run: uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m "static or interactive"
+
+      - name: Generate static Python baselines (Linux)
+        if: runner.os == 'Linux' && inputs.runUpdates == 'static'
+        env:
+          CI: "true"
+        run: uv run pytest datamapplot/tests --mpl --mpl-generate-path=datamapplot/tests/baseline -m static
+
+      - name: Generate interactive Python baselines (Linux)
+        if: runner.os == 'Linux' && inputs.runUpdates == 'interactive'
+        env:
+          CI: "true"
+        run: uv run pytest datamapplot/tests -m interactive
+
+      - name: Generate interactive Python baselines (Windows)
+        if: runner.os == 'Windows' && inputs.runUpdates != 'static'
+        env:
+          CI: "true"
+        run: uv run pytest datamapplot/tests -m interactive
+
+      - name: Upload updated MPL screenshots
+        if: runner.os == 'Linux' && inputs.runUpdates != 'interactive'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updated-mpl-screenshots
+          path: datamapplot/tests/baseline/*.png
+          if-no-files-found: error
+
+      - name: Upload generated interactive HTML
+        if: inputs.runUpdates != 'static'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: interactive-html-${{ matrix.os-key }}
+          path: datamapplot/tests/html/
+          if-no-files-found: error
+
+  update-playwright-snapshots:
+    name: Generate Playwright snapshots (${{ matrix.os }})
+    if: inputs.runUpdates != 'static'
+    needs: generate-baselines
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.11"
+            os-key: linux
+            browsers: chromium webkit
+            browser-projects: --project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari
+            snapshot-suffix: linux
+          - os: windows-latest
+            python-version: "3.12"
+            os-key: windows
+            browsers: chromium firefox
+            browser-projects: --project=chromium --project=firefox
+            snapshot-suffix: win32
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv and set Python version
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Download generated interactive HTML
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: interactive-html-${{ matrix.os-key }}
+          path: datamapplot/tests/html
+
+      - name: Install Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Install npm dependencies
+        run: npm ci
+        working-directory: datamapplot/interactive_tests
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browsers }}
+        working-directory: datamapplot/interactive_tests
+
+      - name: Remove existing Playwright snapshots (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Get-ChildItem -Path "datamapplot/interactive_tests/tests" -Directory |
+          ForEach-Object {
+              Get-ChildItem -Path $_.FullName -Recurse -File | Remove-Item -Force
+          }
+
+      - name: Remove existing Playwright snapshots (Unix)
+        if: runner.os != 'Windows'
+        run: find datamapplot/interactive_tests/tests -mindepth 2 -type f -delete
+
+      - name: Update Playwright snapshots
+        env:
+          CI: "true"
+        run: npx playwright test --update-snapshots ${{ matrix.browser-projects }}
+        working-directory: datamapplot/interactive_tests
+
+      - name: Upload updated Playwright screenshots
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: updated-playwright-screenshots-${{ matrix.os }}
+          path: datamapplot/interactive_tests/tests/**/*-${{ matrix.snapshot-suffix }}.png
+          if-no-files-found: error
