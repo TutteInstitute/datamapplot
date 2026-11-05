@@ -48,7 +48,7 @@ def boundary_from_candidates(boundary_candidates):
 @numba.njit()
 def build_polygons(boundary):
     polygons = []
-    search_set = boundary.copy()
+    search_set = set([(edge[0], edge[1]) for edge in boundary])
     sequence = list(search_set.pop())
     while len(search_set) > 0:
         to_find = sequence[-1]
@@ -88,7 +88,8 @@ def create_boundary_polygons(points, simplices, alpha=0.1):
         raise ValueError(
             "The value of polygon_alpha was too low, and no boundary was formed. Try increasing polygon_alpha."
         )
-    polygons = build_polygons(boundary)
+    # numba deprecates passing a Python set into njit code (issue #90)
+    polygons = build_polygons(np.array(list(boundary)))
 
     result = [
         np.empty((len(sequence) + 1, 2), dtype=np.float32) for sequence in polygons
