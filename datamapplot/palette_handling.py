@@ -185,8 +185,8 @@ def palette_from_cmap_and_datamap(
         radii_reference = radii_sector[i_nearest_sector]
         scale = np.arange(len(radii_reference)) / len(radii_reference)
 
-        chroma_labels.append(np.interp(radius, radii_reference, np.sort(scale_chroma(scale))))
-        lightness_labels.append(np.interp(radius, radii_reference, np.sort(scale_lightness(1. - scale))[::-1]))
+        chroma_labels.append(np.interp(radius, radii_reference, np.sort(scale_chroma(scale), kind="stable")))
+        lightness_labels.append(np.interp(radius, radii_reference, np.sort(scale_lightness(1. - scale), kind="stable")[::-1]))
 
     palette = np.clip(
         colorspacious.cspace_convert(
