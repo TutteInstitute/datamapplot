@@ -9,9 +9,9 @@ class GoogleAPIUnreachable(Warning):
     pass
 
 
-def can_reach_google_fonts(timeout: float = 5.0) -> bool:
+def can_reach_google_fonts(timeout: float = 5.0, session=None) -> bool:
     try:
-        response = requests.get(
+        response = (session or requests).get(
             "https://fonts.googleapis.com/css?family=Roboto", timeout=timeout
         )
         return response.ok
@@ -23,10 +23,10 @@ def get_api_fontname(fontname):
     return fontname.replace(" ", "+")
 
 
-def query_google_fonts(fontname):
+def query_google_fonts(fontname, session=None):
     try:
         api_fontname = get_api_fontname(fontname)
-        api_response = requests.get(
+        api_response = (session or requests).get(
             f"https://fonts.googleapis.com/css?family={api_fontname}:black,bold,regular,light"
         )
         if api_response.ok:
@@ -52,10 +52,10 @@ def _is_trusted_url(url: str) -> bool:
 class Font:
     url: str
 
-    def fetch(self):
+    def fetch(self, session=None):
         if not _is_trusted_url(self.url):
             raise ValueError(f"Untrusted font URL: {self.url}")
-        return requests.get(self.url).content
+        return (session or requests).get(self.url).content
 
 
 @dataclass
