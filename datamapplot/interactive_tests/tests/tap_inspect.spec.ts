@@ -74,6 +74,13 @@ test.describe('Tap-to-inspect', () => {
     // Extend timeout for all tests running this hook by 4 minutes.
     testInfo.setTimeout(testInfo.timeout + 240_000);
 
+    // The fixture's on_click opens a live Google search in a popup. Serve it
+    // locally so the popup loads instantly: on a slow runner the real page
+    // kept popup.close() waiting until the test timed out.
+    await page.context().route('**://google.com/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: '' })
+    );
+
     const response = await page.goto('http://localhost:8000/arxiv_ml.html', { timeout: 60_000 });
     expect(response.status()).toBe(200);
 
