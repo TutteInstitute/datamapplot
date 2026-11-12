@@ -23,6 +23,7 @@ from urllib.request import urlopen
 
 import numpy as np
 import pandas as pd
+import requests
 from colorspacious import cspace_convert
 from matplotlib.colors import rgb2hex, to_rgba
 from pandas.api.types import is_datetime64_any_dtype, is_string_dtype
@@ -151,27 +152,28 @@ def get_google_font_for_embedding(fontname, offline_mode=False, offline_font_fil
         )
         return ""
 
-    if can_reach_google_fonts(timeout=10.0):
-        font_links = []
-        collection = query_google_fonts(fontname)
-        for font in collection:
-            if font.url.endswith(".ttf"):
-                font_links.append(
-                    f'<link rel="preload" href="{font.url}" as="font" '
-                    f'crossorigin="anonymous" type="font/ttf" />'
-                )
-            elif font.url.endswith(".woff2"):
-                font_links.append(
-                    f'<link rel="preload" href="{font.url}" as="font" '
-                    f'crossorigin="anonymous" type="font/woff2" />'
-                )
-        return (
-            "\n".join(font_links)
-            + "\n<style>\n"
-            + str(collection.content)
-            + "\n</style>\n"
-        )
-    return ""
+    with requests.Session() as session:
+        if not can_reach_google_fonts(timeout=10.0, session=session):
+            return ""
+        collection = query_google_fonts(fontname, session)
+    font_links = []
+    for font in collection:
+        if font.url.endswith(".ttf"):
+            font_links.append(
+                f'<link rel="preload" href="{font.url}" as="font" '
+                f'crossorigin="anonymous" type="font/ttf" />'
+            )
+        elif font.url.endswith(".woff2"):
+            font_links.append(
+                f'<link rel="preload" href="{font.url}" as="font" '
+                f'crossorigin="anonymous" type="font/woff2" />'
+            )
+    return (
+        "\n".join(font_links)
+        + "\n<style>\n"
+        + str(collection.content)
+        + "\n</style>\n"
+    )
 
 
 def _build_font_face_css(fontname, font_data):

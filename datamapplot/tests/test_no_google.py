@@ -30,7 +30,7 @@ def hover_text():
 @contextmanager
 def no_google(num_warnings):
     with patch(
-        "datamapplot.fonts.requests.get",
+        "requests.Session.request",
         side_effect=ConnectionError
     ) as mock_get, catch_warnings(record=True) as caught:
         yield mock_get

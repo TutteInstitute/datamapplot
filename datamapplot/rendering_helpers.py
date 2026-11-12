@@ -6,6 +6,7 @@ function to improve code organization, reusability, and maintainability.
 """
 
 import numpy as np
+import requests
 from tempfile import NamedTemporaryFile
 from warnings import warn
 
@@ -28,7 +29,7 @@ from datamapplot.fonts import (
 _google_font_files = {}
 
 
-def download_google_font(fontname):
+def download_google_font(fontname, session=None):
     """
     Download and register a Google Font for use with matplotlib.
 
@@ -44,9 +45,9 @@ def download_google_font(fontname):
     if known_files and registered_files.issuperset(known_files):
         return
     downloaded_files = []
-    for font in query_google_fonts(fontname):
+    for font in query_google_fonts(fontname, session):
         f = NamedTemporaryFile(delete=False, suffix=".ttf")
-        f.write(font.fetch())
+        f.write(font.fetch(session))
         f.close()
         font_manager.fontManager.addfont(f.name)
         downloaded_files.append(f.name)
@@ -81,30 +82,31 @@ def setup_fonts(
             print("Using system fonts only (use_system_fonts=True)")
         return
 
-    if not can_reach_google_fonts(timeout=5.0):
-        warn(
-            "Cannot reach Google APIs to download the font you selected. "
-            "Will fallback on fonts already installed.",
-            GoogleAPIUnreachable,
-        )
-        return
+    with requests.Session() as session:
+        if not can_reach_google_fonts(timeout=5.0, session=session):
+            warn(
+                "Cannot reach Google APIs to download the font you selected. "
+                "Will fallback on fonts already installed.",
+                GoogleAPIUnreachable,
+            )
+            return
 
-    if verbose:
-        print("Getting any required fonts...")
+        if verbose:
+            print("Getting any required fonts...")
 
-    # Download main font and its base variant
-    download_google_font(font_family)
-    download_google_font(font_family.split()[0])
+        # Download main font and its base variant
+        download_google_font(font_family, session)
+        download_google_font(font_family.split()[0], session)
 
-    # Download title font if specified
-    if title_keywords is not None and "fontfamily" in title_keywords:
-        download_google_font(title_keywords["fontfamily"])
-        download_google_font(title_keywords["fontfamily"].split()[0])
+        # Download title font if specified
+        if title_keywords is not None and "fontfamily" in title_keywords:
+            download_google_font(title_keywords["fontfamily"], session)
+            download_google_font(title_keywords["fontfamily"].split()[0], session)
 
-    # Download subtitle font if specified
-    if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
-        download_google_font(sub_title_keywords["fontfamily"])
-        download_google_font(sub_title_keywords["fontfamily"].split()[0])
+        # Download subtitle font if specified
+        if sub_title_keywords is not None and "fontfamily" in sub_title_keywords:
+            download_google_font(sub_title_keywords["fontfamily"], session)
+            download_google_font(sub_title_keywords["fontfamily"].split()[0], session)
 
 
 # =============================================================================

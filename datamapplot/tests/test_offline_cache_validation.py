@@ -338,7 +338,10 @@ class TestOfflineFontHandling(unittest.TestCase):
             with font_cache_path.open("w") as f:
                 json.dump(FONT_CACHE, f)
 
-            with patch("requests.get", side_effect=AssertionError("network used")):
+            with patch(
+                "requests.Session.request",
+                side_effect=AssertionError("network used"),
+            ):
                 result = prepare_fonts(
                     "Roboto",
                     "Roboto",

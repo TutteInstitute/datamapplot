@@ -3,7 +3,7 @@ import tempfile
 import json
 import numpy as np
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 import datamapplot
 from datamapplot import offline_mode_caching
 from datamapplot.interactive_rendering import get_google_font_for_embedding
@@ -169,7 +169,7 @@ class TestOfflineFontFileHandling(unittest.TestCase):
             )
 
             # Should query Google Fonts, not use the file
-            mock_query.assert_called_once_with("TestFont")
+            mock_query.assert_called_once_with("TestFont", ANY)
             self.assertIn("@font-face", result)
 
 
