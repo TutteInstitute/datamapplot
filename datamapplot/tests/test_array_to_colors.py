@@ -17,3 +17,4 @@ def test_array_to_colors_timezone_aware_datetimes():
     assert aware_metadata["kind"] == "datetime"
     assert aware_metadata["valueRange"] == naive_metadata["valueRange"]
     np.testing.assert_array_equal(aware_colors, naive_colors)
+
