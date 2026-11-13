@@ -1724,12 +1724,18 @@ def label_text_and_polygon_dataframes(
         A dataframe containing relevant information for each label.
     """
     cluster_label_vector = np.asarray(labels)
-    unique_non_noise_labels = [
-        label for label in np.unique(cluster_label_vector) if label != noise_label
-    ]
+    # Hashing the labels and sorting only the distinct ones is much cheaper than
+    # np.unique, which sorts every point's label.
+    label_codes, sorted_labels = pd.factorize(
+        cluster_label_vector, sort=True, use_na_sentinel=False
+    )
+    unique_non_noise_labels = [label for label in sorted_labels if label != noise_label]
     label_map = {n: i for i, n in enumerate(unique_non_noise_labels)}
     label_map[noise_label] = -1
-    cluster_idx_vector = np.asarray(pd.Series(cluster_label_vector).map(label_map))
+    cluster_idx_by_code = np.asarray(
+        [label_map[label] for label in sorted_labels], dtype=np.int64
+    )
+    cluster_idx_vector = cluster_idx_by_code[label_codes]
 
     label_locations = []
     cluster_sizes = []
