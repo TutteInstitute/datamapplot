@@ -8,6 +8,7 @@ from datamapplot.overlap_computations import (
     overlap_intervals,
     text_line_overlaps,
     intersect,
+    intersect_many,
 )
 
 from matplotlib import pyplot as plt
@@ -22,18 +23,27 @@ def row_norm(an_array):
 
 def fix_crossings(text_locations, label_locations, n_iter=3):
     # Find crossing lines and swap labels; repeat as required
+    n_labels = text_locations.shape[0]
     for n in range(n_iter):
-        for i in range(text_locations.shape[0]):
-            for j in range(text_locations.shape[0]):
-                if intersect(
+        for i in range(n_labels):
+            # Test the remaining lines at once, swap with the first crossing,
+            # then resume after it with the new text location of label i
+            scan_start = 0
+            while scan_start < n_labels:
+                crossings = intersect_many(
                     text_locations[i],
                     label_locations[i],
-                    text_locations[j],
-                    label_locations[j],
-                ):
-                    swap = text_locations[i].copy()
-                    text_locations[i] = text_locations[j]
-                    text_locations[j] = swap
+                    (text_locations[scan_start:, 0], text_locations[scan_start:, 1]),
+                    (label_locations[scan_start:, 0], label_locations[scan_start:, 1]),
+                )
+                hits = np.flatnonzero(crossings)
+                if hits.size == 0:
+                    break
+                j = scan_start + hits[0]
+                swap = text_locations[i].copy()
+                text_locations[i] = text_locations[j]
+                text_locations[j] = swap
+                scan_start = j + 1
 
 
 def initial_text_location_placement(
