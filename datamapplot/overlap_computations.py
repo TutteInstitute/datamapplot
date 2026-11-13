@@ -16,6 +16,11 @@ def intersect(a, b, c, d):
     return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
 
 
+def intersect_many(a, b, c, d):
+    """Elementwise ``intersect`` for points whose x and y may be arrays."""
+    return (ccw(a, c, d) != ccw(b, c, d)) & (ccw(a, b, c) != ccw(a, b, d))
+
+
 # From bioframe (https://github.com/open2c/bioframe)
 def arange_multi(starts, stops):
     lengths = stops - starts
@@ -144,17 +149,13 @@ def get_2d_coordinates(objs, expand=(1.0, 1.0)):
 
 
 def text_line_overlaps(text_locations, label_locations, text_bounding_boxes):
-    result = []
-    for i, box in enumerate(text_bounding_boxes):
-        for j in range(text_locations.shape[0]):
-            if i == j:
-                continue
-
-            if intersect(
-                text_locations[j], label_locations[j], box[[0, 2]], box[[1, 3]]
-            ) or intersect(
-                text_locations[j], label_locations[j], box[[0, 3]], box[[1, 2]]
-            ):
-                result.append((i, j))
-
-    return result
+    # Box columns as (n_boxes, 1) arrays broadcast against the per-line arrays
+    # into a (box i, line j) grid; each line is tested against both diagonals
+    xmin, xmax, ymin, ymax = (text_bounding_boxes[:, [k]] for k in range(4))
+    line_starts = (text_locations[:, 0], text_locations[:, 1])
+    line_ends = (label_locations[:, 0], label_locations[:, 1])
+    crossings = intersect_many(
+        line_starts, line_ends, (xmin, ymin), (xmax, ymax)
+    ) | intersect_many(line_starts, line_ends, (xmin, ymax), (xmax, ymin))
+    np.fill_diagonal(crossings, False)
+    return [tuple(pair) for pair in np.argwhere(crossings).tolist()]
