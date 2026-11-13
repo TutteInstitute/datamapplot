@@ -721,19 +721,24 @@ def create_interactive_plot(
             * data_map_coords.shape[0],
             dtype=np.uint8,
         )
+        # The first layer is painted last, so its colours win wherever it labels a point.
         for labels in reversed(label_layers):
-            label_map = {n: i for i, n in enumerate(np.unique(labels))}
-            if noise_label not in label_map:
-                label_map[noise_label] = -1
-            label_unmap = {i: n for n, i in label_map.items()}
-            cluster_label_vector = np.asarray(pd.Series(labels).map(label_map))
-            unique_non_noise_labels = [
-                label for label in label_unmap if label != label_map[noise_label]
+            label_codes, layer_labels = pd.factorize(
+                np.asarray(labels), use_na_sentinel=False
+            )
+            is_cluster_label = layer_labels != noise_label
+            # Noise labels keep the noise colour; their palette row is never read.
+            layer_palette = np.asarray(
+                [
+                    color_map[label] if is_cluster else (0, 0, 0)
+                    for label, is_cluster in zip(layer_labels, is_cluster_label)
+                ],
+                dtype=np.uint8,
+            ).reshape(-1, 3)
+            point_is_clustered = is_cluster_label[label_codes]
+            color_vector[point_is_clustered] = layer_palette[
+                label_codes[point_is_clustered]
             ]
-            for label in unique_non_noise_labels:
-                color_vector[cluster_label_vector == label] = color_map[
-                    label_unmap[label]
-                ]
     else:
         color_vector = np.asarray(
             [
