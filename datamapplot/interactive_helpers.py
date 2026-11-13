@@ -1740,16 +1740,25 @@ def label_text_and_polygon_dataframes(
     parent_ids = []
     skipped_polygons = defaultdict(list)
 
+    # A stable sort keeps each cluster's point indices ascending, like a mask
+    points_by_cluster = np.argsort(cluster_idx_vector, kind="stable")
+    cluster_starts = np.searchsorted(
+        cluster_idx_vector[points_by_cluster],
+        np.arange(len(unique_non_noise_labels) + 1),
+    )
+
     for i, label in enumerate(unique_non_noise_labels):
-        cluster_mask = cluster_idx_vector == i
-        cluster_points = data_map_coords[cluster_mask]
+        cluster_point_indices = points_by_cluster[
+            cluster_starts[i] : cluster_starts[i + 1]
+        ]
+        cluster_points = data_map_coords[cluster_point_indices]
 
         if use_medoids:
             label_locations.append(medoid(cluster_points))
         else:
             label_locations.append(cluster_points.mean(axis=0))
 
-        cluster_sizes.append(np.sum(cluster_mask) ** 0.25)
+        cluster_sizes.append(len(cluster_point_indices) ** 0.25)
 
         if cluster_polygons:
             polygon, skip_reason = _compute_cluster_polygon(cluster_points, alpha)
@@ -1765,16 +1774,15 @@ def label_text_and_polygon_dataframes(
             points_bounds.append(None)
 
         if include_related_points:
-            related_points.append(np.where(cluster_mask)[0].tolist())
+            related_points.append(cluster_point_indices.tolist())
         else:
             related_points.append(None)
 
         # Handle label IDs and parent tracking
         if parents is not None:
-            label_id, parent_id = _find_parent_id(cluster_mask, parents, i)
+            label_id, parent_id = _find_parent_id(cluster_point_indices, parents, i)
             label_ids.append(label_id)
             parent_ids.append(parent_id)
-            parents.append(cluster_mask)
         else:
             label_ids.append(None)
             parent_ids.append(None)
@@ -1784,7 +1792,7 @@ def label_text_and_polygon_dataframes(
     if parents is not None:
         unlabelled_mask = cluster_idx_vector == -1
         parent_masks = (
-            [parents[0][-1] == parent for parent in np.unique(parents[0][-1])]
+            (parents[0][-1] == parent for parent in np.unique(parents[0][-1]))
             if len(parents[0])
             else [unlabelled_mask]
         )
@@ -1904,14 +1912,16 @@ def _compute_label_bounds(cluster_points):
     return [float(xmin), float(xmax), float(ymin), float(ymax)]
 
 
-def _find_parent_id(cluster_mask, parents, label_num):
+def _find_parent_id(cluster_points_selector, parents, label_num):
     if len(parents[0]) == 0:
         return f"base_{label_num}", "base"
     else:
         provenance = (
             ["base"]
             + list(
-                np.median(parents[0][:, cluster_mask], axis=1).astype(int).astype(str)
+                np.median(parents[0][:, cluster_points_selector], axis=1)
+                .astype(int)
+                .astype(str)
             )
             + [str(label_num)]
         )
