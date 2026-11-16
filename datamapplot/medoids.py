@@ -16,6 +16,7 @@ import numba
         ),
     ],
     fastmath=True,
+    cache=True,
     locals={
         "result": numba.types.float32,
         "diff": numba.types.float32,
@@ -38,8 +39,8 @@ def euclidean(x, y):
     return np.sqrt(result)
 
 
-@numba.njit(parallel=True, nogil=True)
-def chunked_parallel_pairwise_distances(X, Y=None, metric=euclidean, chunk_size=16):
+@numba.njit(parallel=True, nogil=True, cache=True)
+def chunked_parallel_pairwise_distances(X, Y=None, chunk_size=16):
     if Y is None:
         XX, symmetrical = X, True
         row_size = col_size = X.shape[0]
@@ -57,11 +58,11 @@ def chunked_parallel_pairwise_distances(X, Y=None, metric=euclidean, chunk_size=
             chunk_end_m = min(m + chunk_size, col_size)
             for i in range(n, chunk_end_n):
                 for j in range(m, chunk_end_m):
-                    result[i, j] = metric(X[i], XX[j])
+                    result[i, j] = euclidean(X[i], XX[j])
     return result
 
 
-@numba.njit()
+@numba.njit(cache=True)
 def pull_arms(data, arms, num_pulls_per_arm, estimates, pull_counts):
     other_candidates = np.random.choice(
         data.shape[0], size=num_pulls_per_arm, replace=False
@@ -79,7 +80,7 @@ def pull_arms(data, arms, num_pulls_per_arm, estimates, pull_counts):
     estimates /= pull_counts
 
 
-@numba.njit()
+@numba.njit(cache=True)
 def medoid(data, max_points=5000, max_iter=1000, arm_budget=20):
     # subsample data if it is too large so that runtime is reasonable
     if data.shape[0] > max_points:
