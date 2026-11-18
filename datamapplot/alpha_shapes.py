@@ -6,7 +6,7 @@ import numba
 from scipy.interpolate import splprep, splev
 
 
-@numba.njit()
+@numba.njit(cache=True)
 def circumradius(points):
     bc = points[1:] - points[0]
     d = 2 * (bc[0, 0] * bc[1, 1] - bc[0, 1] * bc[1, 0])
@@ -19,7 +19,7 @@ def circumradius(points):
     return np.sqrt(ux * ux + uy * uy)
 
 
-@numba.njit(locals={"candidate_idx": numba.uint64})
+@numba.njit(cache=True, locals={"candidate_idx": numba.uint64})
 def find_boundary_candidates(points, simplices, alpha=0.1):
     candidates = np.full((simplices.shape[0] * 3, 2), -1, dtype=np.int32)
     candidate_idx = 0
@@ -32,7 +32,7 @@ def find_boundary_candidates(points, simplices, alpha=0.1):
     return candidates[:candidate_idx]
 
 
-@numba.njit()
+@numba.njit(cache=True)
 def boundary_from_candidates(boundary_candidates):
     occurrence_counts = {(np.int32(0), np.int32(0)): 0 for i in range(0)}
     for candidate in boundary_candidates:
@@ -45,7 +45,7 @@ def boundary_from_candidates(boundary_candidates):
     return set([x for x in occurrence_counts if occurrence_counts[x] == 1])
 
 
-@numba.njit()
+@numba.njit(cache=True)
 def build_polygons(boundary):
     polygons = []
     search_set = set([(edge[0], edge[1]) for edge in boundary])
