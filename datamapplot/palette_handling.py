@@ -114,8 +114,8 @@ class ColorsThroughMap:
     def scalers(self, bounds_chroma: Bounds, bounds_lightness: Bounds) -> Iterator[tuple[Scaler, Scaler]]:
         for lightness, chroma, _ in self.jch:
             yield (
-                lambda x: scaling_parabolic(x, bounds_chroma[0], chroma, bounds_chroma[1]),
-                lambda x: scaling_parabolic(x, bounds_lightness[0], lightness, bounds_lightness[1])
+                lambda x, chroma=chroma: scaling_parabolic(x, bounds_chroma[0], chroma, bounds_chroma[1]),
+                lambda x, lightness=lightness: scaling_parabolic(x, bounds_lightness[0], lightness, bounds_lightness[1])
             )
 
 
@@ -178,15 +178,24 @@ def palette_from_cmap_and_datamap(
         radii_sector.append(np.sort(pol_data.radii[r_mask]))
     assert len(radii_sector) == len(thetas_sector)
 
-    lightness_labels = []
-    chroma_labels = []
-    for (scale_chroma, scale_lightness), theta, radius in zip(colorset.scalers(chroma_bounds, lightness_bounds), pol_labels.thetas, pol_labels.radii):
-        i_nearest_sector = np.argmin(np.abs(thetas_sector - theta))
-        radii_reference = radii_sector[i_nearest_sector]
-        scale = np.arange(len(radii_reference)) / len(radii_reference)
-
-        chroma_labels.append(np.interp(radius, radii_reference, np.sort(scale_chroma(scale), kind="stable")))
-        lightness_labels.append(np.interp(radius, radii_reference, np.sort(scale_lightness(1. - scale), kind="stable")[::-1]))
+    scalers = list(colorset.scalers(chroma_bounds, lightness_bounds))
+    nearest_sectors = [np.argmin(np.abs(thetas_sector - theta)) for theta in pol_labels.thetas]
+    lightness_labels = np.empty(len(scalers))
+    chroma_labels = np.empty(len(scalers))
+    labels_grouped_by_sector = np.argsort(nearest_sectors, kind="stable")
+    curves_key = None
+    for i_label in labels_grouped_by_sector:
+        scale_chroma, scale_lightness = scalers[i_label]
+        key = (nearest_sectors[i_label], scale_chroma, scale_lightness)
+        if key != curves_key:
+            radii_reference = radii_sector[key[0]]
+            scale = np.arange(len(radii_reference)) / len(radii_reference)
+            chroma_curve = np.sort(scale_chroma(scale), kind="stable")
+            lightness_curve = np.sort(scale_lightness(1. - scale), kind="stable")[::-1]
+            curves_key = key
+        radius = pol_labels.radii[i_label]
+        chroma_labels[i_label] = np.interp(radius, radii_reference, chroma_curve)
+        lightness_labels[i_label] = np.interp(radius, radii_reference, lightness_curve)
 
     palette = np.clip(
         colorspacious.cspace_convert(
