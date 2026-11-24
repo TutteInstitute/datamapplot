@@ -31,34 +31,49 @@ class LassoSelectionTool {
         const scatterLayer = this.datamap.deckgl.props.layers.find(layer => layer instanceof deck.ScatterplotLayer);
         if (!scatterLayer) return;
 
-        const { attributes } = scatterLayer.props.data;
-        this.points = attributes.getPosition.value;
+        this.rebuildQuadTree(scatterLayer.props.data.attributes.getPosition.value);
+    }
+
+    /**
+     * Rebuilds the QuadTree from point positions, optionally for a subset only.
+     * @param {Float32Array} points - Interleaved x, y positions of all points.
+     * @param {ArrayLike<number>|null} indices - Indices of the points that can be
+     *   selected (all points when null). An empty subset disables selection.
+     */
+    rebuildQuadTree(points, indices = null) {
+        this.points = points;
+        const count = indices ? indices.length : points.length / 2;
+        if (count === 0) {
+            this.quadTree = null;
+            return;
+        }
 
         // Find the bounds of the data
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (let i = 0; i < this.points.length; i += 2) {
-            minX = Math.min(minX, this.points[i]);
-            maxX = Math.max(maxX, this.points[i]);
-            minY = Math.min(minY, this.points[i + 1]);
-            maxY = Math.max(maxY, this.points[i + 1]);
+        for (let t = 0; t < count; t++) {
+            const i = indices ? indices[t] : t;
+            minX = Math.min(minX, points[2 * i]);
+            maxX = Math.max(maxX, points[2 * i]);
+            minY = Math.min(minY, points[2 * i + 1]);
+            maxY = Math.max(maxY, points[2 * i + 1]);
         }
+        // Pad so points on the max edges fall inside the half-open boundary.
+        const padX = Math.max((maxX - minX) * 1e-6, 1e-9);
+        const padY = Math.max((maxY - minY) * 1e-6, 1e-9);
 
         // Estimate leaf size based on the number of points
-        const numPoints = this.points.length / 2;
-        const leafSize = Math.max(Math.ceil(Math.sqrt(numPoints)), 64);
+        const leafSize = Math.max(Math.ceil(Math.sqrt(count)), 64);
 
-        // Create the QuadTree
         const boundary = {
-            x: minX,
-            y: minY,
-            width: maxX - minX,
-            height: maxY - minY
+            x: minX - padX,
+            y: minY - padY,
+            width: maxX - minX + 2 * padX,
+            height: maxY - minY + 2 * padY
         };
-        this.quadTree = new QuadTree(boundary, leafSize);  // Capacity of 4 points per quad
+        this.quadTree = new QuadTree(boundary, leafSize);
 
-        // Insert points into the QuadTree
-        for (let i = 0; i < this.points.length / 2; i++) {
-            this.quadTree.insert(this.points, i);
+        for (let t = 0; t < count; t++) {
+            this.quadTree.insert(points, indices ? indices[t] : t);
         }
     }
 

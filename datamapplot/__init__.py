@@ -15,6 +15,7 @@ from datamapplot.widgets import (
     MiniMapWidget,
     RESTSearchWidget,
     AnnotationWidget,
+    ReembedWidget,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,

@@ -1387,6 +1387,9 @@ def render_html(
         handler_widgets = _collect_handler_widgets(selection_handler)
         all_widgets += handler_widgets
 
+        if any(getattr(w, "requires_lasso_selection", False) for w in all_widgets):
+            enable_lasso_selection = True
+
         # Group widgets by location, applying layout overrides
         widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
 

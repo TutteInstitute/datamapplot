@@ -132,6 +132,7 @@ class TapToInspectManager {
         } catch (err) {
             return;
         }
+        if (info && this.datamap.pickRemap) info = this.datamap.pickRemap(info);
         if (info && info.picked) {
             this.show(info, e);
         } else {

@@ -21,6 +21,7 @@ from datamapplot.widgets import (
     MiniMapWidget,
     RESTSearchWidget,
     AnnotationWidget,
+    ReembedWidget,
 )
 from datamapplot.widget_helpers import (
     WidgetConfig,
@@ -1283,6 +1284,52 @@ class TestRESTSearchWidget:
         js = widget.javascript
         assert "RESTSearchWidget" in js
         assert widget.get_container_id() in js
+
+
+class TestReembedWidget:
+    """Tests for the ReembedWidget class."""
+
+    def test_html_inlines_engine(self):
+        """The worker source and WASM are inlined in inert script elements."""
+        import base64
+        import gzip
+        import re
+
+        widget = ReembedWidget()
+        html = widget.html
+        config = widget.collect_widget_data()
+        source = re.search(
+            rf'<script type="text/plain" id="{config["engine_source_id"]}">(.*?)</script>',
+            html,
+            re.S,
+        )
+        assert source and "wasm_bindgen" in source.group(1)
+        assert "self.onmessage" in source.group(1)
+        wasm = re.search(
+            rf'id="{config["engine_wasm_id"]}">([^<]*)</script>', html
+        ).group(1)
+        assert gzip.decompress(base64.b64decode(wasm))[:4] == b"\0asm"
+
+    def test_invalid_options(self):
+        with pytest.raises(ValueError):
+            ReembedWidget(init_rescale="pca")
+        with pytest.raises(ValueError):
+            ReembedWidget(engine="tpu")
+
+    def test_plot_enables_lasso_selection(self):
+        """Including the widget turns on lasso selection and ships its JS."""
+        import datamapplot
+
+        rng = np.random.default_rng(0)
+        plot = datamapplot.create_interactive_plot(
+            rng.normal(size=(200, 2)),
+            np.array(["a", "b"] * 100),
+            widgets=[ReembedWidget(server_url="http://127.0.0.1:8765")],
+        )
+        html = str(plot)
+        assert "new LassoSelectionTool(datamap)" in html
+        assert "new ReembedWidget(" in html
+        assert '"server_url": "http://127.0.0.1:8765"' in html
 
 
 class TestAnnotationWidget:

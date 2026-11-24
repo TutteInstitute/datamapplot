@@ -245,6 +245,10 @@ class DataMap {
     this._viewStateListeners = new Map();
     this._hoverListeners = new Map();
     this._clickListeners = new Map();
+    // Optional hook (info) => info applied to picks before hover/click/tooltip
+    // handlers see them; lets layers that draw a subset of the points (e.g. the
+    // re-embed widget) report indices into the full point data.
+    this.pickRemap = null;
     this.deckgl.setProps({
       onViewStateChange: (params) => {
         for (const handler of this._viewStateListeners.values()) {
@@ -255,6 +259,7 @@ class DataMap {
         return params.viewState;
       },
       onHover: (info, event) => {
+        if (this.pickRemap) info = this.pickRemap(info);
         for (const handler of this._hoverListeners.values()) {
           try { handler(info, event); } catch (e) {
             console.error('Error in hover listener:', e);
@@ -262,6 +267,7 @@ class DataMap {
         }
       },
       onClick: (info, event) => {
+        if (this.pickRemap) info = this.pickRemap(info);
         for (const handler of this._clickListeners.values()) {
           try { handler(info, event); } catch (e) {
             console.error('Error in click listener:', e);
@@ -768,10 +774,11 @@ class DataMap {
     // the hover tooltip stays mouse/pen-only; touch taps show the same
     // content in the tap-to-inspect card instead.
     if (this.metaData.hasOwnProperty('hover_text')) {
+      const getTooltip = this._tapInspect
+        ? this._tapInspect.wrapTooltip(this.tooltipFunction)
+        : this.tooltipFunction;
       this.deckgl.setProps({
-        getTooltip: this._tapInspect
-          ? this._tapInspect.wrapTooltip(this.tooltipFunction)
-          : this.tooltipFunction,
+        getTooltip: (info) => getTooltip(this.pickRemap ? this.pickRemap(info) : info),
       });
     }
 

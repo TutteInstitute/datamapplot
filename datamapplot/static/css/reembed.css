@@ -1,0 +1,144 @@
+/* ReembedWidget styles */
+.reembed-widget {
+    padding: 8px 10px;
+    min-width: 230px;
+    max-width: 280px;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+}
+
+.reembed-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.reembed-buttons {
+    display: flex;
+    gap: 4px;
+}
+
+.reembed-buttons button {
+    flex: 1 1 auto;
+    padding: 5px 8px;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #f6f6f6;
+    color: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.reembed-buttons button.reembed-go {
+    flex-grow: 2;
+    border-color: #1976d2;
+    background: #1976d2;
+    color: #fff;
+}
+
+.reembed-buttons button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.reembed-crumbs {
+    margin-top: 6px;
+    color: #555;
+}
+
+.reembed-crumbs:empty {
+    display: none;
+}
+
+.reembed-crumbs a {
+    color: #1976d2;
+    text-decoration: none;
+}
+
+.reembed-crumbs a:hover {
+    text-decoration: underline;
+}
+
+.reembed-progress {
+    height: 3px;
+    margin-top: 6px;
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.reembed-progress-bar {
+    height: 100%;
+    width: 0;
+    background: #1976d2;
+}
+
+.reembed-status {
+    min-height: 1.3em;
+    margin-top: 4px;
+    color: #555;
+    font-variant-numeric: tabular-nums;
+}
+
+.reembed-status.reembed-error {
+    color: #c62828;
+}
+
+.reembed-settings {
+    margin-top: 4px;
+}
+
+.reembed-settings summary {
+    cursor: pointer;
+    color: #555;
+}
+
+.reembed-settings label {
+    display: grid;
+    grid-template-columns: 70px 1fr 34px;
+    align-items: center;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.reembed-settings select,
+.reembed-settings input[type="number"] {
+    grid-column: 2 / 4;
+    font-size: 12px;
+}
+
+.reembed-settings span {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.reembed-hint {
+    margin-top: 6px;
+    color: #888;
+    font-size: 11px;
+}
+
+.darkmode .reembed-buttons button {
+    background: #333;
+    border-color: #555;
+}
+
+.darkmode .reembed-buttons button.reembed-go {
+    background: #1976d2;
+    border-color: #1976d2;
+}
+
+.darkmode .reembed-crumbs,
+.darkmode .reembed-status,
+.darkmode .reembed-settings summary {
+    color: #bbb;
+}
+
+.darkmode .reembed-crumbs a {
+    color: #64b5f6;
+}
+
+.darkmode .reembed-progress {
+    background: rgba(255, 255, 255, 0.12);
+}

@@ -6,8 +6,11 @@ adding modular UI components to interactive data map plots. Widgets can be
 placed in corner quadrants or slide-out drawers.
 """
 
+import base64
+import functools
 import json
 import warnings
+from pathlib import Path
 
 from datamapplot.config import ConfigManager
 
@@ -1594,6 +1597,183 @@ class RESTSearchWidget(WidgetBase):
             "placeholder": self.placeholder,
             "show_result_count": self.show_result_count,
             "timeout_ms": self.timeout_ms,
+        }
+
+
+@functools.lru_cache(maxsize=1)
+def _reembed_engine_assets():
+    """Worker source (wasm-bindgen glue + worker) and base64 gzip WASM of the re-embed engine."""
+    static = Path(__file__).parent / "static"
+    glue = (static / "wasm" / "umap_engine.js").read_text(encoding="utf-8")
+    worker = (static / "js" / "reembed_worker.js").read_text(encoding="utf-8")
+    source = glue + "\n" + worker
+    wasm_b64 = base64.b64encode(
+        (static / "wasm" / "umap_engine_bg.wasm.gz").read_bytes()
+    ).decode("ascii")
+    # The assets are embedded verbatim in inert <script> elements.
+    for marker in ("</script", "<!--"):
+        if marker in source.lower():
+            raise RuntimeError(f"re-embed engine source contains {marker!r}")
+    return source, wasm_b64
+
+
+class ReembedWidget(WidgetBase):
+    """Re-run UMAP live in the browser on a lasso-selected subset of the map.
+
+    Select points with the lasso (hold Shift and drag), then press
+    "Re-embed": the other points fade out, the selection zooms to fill the
+    view, and UMAP is re-optimized on just the selected points, starting from
+    their current layout, with every epoch animated. Re-embeds can be nested,
+    and "Back" animates out again.
+
+    The k-nearest-neighbour graph of each selection is computed by a
+    :class:`datamapplot.reembed_server.ReembedServer` holding the
+    high-dimensional vectors; the UMAP optimization itself runs client-side in
+    a Web Worker (Rust/WASM from apple/embedding-atlas, using WebGPU when
+    available).
+
+    Parameters
+    ----------
+    server_url : str or None, optional (default: None)
+        Base URL of the ``ReembedServer``. If None the page's own origin is
+        used, which works when the plot is served by the ``ReembedServer``
+        itself (see ``ReembedServer.serve_figure``).
+
+    n_epochs : int, optional (default: 120)
+        Optimization epochs per re-embed.
+
+    min_dist : float, optional (default: 0.1)
+        UMAP ``min_dist``; adjustable live from the widget.
+
+    spread : float, optional (default: 1.0)
+        UMAP ``spread``; adjustable live from the widget.
+
+    repulsion_strength : float, optional (default: 1.0)
+        UMAP ``repulsion_strength``; adjustable live from the widget.
+
+    init_rescale : str, optional (default: "isotropic")
+        How the starting layout is rescaled for optimization: "isotropic"
+        (uniform scale to UMAP's usual extent) or "graphEdge" (match the mean
+        kNN edge length).
+
+    engine : str, optional (default: "auto")
+        "auto" (WebGPU if available, else CPU), "gpu" or "cpu".
+
+    subsample_threshold : int or None, optional (default: None)
+        Selections larger than this are first optimized on a random sample,
+        then the rest are placed and the whole set refined. None picks a
+        threshold based on the engine (400,000 with WebGPU, 25,000 on CPU).
+
+    sample_size : int, optional (default: 20000)
+        Sample size used for large selections.
+
+    refine_epochs : int, optional (default: 100)
+        Epochs of whole-set refinement after placing the rest of a large
+        selection.
+
+    auth_headers : dict or None, optional (default: None)
+        Extra HTTP headers for requests to the server, e.g.
+        ``{"Authorization": "Bearer TOKEN"}``.
+
+    **kwargs
+        Additional keyword arguments passed to WidgetBase
+    """
+
+    dependencies = ["js:reembed", "css:reembed"]
+    requires_lasso_selection = True
+
+    @cfg.complete(unconfigurable={"self"})
+    def __init__(
+        self,
+        server_url=None,
+        n_epochs=120,
+        min_dist=0.1,
+        spread=1.0,
+        repulsion_strength=1.0,
+        init_rescale="isotropic",
+        engine="auto",
+        subsample_threshold=None,
+        sample_size=20000,
+        refine_epochs=100,
+        auth_headers=None,
+        **kwargs,
+    ):
+        kwargs.setdefault("widget_id", "reembed")
+        kwargs.setdefault("title", "Re-embed")
+        kwargs.setdefault("location", "top-right")
+        kwargs.setdefault("order", 0)
+        super().__init__(**kwargs)
+
+        if init_rescale not in ("isotropic", "graphEdge"):
+            raise ValueError("init_rescale must be 'isotropic' or 'graphEdge'")
+        if engine not in ("auto", "gpu", "cpu"):
+            raise ValueError("engine must be 'auto', 'gpu' or 'cpu'")
+        self.server_url = server_url
+        self.n_epochs = int(n_epochs)
+        self.min_dist = float(min_dist)
+        self.spread = float(spread)
+        self.repulsion_strength = float(repulsion_strength)
+        self.init_rescale = init_rescale
+        self.engine = engine
+        self.subsample_threshold = subsample_threshold
+        self.sample_size = int(sample_size)
+        self.refine_epochs = int(refine_epochs)
+        self.auth_headers = auth_headers or {}
+
+    @property
+    def html(self):
+        """Return the widget container and the inlined UMAP engine."""
+        source, wasm_b64 = _reembed_engine_assets()
+        container_id = self.get_container_id()
+        return (
+            f'<div id="{container_id}" class="container-box reembed-container"></div>\n'
+            f'<script type="text/plain" id="{container_id}-engine-src">{source}</script>\n'
+            f'<script type="application/octet-stream" id="{container_id}-engine-wasm">'
+            f"{wasm_b64}</script>"
+        )
+
+    @property
+    def javascript(self):
+        """Generate JS to instantiate ReembedWidget."""
+        container_id = self.get_container_id()
+        config = self.collect_widget_data()
+
+        return f"""
+(function() {{
+    const config = {json.dumps(config)};
+
+    function setup() {{
+        const widget = new ReembedWidget({json.dumps(container_id)}, config, window.datamap);
+        window.datamap.widgets = window.datamap.widgets || {{}};
+        window.datamap.widgets[{json.dumps(self.widget_id)}] = widget;
+    }}
+
+    if (window.datamap && window.datamap.pointLayer) {{
+        setup();
+    }} else {{
+        document.addEventListener('datamapDataLoaded', setup, {{ once: true }});
+    }}
+}})();
+"""
+
+    def collect_widget_data(self):
+        """Collect widget configuration for template."""
+        container_id = self.get_container_id()
+        return {
+            "title": None if self.collapsible else self.title,
+            "server_url": self.server_url,
+            "n_epochs": self.n_epochs,
+            "min_dist": self.min_dist,
+            "spread": self.spread,
+            "repulsion_strength": self.repulsion_strength,
+            "init_rescale": self.init_rescale,
+            "engine": self.engine,
+            "subsample_threshold": self.subsample_threshold,
+            "sample_size": self.sample_size,
+            "refine_epochs": self.refine_epochs,
+            "auth_headers": self.auth_headers,
+            "engine_source_id": f"{container_id}-engine-src",
+            "engine_wasm_id": f"{container_id}-engine-wasm",
         }
 
 

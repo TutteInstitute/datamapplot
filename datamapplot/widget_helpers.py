@@ -25,6 +25,7 @@ from datamapplot.widgets import (
     MiniMapWidget,
     RESTSearchWidget,
     AnnotationWidget,
+    ReembedWidget,
     normalize_location,
     VALID_LOCATIONS,
 )
@@ -233,7 +234,7 @@ def create_widget_from_config(
     widget_type : str
         Type of widget to create. One of: "title", "search", "topic_tree",
         "histogram", "colormap_selector", "legend", "logo", "selection_control",
-        "layer_toggle", "minimap", "rest_search", "annotation"
+        "layer_toggle", "minimap", "rest_search", "annotation", "reembed"
 
     config : WidgetConfig or dict, optional
         Configuration for the widget
@@ -264,6 +265,7 @@ def create_widget_from_config(
         "minimap": MiniMapWidget,
         "rest_search": RESTSearchWidget,
         "annotation": AnnotationWidget,
+        "reembed": ReembedWidget,
     }
 
     if widget_type not in widget_classes:

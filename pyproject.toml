@@ -43,6 +43,9 @@ dependencies = [
     "dask[complete]>=2026.1.2",
 ]
 
+[project.optional-dependencies]
+reembed = ["pynndescent>=0.5"]
+
 [dependency-groups]
 cicd = [
     "pytest", 

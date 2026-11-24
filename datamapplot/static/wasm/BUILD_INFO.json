@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/apple/embedding-atlas (packages/umap), patched",
+  "branch": "reembed-spike",
+  "commit": "e7eee10d7cb6c46e5ee9ec5846506e7da88bfe34",
+  "uncommitted_changes": 0,
+  "features": ["gpu"],
+  "target": "wasm-bindgen --target no-modules",
+  "wasm_bindgen": "0.2.121",
+  "wasm_bytes": 1067460,
+  "license": "MIT (Apple Inc.), see LICENSE.embedding-atlas.txt"
+}

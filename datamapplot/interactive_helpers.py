@@ -216,6 +216,7 @@ WIDGET_JS_FILES = {
     "drawer": "drawer.js",
     "collapsible": "collapsible.js",
     "resizable": "resizable.js",
+    "reembed": "reembed.js",
 }
 
 
@@ -319,6 +320,7 @@ WIDGET_CSS_FILES = {
     "drawer": "drawer_style.css",
     "collapsible": "collapsible.css",
     "resizable": "resizable.css",
+    "reembed": "reembed.css",
 }
 
 

@@ -1,6 +1,7 @@
 
 include datamapplot/deckgl_template.html
 include datamapplot/static/js/*.js
+include datamapplot/static/wasm/*
 include datamapplot/static/css/*.css
 include datamapplot/static/css/*.jinja2
 include datamapplot/templates/*.jinja2
