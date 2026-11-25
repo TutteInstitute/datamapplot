@@ -84,15 +84,15 @@ def test_subset_graph_recall():
     rng = np.random.default_rng(1)
     ids = np.sort(rng.choice(len(vectors), 800, replace=False))
     indices, distances = server.subset_graph(ids, rng)
-    assert indices.shape == distances.shape == (800, 16)
+    assert indices.shape == distances.shape == (800, 15)
     assert indices.dtype == np.int32 and distances.dtype == np.float32
     # Rows include the point itself, as in the server's graph.
     exact = (
-        NearestNeighbors(n_neighbors=16, metric="cosine")
+        NearestNeighbors(n_neighbors=15, metric="cosine")
         .fit(vectors[ids])
         .kneighbors(vectors[ids], return_distance=False)
     )
-    recall = np.mean([len(set(row) & set(true)) / 16 for row, true in zip(indices, exact)])
+    recall = np.mean([len(set(row) & set(true)) / 15 for row, true in zip(indices, exact)])
     assert recall > 0.95
     # Every row is complete with the point itself first, also for the whole set
     # (seed = global graph, no NN-descent iterations) and a tiny, heavily padded subset.
@@ -131,7 +131,7 @@ def test_http_api():
         for key in ("receiveSeconds", "queueSeconds", "knnSeconds", "encodeSeconds", "serverSeconds"):
             assert header[key] >= 0
         assert header["serverSeconds"] >= header["knnSeconds"]
-        assert arrays["knn_indices"].shape == (200, 16)
+        assert arrays["knn_indices"].shape == (200, 15)
         assert arrays["knn_indices"].max() < 200
         assert arrays["sample_local"].shape == (60,)
         assert arrays["sample_knn_indices"].max() < 60
@@ -142,13 +142,13 @@ def test_http_api():
         header, arrays = unpack_arrays(response.read())
         assert header["arrays"][0]["encoding"] == "row-delta-varint"
         indices = arrays["knn_indices"]
-        assert indices.shape == (200, 16) and indices.max() < 200
+        assert indices.shape == (200, 15) and indices.max() < 200
         np.testing.assert_array_equal(indices[:, 0], np.arange(200))
         assert (np.diff(arrays["knn_distances"], axis=1) >= 0).all()
-        assert arrays["sample_knn_indices"].shape == (60, 16)
+        assert arrays["sample_knn_indices"].shape == (60, 15)
         # Same neighbourhoods as the exact graph, up to NN-descent's approximation.
-        exact = NearestNeighbors(n_neighbors=16, metric="cosine").fit(vectors[shuffled]).kneighbors(return_distance=False)
-        recall = np.mean([len(set(a[1:]) & set(b)) / 15 for a, b in zip(indices, exact)])
+        exact = NearestNeighbors(n_neighbors=14, metric="cosine").fit(vectors[shuffled]).kneighbors(return_distance=False)
+        recall = np.mean([len(set(a[1:]) & set(b)) / 14 for a, b in zip(indices, exact)])
         assert recall > 0.9
 
         with pytest.raises(urllib.error.HTTPError) as error:

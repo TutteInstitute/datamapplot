@@ -1663,9 +1663,14 @@ class ReembedWidget(WidgetBase):
         Selections larger than this are first optimized on a random sample,
         then the rest are placed and the whole set refined. None picks a
         threshold based on the engine (400,000 with WebGPU, 25,000 on CPU).
+        Smaller selections also start from a sample when their kNN graph is
+        predicted to arrive and be set up only well after the zoom into the
+        selection (e.g. over a slow connection to the server): the sample moves
+        while the full graph downloads and its optimizer is built.
 
     sample_size : int, optional (default: 20000)
-        Sample size used for large selections.
+        Largest sample size; over slow connections a smaller sample is used so
+        that it arrives during the zoom.
 
     refine_epochs : int, optional (default: 100)
         Epochs of whole-set refinement after placing the rest of a large

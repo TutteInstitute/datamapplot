@@ -6,7 +6,7 @@ nested re-embed -> back -> back, checking for console errors and that the
 original map is restored exactly.
 
     python scripts/reembed_e2e.py [--data ng20.parquet] [--browser firefox] [--headed]
-        [--engine cpu] [--subsample] [--shots DIR] [--no-minify]
+        [--engine cpu] [--subsample] [--slow-link KB_PER_S] [--shots DIR] [--no-minify]
 
 Requires pynndescent and playwright (``playwright install chromium``).
 """
@@ -131,6 +131,53 @@ def analyse_motion(rec):
     return {"frames": len(frames), "maxFrameJumpPx": round(max(jumps), 1) if jumps else None, "snaps": snaps}
 
 
+def start_throttled_proxy(target_port, down_bytes_per_s, latency_s=0.03):
+    """A TCP proxy to 127.0.0.1:target_port limiting each connection's download rate."""
+    import asyncio
+    import threading
+
+    ready, holder = threading.Event(), {}
+
+    async def pipe(reader, writer, rate):
+        try:
+            while data := await reader.read(8192):
+                await asyncio.sleep(len(data) / rate)
+                writer.write(data)
+                await writer.drain()
+        except ConnectionError:
+            pass
+        finally:
+            writer.close()
+
+    async def handle(client_reader, client_writer):
+        await asyncio.sleep(latency_s)
+        server_reader, server_writer = await asyncio.open_connection("127.0.0.1", target_port)
+        await asyncio.gather(pipe(client_reader, server_writer, 4 * down_bytes_per_s),
+                             pipe(server_reader, client_writer, down_bytes_per_s), return_exceptions=True)
+
+    async def main():
+        proxy = await asyncio.start_server(handle, "127.0.0.1", 0)
+        holder["port"] = proxy.sockets[0].getsockname()[1]
+        ready.set()
+        async with proxy:
+            await proxy.serve_forever()
+
+    threading.Thread(target=lambda: asyncio.run(main()), daemon=True).start()
+    ready.wait()
+    return holder["port"]
+
+
+# Records the controller's worker messages (time, role, type, phase, initial).
+RECORD_MESSAGES = """() => {
+  const ctl = window.__reembed.ctl(), handle = ctl._onWorkerMessage.bind(ctl);
+  window.__msgs = [];
+  ctl._onWorkerMessage = (msg, level, role, worker) => {
+    window.__msgs.push([performance.now(), role, msg.type, msg.phase || null, !!msg.initial]);
+    return handle(msg, level, role, worker);
+  };
+}"""
+
+
 def load_data(path):
     df = pd.read_parquet(path or DATA_URL)
     vectors = np.stack(df["embedding"].values).astype(np.float32)
@@ -148,16 +195,22 @@ def main():
     parser.add_argument("--no-minify", action="store_true")
     parser.add_argument("--subsample", action="store_true",
                         help="force the sample -> place -> refine path for large selections")
+    parser.add_argument("--slow-link", type=float, default=None, metavar="KB_PER_S",
+                        help="send API requests through a proxy throttled to this download rate, "
+                             "so the first level starts from a sample while its full graph downloads")
     args = parser.parse_args()
 
     from playwright.sync_api import sync_playwright
 
     vectors, data_map, labels, hover = load_data(args.data)
     server = ReembedServer(vectors, metric="cosine", verbose=False).start(port=0)
+    widget_args = {"subsample_threshold": 2000, "sample_size": 1500, "refine_epochs": 60} if args.subsample else {}
+    if args.slow_link:
+        proxy_port = start_throttled_proxy(int(server.url.rsplit(":", 1)[1]), 1000 * args.slow_link)
+        widget_args = {"server_url": f"http://127.0.0.1:{proxy_port}", "refine_epochs": 60}
     plot = datamapplot.create_interactive_plot(
         data_map, *labels, hover_text=hover, minify_deps=not args.no_minify,
-        widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.ReembedWidget(
-            engine=args.engine, **({"subsample_threshold": 2000, "sample_size": 1500, "refine_epochs": 60} if args.subsample else {}))],
+        widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.ReembedWidget(engine=args.engine, **widget_args)],
     )
     server.serve_figure(plot)
     while not server.global_graph_ready:
@@ -186,6 +239,10 @@ def main():
         page.wait_for_function("window.datamap && window.datamap.widgets && window.datamap.widgets.reembed && window.datamap.lassoSelector", timeout=60000)
         page.evaluate(HELPERS)
         page.wait_for_timeout(500)
+        if args.slow_link:
+            # As if a previous request had measured the link.
+            page.evaluate(f"window.__reembed.ctl().link.downBytesPerMs = {args.slow_link}")
+            page.evaluate(RECORD_MESSAGES)
         state = lambda: page.evaluate("window.__reembed.state()")
         s0 = state()
         if shots:
@@ -217,6 +274,20 @@ def main():
             if args.subsample and count > 2000:
                 check(s["nEpochs"] == 60 and page.evaluate("Array.from(window.__reembed.ctl().alpha).every((a) => a > 0.99)"),
                       f"{label}: sampled run refined and all points visible")
+            if args.slow_link and label == "level1":
+                msgs = page.evaluate("window.__msgs")
+                plan = page.evaluate("window.__reembed.ctl().plan")
+                print(f"{label}: plan sample {plan['sample']}, zoom {plan['zoomMs']:.0f} ms, predicted {plan['fullMs']:.0f} ms")
+                moving = [t for t, role, kind, phase, initial in msgs if role == "sample" and kind == "frame" and not initial]
+                full_graph = [t for t, role, kind, *_ in msgs if role == "hold" and kind == "graph"]
+                placed = [t for t, role, kind, *_ in msgs if role == "hold" and kind == "placed"]
+                check(plan["sample"] > 0 and plan["zoomMs"] > 1100, f"{label}: slow link -> sample first, longer zoom")
+                check(bool(moving and full_graph) and moving[0] < full_graph[0],
+                      f"{label}: sample moving before the full graph arrived"
+                      + (f" ({full_graph[0] - moving[0]:.0f} ms earlier)" if moving and full_graph else ""))
+                check(bool(placed) and s["nEpochs"] == 60
+                      and page.evaluate("Array.from(window.__reembed.ctl().alpha).every((a) => a > 0.99)"),
+                      f"{label}: full optimizer took over, refined, all points visible")
             ids = [l[0] for l in s["layers"]]
             check("reembed-active" in ids and "reembed-ghost" not in ids and "reembed-labels-ghost" not in ids,
                   f"{label}: active points and labels only")
@@ -305,7 +376,7 @@ def main():
             raise
         s3 = state()
         check(all(abs(s3["view"][k] - before_level2["view"][k]) < 1e-6 for k in ("longitude", "latitude", "zoom")), "back to level1: camera restored")
-        check(page.evaluate("window.__reembed.ctl().worker === null"), "back to level1: child worker stopped")
+        check(page.evaluate("window.__reembed.ctl().worker === null && window.__reembed.ctl().holdWorker === null"), "back to level1: child workers stopped")
         slider_check("level1 after back (respawned worker)", 0.6)
         if shots:
             page.screenshot(path=str(shots / "back1.png"))
@@ -358,7 +429,7 @@ def main():
         page.click(".reembed-back")
         page.wait_for_function("window.__reembed.state().depth === 0 && !window.__reembed.state().transition", timeout=10000)
         page.wait_for_timeout(2500)
-        check(page.evaluate("window.__reembed.ctl().worker === null"), "back during request: no orphaned worker")
+        check(page.evaluate("window.__reembed.ctl().worker === null && window.__reembed.ctl().holdWorker === null"), "back during request: no orphaned worker")
         page.evaluate("window.__restoreFetch()")
         browser.close()
 

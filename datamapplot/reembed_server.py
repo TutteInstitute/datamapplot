@@ -34,8 +34,9 @@ REST contract
     ``name``, ``dtype``, ``shape``, ``offset`` (from the end of the header) and
     ``bytes``:
 
-    * ``knn_indices`` int32 ``(n, k + 1)`` and ``knn_distances`` float32
-      ``(n, k + 1)``, indices local to the selection (row ``i`` includes ``i``);
+    * ``knn_indices`` int32 ``(n, k)`` and ``knn_distances`` float32 ``(n, k)``,
+      indices local to the selection; row ``i`` starts with ``i`` itself, as in
+      umap-learn's ``knn_indices``;
     * with ``0 < M < n``: ``sample_local`` int32 ``(M,)`` (sorted local indices of
       a random sample) plus ``sample_knn_indices`` / ``sample_knn_distances`` for
       the sample, indices local to the sample.
@@ -425,7 +426,8 @@ class ReembedServer:
         Any metric supported by pynndescent.
 
     n_neighbors : int, optional (default=15)
-        Neighbours per point (excluding the point itself) in subset graphs.
+        Neighbours per point in subset graphs, counting the point itself (as
+        ``n_neighbors`` does in umap-learn).
 
     knn_indices : array-like of shape (n_samples, k), optional
         A precomputed global kNN graph (for example ``umap_model._knn_indices``)
@@ -551,11 +553,11 @@ class ReembedServer:
         rng = np.random.default_rng(0)
         # Offset so probe similarities are positive (no ties at maximal distance).
         warm = (rng.normal(size=(2000, 8)) + 2.0).astype(np.float32)
-        seed = rng.integers(0, 2000, size=(2000, self.n_neighbors + 1))
+        seed = rng.integers(0, 2000, size=(2000, self.n_neighbors))
         # numba's default "workqueue" threading layer aborts the process on concurrent
         # parallel calls, so background work is serialised with requests unless the
         # layer is thread-safe.
-        width = self.n_neighbors + 1
+        width = self.n_neighbors
         if self.metric == "cosine":
             warm /= np.linalg.norm(warm, axis=1, keepdims=True)
         with self._compute_lock:
@@ -600,7 +602,7 @@ class ReembedServer:
         it reproduce pynndescent's own initialisation exactly (else None)."""
         try:
             dist = probe._distance_func
-            width = self.n_neighbors + 1
+            width = self.n_neighbors
             init = seed[:, :width]
             init_dist = _seed_distances(data, init, dist)
             kwargs = dict(n_neighbors=width, metric=self.metric, random_state=0, init_graph=init, n_iters=0)
@@ -636,7 +638,7 @@ class ReembedServer:
             return None
         try:
             repair = _make_local_repair()
-            width = self.n_neighbors + 1
+            width = self.n_neighbors
             global_knn = np.ascontiguousarray(probe.neighbor_graph[0][:, 1:], dtype=np.int64)
             ids = np.argsort(np.linalg.norm(data - data[0], axis=1))[:1200].astype(np.int64)
             local = np.full(len(data), -1, dtype=np.int64)
@@ -662,7 +664,7 @@ class ReembedServer:
         """The global graph restricted to ``ids`` (as local indices), short rows
         padded randomly; also returns each row's number of padded slots."""
         n = len(ids)
-        width = self.n_neighbors + 1
+        width = self.n_neighbors
         local = np.full(self.vectors.shape[0], -1, dtype=np.int64)
         local[ids] = np.arange(n)
         fill = rng.integers(0, n, size=(n, width))
@@ -680,8 +682,8 @@ class ReembedServer:
 
         Returns
         -------
-        (indices, distances) : int32 and float32 arrays of shape (len(ids), n_neighbors + 1)
-            Neighbour indices are local to ``ids``; each row includes itself.
+        (indices, distances) : int32 and float32 arrays of shape (len(ids), n_neighbors)
+            Neighbour indices are local to ``ids``; each row starts with the point itself.
         """
         NNDescent = _require_pynndescent()
         ids = np.asarray(ids, dtype=np.int64)
@@ -690,7 +692,7 @@ class ReembedServer:
         # Thread count is thread-local in numba. Measured on 64 cores: ~1 thread per 1,000
         # points is fastest for small subsets, and more than 16 gains nothing.
         numba.set_num_threads(int(min(limit, max(4, min(16, len(ids) // 1000)))))
-        width = self.n_neighbors + 1
+        width = self.n_neighbors
         kwargs = _nndescent_settings(len(ids), width)
         with self._compute_lock:
             data = self.vectors[ids]

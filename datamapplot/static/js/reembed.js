@@ -15,6 +15,7 @@
 const ReembedWidget = (() => {
   const T = {
     PREFADE_MS: 220, ZOOM_MS: 1100, BACK_MS: 1100, FADEIN_MS: 300, SEL_MS: 250, FADE_MS: 600,
+    ZOOM_MAX_MS: 2500, STALL_MS: 300, MIN_SAMPLE: 5000,
     FIT_FILL: 0.84, FIT_SAMPLE: 4096, HOME_FILL: 0.85, MAX_PX: 6,
     TAU_OUT: 0.35, TAU_IN: 1.2, MIN_POINTS: 50, LABEL_SAMPLE: 96,
   };
@@ -29,13 +30,16 @@ const ReembedWidget = (() => {
   const lerp = (a, b, t) => a + (b - a) * t;
   const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
-  // Web Mercator (deck.gl MapView): world coordinates in radians.
   // Browsers can expose WebGPU without a usable adapter (headless, blocklisted GPUs).
-  let gpuProbe = null;
-  const gpuAvailable = () => (gpuProbe = gpuProbe || (navigator.gpu
-    ? navigator.gpu.requestAdapter({ powerPreference: "high-performance" }).then((a) => !!a, () => false)
-    : Promise.resolve(false)));
+  let gpuUsable = null;  // unknown until the probe resolves
+  if (navigator.gpu) {
+    navigator.gpu.requestAdapter({ powerPreference: "high-performance" })
+      .then((a) => (gpuUsable = !!a), () => (gpuUsable = false));
+  } else {
+    gpuUsable = false;
+  }
 
+  // Web Mercator (deck.gl MapView): world coordinates in radians.
   const D2R = Math.PI / 180;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2));
   const invMercY = (y) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / D2R;
@@ -65,86 +69,6 @@ const ReembedWidget = (() => {
     return out;
   }
 
-  /** Decode a kNN array sent with encoding=varint (see encode_knn in reembed_server.py). */
-  function decodeKnn(a, bytes) {
-    const [n, width] = a.shape;
-    const offsets = a.encoding === "row-delta-varint";
-    if (!offsets && a.encoding !== "step-varint") throw new Error("unknown array encoding " + a.encoding);
-    const out = offsets ? new Int32Array(n * width) : new Float32Array(n * width);
-    let p = 0;
-    for (let i = 0; i < n; i++) {
-      let q = 0;
-      for (let c = 0; c < width; c++) {
-        let v = 0, mul = 1, b;
-        do { b = bytes[p++]; v += (b & 127) * mul; mul *= 128; } while (b & 128);
-        if (offsets) out[i * width + c] = i + (v % 2 ? -(v + 1) / 2 : v / 2);
-        else { q += v; out[i * width + c] = q * a.step; }
-      }
-    }
-    return out;
-  }
-
-  /** Parse the ReembedServer binary response. */
-  function unpack(buffer) {
-    const headLen = new DataView(buffer).getUint32(0, true);
-    const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 4, headLen)));
-    const base = 4 + headLen, arrays = {};
-    for (const a of header.arrays) {
-      if (a.encoding) {
-        arrays[a.name] = decodeKnn(a, new Uint8Array(buffer, base + a.offset, a.bytes));
-        continue;
-      }
-      const Type = a.dtype === "int32" ? Int32Array : Float32Array;
-      arrays[a.name] = new Type(buffer.slice(base + a.offset, base + a.offset + a.bytes));
-    }
-    return { header, arrays };
-  }
-
-  const part1by1 = (v) => {
-    v = (v | (v << 8)) & 0x00ff00ff;
-    v = (v | (v << 4)) & 0x0f0f0f0f;
-    v = (v | (v << 2)) & 0x33333333;
-    return (v | (v << 1)) & 0x55555555;
-  };
-
-  /**
-   * Local indices in Z-order of their 2D positions: sent in this order, a point's
-   * graph neighbours have nearby request positions, which the server encodes compactly.
-   */
-  function spatialOrder(P, n) {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    for (let i = 0; i < n; i++) {
-      x0 = Math.min(x0, P[2 * i]); x1 = Math.max(x1, P[2 * i]);
-      y0 = Math.min(y0, P[2 * i + 1]); y1 = Math.max(y1, P[2 * i + 1]);
-    }
-    const scale = 16383 / Math.max(x1 - x0, y1 - y0, 1e-30);
-    // Key = 28-bit Morton code * 2^24 + index: exact in a double for n < 2^24.
-    const keys = new Float64Array(n);
-    for (let i = 0; i < n; i++) {
-      const code = part1by1(((P[2 * i] - x0) * scale) | 0) | (part1by1(((P[2 * i + 1] - y0) * scale) | 0) << 1);
-      keys[i] = code * 16777216 + i;
-    }
-    keys.sort();
-    const order = new Int32Array(n);
-    for (let r = 0; r < n; r++) order[r] = keys[r] % 16777216;
-    return order;
-  }
-
-  /** Graph rows/indices in request order -> local order, given request position -> local index. */
-  function reorderKnn(idx, dist, order) {
-    const n = order.length, width = idx.length / n;
-    const I = new Int32Array(idx.length), D = new Float32Array(dist.length);
-    for (let r = 0; r < n; r++) {
-      const i = order[r];
-      for (let c = 0; c < width; c++) {
-        const j = idx[r * width + c];
-        I[i * width + c] = j < 0 ? j : order[j];
-        D[i * width + c] = dist[r * width + c];
-      }
-    }
-    return { idx: I, dist: D };
-  }
-
   /** Positions that appear on screen under view `to` exactly where `P` appears under view `from`. */
   function reexpress(P, from, to, out = new Float32Array(P.length)) {
     const r = 2 ** (from.zoom - to.zoom);
@@ -157,6 +81,22 @@ const ReembedWidget = (() => {
   }
 
   /** Evenly strided sample of indices, for cheap robust bounds every frame. */
+  /** `m` distinct random indices below `n`, sorted. */
+  function randomSubset(n, m) {
+    const pick = new Uint8Array(n);
+    let count = 0;
+    while (count < m) {
+      const i = Math.floor(Math.random() * n);
+      if (!pick[i]) {
+        pick[i] = 1;
+        count++;
+      }
+    }
+    const out = new Int32Array(m);
+    for (let i = 0, t = 0; i < n; i++) if (pick[i]) out[t++] = i;
+    return out;
+  }
+
   function sampleIndices(n, k = T.FIT_SAMPLE) {
     const m = Math.min(n, k), out = new Int32Array(m);
     for (let j = 0; j < m; j++) out[j] = Math.floor(((j + 0.5) * n) / m);
@@ -268,7 +208,6 @@ const ReembedWidget = (() => {
       this.dm = datamap;
       this.cfg = config;
       this.ui = ui;
-      gpuAvailable();                // resolved by the first request
       this.levels = [];
       this.mode = "idle";            // idle | entering | running | back
       this.tr = null;                // active transition
@@ -278,8 +217,17 @@ const ReembedWidget = (() => {
       this.ghostLabels = null;       // {items, opacity}: labels of the parent during transitions
       this.view = null;
       this.autofit = false;
-      this.worker = null;
+      this.worker = null;            // the worker whose frames are shown
+      this.holdWorker = null;        // builds the full optimizer while a sample is shown
+      this.userPaused = false;
       this.runId = 0;                // bumped per optimizer run / parameter restart
+      // Link and cost model (ms, bytes), learned from requests: predicts how long a
+      // re-embed takes to start moving, to size the zoom and decide on a sample first.
+      this.link = {
+        downBytesPerMs: 20000, upBytesPerMs: 10000, rttMs: 5,
+        serverMsPerPoint: 0.0025, bytesPerPoint: 48, decodeMsPerPoint: 0.0008, setupMsPerPoint: 0.0055,
+      };
+      this._linkFromPageLoad();
       this.relaxing = false;         // re-optimizing after a parameter change
       this.map = null;               // optimizer coords -> display coords
       this.interArrival = 16;
@@ -308,9 +256,13 @@ const ReembedWidget = (() => {
       let delay = 1000;
       for (;;) {
         try {
+          const t0 = performance.now();
           const resp = await fetch(base + "/api/info", { headers: { ...(this.cfg.auth_headers || {}) } });
           if (!resp.ok) throw new Error("HTTP " + resp.status);
           const info = await resp.json();
+          // A first estimate of the request latency (with connection setup, as for a re-embed).
+          if (!this.rttMeasured) this.link.rttMs = Math.max(1, performance.now() - t0);
+          this.rttMeasured = true;
           this.server = { stage: info.stage || (info.ready && info.globalGraphReady ? "ready" : "warming up") };
           delay = 1000;
         } catch (error) {
@@ -666,6 +618,7 @@ const ReembedWidget = (() => {
       if (n < T.MIN_POINTS) return;
       this._stopWorker();
       this.relaxing = false;
+      const plan = this._plan(n, !parent.ids);
       const ids = parent.ids ? gather(parent.ids, parentSel, 1) : parentSel.slice();
       const parentPos = parent.ids ? this.disp.slice() : root.pos;
       const X = gather(parentPos, parentSel, 2);
@@ -728,7 +681,10 @@ const ReembedWidget = (() => {
       this.mode = "entering";
       this.autofit = false;
       this.map = null;
-      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, timing: null, buildMs: 0 });
+      Object.assign(this.status, {
+        phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, timing: null, sampleTiming: null,
+        buildMs: 0, wait: null, fullStage: null,
+      });
 
       const zoomIn = () => {
         // Snap the camera to V1, re-expressing everything so nothing moves on screen.
@@ -743,7 +699,7 @@ const ReembedWidget = (() => {
         const ghostOpacity = this.ghost.opacity;
         const scaleAt = (k) => k / 2 ** V1.zoom;
         this._startTransition({
-          dur: T.ZOOM_MS,
+          dur: plan.zoomMs,
           step: (e) => {
             tweenAt(selTween, e, this.disp);
             this.rs = scaleAt(k0 ** (1 - e) * k1 ** e);
@@ -764,7 +720,7 @@ const ReembedWidget = (() => {
             this.mode = this.status.error ? "idle" : "running";
             if (this.mode === "idle") this._finishLevel();
             if (this.status.phase === "zooming") this.status.phase = "computing kNN graph";
-            if (this.worker) this.worker.postMessage({ cmd: "resume" });
+            if (this.worker && !this.userPaused) this.worker.postMessage({ cmd: "resume" });
             if (this.map && this.target) this._startFrameTween(performance.now());
           },
         });
@@ -789,101 +745,151 @@ const ReembedWidget = (() => {
         });
       }
       this.ui.update();
-      this._request(level);
+      this._startRun(level, plan);
     }
 
-    async _request(level) {
-      const n = level.n;
+    // ---------------------------------------------------------------- planning
+    /** Seed the link model from the page load, when the page came from the re-embed server. */
+    _linkFromPageLoad() {
+      try {
+        const base = this._serverBase();
+        const nav = performance.getEntriesByType("navigation")[0];
+        if (!base || !nav || new URL(base, location.href).origin !== location.origin) return;
+        const ms = nav.responseEnd - nav.responseStart;
+        if (nav.encodedBodySize > 2e6 && ms > 0) this.link.downBytesPerMs = nav.encodedBodySize / ms;
+      } catch (error) {
+        // No usable navigation timing (e.g. notebook iframes): keep the defaults.
+      }
+    }
+
+    /** Learn link speed and per-point costs from a graph request's timing (see fetchGraph). */
+    _learn(t) {
+      const L = this.link, mix = (old, value) => (Number.isFinite(value) && value > 0 ? 0.5 * old + 0.5 * value : old);
+      if (t.downloadBytes > 256e3 && t.downloadMs > 1) L.downBytesPerMs = mix(L.downBytesPerMs, t.downloadBytes / t.downloadMs);
+      if (t.uploadBytes > 128e3 && t.uploadMs > 1) L.upBytesPerMs = mix(L.upBytesPerMs, t.uploadBytes / t.uploadMs);
+      L.rttMs = mix(L.rttMs, Math.max(1, t.firstByteMs - (t.uploadMs || 0) - t.serverMs));
+      if (t.n >= 10000) {
+        L.serverMsPerPoint = mix(L.serverMsPerPoint, t.serverMs / t.n);
+        L.bytesPerPoint = mix(L.bytesPerPoint, t.downloadBytes / t.n);
+        L.decodeMsPerPoint = mix(L.decodeMsPerPoint, (t.decodeMs + t.prepareMs) / t.n);
+      }
+    }
+
+    /** Predicted ms from requesting the graph of `n` points to their optimizer being ready. */
+    _predictMs(n) {
+      const L = this.link;
+      return 2 * L.rttMs + 20 + (4 * n) / L.upBytesPerMs + n * L.serverMsPerPoint
+        + (n * L.bytesPerPoint) / L.downBytesPerMs + n * (L.decodeMsPerPoint + L.setupMsPerPoint);
+    }
+
+    /**
+     * How to re-embed `n` points: start from a random sample when optimizing them all
+     * would be slow, or when their graph would arrive (and be set up) only well after
+     * the longest zoom; and how long the zoom should take to cover the wait.
+     */
+    _plan(n, firstLevel) {
+      const gpu = this.engine() !== "cpu" && (gpuUsable ?? !!navigator.gpu);
+      const slowOptimizer = n > (this.cfg.subsample_threshold || (gpu ? 400000 : 25000));
+      const fullMs = this._predictMs(n);
+      let sample = 0;
+      if (slowOptimizer) {
+        sample = Math.min(this.cfg.sample_size, n - 1);
+      } else if (fullMs > T.ZOOM_MAX_MS + T.STALL_MS) {
+        // The largest sample whose graph is predicted to arrive within the longest zoom.
+        sample = Math.min(this.cfg.sample_size, Math.floor(n / 2));
+        while (sample > T.MIN_SAMPLE && this._predictMs(sample) > T.ZOOM_MAX_MS) sample = Math.floor(0.8 * sample);
+        if (sample < Math.min(T.MIN_SAMPLE, n / 4)) sample = 0;
+      }
+      const waitMs = (sample ? this._predictMs(sample) : fullMs) - (firstLevel ? T.PREFADE_MS : 0);
+      return { sample, fullMs, zoomMs: clamp(waitMs, T.ZOOM_MS, T.ZOOM_MAX_MS), t0: performance.now() };
+    }
+
+    // ---------------------------------------------------------------- workers
+    /**
+     * Start optimizing a new level: one worker requests the graph and optimizes the
+     * selection, or (sample first) one requests and animates a random sample while
+     * another requests the full graph and builds its optimizer, taking over when ready.
+     */
+    _startRun(level, plan) {
       const base = this._serverBase();
       if (!base) {
         this._fail("No re-embed server configured: pass ReembedWidget(server_url=...).");
         return;
       }
-      const gpu = this.engine() !== "cpu" && (await gpuAvailable());
-      const threshold = this.cfg.subsample_threshold || (gpu ? 400000 : 25000);
-      const sample = n > threshold ? Math.min(this.cfg.sample_size, n - 1) : 0;
-      const t0 = performance.now();
-      // Ask for the selection in spatial order: the graph then encodes compactly.
-      const order = n < 16777216 ? spatialOrder(level.X, n) : null;
-      let body = level.ids;
-      if (order) {
-        body = new Int32Array(n);
-        for (let r = 0; r < n; r++) body[r] = level.ids[order[r]];
-      }
-      const tSend = performance.now();
-      let header, arrays, buffer, resp, tHeaders, tBody;
-      try {
-        resp = await fetch(base + "/api/reembed?encoding=varint" + (sample ? "&sample=" + sample : ""), {
-          method: "POST",
-          body,
-          headers: { "Content-Type": "application/octet-stream", ...(this.cfg.auth_headers || {}) },
-        });
-        if (!resp.ok) throw new Error(`server responded ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-        tHeaders = performance.now();
-        buffer = await resp.arrayBuffer();
-        tBody = performance.now();
-        ({ header, arrays } = unpack(buffer));
-      } catch (error) {
-        if (this.current() === level && !level.cancelled) this._fail(`Re-embed request failed (${error.message || error}).`);
-        return;
-      }
-      if (this.current() !== level || level.cancelled) return;  // the user went back meanwhile
-      let knn = { idx: arrays.knn_indices, dist: arrays.knn_distances };
-      let sampleLocal = arrays.sample_local || null;
-      if (order) {
-        knn = reorderKnn(knn.idx, knn.dist, order);
-        if (sampleLocal) sampleLocal = sampleLocal.map((r) => order[r]);
-      }
-      level.sampleLocal = sampleLocal;
-      // Kept so the level can be re-optimized later (e.g. after Back) without a new request.
-      level.knn = knn;
-      const tDone = performance.now();
-      // Where the request time went. Upload and server times are measured by the server;
-      // "other" is latency plus preparing and decoding here.
-      const net = performance.getEntriesByName(resp.url).pop();
-      const timing = {
-        totalMs: tDone - t0,
-        prepareMs: tSend - t0,
-        firstByteMs: tHeaders - tSend,
-        uploadMs: header.receiveSeconds != null ? 1000 * header.receiveSeconds : null,
-        serverMs: 1000 * (header.serverSeconds ?? header.knnSeconds + (header.sampleKnnSeconds || 0)),
-        knnMs: 1000 * (header.knnSeconds + (header.sampleKnnSeconds || 0)),
-        downloadMs: tBody - tHeaders,
-        networkDownloadMs: net && net.responseEnd > 0 ? net.responseEnd - net.responseStart : null,
-        decodeMs: tDone - tBody,
-        uploadBytes: body.byteLength,
-        downloadBytes: buffer.byteLength,
+      const request = {
+        url: new URL(base + "/api/reembed?encoding=varint", location.href).href,
+        headers: { ...(this.cfg.auth_headers || {}) },
       };
-      timing.otherMs = timing.totalMs - (timing.uploadMs || 0) - timing.serverMs - timing.downloadMs;
-      console.info("[reembed] " + n + " points, request timing:", timing);
-      this.status.timing = timing;
-      this.status.phase = "building";
-      this._spawnWorker(level, level.X, level.homeMap, {
-        startPaused: !!this.tr,
-        sample: sampleLocal
-          ? { local: sampleLocal, idx: arrays.sample_knn_indices, dist: arrays.sample_knn_distances }
-          : null,
-      });
-    }
-
-    /**
-     * Start a worker optimizing `level` from positions `X` (display coordinates of
-     * the epoch-0 layout before `homeMap`).
-     */
-    _spawnWorker(level, X, homeMap, { startPaused = false, sample = null } = {}) {
-      const assets = this._engineAssets();
       this._stopWorker();
       this.runId++;
+      this.userPaused = false;
+      this.runInit = { X: level.X, homeMap: level.homeMap };
+      this.plan = plan;
+      this.lastSample = null;
+      const startPaused = !!this.tr || this.userPaused;
+      if (!plan.sample) {
+        this.worker = this._newWorker(level, "full", { n: level.n, ids: level.ids, initXY: level.X, request, startPaused });
+        return;
+      }
+      const sampleLocal = randomSubset(level.n, plan.sample);
+      level.sampleLocal = sampleLocal;
+      // The sample's worker starts the full request as soon as its own graph is computed.
+      const channel = new MessageChannel();
+      this.worker = this._newWorker(level, "sample", {
+        n: sampleLocal.length, ids: gather(level.ids, sampleLocal, 1), initXY: gather(level.X, sampleLocal, 2), request, startPaused,
+        port: channel.port1,
+      });
+      this.holdWorker = this._newWorker(level, "hold", {
+        n: level.n, ids: level.ids, initXY: level.X, request: { ...request, deferred: true }, startPaused: true,
+        port: channel.port2,
+      });
+      this.status.fullStage = "waiting";
+    }
+
+    /** Re-optimize `level` (whose graph is kept) from display positions `X`. */
+    _spawnWorker(level, X, homeMap) {
+      this._stopWorker();
+      this.runId++;
+      this.userPaused = false;
       this.runInit = { X, homeMap };
-      this.worker = new Worker(assets.url);
-      this.worker.onmessage = (e) => this._onWorkerMessage(e.data, level);
-      this.worker.onerror = (e) => {
+      this.worker = this._newWorker(level, "full", { n: level.n, initXY: X, graph: level.knn, startPaused: this.userPaused });
+    }
+
+    _newWorker(level, role, { n, ids = null, initXY, request = null, graph = null, startPaused = false, port = null }) {
+      const assets = this._engineAssets();
+      const worker = new Worker(assets.url);
+      worker.onmessage = (e) => this._onWorkerMessage(e.data, level, role, worker);
+      worker.onerror = (e) => {
         if (this.current() === level && !level.cancelled) this._fail(`Engine error: ${e.message || e}`);
       };
-      this.worker.postMessage({
-        cmd: "start", engine: this.engine(), wasmGz: assets.wasmGz, startPaused, runId: this.runId,
-        n: level.n, initXY: X, knnIdx: level.knn.idx, knnDist: level.knn.dist, sample,
+      worker.postMessage({
+        cmd: "start", role, engine: this.engine(), wasmGz: assets.wasmGz, startPaused, runId: this.runId,
+        n, ids, initXY, request, graph, port,
         options: { ...this.ui.params(), refineEpochs: this.cfg.refine_epochs, initRescale: this.cfg.init_rescale },
+      }, port ? [port] : []);
+      return worker;
+    }
+
+    /** Ask the sample worker to keep moving until the full optimizer is predicted to be ready. */
+    _paceSample(remainingMs) {
+      if (this.worker && this.holdWorker && Number.isFinite(remainingMs)) {
+        this.worker.postMessage({ cmd: "pace", ms: Math.max(1000, 1.2 * remainingMs) });
+      }
+    }
+
+    /** The full optimizer is ready: it takes over from the sample, placing the other points next to it. */
+    _adopt() {
+      const hold = this.holdWorker;
+      this.holdWorker = null;
+      if (this.worker) {
+        this.worker.postMessage({ cmd: "stop" });
+        this.worker.terminate();
+      }
+      this.worker = hold;
+      this.status.fullStage = null;
+      hold.postMessage({
+        cmd: "adopt", sampleLocal: this.lastSample ? this.current().sampleLocal : null,
+        sampleEmbedding: this.lastSample, paused: !!this.tr || this.userPaused,
       });
     }
 
@@ -913,11 +919,15 @@ const ReembedWidget = (() => {
     }
 
     _stopWorker() {
-      if (this.worker) {
-        this.worker.postMessage({ cmd: "stop" });
-        this.worker.terminate();
-        this.worker = null;
+      for (const worker of [this.worker, this.holdWorker]) {
+        if (worker) {
+          worker.postMessage({ cmd: "stop" });
+          worker.terminate();
+        }
       }
+      this.worker = null;
+      this.holdWorker = null;
+      this.status.fullStage = null;
     }
 
     /** Optimizer coords -> display: undo the epoch-0 similarity, then apply the home map. */
@@ -940,24 +950,70 @@ const ReembedWidget = (() => {
       this.ft = { from: this.disp.slice(), to: this.target.slice(), t0: now, dur: clamp(this.interArrival, 16, 600) };
     }
 
-    _onWorkerMessage(msg, level) {
+    _onWorkerMessage(msg, level, role, worker) {
       if (this.current() !== level || level.cancelled) return;
-      // Messages from a run superseded by a parameter change.
-      if (msg.runId !== undefined && msg.runId !== this.runId) return;
+      // Workers already replaced (e.g. the sample once the full optimizer took over).
+      if (worker !== this.worker && worker !== this.holdWorker) return;
+      // Frames from a run superseded by a parameter change.
+      if ((msg.type === "frame" || msg.type === "done") && msg.runId !== this.runId) return;
       const now = performance.now();
       const st = this.status;
+      const hold = worker === this.holdWorker;
+      const L = this.link;
       if (msg.type === "error") {
         console.error(msg.error);
-        this._fail(`Engine error: ${msg.error.split("\n")[0]}`);
+        this._fail(msg.error.startsWith("Error: server responded") || msg.error.includes("fetch")
+          ? `Re-embed request failed (${msg.error.split("\n")[0]}).` : `Engine error: ${msg.error.split("\n")[0]}`);
+        return;
+      }
+      if (msg.type === "headers") {
+        // The sample's graph is computed, so the full one is being requested (see _startRun).
+        if (role === "sample" && this.holdWorker) st.fullStage = "waiting for server";
+        if (hold) st.fullStage = "downloading";
+        else st.wait = { stage: "download", pct: 0 };
+        return;
+      }
+      if (msg.type === "progress") {
+        const pct = msg.total ? Math.round((100 * msg.received) / msg.total) : null;
+        if (hold) {
+          st.fullStage = "downloading" + (pct != null ? " " + pct + "%" : "");
+          this._paceSample((msg.total - msg.received) / L.downBytesPerMs + level.n * (L.decodeMsPerPoint + L.setupMsPerPoint));
+        } else {
+          st.wait = { stage: "download", pct };
+        }
+        return;
+      }
+      if (msg.type === "graph") {
+        this._learn(msg.timing);
+        console.info("[reembed] " + msg.timing.n + " points (" + role + "), request timing:", msg.timing);
+        if (role === "sample") {
+          st.sampleTiming = msg.timing;
+        } else {
+          // Kept so the level can be re-optimized later (e.g. after Back) without a new request.
+          level.knn = { idx: msg.idx, dist: msg.dist };
+          st.timing = msg.timing;
+        }
+        if (hold) {
+          st.fullStage = "setting up";
+          this._paceSample(level.n * L.setupMsPerPoint);
+        } else {
+          st.wait = { stage: "setup" };
+        }
         return;
       }
       if (msg.type === "engine") {
         st.engine = msg;
-        if (msg.buildMs != null) st.buildMs = msg.buildMs;
+        if (role !== "sample" && msg.buildMs != null) {
+          st.buildMs = msg.buildMs;
+          if (msg.n >= 10000) L.setupMsPerPoint = 0.5 * L.setupMsPerPoint + (0.5 * msg.buildMs) / msg.n;
+        }
         this.ui.update();
         return;
       }
-      if (msg.type === "sample") return;
+      if (msg.type === "ready") {
+        this._adopt();
+        return;
+      }
       if (msg.type === "placed") {
         this.map(msg.embedding, this.target);
         // Points hidden during the sample phase jump to their placed positions, then fade in.
@@ -975,6 +1031,11 @@ const ReembedWidget = (() => {
         return;
       }
       if (msg.type === "done") {
+        if (role === "sample") {
+          // The full optimizer is later than predicted: the sample has converged meanwhile.
+          st.phase = "waiting for the full graph";
+          return;
+        }
         // The worker stays alive (idle) so parameter changes can re-optimize quickly.
         st.phase = "done";
         return;
@@ -987,6 +1048,8 @@ const ReembedWidget = (() => {
       st.nEpochs = msg.nEpochs;
       if (msg.computeMs) st.computeMs = msg.computeMs;
       const idx = msg.phase === "sample" ? this.sampleLocal : null;
+      if (msg.phase === "sample") this.lastSample = msg.embedding;
+      if (msg.initial && msg.phase === "sample") this._paceSample(this.plan.t0 + this.plan.fullMs - now);
       if (msg.initial) {
         if (msg.phase === "sample") {
           // Hide non-sample points until they are placed.
@@ -1025,6 +1088,7 @@ const ReembedWidget = (() => {
     }
 
     pause(paused) {
+      this.userPaused = paused;
       if (this.worker) this.worker.postMessage({ cmd: paused ? "pause" : "resume" });
     }
 
@@ -1037,7 +1101,9 @@ const ReembedWidget = (() => {
       if (!level || !level.ids || level.cancelled || this.mode === "back") return;
       if (this.worker) {
         this.runId++;
-        this.worker.postMessage({ cmd: "params", params, runId: this.runId });
+        for (const worker of [this.worker, this.holdWorker]) {
+          if (worker) worker.postMessage({ cmd: "params", params, runId: this.runId });
+        }
       } else if (this.mode === "idle" && level.knn && this.disp) {
         this._spawnWorker(level, this.disp.slice(), IDENTITY_MAP);
       } else {
@@ -1386,7 +1452,11 @@ const ReembedWidget = (() => {
         const engine = e ? (e.gpuActive ? "WebGPU" : "CPU") + (e.gpuRequested && !e.gpuActive ? " (GPU unavailable)" : "") : "";
         const parts = [];
         if (st.phase === "computing kNN graph" && serverText) parts.push("waiting for server: " + ctl.server.stage);
+        else if (st.phase === "computing kNN graph" && st.wait && st.wait.stage === "download") {
+          parts.push("downloading graph" + (st.wait.pct != null ? " " + st.wait.pct + "%" : ""));
+        } else if (st.phase === "computing kNN graph" && st.wait && st.wait.stage === "setup") parts.push("setting up optimizer");
         else if (st.phase && st.phase !== "done") parts.push(st.phase);
+        if (st.fullStage) parts.push("full graph: " + st.fullStage);
         if (st.nEpochs) parts.push(`epoch ${st.epoch}/${st.nEpochs}`);
         if (engine) parts.push(engine + (st.computeMs ? ", " + st.computeMs.toFixed(1) + " ms/epoch" : ""));
         // Where the time went: the request (upload, server, download), and building the optimizer.
@@ -1400,6 +1470,7 @@ const ReembedWidget = (() => {
             + ", download " + mb(tm.downloadBytes) + " " + sec(tm.downloadMs)
             + ", other " + sec(tm.otherMs) + ")");
         }
+        if (st.sampleTiming) parts.push("sample request " + (st.sampleTiming.totalMs / 1000).toFixed(2) + " s");
         if (st.buildMs) parts.push("setup " + (st.buildMs / 1000).toFixed(2) + " s");
         text = parts.join(" · ");
       } else {
