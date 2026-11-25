@@ -121,6 +121,24 @@ def _restricted_seed(global_knn, ids, local, fill):
 
 
 @numba.njit(parallel=True)
+def _sorted_seed_graph(seed, seed_dist):
+    """kNN graph straight from a seed that needs no NN-descent: per row the point
+    itself (distance 0), then all but the farthest candidate by distance (as
+    pynndescent's ``neighbor_graph`` lays out a heap of the seed's width)."""
+    n, width = seed.shape
+    indices = np.empty((n, width), dtype=np.int32)
+    distances = np.empty((n, width), dtype=np.float32)
+    for i in numba.prange(n):
+        order = np.argsort(seed_dist[i])
+        indices[i, 0] = i
+        distances[i, 0] = 0.0
+        for j in range(width - 1):
+            indices[i, j + 1] = seed[i, order[j]]
+            distances[i, j + 1] = seed_dist[i, order[j]]
+    return indices, distances
+
+
+@numba.njit(parallel=True)
 def _seed_distances(data, seed, dist):
     """``dist`` (pynndescent's internal distance) for every seed entry, in parallel:
     pynndescent's own pass over an ``init_graph`` is serial."""
@@ -271,6 +289,8 @@ class ReembedServer:
         if knn_indices is not None:
             self._global_knn = self._normalize_knn(knn_indices)
         self._dist_func = None  # pynndescent's internal distance, if seed distances are verified
+        self._dist_correction = None  # its correction to true distances (None: identity)
+        self._seed_only = False  # whether a fully seeded graph may skip pynndescent
         self._ready = threading.Event()
         # Re-entrant: reembed_payload holds it around subset_graph calls.
         self._compute_lock = threading.RLock()
@@ -314,7 +334,8 @@ class ReembedServer:
         NNDescent = _require_pynndescent()
         t0 = time.time()
         rng = np.random.default_rng(0)
-        warm = rng.normal(size=(2000, 8)).astype(np.float32)
+        # Offset so probe similarities are positive (no ties at maximal distance).
+        warm = (rng.normal(size=(2000, 8)) + 2.0).astype(np.float32)
         seed = rng.integers(0, 2000, size=(2000, self.n_neighbors + 1))
         # numba's default "workqueue" threading layer aborts the process on concurrent
         # parallel calls, so background work is serialised with requests unless the
@@ -365,6 +386,19 @@ class ReembedServer:
                 ours = NNDescent(data, init_dist=init_dist, **kwargs).neighbor_graph
                 theirs = NNDescent(data, **kwargs).neighbor_graph
             if np.array_equal(ours[0], theirs[0]) and np.allclose(ours[1], theirs[1], atol=1e-5):
+                # Skipping pynndescent for seeds that need no iterations must give the
+                # same graph; checked on rows without missing or duplicate candidates.
+                correction = probe._distance_correction
+                full = np.array([len(set(row)) == width and i not in row for i, row in enumerate(init.tolist())])
+                seed_idx, seed_dist = _sorted_seed_graph(init, init_dist)
+                if correction is not None:
+                    seed_dist = correction(seed_dist)
+                self._dist_correction = correction
+                self._seed_only = bool(
+                    full.any()
+                    and np.array_equal(seed_idx[full], theirs[0][full])
+                    and np.allclose(seed_dist[full], theirs[1][full], atol=1e-5)
+                )
                 return dist
         except Exception:  # pragma: no cover - depends on pynndescent internals
             pass
@@ -413,6 +447,13 @@ class ReembedServer:
                 kwargs.update(init_graph=seed, n_iters=_seed_iterations(padded_fraction))
                 if self._dist_func is not None:
                     kwargs["init_dist"] = _seed_distances(data, seed, self._dist_func)
+                    if kwargs["n_iters"] == 0 and self._seed_only:
+                        # The seed is the answer: just sort it (pynndescent's setup alone
+                        # costs ~2 s per million points).
+                        indices, distances = _sorted_seed_graph(seed, kwargs["init_dist"])
+                        if self._dist_correction is not None:
+                            distances = self._dist_correction(distances)
+                        return indices, distances.astype(np.float32)
             random_state = int(rng.integers(1 << 31))
             index = NNDescent(
                 data, n_neighbors=width, metric=self.metric, random_state=random_state, low_memory=True, **kwargs
