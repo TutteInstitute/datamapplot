@@ -289,7 +289,7 @@ const ReembedWidget = (() => {
       this.colorSource = null;
       this.filterMode = "none";
       this.selectionCount = 0;
-      this.status = { phase: "", epoch: 0, nEpochs: 0, computeMs: 0, knnSeconds: 0, requestMs: 0, engine: null, error: null };
+      this.status = { phase: "", epoch: 0, nEpochs: 0, computeMs: 0, timing: null, buildMs: 0, engine: null, error: null };
       this.dm.onViewStateChange("reembed", (params) => this._onViewState(params));
       this.dm.pickRemap = (info) => this._remapPick(info);
       this.server = null;            // {stage, error} from /api/info
@@ -728,7 +728,7 @@ const ReembedWidget = (() => {
       this.mode = "entering";
       this.autofit = false;
       this.map = null;
-      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, requestMs: 0, knnSeconds: 0, downloadMs: 0, bytes: 0, buildMs: 0 });
+      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, timing: null, buildMs: 0 });
 
       const zoomIn = () => {
         // Snap the camera to V1, re-expressing everything so nothing moves on screen.
@@ -810,18 +810,18 @@ const ReembedWidget = (() => {
         body = new Int32Array(n);
         for (let r = 0; r < n; r++) body[r] = level.ids[order[r]];
       }
-      let header, arrays, bytes = 0, downloadMs = 0;
+      const tSend = performance.now();
+      let header, arrays, buffer, resp, tHeaders, tBody;
       try {
-        const resp = await fetch(base + "/api/reembed?encoding=varint" + (sample ? "&sample=" + sample : ""), {
+        resp = await fetch(base + "/api/reembed?encoding=varint" + (sample ? "&sample=" + sample : ""), {
           method: "POST",
           body,
           headers: { "Content-Type": "application/octet-stream", ...(this.cfg.auth_headers || {}) },
         });
         if (!resp.ok) throw new Error(`server responded ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-        const tHeaders = performance.now();
-        const buffer = await resp.arrayBuffer();
-        downloadMs = performance.now() - tHeaders;
-        bytes = buffer.byteLength;
+        tHeaders = performance.now();
+        buffer = await resp.arrayBuffer();
+        tBody = performance.now();
         ({ header, arrays } = unpack(buffer));
       } catch (error) {
         if (this.current() === level && !level.cancelled) this._fail(`Re-embed request failed (${error.message || error}).`);
@@ -837,12 +837,26 @@ const ReembedWidget = (() => {
       level.sampleLocal = sampleLocal;
       // Kept so the level can be re-optimized later (e.g. after Back) without a new request.
       level.knn = knn;
-      Object.assign(this.status, {
-        knnSeconds: header.knnSeconds + (header.sampleKnnSeconds || 0),
-        requestMs: performance.now() - t0,
-        downloadMs,
-        bytes,
-      });
+      const tDone = performance.now();
+      // Where the request time went. Upload and server times are measured by the server;
+      // "other" is latency plus preparing and decoding here.
+      const net = performance.getEntriesByName(resp.url).pop();
+      const timing = {
+        totalMs: tDone - t0,
+        prepareMs: tSend - t0,
+        firstByteMs: tHeaders - tSend,
+        uploadMs: header.receiveSeconds != null ? 1000 * header.receiveSeconds : null,
+        serverMs: 1000 * (header.serverSeconds ?? header.knnSeconds + (header.sampleKnnSeconds || 0)),
+        knnMs: 1000 * (header.knnSeconds + (header.sampleKnnSeconds || 0)),
+        downloadMs: tBody - tHeaders,
+        networkDownloadMs: net && net.responseEnd > 0 ? net.responseEnd - net.responseStart : null,
+        decodeMs: tDone - tBody,
+        uploadBytes: body.byteLength,
+        downloadBytes: buffer.byteLength,
+      };
+      timing.otherMs = timing.totalMs - (timing.uploadMs || 0) - timing.serverMs - timing.downloadMs;
+      console.info("[reembed] " + n + " points, request timing:", timing);
+      this.status.timing = timing;
       this.status.phase = "building";
       this._spawnWorker(level, level.X, level.homeMap, {
         startPaused: !!this.tr,
@@ -1375,10 +1389,16 @@ const ReembedWidget = (() => {
         else if (st.phase && st.phase !== "done") parts.push(st.phase);
         if (st.nEpochs) parts.push(`epoch ${st.epoch}/${st.nEpochs}`);
         if (engine) parts.push(engine + (st.computeMs ? ", " + st.computeMs.toFixed(1) + " ms/epoch" : ""));
-        // Where the time went: the request (its kNN share and download), and building the optimizer.
-        if (st.requestMs) {
-          parts.push("request " + (st.requestMs / 1000).toFixed(2) + " s (kNN " + st.knnSeconds.toFixed(2) + " s, "
-            + (st.bytes / 1e6).toFixed(1) + " MB in " + (st.downloadMs / 1000).toFixed(2) + " s)");
+        // Where the time went: the request (upload, server, download), and building the optimizer.
+        const tm = st.timing;
+        if (tm) {
+          const sec = (ms) => (ms / 1000).toFixed(2) + " s";
+          const mb = (b) => (b / 1e6).toFixed(b < 1e6 ? 2 : 1) + " MB";
+          parts.push("request " + sec(tm.totalMs) + " ("
+            + (tm.uploadMs != null ? "upload " + mb(tm.uploadBytes) + " " + sec(tm.uploadMs) + ", " : "")
+            + "server " + sec(tm.serverMs) + " incl. kNN " + sec(tm.knnMs)
+            + ", download " + mb(tm.downloadBytes) + " " + sec(tm.downloadMs)
+            + ", other " + sec(tm.otherMs) + ")");
         }
         if (st.buildMs) parts.push("setup " + (st.buildMs / 1000).toFixed(2) + " s");
         text = parts.join(" · ");
@@ -1386,6 +1406,8 @@ const ReembedWidget = (() => {
         text = serverText;
       }
       this.el.status.textContent = text;
+      this.el.status.title = st.timing && !st.error
+        ? Object.entries(st.timing).map(([k, v]) => k + ": " + (v == null ? "-" : Math.round(v))).join("\n") : "";
       this.el.status.classList.toggle("reembed-error", !!st.error);
     }
   }

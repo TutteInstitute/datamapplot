@@ -128,6 +128,9 @@ def test_http_api():
         assert response.headers["Access-Control-Allow-Origin"] == "*"
         header, arrays = unpack_arrays(response.read())
         assert header["n"] == 200 and header["seeded"]
+        for key in ("receiveSeconds", "queueSeconds", "knnSeconds", "encodeSeconds", "serverSeconds"):
+            assert header[key] >= 0
+        assert header["serverSeconds"] >= header["knnSeconds"]
         assert arrays["knn_indices"].shape == (200, 16)
         assert arrays["knn_indices"].max() < 200
         assert arrays["sample_local"].shape == (60,)

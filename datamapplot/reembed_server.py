@@ -45,6 +45,11 @@ REST contract
     ``dtype`` and ``shape`` plus an ``encoding`` (and ``step``), and ``bytes`` is
     the encoded length. :func:`unpack_arrays` decodes them.
 
+    The header also reports timings in seconds: ``receiveSeconds`` (reading the
+    request body, i.e. the upload), ``queueSeconds`` (validation and waiting for
+    other requests), ``knnSeconds`` (and ``sampleKnnSeconds``), ``encodeSeconds``
+    and ``serverSeconds`` (all the server's work).
+
 All ``/api/`` endpoints send permissive CORS headers so plots opened from files
 or shown in notebooks can call the server; the figure served at ``/`` does not.
 """
@@ -559,6 +564,9 @@ class ReembedServer:
             self._dist_func = self._verified_distance(NNDescent, probe, warm, seed)
             self._local_repair = self._verified_local_repair(probe, warm)
             _restricted_seed(seed, np.arange(2000), np.arange(2000), seed[:, :width])
+            # Compile the response codec too (a couple of seconds on the first request otherwise).
+            graph = probe.neighbor_graph
+            unpack_arrays(pack_arrays({}, encode_knn("probe", graph[0].astype(np.int32), graph[1])))
             thread_safe = numba.threading_layer() in ("tbb", "omp")
         self._ready.set()
         self._log(f"warm-up done in {time.time() - t0:.1f}s")
@@ -715,15 +723,24 @@ class ReembedServer:
             indices, distances = index.neighbor_graph
         return indices.astype(np.int32), distances.astype(np.float32)
 
-    def reembed_payload(self, ids, sample=0, rng=None, encoding="raw"):
-        """Compute the binary response for a re-embed request (see module docs)."""
+    def reembed_payload(self, ids, sample=0, rng=None, encoding="raw", header_extra=None):
+        """Compute the binary response for a re-embed request (see module docs).
+
+        ``header_extra`` entries are added to the response header.
+        """
+        t_start = time.time()
         if encoding not in ("raw", "varint"):
             raise ValueError(f"unknown encoding {encoding!r}")
+        encode_seconds = 0.0
 
         def graph(name, indices, distances):
-            if encoding == "varint":
-                return encode_knn(name, indices, distances)
-            return [(f"{name}_indices", indices), (f"{name}_distances", distances)]
+            nonlocal encode_seconds
+            if encoding == "raw":
+                return [(f"{name}_indices", indices), (f"{name}_distances", distances)]
+            t = time.time()
+            entries = encode_knn(name, indices, distances)
+            encode_seconds += time.time() - t
+            return entries
 
         ids = np.asarray(ids, dtype=np.int64)
         n_rows = self.vectors.shape[0]
@@ -742,7 +759,9 @@ class ReembedServer:
                 "n": len(ids),
                 "k": self.n_neighbors,
                 "seeded": self._global_knn is not None,
+                "queueSeconds": t0 - t_start,  # validation and waiting for other requests
                 "knnSeconds": time.time() - t0,
+                **(header_extra or {}),
             }
             arrays = graph("knn", idx, dist)
             if 0 < sample < len(ids) and sample >= self.n_neighbors + 2:
@@ -751,6 +770,8 @@ class ReembedServer:
                 s_idx, s_dist = self.subset_graph(ids[sample_local], rng)
                 arrays += [("sample_local", sample_local)] + graph("sample_knn", s_idx, s_dist)
                 header["sampleKnnSeconds"] = time.time() - t1
+        header["encodeSeconds"] = encode_seconds
+        header["serverSeconds"] = time.time() - t_start
         self._log(
             f"re-embed {len(ids):,} points: kNN {header['knnSeconds']:.2f}s"
             + (f", sample of {sample:,} {header['sampleKnnSeconds']:.2f}s" if "sampleKnnSeconds" in header else "")
@@ -922,7 +943,9 @@ def _make_handler(server):
                 return self._send_json({"error": "not found"}, 404)
             if not self._authorized():
                 return
+            t_receive = time.time()
             body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            receive_seconds = time.time() - t_receive
             if len(body) % 4:
                 return self._send_json({"error": "body must be int32 ids"}, 400)
             ids = np.frombuffer(body, dtype="<i4")
@@ -930,10 +953,18 @@ def _make_handler(server):
             try:
                 sample = int(query.get("sample", ["0"])[0])
                 encoding = query.get("encoding", ["raw"])[0]
-                payload = server.reembed_payload(ids, sample=sample, encoding=encoding)
+                payload = server.reembed_payload(
+                    ids, sample=sample, encoding=encoding, header_extra={"receiveSeconds": receive_seconds}
+                )
             except ValueError as error:
                 return self._send_json({"error": str(error)}, 400)
+            t_send = time.time()
             self._send(200, payload, "application/octet-stream")
+            # The write returns once the last bytes are buffered locally, so slightly early.
+            server._log(
+                f"  received {len(body) / 1e6:.2f} MB in {receive_seconds:.2f}s, "
+                f"sent {len(payload) / 1e6:.1f} MB in {time.time() - t_send:.2f}s"
+            )
 
         def log_message(self, format, *args):
             pass
