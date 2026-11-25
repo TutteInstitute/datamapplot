@@ -167,12 +167,12 @@ def start_throttled_proxy(target_port, down_bytes_per_s, latency_s=0.03):
     return holder["port"]
 
 
-# Records the controller's worker messages (time, role, type, phase, initial).
+# Records the controller's worker messages (time, role, type, phase, initial, epoch, nEpochs).
 RECORD_MESSAGES = """() => {
   const ctl = window.__reembed.ctl(), handle = ctl._onWorkerMessage.bind(ctl);
   window.__msgs = [];
   ctl._onWorkerMessage = (msg, level, role, worker) => {
-    window.__msgs.push([performance.now(), role, msg.type, msg.phase || null, !!msg.initial]);
+    window.__msgs.push([performance.now(), role, msg.type, msg.phase || null, !!msg.initial, msg.epoch ?? null, msg.nEpochs ?? null]);
     return handle(msg, level, role, worker);
   };
 }"""
@@ -242,6 +242,7 @@ def main():
         if args.slow_link:
             # As if a previous request had measured the link.
             page.evaluate(f"window.__reembed.ctl().link.downBytesPerMs = {args.slow_link}")
+        if args.slow_link or args.subsample:
             page.evaluate(RECORD_MESSAGES)
         state = lambda: page.evaluate("window.__reembed.state()")
         s0 = state()
@@ -274,11 +275,18 @@ def main():
             if args.subsample and count > 2000:
                 check(s["nEpochs"] == 60 and page.evaluate("Array.from(window.__reembed.ctl().alpha).every((a) => a > 0.99)"),
                       f"{label}: sampled run refined and all points visible")
+                msgs = page.evaluate("window.__msgs")
+                placed = min((t for t, role, kind, *_ in msgs if kind == "placed"), default=None)
+                sample_epochs = [(e, ne) for t, role, kind, phase, initial, e, ne in msgs
+                                 if role == "sample" and kind == "frame" and placed is not None and t < placed]
+                check(bool(sample_epochs) and sample_epochs[-1][0] == sample_epochs[-1][1],
+                      f"{label}: sample (optimizing everything is slow) finished its schedule before the takeover"
+                      + (f" ({sample_epochs[-1][0]}/{sample_epochs[-1][1]})" if sample_epochs else ""))
             if args.slow_link and label == "level1":
                 msgs = page.evaluate("window.__msgs")
                 plan = page.evaluate("window.__reembed.ctl().plan")
                 print(f"{label}: plan sample {plan['sample']}, zoom {plan['zoomMs']:.0f} ms, predicted {plan['fullMs']:.0f} ms")
-                moving = [t for t, role, kind, phase, initial in msgs if role == "sample" and kind == "frame" and not initial]
+                moving = [t for t, role, kind, phase, initial, *_ in msgs if role == "sample" and kind == "frame" and not initial]
                 full_graph = [t for t, role, kind, *_ in msgs if role == "hold" and kind == "graph"]
                 placed = [t for t, role, kind, *_ in msgs if role == "hold" and kind == "placed"]
                 check(plan["sample"] > 0 and plan["zoomMs"] > 1100, f"{label}: slow link -> sample first, longer zoom")

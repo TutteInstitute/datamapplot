@@ -392,7 +392,9 @@ const ReembedWidget = (() => {
       this.labels = { items: this._levelLabels(level), opacity: labelOpacity };
       this.posBuf = new DoubleBuffer(Float32Array, 2 * n);
       this.colorBuf = new DoubleBuffer(Uint8Array, 4 * n);
+      this.lineBuf = new DoubleBuffer(Uint8Array, 4 * n);
       this.colors = this.colorBuf.next();
+      this.lineColors = this._outlines(this.lineBuf.next(), n, () => 1);
       this.rgba = gather(this._baseColors(), level.ids, 4);
       this.colorSource = this._baseColors();
       this.alpha = new Float32Array(n).fill(1);
@@ -459,16 +461,35 @@ const ReembedWidget = (() => {
       this.dm.deckgl.setProps({ layers: this.dm.layers });
     }
 
-    _scatter(id, n, positions, colors, radii, { rs, minPx, opacity = 1, pickable = false, version = 0 }) {
+    /**
+     * DataMap's outline colour, faded per point by `visibility(i)`: deck.gl draws an
+     * antialiased outline even under a transparent fill, so hidden points need it too.
+     */
+    _outlines(out, n, visibility) {
+      const [r, g, b, a = 255] = this.dm.pointOutlineColor;
+      for (let i = 0; i < n; i++) {
+        out[4 * i] = r;
+        out[4 * i + 1] = g;
+        out[4 * i + 2] = b;
+        out[4 * i + 3] = Math.round(a * visibility(i));
+      }
+      return out;
+    }
+
+    _scatter(id, n, positions, colors, radii, { rs, minPx, opacity = 1, pickable = false, version = 0, lines }) {
       const dm = this.dm;
-      const attributes = { getPosition: { value: positions, size: 2 }, getFillColor: { value: colors, size: 4 } };
+      const attributes = {
+        getPosition: { value: positions, size: 2 },
+        getFillColor: { value: colors, size: 4 },
+        getLineColor: { value: lines, size: 4 },
+      };
       if (radii) attributes.getRadius = { value: radii, size: 1 };
       return new deck.ScatterplotLayer({
         id, data: { length: n, attributes },
         ...(radii ? {} : { getRadius: dm.pointSize }),
         radiusUnits: "common", radiusScale: rs,
         radiusMinPixels: minPx, radiusMaxPixels: dm.pointRadiusMaxPixels,
-        stroked: true, getLineColor: dm.pointOutlineColor, getLineWidth: dm.pointLineWidth,
+        stroked: true, getLineWidth: dm.pointLineWidth,
         lineWidthUnits: "common", lineWidthScale: rs,
         lineWidthMinPixels: dm.pointLineWidthMinPixels * Math.min(1, minPx / Math.max(dm.pointRadiusMinPixels, 1e-6)),
         lineWidthMaxPixels: dm.pointLineWidthMaxPixels,
@@ -484,7 +505,7 @@ const ReembedWidget = (() => {
       const g = this.ghost;
       if (g && g.opacity > 0.002) {
         layers.push(this._scatter(OURS + "ghost", g.n, g.pos, g.rgba, g.radii,
-          { rs: g.rs, minPx: g.minPx, opacity: g.opacity, version: this.version }));
+          { rs: g.rs, minPx: g.minPx, opacity: g.opacity, version: this.version, lines: g.lines }));
       }
       const level = this.current();
       if (level && level.ids) {
@@ -496,12 +517,14 @@ const ReembedWidget = (() => {
             this.colors[4 * i + 2] = this.rgba[4 * i + 2];
             this.colors[4 * i + 3] = Math.round(this.rgba[4 * i + 3] * this.alpha[i]);
           }
+          this.lineColors = this._outlines(this.lineBuf.next(), level.n, (i) => this.alpha[i]);
           this.colorsDirty = false;
         }
         const out = this.posBuf.next();
         out.set(this.disp);
         layers.push(this._scatter(OURS + "active", level.n, out, this.colors, level.radii, {
           rs: this.rs, minPx: this.minPx, opacity: this.opacity, pickable: this.mode === "idle", version: this.version,
+          lines: this.lineColors,
         }));
       }
       const gl = this.ghostLabels;
@@ -675,7 +698,10 @@ const ReembedWidget = (() => {
       this.rs = k0 / 2 ** V0.zoom;
       this.minPx = minPx0;
       this.opacity = opacity0;
-      this.ghost = { n: parent.n, pos: parentPos.slice(), rgba: ghostRgba, radii: ghostRadii, rs: this.rs, minPx: minPx0, opacity: opacity0 };
+      this.ghost = {
+        n: parent.n, pos: parentPos.slice(), rgba: ghostRgba, radii: ghostRadii, rs: this.rs, minPx: minPx0, opacity: opacity0,
+        lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
+      };
       this._clearLasso();
       this._lassoFreeze();
       this.mode = "entering";
@@ -801,7 +827,7 @@ const ReembedWidget = (() => {
         if (sample < Math.min(T.MIN_SAMPLE, n / 4)) sample = 0;
       }
       const waitMs = (sample ? this._predictMs(sample) : fullMs) - (firstLevel ? T.PREFADE_MS : 0);
-      return { sample, fullMs, zoomMs: clamp(waitMs, T.ZOOM_MS, T.ZOOM_MAX_MS), t0: performance.now() };
+      return { sample, slowOptimizer, fullMs, zoomMs: clamp(waitMs, T.ZOOM_MS, T.ZOOM_MAX_MS), t0: performance.now() };
     }
 
     // ---------------------------------------------------------------- workers
@@ -826,6 +852,8 @@ const ReembedWidget = (() => {
       this.runInit = { X: level.X, homeMap: level.homeMap };
       this.plan = plan;
       this.lastSample = null;
+      this.sampleDone = false;
+      this.fullReady = false;
       const startPaused = !!this.tr || this.userPaused;
       if (!plan.sample) {
         this.worker = this._newWorker(level, "full", { n: level.n, ids: level.ids, initXY: level.X, request, startPaused });
@@ -1011,7 +1039,11 @@ const ReembedWidget = (() => {
         return;
       }
       if (msg.type === "ready") {
-        this._adopt();
+        // A sample taken because optimizing everything is slow finishes its schedule
+        // first; one taken to cover the wait gives way as soon as possible.
+        this.fullReady = true;
+        if (!this.plan.slowOptimizer || this.sampleDone) this._adopt();
+        else st.fullStage = "ready";
         return;
       }
       if (msg.type === "placed") {
@@ -1032,8 +1064,10 @@ const ReembedWidget = (() => {
       }
       if (msg.type === "done") {
         if (role === "sample") {
-          // The full optimizer is later than predicted: the sample has converged meanwhile.
-          st.phase = "waiting for the full graph";
+          this.sampleDone = true;
+          if (this.fullReady) this._adopt();
+          // Otherwise the full optimizer is later than predicted: the sample has converged meanwhile.
+          else st.phase = "waiting for the full graph";
           return;
         }
         // The worker stays alive (idle) so parameter changes can re-optimize quickly.
@@ -1174,7 +1208,10 @@ const ReembedWidget = (() => {
         opacityEnd = dm.pointLayer.props.opacity ?? 1;
       }
       const minPx0 = this.minPx;
-      this.ghost = { n: parent.n, pos: ghostStart.slice(), rgba: ghostRgba, radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0 };
+      this.ghost = {
+        n: parent.n, pos: ghostStart.slice(), rgba: ghostRgba, radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0,
+        lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
+      };
       // The shown labels fade out; a re-embedded parent's labels fade in on its returning points.
       this.ghostLabels = parent.ids ? { items: this._levelLabels(parent), opacity: 0 } : null;
       const labelOpacity0 = this.labels ? this.labels.opacity : 0;
