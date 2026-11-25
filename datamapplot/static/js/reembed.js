@@ -30,6 +30,12 @@ const ReembedWidget = (() => {
   const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
   // Web Mercator (deck.gl MapView): world coordinates in radians.
+  // Browsers can expose WebGPU without a usable adapter (headless, blocklisted GPUs).
+  let gpuProbe = null;
+  const gpuAvailable = () => (gpuProbe = gpuProbe || (navigator.gpu
+    ? navigator.gpu.requestAdapter({ powerPreference: "high-performance" }).then((a) => !!a, () => false)
+    : Promise.resolve(false)));
+
   const D2R = Math.PI / 180;
   const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * D2R) / 2));
   const invMercY = (y) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / D2R;
@@ -194,6 +200,7 @@ const ReembedWidget = (() => {
       this.dm = datamap;
       this.cfg = config;
       this.ui = ui;
+      gpuAvailable();                // resolved by the first request
       this.levels = [];
       this.mode = "idle";            // idle | entering | running | back
       this.tr = null;                // active transition
@@ -653,7 +660,7 @@ const ReembedWidget = (() => {
       this.mode = "entering";
       this.autofit = false;
       this.map = null;
-      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null });
+      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, requestMs: 0, knnSeconds: 0, buildMs: 0 });
 
       const zoomIn = () => {
         // Snap the camera to V1, re-expressing everything so nothing moves on screen.
@@ -724,8 +731,8 @@ const ReembedWidget = (() => {
         this._fail("No re-embed server configured: pass ReembedWidget(server_url=...).");
         return;
       }
-      const engine = this.engine();
-      const threshold = this.cfg.subsample_threshold || (engine !== "cpu" && navigator.gpu ? 400000 : 25000);
+      const gpu = this.engine() !== "cpu" && (await gpuAvailable());
+      const threshold = this.cfg.subsample_threshold || (gpu ? 400000 : 25000);
       const sample = n > threshold ? Math.min(this.cfg.sample_size, n - 1) : 0;
       const t0 = performance.now();
       let header, arrays;
@@ -843,6 +850,7 @@ const ReembedWidget = (() => {
       }
       if (msg.type === "engine") {
         st.engine = msg;
+        if (msg.buildMs != null) st.buildMs = msg.buildMs;
         this.ui.update();
         return;
       }
@@ -859,7 +867,7 @@ const ReembedWidget = (() => {
         this.visTarget.fill(1);
         this._retargetAlpha(T.FADE_MS);
         this.sampleLocal = null;
-        st.phase = "refining";
+        st.phase = "building full layout";
         if (!this.tr) this._startFrameTween(now);
         return;
       }
@@ -1278,7 +1286,9 @@ const ReembedWidget = (() => {
         else if (st.phase && st.phase !== "done") parts.push(st.phase);
         if (st.nEpochs) parts.push(`epoch ${st.epoch}/${st.nEpochs}`);
         if (engine) parts.push(engine + (st.computeMs ? ", " + st.computeMs.toFixed(1) + " ms/epoch" : ""));
-        if (st.knnSeconds) parts.push(`kNN ${st.knnSeconds.toFixed(2)} s`);
+        // Where the time went: the server request (and its kNN share), and building the optimizer.
+        if (st.requestMs) parts.push("server " + (st.requestMs / 1000).toFixed(2) + " s (kNN " + st.knnSeconds.toFixed(2) + " s)");
+        if (st.buildMs) parts.push("setup " + (st.buildMs / 1000).toFixed(2) + " s");
         text = parts.join(" · ");
       } else {
         text = serverText;

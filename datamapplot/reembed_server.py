@@ -46,6 +46,7 @@ or shown in notebooks can call the server; the figure served at ``/`` does not.
 import contextlib
 import http.server
 import json
+import os
 import socketserver
 import struct
 import threading
@@ -264,6 +265,11 @@ class ReembedServer:
     global_n_neighbors : int, optional (default=30)
         Neighbours in the global graph computed when ``knn_indices`` is None.
 
+    global_knn_cache : str or path or None, optional (default=None)
+        A ``.npy`` file for the global graph: loaded if it exists (and
+        ``knn_indices`` is None), otherwise written once the graph is built,
+        so restarts skip building it.
+
     max_threads : int or None, optional (default=None)
         Upper bound on numba threads used per request (default: all cores).
         About one thread per 1,000 selected points is used, up to 16.
@@ -289,6 +295,7 @@ class ReembedServer:
         n_neighbors=15,
         knn_indices=None,
         global_n_neighbors=30,
+        global_knn_cache=None,
         max_threads=None,
         token=None,
         verbose=True,
@@ -312,6 +319,13 @@ class ReembedServer:
         self.token = token
         self.verbose = verbose
         self._global_knn = None
+        if global_knn_cache is not None:
+            global_knn_cache = os.fspath(global_knn_cache)
+            if not global_knn_cache.endswith(".npy"):
+                global_knn_cache += ".npy"  # as np.save would name it
+        self.global_knn_cache = global_knn_cache
+        if knn_indices is None and global_knn_cache is not None and os.path.exists(global_knn_cache):
+            knn_indices = np.load(global_knn_cache)
         if knn_indices is not None:
             self._global_knn = self._normalize_knn(knn_indices)
         self._dist_func = None  # pynndescent's internal distance, if seed distances are verified
@@ -398,6 +412,11 @@ class ReembedServer:
                 f"global {self.global_n_neighbors}-NN graph for {len(self.vectors):,} points "
                 f"in {time.time() - t0:.1f}s"
             )
+            if self.global_knn_cache is not None:
+                partial = self.global_knn_cache + ".partial.npy"
+                np.save(partial, self._global_knn.astype(np.int32))
+                os.replace(partial, self.global_knn_cache)  # never expose a partial file
+                self._log(f"saved global graph to {self.global_knn_cache}")
 
     def _verified_distance(self, NNDescent, probe, data, seed):
         """pynndescent's internal distance function, if seed distances computed with

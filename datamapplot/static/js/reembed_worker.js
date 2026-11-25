@@ -185,16 +185,17 @@ async function start(msg) {
   state.pendingParams = null;
   state.full = { n, knnIdx, knnDist };
   state.engine = engine;
-  const report = (umap) =>
-    self.postMessage({ type: "engine", ...engine, gpuActive: umap.gpuActive, gpuError: umap.gpuError ?? null });
+  // Engine status, with how long building the optimizer (graph + setup) took.
+  const report = (umap, buildMs) =>
+    self.postMessage({ type: "engine", ...engine, gpuActive: umap.gpuActive, gpuError: umap.gpuError ?? null, buildMs });
 
   if (!sample) {
     const t0 = performance.now();
     const umap = await buildUmap(n, knnIdx, knnDist, initXY, options, options.nEpochs, engine.gpuRequested);
     umap.setGoodInitialization(true);
     state.umap = umap;
-    report(umap);
-    postFrame("full", umap, n, { initial: true, buildMs: performance.now() - t0 });
+    report(umap, performance.now() - t0);
+    postFrame("full", umap, n, { initial: true });
     await animate("full", umap, n);
     finished(umap, n, "full");
     return;
@@ -212,8 +213,8 @@ async function start(msg) {
   const sampleUmap = await buildUmap(m, sample.idx, sample.dist, sampleInit, options, options.nEpochs, engine.gpuRequested);
   sampleUmap.setGoodInitialization(true);
   state.umap = sampleUmap;
-  report(sampleUmap);
-  postFrame("sample", sampleUmap, m, { initial: true, buildMs: performance.now() - t0 });
+  report(sampleUmap, performance.now() - t0);
+  postFrame("sample", sampleUmap, m, { initial: true });
   await animate("sample", sampleUmap, m);
   if (state.stopped) return;
 
@@ -226,8 +227,9 @@ async function start(msg) {
   self.postMessage({ type: "placed", embedding: pos.slice(), unplaced, placeMs: performance.now() - tPlace, runId: state.runId });
 
   if (options.refineEpochs > 0) {
+    const tBuild = performance.now();
     const umap = await buildFull(pos, options.refineEpochs);
-    report(umap);
+    report(umap, performance.now() - tBuild);
     await animate("refine", umap, n);
     finished(umap, n, "refine");
   } else {

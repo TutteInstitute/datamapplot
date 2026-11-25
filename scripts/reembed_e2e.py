@@ -314,12 +314,13 @@ def main():
         page.evaluate("""() => {
             const ctl = window.__reembed.ctl(), start = ctl._startTransition.bind(ctl);
             ctl._startTransition = (tr) => start({ ...tr, dur: tr.dur * 4 });
-            window.__restoreTransitions = () => { delete ctl._startTransition; };
             const out = (window.__labelOpacity = []);
+            let sampling = true;
+            window.__restoreTransitions = () => { delete ctl._startTransition; sampling = false; };
             const step = () => {
                 const layer = (window.datamap.deckgl.props.layers || []).find((l) => l.id === "labelLayer");
                 if (layer) out.push(layer.props.opacity);
-                if (out.length < 400) requestAnimationFrame(step);
+                if (sampling) requestAnimationFrame(step);
             };
             requestAnimationFrame(step);
         }""")

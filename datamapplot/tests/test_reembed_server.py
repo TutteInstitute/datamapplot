@@ -1,6 +1,7 @@
 """Tests for the re-embed server."""
 
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -115,3 +116,18 @@ def test_http_api():
         assert page.headers["Access-Control-Allow-Origin"] is None
     finally:
         server.stop()
+
+
+def test_global_knn_cache(tmp_path):
+    pytest.importorskip("pynndescent")
+    vectors = _clustered_vectors(n=500)
+    cache = tmp_path / "global"
+    server = ReembedServer(vectors, global_knn_cache=cache, verbose=False)
+    for _ in range(600):
+        if server.global_graph_ready and (tmp_path / "global.npy").exists():
+            break
+        time.sleep(0.1)
+    assert (tmp_path / "global.npy").exists()
+    reloaded = ReembedServer(vectors, global_knn_cache=cache, verbose=False, warm_up=False)
+    assert reloaded.global_graph_ready
+    np.testing.assert_array_equal(reloaded._global_knn, server._global_knn)
