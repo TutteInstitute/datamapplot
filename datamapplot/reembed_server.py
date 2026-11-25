@@ -68,30 +68,12 @@ def _nndescent_settings(n_samples, n_neighbors):
     }
 
 
-def _seed_iterations(padded_fraction):
-    """NN-descent iterations for a seeded subset graph.
-
-    A re-embedding only needs a good, not exact, kNN graph. The seed (the global
-    graph restricted to the subset) is already accurate except in rows that had
-    to be padded with random candidates, so the number of iterations follows the
-    padded fraction. On CORD-19 / 20 Newsgroups lasso-like subsets this keeps
-    recall@15 >= ~0.97 while saving 30-60% of the time on large subsets.
-    """
-    if padded_fraction < 0.005:
-        return 0
-    if padded_fraction < 0.03:
-        return 1
-    if padded_fraction < 0.08:
-        return 2
-    return None  # pynndescent default (log2 n, with early stopping)
-
-
 @numba.njit(parallel=True)
 def _restricted_seed(global_knn, ids, local, fill):
     """The global graph restricted to ``ids`` (as local indices); short rows are
     completed from ``fill`` (random local indices), skipping the row itself and
     duplicates so every row has ``width`` distinct candidates (needs
-    ``len(ids) > width``). Returns the seed and the number of filled slots."""
+    ``len(ids) > width``). Returns the seed and each row's number of filled slots."""
     n, width = fill.shape
     seed = np.empty((n, width), dtype=np.int64)
     padded = np.zeros(n, dtype=np.int64)
@@ -117,7 +99,51 @@ def _restricted_seed(global_knn, ids, local, fill):
                     break
                 m = (m + 1) % n
             seed[i, t] = m
-    return seed, padded.sum()
+    return seed, padded
+
+
+def _make_local_repair():
+    """NN-descent that only revisits rows whose seed was padded (and their
+    neighbourhoods), as ``NNDescent.update`` does for changed rows: the seed is
+    pushed into pynndescent's heap with fully seeded rows flagged *old* and
+    padded rows *new*, and its local join only compares pairs involving a new
+    entry. Runs on the already unit-normalised subset, without NNDescent's own
+    setup. Uses pynndescent internals, so it is checked at warm-up."""
+    from pynndescent.kernels import select_kernel
+    from pynndescent.pynndescent_ import nn_descent
+    from pynndescent.utils import checked_flagged_heap_push, make_heap
+
+    @numba.njit(parallel=True)
+    def flagged_heap(heap, seed, seed_dist, padded):
+        for i in numba.prange(seed.shape[0]):
+            flag = np.uint8(1) if padded[i] > 0 else np.uint8(0)
+            for j in range(seed.shape[1]):
+                checked_flagged_heap_push(heap[1][i], heap[0][i], heap[2][i], seed_dist[i, j], seed[i, j], flag)
+        return heap
+
+    def local_repair(data, seed, seed_dist, padded, dist, rng, max_candidates):
+        n, width = seed.shape
+        heap = flagged_heap(make_heap(n, width), seed, seed_dist, padded)
+        rng_state = rng.integers(-(2**31), 2**31 - 1, 3).astype(np.int64)
+        indices, distances = nn_descent(
+            data, width, rng_state, max_candidates, dist, max(5, int(round(np.log2(n)))), 0.001,
+            init_graph=heap, rp_tree_init=False, leaf_array=np.array([[-1], [-1]]),
+            low_memory=True, verbose=False, kernel=select_kernel(dist, data),
+        )
+        return indices, distances
+
+    return local_repair
+
+
+def _with_self(indices, distances, correction):
+    """As ``NNDescent.neighbor_graph``: the point itself (distance 0) first, then
+    all but the farthest of its sorted neighbours, at true distances."""
+    n = indices.shape[0]
+    if correction is not None:
+        distances = correction(distances)
+    out_indices = np.hstack([np.arange(n, dtype=np.int32)[:, None], indices[:, :-1].astype(np.int32)])
+    out_distances = np.hstack([np.zeros((n, 1), dtype=np.float32), distances[:, :-1].astype(np.float32)])
+    return out_indices, out_distances
 
 
 @numba.njit(parallel=True)
@@ -291,6 +317,7 @@ class ReembedServer:
         self._dist_func = None  # pynndescent's internal distance, if seed distances are verified
         self._dist_correction = None  # its correction to true distances (None: identity)
         self._seed_only = False  # whether a fully seeded graph may skip pynndescent
+        self._local_repair = None  # verified local-repair NN-descent, if available
         self._ready = threading.Event()
         # Re-entrant: reembed_payload holds it around subset_graph calls.
         self._compute_lock = threading.RLock()
@@ -347,6 +374,7 @@ class ReembedServer:
             probe = NNDescent(warm, n_neighbors=width, metric=self.metric, random_state=0)
             probe.neighbor_graph
             self._dist_func = self._verified_distance(NNDescent, probe, warm, seed)
+            self._local_repair = self._verified_local_repair(probe, warm)
             _restricted_seed(seed, np.arange(2000), np.arange(2000), seed[:, :width])
             thread_safe = numba.threading_layer() in ("tbb", "omp")
         self._ready.set()
@@ -405,16 +433,44 @@ class ReembedServer:
         self._log("seed distances fall back to pynndescent's serial initialisation")
         return None
 
+    def _verified_local_repair(self, probe, data):
+        """The local-repair NN-descent, if it runs and gives a good graph on the probe
+        data (a subset seeded from the probe's own graph, partly padded)."""
+        if self._dist_func is None:
+            return None
+        try:
+            repair = _make_local_repair()
+            width = self.n_neighbors + 1
+            global_knn = np.ascontiguousarray(probe.neighbor_graph[0][:, 1:], dtype=np.int64)
+            ids = np.argsort(np.linalg.norm(data - data[0], axis=1))[:1200].astype(np.int64)
+            local = np.full(len(data), -1, dtype=np.int64)
+            local[ids] = np.arange(len(ids))
+            rng = np.random.default_rng(0)
+            seed, padded = _restricted_seed(global_knn, ids, local, rng.integers(0, len(ids), size=(len(ids), width)))
+            sub = np.ascontiguousarray(data[ids])
+            indices, distances = repair(sub, seed, _seed_distances(sub, seed, self._dist_func), padded,
+                                        self._dist_func, rng, _nndescent_settings(len(ids), width)["max_candidates"])
+            indices, _ = _with_self(indices, distances, self._dist_correction)
+            sims = sub @ sub.T
+            np.fill_diagonal(sims, -np.inf)
+            truth = np.argsort(-sims, axis=1)[:, : width - 1]
+            recall = np.mean([len(set(a[1:]) & set(b)) / (width - 1) for a, b in zip(indices.tolist(), truth.tolist())])
+            if padded.any() and (indices >= 0).all() and recall > 0.95:
+                return repair
+        except Exception:  # pragma: no cover - depends on pynndescent internals
+            pass
+        self._log("local-repair NN-descent unavailable; using NNDescent")
+        return None
+
     def _seed_graph(self, ids, rng):
         """The global graph restricted to ``ids`` (as local indices), short rows
-        padded randomly; also returns the padded fraction."""
+        padded randomly; also returns each row's number of padded slots."""
         n = len(ids)
         width = self.n_neighbors + 1
         local = np.full(self.vectors.shape[0], -1, dtype=np.int64)
         local[ids] = np.arange(n)
         fill = rng.integers(0, n, size=(n, width))
-        seed, padded = _restricted_seed(self._global_knn, ids, local, fill)
-        return seed, padded / (n * width)
+        return _restricted_seed(self._global_knn, ids, local, fill)
 
     def subset_graph(self, ids, rng=None):
         """kNN graph of a subset of rows.
@@ -443,29 +499,32 @@ class ReembedServer:
         with self._compute_lock:
             data = self.vectors[ids]
             if self._global_knn is not None:
-                seed, padded_fraction = self._seed_graph(ids, rng)
-                kwargs.update(init_graph=seed, n_iters=_seed_iterations(padded_fraction))
+                seed, padded = self._seed_graph(ids, rng)
+                kwargs["init_graph"] = seed
                 if self._dist_func is not None:
-                    kwargs["init_dist"] = _seed_distances(data, seed, self._dist_func)
-                    if kwargs["n_iters"] == 0 and self._seed_only:
-                        # The seed is the answer: just sort it (pynndescent's setup alone
-                        # costs ~2 s per million points).
-                        indices, distances = _sorted_seed_graph(seed, kwargs["init_dist"])
+                    seed_dist = _seed_distances(data, seed, self._dist_func)
+                    kwargs["init_dist"] = seed_dist
+                    if not padded.any() and self._seed_only:
+                        # The seed is already the kNN graph: just sort it.
+                        indices, distances = _sorted_seed_graph(seed, seed_dist)
                         if self._dist_correction is not None:
                             distances = self._dist_correction(distances)
                         return indices, distances.astype(np.float32)
-            random_state = int(rng.integers(1 << 31))
+                    if self._local_repair is not None:
+                        indices, distances = self._local_repair(
+                            data, seed, seed_dist, padded, self._dist_func, rng, kwargs["max_candidates"]
+                        )
+                        if (indices >= 0).all():
+                            return _with_self(indices, distances, self._dist_correction)
             index = NNDescent(
-                data, n_neighbors=width, metric=self.metric, random_state=random_state, low_memory=True, **kwargs
+                data,
+                n_neighbors=width,
+                metric=self.metric,
+                random_state=int(rng.integers(1 << 31)),
+                low_memory=True,
+                **kwargs,
             )
             indices, distances = index.neighbor_graph
-            if kwargs.get("n_iters") is not None and (indices < 0).any():
-                # Safety net: the engine needs complete rows.
-                kwargs["n_iters"] = None
-                index = NNDescent(
-                    data, n_neighbors=width, metric=self.metric, random_state=random_state, low_memory=True, **kwargs
-                )
-                indices, distances = index.neighbor_graph
         return indices.astype(np.int32), distances.astype(np.float32)
 
     def reembed_payload(self, ids, sample=0, rng=None):
