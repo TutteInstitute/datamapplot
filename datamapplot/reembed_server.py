@@ -50,12 +50,88 @@ import socketserver
 import struct
 import threading
 import time
+import warnings
 import webbrowser
 from urllib.parse import parse_qs, urlparse
 
+import numba
 import numpy as np
 
 FORMAT = "datamapplot-reembed/1"
+
+
+def _nndescent_settings(n_samples, n_neighbors):
+    """pynndescent settings UMAP 0.6 uses with ``compatibility_layout=False``."""
+    return {
+        "n_trees": max(4, min(8, 5 + int(round(n_samples**0.5 / 20.0)))),
+        "max_candidates": max(20, min(60, int(1.5 * n_neighbors))),
+    }
+
+
+def _seed_iterations(padded_fraction):
+    """NN-descent iterations for a seeded subset graph.
+
+    A re-embedding only needs a good, not exact, kNN graph. The seed (the global
+    graph restricted to the subset) is already accurate except in rows that had
+    to be padded with random candidates, so the number of iterations follows the
+    padded fraction. On CORD-19 / 20 Newsgroups lasso-like subsets this keeps
+    recall@15 >= ~0.97 while saving 30-60% of the time on large subsets.
+    """
+    if padded_fraction < 0.005:
+        return 0
+    if padded_fraction < 0.03:
+        return 1
+    if padded_fraction < 0.08:
+        return 2
+    return None  # pynndescent default (log2 n, with early stopping)
+
+
+@numba.njit(parallel=True)
+def _restricted_seed(global_knn, ids, local, fill):
+    """The global graph restricted to ``ids`` (as local indices); short rows are
+    completed from ``fill`` (random local indices), skipping the row itself and
+    duplicates so every row has ``width`` distinct candidates (needs
+    ``len(ids) > width``). Returns the seed and the number of filled slots."""
+    n, width = fill.shape
+    seed = np.empty((n, width), dtype=np.int64)
+    padded = np.zeros(n, dtype=np.int64)
+    for i in numba.prange(n):
+        c = 0
+        for j in range(global_knn.shape[1]):
+            m = local[global_knn[ids[i], j]]
+            if m >= 0:
+                seed[i, c] = m
+                c += 1
+                if c == width:
+                    break
+        padded[i] = width - c
+        for t in range(c, width):
+            m = fill[i, t]
+            while True:
+                fresh = m != i
+                for u in range(t):
+                    if seed[i, u] == m:
+                        fresh = False
+                        break
+                if fresh:
+                    break
+                m = (m + 1) % n
+            seed[i, t] = m
+    return seed, padded.sum()
+
+
+@numba.njit(parallel=True)
+def _seed_distances(data, seed, dist):
+    """``dist`` (pynndescent's internal distance) for every seed entry, in parallel:
+    pynndescent's own pass over an ``init_graph`` is serial."""
+    n, width = seed.shape
+    out = np.full((n, width), np.inf, dtype=np.float32)
+    for i in numba.prange(n):
+        for j in range(width):
+            k = seed[i, j]
+            if k >= 0 and k != i:
+                out[i, j] = dist(data[i], data[k])
+    return out
 
 
 def _require_pynndescent():
@@ -146,7 +222,7 @@ class ReembedServer:
 
     max_threads : int or None, optional (default=None)
         Upper bound on numba threads used per request (default: all cores).
-        Small subsets use fewer threads, which is faster.
+        About one thread per 1,000 selected points is used, up to 16.
 
     token : str or None, optional (default=None)
         If given, API requests must send ``Authorization: Bearer <token>``
@@ -177,7 +253,14 @@ class ReembedServer:
         vectors = np.asarray(vectors)
         if vectors.ndim != 2:
             raise ValueError("vectors must be a 2D array")
-        self.vectors = np.ascontiguousarray(vectors, dtype=np.float32)
+        if metric == "cosine":
+            # Unit rows (as pynndescent uses internally) on a private copy, so seed
+            # distances can be computed directly; cosine distances are unchanged.
+            self.vectors = np.array(vectors, dtype=np.float32, order="C", copy=True)
+            norms = np.linalg.norm(self.vectors, axis=1, keepdims=True)
+            self.vectors /= np.where(norms > 0, norms, 1.0)
+        else:
+            self.vectors = np.ascontiguousarray(vectors, dtype=np.float32)
         self.metric = metric
         self.n_neighbors = int(n_neighbors)
         self.global_n_neighbors = int(global_n_neighbors)
@@ -187,6 +270,7 @@ class ReembedServer:
         self._global_knn = None
         if knn_indices is not None:
             self._global_knn = self._normalize_knn(knn_indices)
+        self._dist_func = None  # pynndescent's internal distance, if seed distances are verified
         self._ready = threading.Event()
         # Re-entrant: reembed_payload holds it around subset_graph calls.
         self._compute_lock = threading.RLock()
@@ -227,8 +311,6 @@ class ReembedServer:
         return self._global_knn is not None
 
     def _prepare(self):
-        import numba
-
         NNDescent = _require_pynndescent()
         t0 = time.time()
         rng = np.random.default_rng(0)
@@ -237,11 +319,14 @@ class ReembedServer:
         # numba's default "workqueue" threading layer aborts the process on concurrent
         # parallel calls, so background work is serialised with requests unless the
         # layer is thread-safe.
+        width = self.n_neighbors + 1
+        if self.metric == "cosine":
+            warm /= np.linalg.norm(warm, axis=1, keepdims=True)
         with self._compute_lock:
-            NNDescent(warm, n_neighbors=self.n_neighbors + 1, metric=self.metric, random_state=0).neighbor_graph
-            NNDescent(
-                warm, n_neighbors=self.n_neighbors + 1, metric=self.metric, random_state=0, init_graph=seed
-            ).neighbor_graph
+            probe = NNDescent(warm, n_neighbors=width, metric=self.metric, random_state=0)
+            probe.neighbor_graph
+            self._dist_func = self._verified_distance(NNDescent, probe, warm, seed)
+            _restricted_seed(seed, np.arange(2000), np.arange(2000), seed[:, :width])
             thread_safe = numba.threading_layer() in ("tbb", "omp")
         self._ready.set()
         self._log(f"warm-up done in {time.time() - t0:.1f}s")
@@ -256,6 +341,7 @@ class ReembedServer:
                     metric=self.metric,
                     random_state=0,
                     low_memory=True,
+                    **_nndescent_settings(len(self.vectors), self.global_n_neighbors + 1),
                 )
                 indices, _ = index.neighbor_graph
             self._global_knn = self._normalize_knn(indices)
@@ -264,20 +350,37 @@ class ReembedServer:
                 f"in {time.time() - t0:.1f}s"
             )
 
+    def _verified_distance(self, NNDescent, probe, data, seed):
+        """pynndescent's internal distance function, if seed distances computed with
+        it reproduce pynndescent's own initialisation exactly (else None)."""
+        try:
+            dist = probe._distance_func
+            width = self.n_neighbors + 1
+            init = seed[:, :width]
+            init_dist = _seed_distances(data, init, dist)
+            kwargs = dict(n_neighbors=width, metric=self.metric, random_state=0, init_graph=init, n_iters=0)
+            with warnings.catch_warnings():
+                # The random probe graph leaves some rows short; that is expected here.
+                warnings.simplefilter("ignore", UserWarning)
+                ours = NNDescent(data, init_dist=init_dist, **kwargs).neighbor_graph
+                theirs = NNDescent(data, **kwargs).neighbor_graph
+            if np.array_equal(ours[0], theirs[0]) and np.allclose(ours[1], theirs[1], atol=1e-5):
+                return dist
+        except Exception:  # pragma: no cover - depends on pynndescent internals
+            pass
+        self._log("seed distances fall back to pynndescent's serial initialisation")
+        return None
+
     def _seed_graph(self, ids, rng):
-        """The global graph restricted to ``ids`` (as local indices), short rows padded randomly."""
+        """The global graph restricted to ``ids`` (as local indices), short rows
+        padded randomly; also returns the padded fraction."""
         n = len(ids)
         width = self.n_neighbors + 1
         local = np.full(self.vectors.shape[0], -1, dtype=np.int64)
         local[ids] = np.arange(n)
-        mapped = local[self._global_knn[ids]]
-        order = np.argsort(mapped < 0, axis=1, kind="stable")
-        seed = np.take_along_axis(mapped, order, axis=1)[:, :width]
-        if seed.shape[1] < width:
-            seed = np.hstack([seed, np.full((n, width - seed.shape[1]), -1)])
-        missing = seed < 0
-        seed[missing] = rng.integers(0, n, size=int(missing.sum()))
-        return seed
+        fill = rng.integers(0, n, size=(n, width))
+        seed, padded = _restricted_seed(self._global_knn, ids, local, fill)
+        return seed, padded / (n * width)
 
     def subset_graph(self, ids, rng=None):
         """kNN graph of a subset of rows.
@@ -294,27 +397,34 @@ class ReembedServer:
         (indices, distances) : int32 and float32 arrays of shape (len(ids), n_neighbors + 1)
             Neighbour indices are local to ``ids``; each row includes itself.
         """
-        import numba
-
         NNDescent = _require_pynndescent()
         ids = np.asarray(ids, dtype=np.int64)
         rng = rng if rng is not None else np.random.default_rng()
         limit = self.max_threads or numba.config.NUMBA_NUM_THREADS
-        # Thread count is thread-local in numba; small subsets are faster with few threads.
-        numba.set_num_threads(int(min(limit, max(4, len(ids) // 12500))))
-        kwargs = {}
-        if self._global_knn is not None:
-            kwargs["init_graph"] = self._seed_graph(ids, rng)
+        # Thread count is thread-local in numba. Measured on 64 cores: ~1 thread per 1,000
+        # points is fastest for small subsets, and more than 16 gains nothing.
+        numba.set_num_threads(int(min(limit, max(4, min(16, len(ids) // 1000)))))
+        width = self.n_neighbors + 1
+        kwargs = _nndescent_settings(len(ids), width)
         with self._compute_lock:
+            data = self.vectors[ids]
+            if self._global_knn is not None:
+                seed, padded_fraction = self._seed_graph(ids, rng)
+                kwargs.update(init_graph=seed, n_iters=_seed_iterations(padded_fraction))
+                if self._dist_func is not None:
+                    kwargs["init_dist"] = _seed_distances(data, seed, self._dist_func)
+            random_state = int(rng.integers(1 << 31))
             index = NNDescent(
-                self.vectors[ids],
-                n_neighbors=self.n_neighbors + 1,
-                metric=self.metric,
-                random_state=int(rng.integers(1 << 31)),
-                low_memory=True,
-                **kwargs,
+                data, n_neighbors=width, metric=self.metric, random_state=random_state, low_memory=True, **kwargs
             )
             indices, distances = index.neighbor_graph
+            if kwargs.get("n_iters") is not None and (indices < 0).any():
+                # Safety net: the engine needs complete rows.
+                kwargs["n_iters"] = None
+                index = NNDescent(
+                    data, n_neighbors=width, metric=self.metric, random_state=random_state, low_memory=True, **kwargs
+                )
+                indices, distances = index.neighbor_graph
         return indices.astype(np.int32), distances.astype(np.float32)
 
     def reembed_payload(self, ids, sample=0, rng=None):

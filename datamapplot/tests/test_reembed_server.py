@@ -62,6 +62,11 @@ def test_subset_graph_recall():
     )
     recall = np.mean([len(set(row) & set(true)) / 16 for row, true in zip(indices, exact)])
     assert recall > 0.95
+    # Every row is complete with the point itself first, also for the whole set
+    # (seed = global graph, no NN-descent iterations) and a tiny, heavily padded subset.
+    for subset in (ids, np.arange(len(vectors)), ids[:40]):
+        indices, _ = server.subset_graph(subset, rng)
+        assert (indices >= 0).all() and (indices[:, 0] == np.arange(len(subset))).all()
 
 
 def test_http_api():
