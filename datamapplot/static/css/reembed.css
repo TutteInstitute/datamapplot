@@ -1,50 +1,64 @@
-/* ReembedWidget styles */
+/* ReembedWidget styles (matching SelectionControl / LayerToggle conventions) */
 .reembed-widget {
-    padding: 8px 10px;
-    min-width: 230px;
-    max-width: 280px;
+    width: 270px;
     font-size: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
+    line-height: 1.3;
 }
 
 .reembed-title {
     font-weight: 600;
-    font-size: 13px;
-    margin-bottom: 6px;
+    font-size: 14px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .reembed-buttons {
-    display: flex;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 6px;
 }
 
-.reembed-buttons button {
-    flex: 1 1 auto;
-    padding: 5px 8px;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    background: #f6f6f6;
+.reembed-widget button {
+    padding: 7px 8px;
+    border: 1px solid #ccc;
+    background: white;
     color: inherit;
-    font-size: 12px;
+    border-radius: 4px;
     cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.2s;
 }
 
-.reembed-buttons button.reembed-go {
-    flex-grow: 2;
-    border-color: #1976d2;
-    background: #1976d2;
-    color: #fff;
+.reembed-widget button:hover:not(:disabled) {
+    background: #f5f5f5;
+    border-color: #999;
 }
 
-.reembed-buttons button:disabled {
+.reembed-widget button.reembed-go,
+.reembed-widget button.reembed-active-option {
+    background: #3ba5e7;
+    border-color: #2b8bc7;
+    color: white;
+}
+
+.reembed-widget button.reembed-go:hover:not(:disabled),
+.reembed-widget button.reembed-active-option:hover {
+    background: #2b8bc7;
+}
+
+.reembed-widget button:disabled {
     opacity: 0.45;
     cursor: default;
 }
 
 .reembed-crumbs {
-    margin-top: 6px;
-    color: #555;
+    margin-top: 8px;
+    color: #666;
 }
 
 .reembed-crumbs:empty {
@@ -52,7 +66,7 @@
 }
 
 .reembed-crumbs a {
-    color: #1976d2;
+    color: #3ba5e7;
     text-decoration: none;
 }
 
@@ -61,9 +75,9 @@
 }
 
 .reembed-progress {
-    height: 3px;
-    margin-top: 6px;
-    background: rgba(0, 0, 0, 0.08);
+    height: 4px;
+    margin-top: 8px;
+    background: #bbdefb;
     border-radius: 2px;
     overflow: hidden;
 }
@@ -71,74 +85,198 @@
 .reembed-progress-bar {
     height: 100%;
     width: 0;
-    background: #1976d2;
+    background: #3ba5e7;
 }
 
 .reembed-status {
     min-height: 1.3em;
-    margin-top: 4px;
-    color: #555;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #666;
     font-variant-numeric: tabular-nums;
 }
 
 .reembed-status.reembed-error {
-    color: #c62828;
+    color: #e74c3c;
 }
 
 .reembed-settings {
-    margin-top: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .reembed-settings summary {
     cursor: pointer;
-    color: #555;
+    font-weight: 500;
+    color: #666;
+    list-style: none;
+    user-select: none;
 }
 
-.reembed-settings label {
+.reembed-settings summary::-webkit-details-marker {
+    display: none;
+}
+
+.reembed-settings summary::before {
+    content: "\25B8";
+    display: inline-block;
+    width: 1em;
+    transition: transform 0.2s;
+}
+
+.reembed-settings[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.reembed-row {
     display: grid;
-    grid-template-columns: 70px 1fr 34px;
+    grid-template-columns: 70px 1fr 36px;
     align-items: center;
-    gap: 4px;
-    margin-top: 4px;
+    gap: 6px;
+    margin-top: 8px;
 }
 
-.reembed-settings select,
-.reembed-settings input[type="number"] {
-    grid-column: 2 / 4;
-    font-size: 12px;
+.reembed-row-label {
+    font-size: 11px;
+    color: #666;
 }
 
-.reembed-settings span {
+.reembed-row-value {
+    font-size: 11px;
+    color: #666;
+    font-weight: 500;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
 
-.reembed-hint {
-    margin-top: 6px;
-    color: #888;
+.reembed-options {
+    grid-column: 2 / 4;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+.reembed-options button {
+    padding: 5px 4px;
     font-size: 11px;
 }
 
-.darkmode .reembed-buttons button {
-    background: #333;
-    border-color: #555;
+.reembed-epochs {
+    grid-column: 2 / 4;
+    padding: 5px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+    color: inherit;
+    font-family: inherit;
+    font-size: 12px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
-.darkmode .reembed-buttons button.reembed-go {
+.reembed-epochs:focus {
+    outline: none;
+    border-color: #3ba5e7;
+}
+
+/* Sliders, as in the LayerToggle widget */
+.reembed-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+    outline: none;
+    background: transparent;
+}
+
+.reembed-slider::-webkit-slider-runnable-track {
+    background: #bbdefb;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.reembed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    background-color: #1976d2;
+    border-radius: 50%;
+    margin-top: -6px;
+    transition: box-shadow 0.2s ease;
+}
+
+.reembed-slider:hover::-webkit-slider-thumb,
+.reembed-slider:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 6px rgba(25, 118, 210, 0.16);
+}
+
+.reembed-slider::-moz-range-track {
+    background: #bbdefb;
+    height: 4px;
+    border-radius: 2px;
+}
+
+.reembed-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
     background: #1976d2;
-    border-color: #1976d2;
+    border: none;
+    border-radius: 50%;
+    transition: box-shadow 0.2s ease;
+}
+
+.reembed-slider:hover::-moz-range-thumb,
+.reembed-slider:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 6px rgba(25, 118, 210, 0.16);
+}
+
+.reembed-hint {
+    margin-top: 8px;
+    color: #999;
+    font-size: 11px;
+}
+
+/* Dark mode (body.darkmode, as other widgets) */
+.darkmode .reembed-title,
+.darkmode .reembed-settings {
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.darkmode .reembed-widget button {
+    background: #333;
+    border-color: #555;
+    color: #eee;
+}
+
+.darkmode .reembed-widget button:hover:not(:disabled) {
+    background: #444;
+    border-color: #777;
+}
+
+.darkmode .reembed-widget button.reembed-go,
+.darkmode .reembed-widget button.reembed-active-option {
+    background: #3ba5e7;
+    border-color: #2b8bc7;
+    color: white;
 }
 
 .darkmode .reembed-crumbs,
 .darkmode .reembed-status,
-.darkmode .reembed-settings summary {
-    color: #bbb;
+.darkmode .reembed-settings summary,
+.darkmode .reembed-row-label,
+.darkmode .reembed-row-value {
+    color: #aaa;
 }
 
-.darkmode .reembed-crumbs a {
-    color: #64b5f6;
+.darkmode .reembed-epochs {
+    background: #333;
+    border-color: #555;
+    color: #eee;
 }
 
 .darkmode .reembed-progress {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(59, 165, 231, 0.25);
 }

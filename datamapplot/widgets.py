@@ -1675,6 +1675,17 @@ class ReembedWidget(WidgetBase):
         Extra HTTP headers for requests to the server, e.g.
         ``{"Authorization": "Bearer TOKEN"}``.
 
+    show_labels : bool, optional (default: True)
+        Show the map's cluster labels whose points lie within the re-embedded
+        selection, placed at (approximately) the medoid of their points in the
+        new layout and following them as it is optimized. With several label
+        layers, finer labels appear as more room becomes available, as in the
+        full map.
+
+    label_containment : float, optional (default: 1.0)
+        Fraction of a label's points that must be in the selection for the
+        label to be shown; 1.0 shows only labels entirely contained in it.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -1696,6 +1707,8 @@ class ReembedWidget(WidgetBase):
         sample_size=20000,
         refine_epochs=100,
         auth_headers=None,
+        show_labels=True,
+        label_containment=1.0,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "reembed")
@@ -1708,6 +1721,8 @@ class ReembedWidget(WidgetBase):
             raise ValueError("init_rescale must be 'isotropic' or 'graphEdge'")
         if engine not in ("auto", "gpu", "cpu"):
             raise ValueError("engine must be 'auto', 'gpu' or 'cpu'")
+        if not 0.0 < label_containment <= 1.0:
+            raise ValueError("label_containment must be in (0, 1]")
         self.server_url = server_url
         self.n_epochs = int(n_epochs)
         self.min_dist = float(min_dist)
@@ -1719,6 +1734,8 @@ class ReembedWidget(WidgetBase):
         self.sample_size = int(sample_size)
         self.refine_epochs = int(refine_epochs)
         self.auth_headers = auth_headers or {}
+        self.show_labels = bool(show_labels)
+        self.label_containment = float(label_containment)
 
     @property
     def html(self):
@@ -1772,6 +1789,8 @@ class ReembedWidget(WidgetBase):
             "sample_size": self.sample_size,
             "refine_epochs": self.refine_epochs,
             "auth_headers": self.auth_headers,
+            "show_labels": self.show_labels,
+            "label_containment": self.label_containment,
             "engine_source_id": f"{container_id}-engine-src",
             "engine_wasm_id": f"{container_id}-engine-wasm",
         }

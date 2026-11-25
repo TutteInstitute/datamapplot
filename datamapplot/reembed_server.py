@@ -23,7 +23,8 @@ Requires ``pynndescent`` (``pip install datamapplot[reembed]``).
 REST contract
 -------------
 ``GET /api/info``
-    JSON: ``{"format", "n", "dim", "metric", "k", "ready", "globalGraphReady"}``.
+    JSON: ``{"stage", "format", "n", "dim", "metric", "k", "ready", "globalGraphReady"}``;
+    ``stage`` is "warming up", "building global kNN graph" or "ready".
 
 ``POST /api/reembed[?sample=M]``
     Body: little-endian int32 row ids of the selection (unique, at least
@@ -153,6 +154,12 @@ class ReembedServer:
 
     verbose : bool, optional (default=True)
         Print progress and per-request timings.
+
+    warm_up : bool, optional (default=True)
+        Start compiling pynndescent's numba code (about 20 s the first time in a
+        process) and building the global graph in the background right away, so
+        it overlaps with creating the plot. Otherwise this starts with
+        :meth:`start`.
     """
 
     def __init__(
@@ -165,6 +172,7 @@ class ReembedServer:
         max_threads=None,
         token=None,
         verbose=True,
+        warm_up=True,
     ):
         vectors = np.asarray(vectors)
         if vectors.ndim != 2:
@@ -180,11 +188,19 @@ class ReembedServer:
         if knn_indices is not None:
             self._global_knn = self._normalize_knn(knn_indices)
         self._ready = threading.Event()
-        self._compute_lock = threading.Lock()
+        # Re-entrant: reembed_payload holds it around subset_graph calls.
+        self._compute_lock = threading.RLock()
         self._html = None
         self._httpd = None
         self._thread = None
         self._background = None
+        if warm_up:
+            self._start_background()
+
+    def _start_background(self):
+        if self._background is None:
+            self._background = threading.Thread(target=self._prepare, daemon=True)
+            self._background.start()
 
     # ------------------------------------------------------------------ graphs
     def _log(self, message):
@@ -289,15 +305,16 @@ class ReembedServer:
         kwargs = {}
         if self._global_knn is not None:
             kwargs["init_graph"] = self._seed_graph(ids, rng)
-        index = NNDescent(
-            self.vectors[ids],
-            n_neighbors=self.n_neighbors + 1,
-            metric=self.metric,
-            random_state=int(rng.integers(1 << 31)),
-            low_memory=True,
-            **kwargs,
-        )
-        indices, distances = index.neighbor_graph
+        with self._compute_lock:
+            index = NNDescent(
+                self.vectors[ids],
+                n_neighbors=self.n_neighbors + 1,
+                metric=self.metric,
+                random_state=int(rng.integers(1 << 31)),
+                low_memory=True,
+                **kwargs,
+            )
+            indices, distances = index.neighbor_graph
         return indices.astype(np.int32), distances.astype(np.float32)
 
     def reembed_payload(self, ids, sample=0, rng=None):
@@ -340,7 +357,14 @@ class ReembedServer:
 
     def info(self):
         """Metadata served at ``/api/info``."""
+        if not self.ready:
+            stage = "warming up"
+        elif not self.global_graph_ready:
+            stage = "building global kNN graph"
+        else:
+            stage = "ready"
         return {
+            "stage": stage,
             "format": FORMAT,
             "n": int(self.vectors.shape[0]),
             "dim": int(self.vectors.shape[1]),
@@ -400,8 +424,7 @@ class ReembedServer:
         """
         if self._httpd is not None:
             raise RuntimeError("server already started")
-        self._background = threading.Thread(target=self._prepare, daemon=True)
-        self._background.start()
+        self._start_background()
         self._httpd = _ThreadingServer((host, port), _make_handler(self))
         self._log(f"serving at {self.url}")
         if background:

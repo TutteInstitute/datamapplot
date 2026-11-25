@@ -10,7 +10,7 @@
 const MAX_EPOCHS_PER_SECOND = 60;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let state = { umap: null, paused: false, stopped: false, pendingParams: null };
+let state = { umap: null, paused: false, stopped: false, pendingParams: null, restart: false, idle: false };
 
 async function gunzip(bytes) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
@@ -58,7 +58,7 @@ function readEmbedding(umap, n) {
 function postFrame(phase, umap, n, extra = {}) {
   const embedding = readEmbedding(umap, n);
   self.postMessage(
-    { type: "frame", phase, epoch: umap.epoch, nEpochs: umap.nEpochs, embedding, ...extra },
+    { type: "frame", phase, epoch: umap.epoch, nEpochs: umap.nEpochs, embedding, runId: state.runId, ...extra },
     [embedding.buffer],
   );
 }
@@ -67,8 +67,18 @@ function applyPendingParams(umap) {
   const p = state.pendingParams;
   if (!p) return;
   state.pendingParams = null;
+  Object.assign(state.options, p);
   // (learningRate, repulsionStrength, negativeSampleRate, minDist, spread); undefined = unchanged.
   umap.setParameters(undefined, p.repulsionStrength, undefined, p.minDist, p.spread);
+}
+
+/** Restart the annealing schedule from the current layout (after a parameter change). */
+function restartSchedule(phase, umap, n) {
+  applyPendingParams(umap);
+  const embedding = readEmbedding(umap, n);
+  umap.setNEpochs(phase === "refine" ? state.options.refineEpochs : state.options.nEpochs);
+  umap.resetEmbedding(embedding, false);
+  umap.setGoodInitialization(true);
 }
 
 /** Step along the optimizer's schedule to its horizon, pacing and posting every epoch. */
@@ -76,7 +86,15 @@ async function animate(phase, umap, n) {
   let t0 = performance.now();
   let epochsAtT0 = umap.epoch;
   let computeMs = 0;
-  while (!state.stopped && umap.epoch < umap.nEpochs) {
+  while (!state.stopped && (umap.epoch < umap.nEpochs || state.restart)) {
+    if (state.restart) {
+      state.restart = false;
+      restartSchedule(phase, umap, n);
+      postFrame(phase, umap, n, { restarted: true });
+      t0 = performance.now();
+      epochsAtT0 = umap.epoch;
+      continue;
+    }
     if (state.paused) {
       await sleep(50);
       t0 = performance.now();
@@ -150,9 +168,23 @@ function placeRest(n, sampleLocal, sampleEmbedding, knnIdx) {
   return { pos, unplaced: remaining };
 }
 
+/** Report that the current run finished; the worker then idles, keeping the optimizer for re-runs. */
+function finished(umap, n, phase) {
+  if (state.stopped) return;
+  state.umap = umap;
+  state.n = n;
+  state.phase = phase;
+  state.idle = true;
+  self.postMessage({ type: "done", runId: state.runId });
+}
+
 async function start(msg) {
   const engine = await loadEngine(msg.wasmGz, msg.engine);
-  const { n, initXY, knnIdx, knnDist, sample, options } = msg;
+  const { n, initXY, knnIdx, knnDist, sample } = msg;
+  const options = (state.options = { ...msg.options, ...(state.pendingParams || {}) });
+  state.pendingParams = null;
+  state.full = { n, knnIdx, knnDist };
+  state.engine = engine;
   const report = (umap) =>
     self.postMessage({ type: "engine", ...engine, gpuActive: umap.gpuActive, gpuError: umap.gpuError ?? null });
 
@@ -164,7 +196,7 @@ async function start(msg) {
     report(umap);
     postFrame("full", umap, n, { initial: true, buildMs: performance.now() - t0 });
     await animate("full", umap, n);
-    if (!state.stopped) self.postMessage({ type: "done" });
+    finished(umap, n, "full");
     return;
   }
 
@@ -190,34 +222,67 @@ async function start(msg) {
   sampleUmap.free();
   state.umap = null;
   const { pos, unplaced } = placeRest(n, sample.local, sampleEmbedding, knnIdx);
-  self.postMessage({ type: "placed", embedding: pos, unplaced, placeMs: performance.now() - tPlace });
+  state.pos = pos;
+  self.postMessage({ type: "placed", embedding: pos.slice(), unplaced, placeMs: performance.now() - tPlace, runId: state.runId });
 
   if (options.refineEpochs > 0) {
-    // Continue in the sample run's coordinate frame (no rescale) so the page's
-    // display mapping still applies.
-    const umap = await buildUmap(n, knnIdx, knnDist, pos, options, options.refineEpochs, engine.gpuRequested);
-    umap.resetEmbedding(pos, false);
-    umap.setGoodInitialization(true);
-    umap.setParameters(0.5, undefined, undefined, undefined, undefined);
-    state.umap = umap;
+    const umap = await buildFull(pos, options.refineEpochs);
     report(umap);
     await animate("refine", umap, n);
+    finished(umap, n, "refine");
+  } else {
+    finished(null, n, "refine");
   }
-  if (!state.stopped) self.postMessage({ type: "done" });
+}
+
+/**
+ * Optimizer for the whole selection, continuing in the current coordinate frame
+ * (no rescale) so the page's display mapping still applies.
+ */
+async function buildFull(pos, nEpochs) {
+  const { n, knnIdx, knnDist } = state.full;
+  const umap = await buildUmap(n, knnIdx, knnDist, pos, state.options, nEpochs, state.engine.gpuRequested);
+  umap.resetEmbedding(pos, false);
+  umap.setGoodInitialization(true);
+  umap.setParameters(0.5, undefined, undefined, undefined, undefined);
+  state.umap = umap;
+  return umap;
+}
+
+/** Re-optimize the whole selection from its current layout after a parameter change. */
+async function relax() {
+  let umap = state.umap;
+  if (!umap) umap = await buildFull(state.pos, state.options.nEpochs);
+  state.restart = true;
+  await animate("relax", umap, state.n);
+  finished(umap, state.n, "relax");
 }
 
 self.onmessage = async (event) => {
   const msg = event.data;
   try {
     if (msg.cmd === "start") {
-      state = { umap: null, paused: !!msg.startPaused, stopped: false, pendingParams: null };
+      state = {
+        umap: null, paused: !!msg.startPaused, stopped: false, pendingParams: null,
+        restart: false, idle: false, runId: msg.runId,
+      };
       await start(msg);
     } else if (msg.cmd === "pause") {
       state.paused = true;
     } else if (msg.cmd === "resume") {
       state.paused = false;
     } else if (msg.cmd === "params") {
+      // New parameters restart the schedule from the current layout: immediately
+      // if a run is in progress, or as a new run if the worker is idle.
       state.pendingParams = { ...(state.pendingParams || {}), ...msg.params };
+      state.runId = msg.runId;
+      if (state.options) {
+        state.restart = true;
+        if (state.idle) {
+          state.idle = false;
+          await relax();
+        }
+      }
     } else if (msg.cmd === "stop") {
       state.stopped = true;
     }

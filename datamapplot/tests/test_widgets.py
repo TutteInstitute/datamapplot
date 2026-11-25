@@ -1315,6 +1315,8 @@ class TestReembedWidget:
             ReembedWidget(init_rescale="pca")
         with pytest.raises(ValueError):
             ReembedWidget(engine="tpu")
+        with pytest.raises(ValueError):
+            ReembedWidget(label_containment=0)
 
     def test_plot_enables_lasso_selection(self):
         """Including the widget turns on lasso selection and ships its JS."""

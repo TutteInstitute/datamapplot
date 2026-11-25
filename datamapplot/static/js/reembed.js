@@ -16,9 +16,10 @@ const ReembedWidget = (() => {
   const T = {
     PREFADE_MS: 220, ZOOM_MS: 1100, BACK_MS: 1100, FADEIN_MS: 300, SEL_MS: 250, FADE_MS: 600,
     FIT_FILL: 0.84, FIT_SAMPLE: 4096, HOME_FILL: 0.85, MAX_PX: 6,
-    TAU_OUT: 0.35, TAU_IN: 1.2, MIN_POINTS: 50,
+    TAU_OUT: 0.35, TAU_IN: 1.2, MIN_POINTS: 50, LABEL_SAMPLE: 96,
   };
   const OURS = "reembed-";
+  const IDENTITY_MAP = { scale: 1, xc: 0, yc: 0, hx: 0, hy: 0 };
   const isOurs = (layer) => layer.id.startsWith(OURS);
   const isPoints = (layer) => layer.id.startsWith("dataPointLayer");
 
@@ -26,6 +27,7 @@ const ReembedWidget = (() => {
   const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
   const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
   // Web Mercator (deck.gl MapView): world coordinates in radians.
   const D2R = Math.PI / 180;
@@ -148,6 +150,32 @@ const ReembedWidget = (() => {
     }
   }
 
+  /**
+   * Put each label at an approximate medoid of its members' positions `P`: the
+   * member (of a fixed strided sample) nearest the coordinate-wise median.
+   */
+  const labelXs = new Float32Array(T.LABEL_SAMPLE), labelYs = new Float32Array(T.LABEL_SAMPLE);
+  function placeLabels(items, P) {
+    for (const item of items) {
+      const sample = item._sample, m = sample.length;
+      for (let j = 0; j < m; j++) {
+        labelXs[j] = P[2 * sample[j]];
+        labelYs[j] = P[2 * sample[j] + 1];
+      }
+      const mx = labelXs.subarray(0, m).sort()[m >> 1], my = labelYs.subarray(0, m).sort()[m >> 1];
+      let best = Infinity;
+      for (let j = 0; j < m; j++) {
+        const x = P[2 * sample[j]], y = P[2 * sample[j] + 1];
+        const d = (x - mx) ** 2 + (y - my) ** 2;
+        if (d < best) {
+          best = d;
+          item.x = x;
+          item.y = y;
+        }
+      }
+    }
+  }
+
   /** Opacity factor of a DataMap selection value (mirrors its DataFilterExtension soft range, which uses smoothstep). */
   const selectionFactor = (v) => {
     const t = clamp((v + 0.5) / 1.25, 0, 1);
@@ -171,9 +199,13 @@ const ReembedWidget = (() => {
       this.tr = null;                // active transition
       this.ft = null;                // tween between optimizer frames
       this.ghost = null;             // parent's other points during transitions
+      this.labels = null;            // {items, opacity}: labels of the shown level
+      this.ghostLabels = null;       // {items, opacity}: labels of the parent during transitions
       this.view = null;
       this.autofit = false;
       this.worker = null;
+      this.runId = 0;                // bumped per optimizer run / parameter restart
+      this.relaxing = false;         // re-optimizing after a parameter change
       this.map = null;               // optimizer coords -> display coords
       this.interArrival = 16;
       this.lastArrival = 0;
@@ -185,7 +217,43 @@ const ReembedWidget = (() => {
       this.status = { phase: "", epoch: 0, nEpochs: 0, computeMs: 0, knnSeconds: 0, requestMs: 0, engine: null, error: null };
       this.dm.onViewStateChange("reembed", (params) => this._onViewState(params));
       this.dm.pickRemap = (info) => this._remapPick(info);
+      this.server = null;            // {stage, error} from /api/info
+      this._pollServer();
       requestAnimationFrame(() => this._tick());
+    }
+
+    _serverBase() {
+      return (this.cfg.server_url || (location.protocol.startsWith("http") ? location.origin : "")).replace(/\/$/, "");
+    }
+
+    /** Poll /api/info until the server is ready, so the widget can say what it is waiting for. */
+    async _pollServer() {
+      const base = this._serverBase();
+      if (!base) return;
+      let delay = 1000;
+      for (;;) {
+        try {
+          const resp = await fetch(base + "/api/info", { headers: { ...(this.cfg.auth_headers || {}) } });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          const info = await resp.json();
+          this.server = { stage: info.stage || (info.ready && info.globalGraphReady ? "ready" : "warming up") };
+          delay = 1000;
+        } catch (error) {
+          this.server = { stage: "unreachable", error: String(error.message || error) };
+          delay = Math.min(2 * delay, 10000);
+        }
+        this.ui.update();
+        if (this.server.stage === "ready") return;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    serverText() {
+      const sv = this.server;
+      if (!sv || sv.stage === "ready") return "";
+      if (sv.stage === "unreachable") return "Re-embed server not reachable at " + this._serverBase() + ".";
+      if (sv.stage === "warming up") return "Server warming up (compiling kNN code, ~20 s after it starts)…";
+      return "Server " + sv.stage + "…";
     }
 
     // ---------------------------------------------------------------- levels
@@ -234,6 +302,7 @@ const ReembedWidget = (() => {
       if (!viewState) return;
       this.view = { longitude: viewState.longitude, latitude: viewState.latitude, zoom: viewState.zoom, pitch: 0, bearing: 0 };
       if (interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming)) {
+        if (this.depth > 0) this.current().userCamera = true;
         if (this.autofit && this.depth > 0) this.current().rs = this.rs;
         this.autofit = false;
       }
@@ -250,10 +319,50 @@ const ReembedWidget = (() => {
     /** Colours of every point currently used by the DataMap (respects colormap switching). */
     _baseColors() { return this.dm.pointLayer.props.data.attributes.getFillColor.value; }
 
+    /**
+     * Labels of the full map whose member points lie in `level` (at least the
+     * `label_containment` fraction of them), sharing the map's label styling.
+     */
+    _levelLabels(level) {
+      if (level.labels) return level.labels;
+      const items = [];
+      const dm = this.dm;
+      const all = dm.labelLayer && this.cfg.show_labels !== false ? dm._allLabelData || dm.labelLayer.props.data : null;
+      if (all && level.ids) {
+        const minFraction = this.cfg.label_containment ?? 1;
+        for (const d of all) {
+          const related = d.relatedPoints;
+          if (!related || !related.length) continue;
+          let inside = 0;
+          for (const g of related) if (level.local[g] >= 0) inside++;
+          if (!inside || inside < minFraction * related.length) continue;
+          const members = new Int32Array(inside);
+          let t = 0;
+          for (const g of related) if (level.local[g] >= 0) members[t++] = level.local[g];
+          const m = Math.min(inside, T.LABEL_SAMPLE);
+          const item = Object.create(d);  // keeps the label's own fields for the cloned accessors
+          item._sample = Int32Array.from({ length: m }, (_, j) => members[Math.floor(((j + 0.5) * inside) / m)]);
+          items.push(item);
+        }
+      }
+      level.labels = items;
+      return items;
+    }
+
+    _labelLayer(id, labels, positions) {
+      placeLabels(labels.items, positions);
+      return this.dm.labelLayer.clone({
+        id, data: labels.items, opacity: labels.opacity, pickable: false,
+        collisionGroup: id,  // independent of the map's (hidden) labels and of each other
+        updateTriggers: { getPosition: this.version },
+      });
+    }
+
     /** Make `level` the displayed level at positions `pos` (copied). */
-    _showLevel(level, pos) {
+    _showLevel(level, pos, labelOpacity = 1) {
       const n = level.n;
       this.disp = Float32Array.from(pos);
+      this.labels = { items: this._levelLabels(level), opacity: labelOpacity };
       this.posBuf = new DoubleBuffer(Float32Array, 2 * n);
       this.colorBuf = new DoubleBuffer(Uint8Array, 4 * n);
       this.colors = this.colorBuf.next();
@@ -368,6 +477,10 @@ const ReembedWidget = (() => {
           rs: this.rs, minPx: this.minPx, opacity: this.opacity, pickable: this.mode === "idle", version: this.version,
         }));
       }
+      const gl = this.ghostLabels;
+      if (gl && g && gl.items.length && gl.opacity > 0.01) layers.push(this._labelLayer(OURS + "labels-ghost", gl, g.pos));
+      const ll = this.labels;
+      if (ll && level && level.ids && ll.items.length && ll.opacity > 0.01) layers.push(this._labelLayer(OURS + "labels", ll, this.disp));
       this._putLayers(layers);
     }
 
@@ -383,7 +496,7 @@ const ReembedWidget = (() => {
         this.selectionCount = lasso ? selected.size : 0;
       } else {
         let count = 0;
-        if (lasso) for (const g of selected) if (level.member[g]) count++;
+        if (lasso) for (const g of selected) if (level.local[g] >= 0) count++;
         this.selectionCount = count;
         for (let i = 0; i < level.n; i++) this.selTarget[i] = selectionFactor(this.dm.selected[level.ids[i]]);
         this._retargetAlpha(T.SEL_MS);
@@ -476,6 +589,8 @@ const ReembedWidget = (() => {
       }
       const n = parentSel.length;
       if (n < T.MIN_POINTS) return;
+      this._stopWorker();
+      this.relaxing = false;
       const ids = parent.ids ? gather(parent.ids, parentSel, 1) : parentSel.slice();
       const parentPos = parent.ids ? this.disp.slice() : root.pos;
       const X = gather(parentPos, parentSel, 2);
@@ -520,12 +635,15 @@ const ReembedWidget = (() => {
       }
       for (const i of parentSel) ghostRgba[4 * i + 3] = 0;
       const ghostRadii = parent.ids ? parent.radii : root.radii;
-      const member = new Uint8Array(root.n);
-      for (const g of ids) member[g] = 1;
+      const local = new Int32Array(root.n).fill(-1);
+      for (let t = 0; t < n; t++) local[ids[t]] = t;
 
-      const level = { ids, n, X, homeMap, pos: P1, view: null, parentSel, fitIdx, radii, rMed, member, rs: k1 / 2 ** V1.zoom };
+      const level = { ids, n, X, homeMap, pos: P1, view: null, parentSel, fitIdx, radii, rMed, local, rs: k1 / 2 ** V1.zoom };
+      // The parent's labels (if it is a re-embedding) follow its points out while the new ones fade in.
+      const parentLabels = parent.ids && this.labels ? { items: this.labels.items, opacity: this.labels.opacity } : null;
       this.levels.push(level);
-      this._showLevel(level, X);
+      this._showLevel(level, X, 0);
+      this.ghostLabels = parentLabels;
       this.rs = k0 / 2 ** V0.zoom;
       this.minPx = minPx0;
       this.opacity = opacity0;
@@ -559,9 +677,13 @@ const ReembedWidget = (() => {
             this.ghost.rs = scaleAt(k0 * (1 - e) ** 0.8);
             this.ghost.minPx = minPx0 * (1 - e);
             this.ghost.opacity = ghostOpacity * (1 - e);
+            if (this.ghostLabels) this.ghostLabels.opacity = 1 - smoothstep(e / 0.5);
+            this.labels.opacity = smoothstep((e - 0.35) / 0.65);
           },
           onEnd: () => {
             this.ghost = null;
+            this.ghostLabels = null;
+            this.labels.opacity = 1;
             this.opacity = 1;
             this.autofit = true;
             this.mode = this.status.error ? "idle" : "running";
@@ -597,7 +719,7 @@ const ReembedWidget = (() => {
 
     async _request(level) {
       const n = level.n;
-      const base = (this.cfg.server_url || (location.protocol.startsWith("http") ? location.origin : "")).replace(/\/$/, "");
+      const base = this._serverBase();
       if (!base) {
         this._fail("No re-embed server configured: pass ReembedWidget(server_url=...).");
         return;
@@ -621,22 +743,36 @@ const ReembedWidget = (() => {
       }
       if (this.current() !== level || level.cancelled) return;  // the user went back meanwhile
       level.sampleLocal = arrays.sample_local || null;
+      // Kept so the level can be re-optimized later (e.g. after Back) without a new request.
+      level.knn = { idx: arrays.knn_indices, dist: arrays.knn_distances };
       this.status.knnSeconds = header.knnSeconds + (header.sampleKnnSeconds || 0);
       this.status.requestMs = performance.now() - t0;
       this.status.phase = "building";
+      this._spawnWorker(level, level.X, level.homeMap, {
+        startPaused: !!this.tr,
+        sample: arrays.sample_local
+          ? { local: arrays.sample_local, idx: arrays.sample_knn_indices, dist: arrays.sample_knn_distances }
+          : null,
+      });
+    }
+
+    /**
+     * Start a worker optimizing `level` from positions `X` (display coordinates of
+     * the epoch-0 layout before `homeMap`).
+     */
+    _spawnWorker(level, X, homeMap, { startPaused = false, sample = null } = {}) {
       const assets = this._engineAssets();
       this._stopWorker();
+      this.runId++;
+      this.runInit = { X, homeMap };
       this.worker = new Worker(assets.url);
       this.worker.onmessage = (e) => this._onWorkerMessage(e.data, level);
       this.worker.onerror = (e) => {
         if (this.current() === level && !level.cancelled) this._fail(`Engine error: ${e.message || e}`);
       };
       this.worker.postMessage({
-        cmd: "start", engine, wasmGz: assets.wasmGz, startPaused: !!this.tr,
-        n, initXY: level.X, knnIdx: arrays.knn_indices, knnDist: arrays.knn_distances,
-        sample: arrays.sample_local
-          ? { local: arrays.sample_local, idx: arrays.sample_knn_indices, dist: arrays.sample_knn_distances }
-          : null,
+        cmd: "start", engine: this.engine(), wasmGz: assets.wasmGz, startPaused, runId: this.runId,
+        n: level.n, initXY: X, knnIdx: level.knn.idx, knnDist: level.knn.dist, sample,
         options: { ...this.ui.params(), refineEpochs: this.cfg.refine_epochs, initRescale: this.cfg.init_rescale },
       });
     }
@@ -675,10 +811,11 @@ const ReembedWidget = (() => {
     }
 
     /** Optimizer coords -> display: undo the epoch-0 similarity, then apply the home map. */
-    _displayMap(level, Y0, idx) {
-      const Xs = idx ? gather(level.X, idx, 2) : level.X;
+    _displayMap(Y0, idx) {
+      const { X, homeMap } = this.runInit;
+      const Xs = idx ? gather(X, idx, 2) : X;
       const f = fitSimilarity(Xs, Y0);
-      const { scale, xc, yc, hx, hy } = level.homeMap;
+      const { scale, xc, yc, hx, hy } = homeMap;
       return (Y, out, ix = null) => {
         const k = ix ? ix.length : Y.length / 2;
         for (let t = 0; t < k; t++) {
@@ -695,6 +832,8 @@ const ReembedWidget = (() => {
 
     _onWorkerMessage(msg, level) {
       if (this.current() !== level || level.cancelled) return;
+      // Messages from a run superseded by a parameter change.
+      if (msg.runId !== undefined && msg.runId !== this.runId) return;
       const now = performance.now();
       const st = this.status;
       if (msg.type === "error") {
@@ -725,12 +864,14 @@ const ReembedWidget = (() => {
         return;
       }
       if (msg.type === "done") {
+        // The worker stays alive (idle) so parameter changes can re-optimize quickly.
         st.phase = "done";
-        this._stopWorker();
         return;
       }
       if (msg.type !== "frame") return;
-      st.phase = msg.phase === "full" ? "optimizing" : msg.phase === "sample" ? "optimizing sample" : "refining";
+      if (msg.restarted) this.relaxing = true;
+      st.phase = this.relaxing || msg.phase === "relax" ? "re-optimizing"
+        : msg.phase === "full" ? "optimizing" : msg.phase === "sample" ? "optimizing sample" : "refining";
       st.epoch = msg.epoch;
       st.nEpochs = msg.nEpochs;
       if (msg.computeMs) st.computeMs = msg.computeMs;
@@ -744,7 +885,7 @@ const ReembedWidget = (() => {
           this._retargetAlpha(T.FADE_MS);
         }
         const sidx = msg.phase === "sample" ? this.sampleLocal : null;
-        this.map = this._displayMap(level, msg.embedding, sidx);
+        this.map = this._displayMap(msg.embedding, sidx);
         this.target = (this.tr ? level.pos : this.disp).slice();
         this.map(msg.embedding, this.target, sidx);
         this.lastArrival = now;
@@ -767,6 +908,7 @@ const ReembedWidget = (() => {
 
     _finishRun() {
       this.mode = "idle";
+      this.relaxing = false;
       this._finishLevel();
       this.ui.update();
     }
@@ -775,8 +917,33 @@ const ReembedWidget = (() => {
       if (this.worker) this.worker.postMessage({ cmd: paused ? "pause" : "resume" });
     }
 
+    /**
+     * New min_dist / spread / repulsion: restart the optimization of the shown
+     * re-embedding from its current layout (during or after a run).
+     */
     setParams(params) {
-      if (this.worker) this.worker.postMessage({ cmd: "params", params });
+      const level = this.current();
+      if (!level || !level.ids || level.cancelled || this.mode === "back") return;
+      if (this.worker) {
+        this.runId++;
+        this.worker.postMessage({ cmd: "params", params, runId: this.runId });
+      } else if (this.mode === "idle" && level.knn && this.disp) {
+        this._spawnWorker(level, this.disp.slice(), IDENTITY_MAP);
+      } else {
+        return;  // the run that is about to start reads the new values
+      }
+      if (this.mode !== "idle") return;
+      // Continue from the current look: keep point size and resume auto-fit unless the user moved the camera.
+      this.status.phase = "re-optimizing";
+      this.status.error = null;
+      this.relaxing = true;
+      level.rs = this.rs;
+      level.fitZoom = this.view.zoom;
+      this.autofit = !level.userCamera;
+      this.ft = null;
+      this.mode = "running";
+      this._lassoFreeze();
+      this.ui.update();
     }
 
     // ---------------------------------------------------------------- back
@@ -785,6 +952,7 @@ const ReembedWidget = (() => {
       // Levels being left must ignore any kNN response or worker message still in flight.
       for (let d = toDepth + 1; d <= this.depth; d++) this.levels[d].cancelled = true;
       this._stopWorker();
+      this.relaxing = false;
       this.ft = null;
       // Collapse intermediate levels so the current points map straight to the target ancestor.
       while (this.depth > toDepth + 1) {
@@ -792,7 +960,8 @@ const ReembedWidget = (() => {
         const mid = this.current();
         Object.assign(mid, {
           parentSel: child.parentSel.map((i) => mid.parentSel[i]),
-          ids: child.ids, n: child.n, radii: child.radii, fitIdx: child.fitIdx, member: child.member, rMed: child.rMed,
+          ids: child.ids, n: child.n, radii: child.radii, fitIdx: child.fitIdx, local: child.local, rMed: child.rMed,
+          labels: child.labels, knn: child.knn,
         });
       }
       const dm = this.dm;
@@ -829,6 +998,9 @@ const ReembedWidget = (() => {
       }
       const minPx0 = this.minPx;
       this.ghost = { n: parent.n, pos: ghostStart.slice(), rgba: ghostRgba, radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0 };
+      // The shown labels fade out; a re-embedded parent's labels fade in on its returning points.
+      this.ghostLabels = parent.ids ? { items: this._levelLabels(parent), opacity: 0 } : null;
+      const labelOpacity0 = this.labels ? this.labels.opacity : 0;
       this.visTarget.fill(1);
       this.selTarget.fill(1);
       this._retargetAlpha(T.BACK_MS);
@@ -847,9 +1019,12 @@ const ReembedWidget = (() => {
           this.ghost.rs = scaleAt(kp * e ** 0.8);
           this.ghost.minPx = minPxEnd * e;
           this.ghost.opacity = opacityEnd * e;
+          if (this.labels) this.labels.opacity = labelOpacity0 * (1 - smoothstep(e / 0.5));
+          if (this.ghostLabels) this.ghostLabels.opacity = smoothstep((e - 0.35) / 0.65);
         },
         onEnd: () => {
           this.ghost = null;
+          this.ghostLabels = null;
           this._setView(Vp);
           this.levels.pop();
           if (parent.ids) {
@@ -872,6 +1047,7 @@ const ReembedWidget = (() => {
     _exitToRoot() {
       const dm = this.dm;
       this.disp = null;
+      this.labels = null;
       this.mode = "idle";
       Object.assign(this.status, { phase: "", error: null, epoch: 0, nEpochs: 0 });
       dm.layers = dm.layers.filter((layer) => !isOurs(layer));
@@ -990,15 +1166,26 @@ const ReembedWidget = (() => {
           <div class="reembed-status"></div>
           <details class="reembed-settings">
             <summary>Settings</summary>
-            <label>Engine <select class="reembed-engine">
-              <option value="auto">auto</option><option value="gpu">WebGPU</option><option value="cpu">CPU</option>
-            </select></label>
-            <label>Epochs <input class="reembed-epochs" type="number" min="10" max="2000" step="10" value="${c.n_epochs}"></label>
-            <label>min_dist <input class="reembed-min-dist" type="range" min="0" max="0.99" step="0.01" value="${c.min_dist}"><span></span></label>
-            <label>spread <input class="reembed-spread" type="range" min="0.5" max="3" step="0.05" value="${c.spread}"><span></span></label>
-            <label>repulsion <input class="reembed-repulsion" type="range" min="0.1" max="3" step="0.05" value="${c.repulsion_strength}"><span></span></label>
+            <div class="reembed-row"><span class="reembed-row-label">Engine</span>
+              <div class="reembed-options reembed-engine">
+                <button data-value="auto" title="WebGPU when available, else CPU">Auto</button>
+                <button data-value="gpu">WebGPU</button>
+                <button data-value="cpu">CPU</button>
+              </div></div>
+            <div class="reembed-row"><span class="reembed-row-label">Epochs</span>
+              <input class="reembed-epochs" type="number" min="10" max="2000" step="10" value="${c.n_epochs}"></div>
+            <div class="reembed-row"><span class="reembed-row-label">min_dist</span>
+              <input class="reembed-slider reembed-min-dist" type="range" min="0" max="0.99" step="0.01" value="${c.min_dist}">
+              <span class="reembed-row-value"></span></div>
+            <div class="reembed-row"><span class="reembed-row-label">spread</span>
+              <input class="reembed-slider reembed-spread" type="range" min="0.5" max="3" step="0.05" value="${c.spread}">
+              <span class="reembed-row-value"></span></div>
+            <div class="reembed-row"><span class="reembed-row-label">repulsion</span>
+              <input class="reembed-slider reembed-repulsion" type="range" min="0.1" max="3" step="0.05" value="${c.repulsion_strength}">
+              <span class="reembed-row-value"></span></div>
           </details>
-          <div class="reembed-hint">Hold Shift and drag to lasso points, then Re-embed.</div>
+          <div class="reembed-hint">Hold Shift and drag to lasso points, then Re-embed.
+            Changing min_dist, spread or repulsion re-optimizes the current layout.</div>
         </div>`;
       const q = (s) => this.container.querySelector(s);
       if (c.title) q(".reembed-title").textContent = c.title;
@@ -1008,7 +1195,13 @@ const ReembedWidget = (() => {
         bar: q(".reembed-progress-bar"), status: q(".reembed-status"), engine: q(".reembed-engine"),
         epochs: q(".reembed-epochs"), minDist: q(".reembed-min-dist"), spread: q(".reembed-spread"), repulsion: q(".reembed-repulsion"),
       };
-      this.el.engine.value = c.engine || "auto";
+      this.engineValue = c.engine || "auto";
+      const engineButtons = Array.from(this.el.engine.querySelectorAll("button"));
+      const showEngine = () => engineButtons.forEach((b) => b.classList.toggle("reembed-active-option", b.dataset.value === this.engineValue));
+      engineButtons.forEach((b) => {
+        b.onclick = () => { this.engineValue = b.dataset.value; showEngine(); };
+      });
+      showEngine();
       this.el.go.onclick = () => this.controller.reembed();
       this.el.back.onclick = () => this.controller.back();
       this.el.pause.onclick = () => {
@@ -1037,7 +1230,7 @@ const ReembedWidget = (() => {
       };
     }
 
-    engine() { return this.el.engine.value; }
+    engine() { return this.engineValue; }
 
     update() {
       const ctl = this.controller;
@@ -1074,17 +1267,21 @@ const ReembedWidget = (() => {
       this.el.bar.parentElement.style.visibility = ctl.depth > 0 || ctl.mode !== "idle" ? "visible" : "hidden";
       this.el.bar.style.width = `${(100 * (ctl.mode === "running" || st.phase === "done" ? frac : 0)).toFixed(1)}%`;
       let text = "";
+      const serverText = ctl.serverText();
       if (st.error) {
         text = st.error;
       } else if (ctl.depth > 0 || ctl.mode !== "idle") {
         const e = st.engine;
         const engine = e ? (e.gpuActive ? "WebGPU" : "CPU") + (e.gpuRequested && !e.gpuActive ? " (GPU unavailable)" : "") : "";
         const parts = [];
-        if (st.phase && st.phase !== "done") parts.push(st.phase);
+        if (st.phase === "computing kNN graph" && serverText) parts.push("waiting for server: " + ctl.server.stage);
+        else if (st.phase && st.phase !== "done") parts.push(st.phase);
         if (st.nEpochs) parts.push(`epoch ${st.epoch}/${st.nEpochs}`);
         if (engine) parts.push(engine + (st.computeMs ? ", " + st.computeMs.toFixed(1) + " ms/epoch" : ""));
         if (st.knnSeconds) parts.push(`kNN ${st.knnSeconds.toFixed(2)} s`);
         text = parts.join(" · ");
+      } else {
+        text = serverText;
       }
       this.el.status.textContent = text;
       this.el.status.classList.toggle("reembed-error", !!st.error);

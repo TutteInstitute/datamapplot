@@ -36,7 +36,7 @@ def test_pack_unpack_roundtrip():
 
 
 def test_payload_rejects_bad_ids():
-    server = ReembedServer(np.zeros((50, 4)), verbose=False)
+    server = ReembedServer(np.zeros((50, 4)), verbose=False, warm_up=False)
     with pytest.raises(ValueError, match="at least"):
         server.reembed_payload(np.arange(5))
     with pytest.raises(ValueError, match="unique"):
@@ -82,7 +82,9 @@ def test_http_api():
         with pytest.raises(urllib.error.HTTPError) as error:
             request("/api/info", headers={})
         assert error.value.code == 401
-        assert json.load(request("/api/info"))["n"] == 600
+        info = json.load(request("/api/info"))
+        assert info["n"] == 600
+        assert info["stage"] in ("warming up", "building global kNN graph", "ready")
 
         ids = np.arange(0, 600, 3, dtype="<i4")
         response = request("/api/reembed?sample=60", data=ids.tobytes(), method="POST")

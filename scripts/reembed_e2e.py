@@ -24,8 +24,8 @@ import datamapplot
 from datamapplot.reembed_server import ReembedServer
 
 DATA_URL = (
-    "https://huggingface.co/datasets/lmcinnes/20newsgroups_embedded/"
-    "resolve/main/data/train-00000-of-00001.parquet"
+    "https://huggingface.co/datasets/lmcinnes/20newsgroups_topics/"
+    "resolve/main/newsgroups_with_topics_customised.parquet"
 )
 
 # Page-side helpers: lasso a disc around a data point, read controller state.
@@ -134,12 +134,13 @@ def analyse_motion(rec):
 def load_data(path):
     df = pd.read_parquet(path or DATA_URL)
     vectors = np.stack(df["embedding"].values).astype(np.float32)
-    return vectors, np.stack(df["map"].values), df["newsgroup"].values, df["post"].str.slice(0, 120).values
+    layers = [df[f"layer_{i}_topics"].values for i in range(5)]
+    return vectors, np.stack(df["map"].values), layers, df["post"].str.slice(0, 120).values
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data", default=None, help="local copy of the 20 Newsgroups parquet")
+    parser.add_argument("--data", default=None, help="local copy of the 20 Newsgroups topics parquet")
     parser.add_argument("--headed", action="store_true")
     parser.add_argument("--browser", default="chromium", choices=["chromium", "firefox"])
     parser.add_argument("--engine", default="cpu", choices=["auto", "gpu", "cpu"])
@@ -154,7 +155,7 @@ def main():
     vectors, data_map, labels, hover = load_data(args.data)
     server = ReembedServer(vectors, metric="cosine", verbose=False).start(port=0)
     plot = datamapplot.create_interactive_plot(
-        data_map, labels, hover_text=hover, minify_deps=not args.no_minify,
+        data_map, *labels, hover_text=hover, minify_deps=not args.no_minify,
         widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.ReembedWidget(
             engine=args.engine, **({"subsample_threshold": 2000, "sample_size": 1500, "refine_epochs": 60} if args.subsample else {}))],
     )
@@ -217,7 +218,20 @@ def main():
                 check(s["nEpochs"] == 60 and page.evaluate("Array.from(window.__reembed.ctl().alpha).every((a) => a > 0.99)"),
                       f"{label}: sampled run refined and all points visible")
             ids = [l[0] for l in s["layers"]]
-            check("reembed-active" in ids and "reembed-ghost" not in ids, f"{label}: active layer only")
+            check("reembed-active" in ids and "reembed-ghost" not in ids and "reembed-labels-ghost" not in ids,
+                  f"{label}: active points and labels only")
+            labels = page.evaluate("""() => {
+                const ctl = window.__reembed.ctl(), level = ctl.current(), items = ctl.labels.items;
+                const contained = items.every((d) => d.relatedPoints.every((g) => level.local[g] >= 0));
+                // Each label sits on one of its member points.
+                const onMember = items.every((d) => d._sample.some((i) => ctl.disp[2*i] === d.x && ctl.disp[2*i+1] === d.y));
+                const layer = window.datamap.layers.find((l) => l.id === "reembed-labels");
+                return { n: items.length, contained, onMember, layer: !!layer, opacity: layer ? layer.props.opacity : 0,
+                         sample: items.slice(0, 3).map((d) => d.label) };
+            }""")
+            print(f"{label}: {labels['n']} labels, e.g. {labels['sample']}")
+            check(labels["n"] > 0 and labels["layer"] and labels["opacity"] == 1, f"{label}: re-embed labels shown")
+            check(labels["contained"] and labels["onMember"], f"{label}: labels contained in selection and placed on member points")
             if shots:
                 page.screenshot(path=str(shots / f"{label}_done.png"))
             return s
@@ -249,6 +263,36 @@ def main():
         check(pick is not None and pick[0] == "reembed-active" and pick[2] == pick[3], f"level1: pick remaps to global id {pick}")
         check(pick is not None and pick[4], "level1: tooltip shows the picked point's own text")
 
+        def slider_check(label, value):
+            """Moving min_dist re-optimizes the shown layout (median NN spacing grows)."""
+            spacing = """() => {
+                const ctl = window.__reembed.ctl(), p = ctl.disp, n = p.length / 2, d = [];
+                for (let i = 0; i < Math.min(n, 600); i++) {
+                    let best = Infinity;
+                    for (let j = 0; j < n; j++) if (j !== i) best = Math.min(best, (p[2*i]-p[2*j])**2 + (p[2*i+1]-p[2*j+1])**2);
+                    d.push(Math.sqrt(best));
+                }
+                d.sort((a, b) => a - b);
+                return d[d.length >> 1] / (ctl.levels[ctl.depth].fitIdx ? 1 : 1);
+            }"""
+            before = page.evaluate(spacing)
+            page.evaluate(f"""() => {{
+                const el = document.querySelector('.reembed-min-dist');
+                el.value = {value}; el.dispatchEvent(new Event('input'));
+            }}""")
+            page.wait_for_function("window.__reembed.state().mode === 'running'", timeout=5000)
+            page.wait_for_function("window.__reembed.state().mode === 'idle' && window.__reembed.state().phase === 'done'", timeout=60000)
+            s = state()
+            after = page.evaluate(spacing)
+            print(f"{label}: min_dist -> {value}: median NN spacing {before:.4g} -> {after:.4g}")
+            check(s["epoch"] == s["nEpochs"] > 0 and not s["error"], f"{label}: slider re-optimized ({s['epoch']}/{s['nEpochs']})")
+            check(after > 1.2 * before, f"{label}: larger min_dist spreads the layout")
+
+        slider_check("level1", 0.6)
+        page.evaluate("() => { const el = document.querySelector('.reembed-min-dist'); el.value = 0.1; el.dispatchEvent(new Event('input')); }")
+        page.wait_for_function("window.__reembed.state().mode === 'idle' && window.__reembed.state().phase === 'done'", timeout=60000)
+
+        before_level2 = state()
         s2 = run_level(0.3, "level2")
         check(s2["depth"] == 2, "level2: nested depth 2")
 
@@ -260,7 +304,9 @@ def main():
             print(errors[:5])
             raise
         s3 = state()
-        check(all(abs(s3["view"][k] - s1["view"][k]) < 1e-6 for k in ("longitude", "latitude", "zoom")), "back to level1: camera restored")
+        check(all(abs(s3["view"][k] - before_level2["view"][k]) < 1e-6 for k in ("longitude", "latitude", "zoom")), "back to level1: camera restored")
+        check(page.evaluate("window.__reembed.ctl().worker === null"), "back to level1: child worker stopped")
+        slider_check("level1 after back (respawned worker)", 0.6)
         if shots:
             page.screenshot(path=str(shots / "back1.png"))
         # Sample the label layer's opacity as deck.gl sees it while returning to the full map
