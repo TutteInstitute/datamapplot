@@ -10,8 +10,8 @@ map fades away, the selection zooms to fill the view, and UMAP re-optimizes the
 layout of just those points with every epoch animated. Very large selections
 first animate a random sample, then place the remaining points next to their
 neighbours and refine the whole selection. The status line reports where the
-time went: the server request (and the kNN graph computation within it) and
-the setup of the optimizer.
+time went: the request (with the kNN graph computation and the download of the
+graph within it) and the setup of the optimizer.
 
 Besides the files used by the interactive CORD-19 example, this needs the
 768-dimensional SPECTER vectors of the papers as a ``.npy`` file (``--vectors``).

@@ -26,18 +26,24 @@ REST contract
     JSON: ``{"stage", "format", "n", "dim", "metric", "k", "ready", "globalGraphReady"}``;
     ``stage`` is "warming up", "building global kNN graph" or "ready".
 
-``POST /api/reembed[?sample=M]``
+``POST /api/reembed[?sample=M][&encoding=varint]``
     Body: little-endian int32 row ids of the selection (unique, at least
-    ``k + 2`` of them). Response (``application/octet-stream``): a uint32
-    little-endian header length, a JSON header, then the arrays it lists, each
-    described by ``name``, ``dtype``, ``shape``, ``offset`` (from the end of the
-    header) and ``bytes``:
+    ``k + 2`` of them, in any order; local indices follow this order).
+    Response (``application/octet-stream``): a uint32 little-endian header
+    length, a JSON header, then the arrays it lists, each described by
+    ``name``, ``dtype``, ``shape``, ``offset`` (from the end of the header) and
+    ``bytes``:
 
     * ``knn_indices`` int32 ``(n, k + 1)`` and ``knn_distances`` float32
       ``(n, k + 1)``, indices local to the selection (row ``i`` includes ``i``);
     * with ``0 < M < n``: ``sample_local`` int32 ``(M,)`` (sorted local indices of
       a random sample) plus ``sample_knn_indices`` / ``sample_knn_distances`` for
       the sample, indices local to the sample.
+
+    With ``encoding=varint`` the graphs are sent compactly (see
+    :func:`encode_knn`; typically 2-2.5x smaller): their entries give the decoded
+    ``dtype`` and ``shape`` plus an ``encoding`` (and ``step``), and ``bytes`` is
+    the encoded length. :func:`unpack_arrays` decodes them.
 
 All ``/api/`` endpoints send permissive CORS headers so plots opened from files
 or shown in notebooks can call the server; the figure served at ``/`` does not.
@@ -179,6 +185,164 @@ def _seed_distances(data, seed, dist):
     return out
 
 
+@numba.njit
+def _put_varint(out, pos, value):
+    while value >= 128:
+        out[pos] = (value & 127) | 128
+        value >>= 7
+        pos += 1
+    out[pos] = value
+    return pos + 1
+
+
+@numba.njit
+def _get_varint(data, pos):
+    value = 0
+    shift = 0
+    while True:
+        byte = np.int64(data[pos])
+        pos += 1
+        value |= (byte & 127) << shift
+        if byte < 128:
+            return value, pos
+        shift += 7
+
+
+@numba.njit(parallel=True)
+def _positive_spreads(distances):
+    """Per row, the largest minus the smallest positive distance."""
+    n, width = distances.shape
+    out = np.zeros(n, dtype=np.float32)
+    for i in numba.prange(n):
+        lo = np.inf
+        hi = 0.0
+        for c in range(width):
+            d = distances[i, c]
+            if d > 0:
+                lo = min(lo, d)
+                hi = max(hi, d)
+        if hi > lo:
+            out[i] = hi - lo
+    return out
+
+
+@numba.njit(parallel=True)
+def _encode_knn(indices, distances, step):
+    n, width = indices.shape
+    # Each row is encoded into its own fixed-size slot, then the slots are compacted.
+    index_slots = np.empty((n, width * 5), dtype=np.uint8)
+    distance_slots = np.empty((n, width * 6), dtype=np.uint8)  # values < 2**40
+    index_len = np.empty(n + 1, dtype=np.int64)
+    distance_len = np.empty(n + 1, dtype=np.int64)
+    index_len[0] = 0
+    distance_len[0] = 0
+    for i in numba.prange(n):
+        row_q = np.empty(width, dtype=np.int64)
+        row_j = np.empty(width, dtype=np.int64)
+        for c in range(width):
+            d = distances[i, c]
+            # Rounding noise below zero is zero; other distances stay nonzero.
+            row_q[c] = 0 if not d > 0 else max(np.int64(1), np.int64(np.round(d / step)))
+            row_j[c] = indices[i, c]
+        # Rows are normally sorted; keep (index, distance) pairs together if not.
+        for c in range(1, width):
+            q = row_q[c]
+            j = row_j[c]
+            e = c - 1
+            while e >= 0 and row_q[e] > q:
+                row_q[e + 1] = row_q[e]
+                row_j[e + 1] = row_j[e]
+                e -= 1
+            row_q[e + 1] = q
+            row_j[e + 1] = j
+        ip = 0
+        dp = 0
+        previous = np.int64(0)
+        for c in range(width):
+            delta = np.int64(row_j[c]) - i
+            ip = _put_varint(index_slots[i], ip, (delta << 1) ^ (delta >> 63))
+            dp = _put_varint(distance_slots[i], dp, row_q[c] - previous)
+            previous = row_q[c]
+        index_len[i + 1] = ip
+        distance_len[i + 1] = dp
+    index_start = np.cumsum(index_len)
+    distance_start = np.cumsum(distance_len)
+    index_bytes = np.empty(index_start[n], dtype=np.uint8)
+    distance_bytes = np.empty(distance_start[n], dtype=np.uint8)
+    for i in numba.prange(n):
+        index_bytes[index_start[i] : index_start[i + 1]] = index_slots[i, : index_len[i + 1]]
+        distance_bytes[distance_start[i] : distance_start[i + 1]] = distance_slots[i, : distance_len[i + 1]]
+    return index_bytes, distance_bytes
+
+
+@numba.njit
+def _decode_indices(data, n, width):
+    out = np.empty((n, width), dtype=np.int32)
+    pos = 0
+    for i in range(n):
+        for c in range(width):
+            value, pos = _get_varint(data, pos)
+            out[i, c] = i + ((value >> 1) ^ -(value & 1))
+    return out
+
+
+@numba.njit
+def _decode_distances(data, n, width, step):
+    out = np.empty((n, width), dtype=np.float32)
+    pos = 0
+    for i in range(n):
+        q = np.int64(0)
+        for c in range(width):
+            value, pos = _get_varint(data, pos)
+            q += value
+            out[i, c] = q * step
+    return out
+
+
+def encode_knn(name, indices, distances):
+    """Compactly encode a kNN graph as entries for :func:`pack_arrays`.
+
+    Indices become varints of the zigzagged offset ``j - i`` from their row
+    ``i``, which are short when rows are ordered so that neighbours are close
+    (e.g. the selection sent in a spatial order of its 2D positions). Distances
+    are quantised to a step that resolves 256 levels across the neighbour
+    distances of all but the 1% most compact rows, and stored per row as varint
+    increments. Negative distances (rounding noise) decode as 0, nonzero
+    distances stay nonzero, and rows are sorted by distance.
+    """
+    if not np.isfinite(distances).all():  # e.g. rows padded with infinite distances
+        return [(f"{name}_indices", indices), (f"{name}_distances", distances)]
+    indices = np.ascontiguousarray(indices, dtype=np.int32)
+    distances = np.ascontiguousarray(distances, dtype=np.float32)
+    n, width = indices.shape
+    spread = _positive_spreads(distances)
+    spread = spread[spread > 0]
+    top = float(distances.max()) if distances.size else 0.0
+    if len(spread):
+        q = int(0.01 * (len(spread) - 1))
+        step = float(np.partition(spread, q)[q]) / 256
+    else:
+        step = 1.0
+    # Keep quantised values well inside int64 whatever the distance scale.
+    step = max(step, top / 2.0**40, np.finfo(np.float32).tiny)
+    index_bytes, distance_bytes = _encode_knn(indices, distances, step)
+    shape = [n, width]
+    return [
+        (f"{name}_indices", index_bytes, {"dtype": "int32", "shape": shape, "encoding": "row-delta-varint"}),
+        (f"{name}_distances", distance_bytes, {"dtype": "float32", "shape": shape, "encoding": "step-varint", "step": step}),
+    ]
+
+
+def _decode_entry(entry, blob):
+    data = np.frombuffer(blob, dtype=np.uint8)
+    n, width = entry["shape"]
+    if entry["encoding"] == "row-delta-varint":
+        return _decode_indices(data, n, width)
+    if entry["encoding"] == "step-varint":
+        return _decode_distances(data, n, width, float(entry["step"]))
+    raise ValueError(f"unknown array encoding {entry['encoding']!r}")
+
+
 def _require_pynndescent():
     try:
         from pynndescent import NNDescent
@@ -198,8 +362,10 @@ def pack_arrays(header, arrays):
     header : dict
         JSON-serialisable metadata. An ``"arrays"`` entry describing each array
         is added.
-    arrays : list of (str, ndarray)
-        Arrays to append, in order.
+    arrays : list of (str, ndarray) or (str, ndarray, dict)
+        Arrays to append, in order. A dict updates the array's entry; encoded
+        arrays (see :func:`encode_knn`) give their decoded ``dtype`` and
+        ``shape`` and an ``encoding`` this way.
 
     Returns
     -------
@@ -207,7 +373,7 @@ def pack_arrays(header, arrays):
     """
     entries = []
     offset = 0
-    for name, array in arrays:
+    for name, array, *meta in arrays:
         entries.append(
             {
                 "name": name,
@@ -215,13 +381,14 @@ def pack_arrays(header, arrays):
                 "shape": list(array.shape),
                 "offset": offset,
                 "bytes": int(array.nbytes),
+                **(meta[0] if meta else {}),
             }
         )
         offset += array.nbytes
     head = json.dumps({**header, "arrays": entries}).encode()
     # Pad so the arrays start 8-byte aligned.
     head += b" " * ((-len(head) - 4) % 8)
-    blobs = [np.ascontiguousarray(array).tobytes() for _, array in arrays]
+    blobs = [np.ascontiguousarray(array).tobytes() for _, array, *_ in arrays]
     return b"".join([struct.pack("<I", len(head)), head] + blobs)
 
 
@@ -233,9 +400,11 @@ def unpack_arrays(payload):
     arrays = {}
     for entry in header["arrays"]:
         start = base + entry["offset"]
-        arrays[entry["name"]] = np.frombuffer(
-            payload[start : start + entry["bytes"]], dtype=entry["dtype"]
-        ).reshape(entry["shape"])
+        blob = payload[start : start + entry["bytes"]]
+        if "encoding" in entry:
+            arrays[entry["name"]] = _decode_entry(entry, blob)
+        else:
+            arrays[entry["name"]] = np.frombuffer(blob, dtype=entry["dtype"]).reshape(entry["shape"])
     return header, arrays
 
 
@@ -546,8 +715,16 @@ class ReembedServer:
             indices, distances = index.neighbor_graph
         return indices.astype(np.int32), distances.astype(np.float32)
 
-    def reembed_payload(self, ids, sample=0, rng=None):
+    def reembed_payload(self, ids, sample=0, rng=None, encoding="raw"):
         """Compute the binary response for a re-embed request (see module docs)."""
+        if encoding not in ("raw", "varint"):
+            raise ValueError(f"unknown encoding {encoding!r}")
+
+        def graph(name, indices, distances):
+            if encoding == "varint":
+                return encode_knn(name, indices, distances)
+            return [(f"{name}_indices", indices), (f"{name}_distances", distances)]
+
         ids = np.asarray(ids, dtype=np.int64)
         n_rows = self.vectors.shape[0]
         if ids.ndim != 1 or len(ids) < self.n_neighbors + 2:
@@ -567,16 +744,12 @@ class ReembedServer:
                 "seeded": self._global_knn is not None,
                 "knnSeconds": time.time() - t0,
             }
-            arrays = [("knn_indices", idx), ("knn_distances", dist)]
+            arrays = graph("knn", idx, dist)
             if 0 < sample < len(ids) and sample >= self.n_neighbors + 2:
                 t1 = time.time()
                 sample_local = np.sort(rng.choice(len(ids), int(sample), replace=False)).astype(np.int32)
                 s_idx, s_dist = self.subset_graph(ids[sample_local], rng)
-                arrays += [
-                    ("sample_local", sample_local),
-                    ("sample_knn_indices", s_idx),
-                    ("sample_knn_distances", s_dist),
-                ]
+                arrays += [("sample_local", sample_local)] + graph("sample_knn", s_idx, s_dist)
                 header["sampleKnnSeconds"] = time.time() - t1
         self._log(
             f"re-embed {len(ids):,} points: kNN {header['knnSeconds']:.2f}s"
@@ -756,7 +929,8 @@ def _make_handler(server):
             query = parse_qs(url.query)
             try:
                 sample = int(query.get("sample", ["0"])[0])
-                payload = server.reembed_payload(ids, sample=sample)
+                encoding = query.get("encoding", ["raw"])[0]
+                payload = server.reembed_payload(ids, sample=sample, encoding=encoding)
             except ValueError as error:
                 return self._send_json({"error": str(error)}, 400)
             self._send(200, payload, "application/octet-stream")

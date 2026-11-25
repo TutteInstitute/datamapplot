@@ -65,16 +65,84 @@ const ReembedWidget = (() => {
     return out;
   }
 
+  /** Decode a kNN array sent with encoding=varint (see encode_knn in reembed_server.py). */
+  function decodeKnn(a, bytes) {
+    const [n, width] = a.shape;
+    const offsets = a.encoding === "row-delta-varint";
+    if (!offsets && a.encoding !== "step-varint") throw new Error("unknown array encoding " + a.encoding);
+    const out = offsets ? new Int32Array(n * width) : new Float32Array(n * width);
+    let p = 0;
+    for (let i = 0; i < n; i++) {
+      let q = 0;
+      for (let c = 0; c < width; c++) {
+        let v = 0, mul = 1, b;
+        do { b = bytes[p++]; v += (b & 127) * mul; mul *= 128; } while (b & 128);
+        if (offsets) out[i * width + c] = i + (v % 2 ? -(v + 1) / 2 : v / 2);
+        else { q += v; out[i * width + c] = q * a.step; }
+      }
+    }
+    return out;
+  }
+
   /** Parse the ReembedServer binary response. */
   function unpack(buffer) {
     const headLen = new DataView(buffer).getUint32(0, true);
     const header = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 4, headLen)));
     const base = 4 + headLen, arrays = {};
     for (const a of header.arrays) {
+      if (a.encoding) {
+        arrays[a.name] = decodeKnn(a, new Uint8Array(buffer, base + a.offset, a.bytes));
+        continue;
+      }
       const Type = a.dtype === "int32" ? Int32Array : Float32Array;
       arrays[a.name] = new Type(buffer.slice(base + a.offset, base + a.offset + a.bytes));
     }
     return { header, arrays };
+  }
+
+  const part1by1 = (v) => {
+    v = (v | (v << 8)) & 0x00ff00ff;
+    v = (v | (v << 4)) & 0x0f0f0f0f;
+    v = (v | (v << 2)) & 0x33333333;
+    return (v | (v << 1)) & 0x55555555;
+  };
+
+  /**
+   * Local indices in Z-order of their 2D positions: sent in this order, a point's
+   * graph neighbours have nearby request positions, which the server encodes compactly.
+   */
+  function spatialOrder(P, n) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let i = 0; i < n; i++) {
+      x0 = Math.min(x0, P[2 * i]); x1 = Math.max(x1, P[2 * i]);
+      y0 = Math.min(y0, P[2 * i + 1]); y1 = Math.max(y1, P[2 * i + 1]);
+    }
+    const scale = 16383 / Math.max(x1 - x0, y1 - y0, 1e-30);
+    // Key = 28-bit Morton code * 2^24 + index: exact in a double for n < 2^24.
+    const keys = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      const code = part1by1(((P[2 * i] - x0) * scale) | 0) | (part1by1(((P[2 * i + 1] - y0) * scale) | 0) << 1);
+      keys[i] = code * 16777216 + i;
+    }
+    keys.sort();
+    const order = new Int32Array(n);
+    for (let r = 0; r < n; r++) order[r] = keys[r] % 16777216;
+    return order;
+  }
+
+  /** Graph rows/indices in request order -> local order, given request position -> local index. */
+  function reorderKnn(idx, dist, order) {
+    const n = order.length, width = idx.length / n;
+    const I = new Int32Array(idx.length), D = new Float32Array(dist.length);
+    for (let r = 0; r < n; r++) {
+      const i = order[r];
+      for (let c = 0; c < width; c++) {
+        const j = idx[r * width + c];
+        I[i * width + c] = j < 0 ? j : order[j];
+        D[i * width + c] = dist[r * width + c];
+      }
+    }
+    return { idx: I, dist: D };
   }
 
   /** Positions that appear on screen under view `to` exactly where `P` appears under view `from`. */
@@ -660,7 +728,7 @@ const ReembedWidget = (() => {
       this.mode = "entering";
       this.autofit = false;
       this.map = null;
-      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, requestMs: 0, knnSeconds: 0, buildMs: 0 });
+      Object.assign(this.status, { phase: "zooming", epoch: 0, nEpochs: 0, error: null, engine: null, requestMs: 0, knnSeconds: 0, downloadMs: 0, bytes: 0, buildMs: 0 });
 
       const zoomIn = () => {
         // Snap the camera to V1, re-expressing everything so nothing moves on screen.
@@ -735,30 +803,51 @@ const ReembedWidget = (() => {
       const threshold = this.cfg.subsample_threshold || (gpu ? 400000 : 25000);
       const sample = n > threshold ? Math.min(this.cfg.sample_size, n - 1) : 0;
       const t0 = performance.now();
-      let header, arrays;
+      // Ask for the selection in spatial order: the graph then encodes compactly.
+      const order = n < 16777216 ? spatialOrder(level.X, n) : null;
+      let body = level.ids;
+      if (order) {
+        body = new Int32Array(n);
+        for (let r = 0; r < n; r++) body[r] = level.ids[order[r]];
+      }
+      let header, arrays, bytes = 0, downloadMs = 0;
       try {
-        const resp = await fetch(base + "/api/reembed" + (sample ? "?sample=" + sample : ""), {
+        const resp = await fetch(base + "/api/reembed?encoding=varint" + (sample ? "&sample=" + sample : ""), {
           method: "POST",
-          body: level.ids,
+          body,
           headers: { "Content-Type": "application/octet-stream", ...(this.cfg.auth_headers || {}) },
         });
         if (!resp.ok) throw new Error(`server responded ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-        ({ header, arrays } = unpack(await resp.arrayBuffer()));
+        const tHeaders = performance.now();
+        const buffer = await resp.arrayBuffer();
+        downloadMs = performance.now() - tHeaders;
+        bytes = buffer.byteLength;
+        ({ header, arrays } = unpack(buffer));
       } catch (error) {
         if (this.current() === level && !level.cancelled) this._fail(`Re-embed request failed (${error.message || error}).`);
         return;
       }
       if (this.current() !== level || level.cancelled) return;  // the user went back meanwhile
-      level.sampleLocal = arrays.sample_local || null;
+      let knn = { idx: arrays.knn_indices, dist: arrays.knn_distances };
+      let sampleLocal = arrays.sample_local || null;
+      if (order) {
+        knn = reorderKnn(knn.idx, knn.dist, order);
+        if (sampleLocal) sampleLocal = sampleLocal.map((r) => order[r]);
+      }
+      level.sampleLocal = sampleLocal;
       // Kept so the level can be re-optimized later (e.g. after Back) without a new request.
-      level.knn = { idx: arrays.knn_indices, dist: arrays.knn_distances };
-      this.status.knnSeconds = header.knnSeconds + (header.sampleKnnSeconds || 0);
-      this.status.requestMs = performance.now() - t0;
+      level.knn = knn;
+      Object.assign(this.status, {
+        knnSeconds: header.knnSeconds + (header.sampleKnnSeconds || 0),
+        requestMs: performance.now() - t0,
+        downloadMs,
+        bytes,
+      });
       this.status.phase = "building";
       this._spawnWorker(level, level.X, level.homeMap, {
         startPaused: !!this.tr,
-        sample: arrays.sample_local
-          ? { local: arrays.sample_local, idx: arrays.sample_knn_indices, dist: arrays.sample_knn_distances }
+        sample: sampleLocal
+          ? { local: sampleLocal, idx: arrays.sample_knn_indices, dist: arrays.sample_knn_distances }
           : null,
       });
     }
@@ -1286,8 +1375,11 @@ const ReembedWidget = (() => {
         else if (st.phase && st.phase !== "done") parts.push(st.phase);
         if (st.nEpochs) parts.push(`epoch ${st.epoch}/${st.nEpochs}`);
         if (engine) parts.push(engine + (st.computeMs ? ", " + st.computeMs.toFixed(1) + " ms/epoch" : ""));
-        // Where the time went: the server request (and its kNN share), and building the optimizer.
-        if (st.requestMs) parts.push("server " + (st.requestMs / 1000).toFixed(2) + " s (kNN " + st.knnSeconds.toFixed(2) + " s)");
+        // Where the time went: the request (its kNN share and download), and building the optimizer.
+        if (st.requestMs) {
+          parts.push("request " + (st.requestMs / 1000).toFixed(2) + " s (kNN " + st.knnSeconds.toFixed(2) + " s, "
+            + (st.bytes / 1e6).toFixed(1) + " MB in " + (st.downloadMs / 1000).toFixed(2) + " s)");
+        }
         if (st.buildMs) parts.push("setup " + (st.buildMs / 1000).toFixed(2) + " s");
         text = parts.join(" · ");
       } else {
