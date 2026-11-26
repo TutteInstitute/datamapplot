@@ -28,10 +28,10 @@ class LassoSelectionTool {
     * Initializes the QuadTree with the current scatter plot data.
     */
     initQuadTree() {
-        const scatterLayer = this.datamap.deckgl.props.layers.find(layer => layer instanceof deck.ScatterplotLayer);
-        if (!scatterLayer) return;
+        const points = this.datamap.getPoints();
+        if (!points) return;
 
-        this.rebuildQuadTree(scatterLayer.props.data.attributes.getPosition.value);
+        this.rebuildQuadTree(points.positions);
     }
 
     /**
@@ -233,11 +233,11 @@ class LassoSelectionTool {
             });
         });
 
+        this.datamap.setControllerOptions({
+            dragPan: !this.selectionMode,
+            dragRotate: !this.selectionMode,
+        });
         this.datamap.deckgl.setProps({
-            controller: {
-                dragPan: !this.selectionMode,
-                dragRotate: !this.selectionMode,
-            },
             getCursor: ({ isDragging }) => this.selectionMode ? "crosshair" : (isDragging ? "grabbing" : "grab"),
         });
 

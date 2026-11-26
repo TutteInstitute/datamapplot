@@ -7,10 +7,10 @@
  *   WASM bytes are inlined in the page; every epoch is animated.
  * - Re-embeds can be nested; Back animates out again.
  *
- * While a re-embedding is shown, the DataMap's own point layer and all other
- * layers are hidden with a deck.gl `layerFilter`, and the re-embedded points
- * are drawn by layers with ids starting with "reembed-" that live in
- * `datamap.layers` (so DataMap's own layer updates keep them).
+ * While a re-embedding is shown, the DataMap's own layers are hidden
+ * (`setBaseLayerDisplay`) and the re-embedded points and their labels are drawn
+ * by the widget's overlay layers (`setOverlayLayers`, ids starting with
+ * "reembed-"). The widget only uses DataMap's public widget API.
  */
 const ReembedWidget = (() => {
   const T = {
@@ -21,8 +21,7 @@ const ReembedWidget = (() => {
   };
   const OURS = "reembed-";
   const IDENTITY_MAP = { scale: 1, xc: 0, yc: 0, hx: 0, hy: 0 };
-  const isOurs = (layer) => layer.id.startsWith(OURS);
-  const isPoints = (layer) => layer.id.startsWith("dataPointLayer");
+  const OWNER = "reembed";  // key of the widget's overlay layers, listeners and interaction lock
 
   // ---------------------------------------------------------------- helpers
   const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
@@ -233,12 +232,13 @@ const ReembedWidget = (() => {
       this.interArrival = 16;
       this.lastArrival = 0;
       this.lastTick = performance.now();
-      this.lastCounter = -1;
-      this.colorSource = null;
-      this.filterMode = "none";
+      this.selectionDirty = true;    // the map's selection changed since last synced
+      this.colorsChanged = false;    // the map's point colours changed since last synced
       this.selectionCount = 0;
       this.status = { phase: "", epoch: 0, nEpochs: 0, computeMs: 0, timing: null, buildMs: 0, engine: null, error: null };
-      this.dm.onViewStateChange("reembed", (params) => this._onViewState(params));
+      this.dm.onViewStateChange(OWNER, (params) => this._onViewState(params));
+      this.dm.onSelectionChange(OWNER, () => (this.selectionDirty = true));
+      this.dm.onPointColorsChange(OWNER, () => (this.colorsChanged = true));
       this.dm.pickRemap = (info) => this._remapPick(info);
       this.server = null;            // {stage, error} from /api/info
       this._pollServer();
@@ -289,15 +289,15 @@ const ReembedWidget = (() => {
 
     _root() {
       if (this.levels.length) return this.levels[0];
-      const attrs = this.dm.pointLayer.props.data.attributes;
-      const pos = attrs.getPosition.value;
+      const points = this.dm.getPoints();
+      const pos = points.positions;
       const n = pos.length / 2;
       const fitIdx = sampleIndices(n);
       const b = robustBounds(pos, fitIdx);
-      const radii = attrs.getRadius ? attrs.getRadius.value : null;
+      const radii = points.radii;
       const root = {
         ids: null, n, pos, fitIdx, radii, view: null, rs: 1,
-        rMed: radii ? medianOf(radii, fitIdx) : this.dm.pointSize,
+        rMed: radii ? medianOf(radii, fitIdx) : points.size,
         homeCenter: [(b[0] + b[1]) / 2, (b[2] + b[3]) / 2],
         homeExtent: Math.max(b[1] - b[0], b[3] - b[2]),
         homeZoom: fitView(b, this._viewportSize()).zoom,
@@ -306,23 +306,14 @@ const ReembedWidget = (() => {
       return root;
     }
 
-    _viewportSize() {
-      const vp = this.dm.deckgl.viewManager && this.dm.deckgl.viewManager.getViewports()[0];
-      if (vp) return { width: vp.width, height: vp.height };
-      return { width: this.dm.container.clientWidth, height: this.dm.container.clientHeight };
-    }
+    _viewportSize() { return this.dm.getViewportSize(); }
 
-    _currentView() {
-      // The live viewport is authoritative: deck's internal view state mixes stale
-      // top-level fields with per-view entries after user interaction.
-      const vp = this.dm.deckgl.viewManager && this.dm.deckgl.viewManager.getViewports()[0];
-      const v = vp || this.view || this.dm.deckgl.props.initialViewState;
-      return { longitude: v.longitude, latitude: v.latitude, zoom: v.zoom, pitch: 0, bearing: 0 };
-    }
+    _currentView() { return { ...this.dm.getViewState(), pitch: 0, bearing: 0 }; }
 
+    /** Move the camera; DataMap's view-dependent state is not updated (it shows the full map's view). */
     _setView(v) {
       this.view = { ...(this.view || this._currentView()), ...v };
-      this.dm.deckgl.setProps({ initialViewState: { ...this.view } });
+      this.dm.setViewState(this.view, { notify: false });
     }
 
     _onViewState({ viewState, interactionState }) {
@@ -344,7 +335,7 @@ const ReembedWidget = (() => {
     }
 
     /** Colours of every point currently used by the DataMap (respects colormap switching). */
-    _baseColors() { return this.dm.pointLayer.props.data.attributes.getFillColor.value; }
+    _baseColors() { return this.dm.getPoints().colors; }
 
     /**
      * Labels of the full map whose member points lie in `level` (at least the
@@ -354,7 +345,7 @@ const ReembedWidget = (() => {
       if (level.labels) return level.labels;
       const items = [];
       const dm = this.dm;
-      const all = dm.labelLayer && this.cfg.show_labels !== false ? dm._allLabelData || dm.labelLayer.props.data : null;
+      const all = this.cfg.show_labels !== false ? dm.getLabelData() : null;
       if (all && level.ids) {
         const minFraction = this.cfg.label_containment ?? 1;
         for (const d of all) {
@@ -378,7 +369,7 @@ const ReembedWidget = (() => {
 
     _labelLayer(id, labels, positions) {
       placeLabels(labels.items, positions);
-      return this.dm.labelLayer.clone({
+      return this.dm.createLabelLayer({
         id, data: labels.items, opacity: labels.opacity, pickable: false,
         collisionGroup: id,  // independent of the map's (hidden) labels and of each other
         updateTriggers: { getPosition: this.version },
@@ -396,7 +387,7 @@ const ReembedWidget = (() => {
       this.colors = this.colorBuf.next();
       this.lineColors = this._outlines(this.lineBuf.next(), n, () => 1);
       this.rgba = gather(this._baseColors(), level.ids, 4);
-      this.colorSource = this._baseColors();
+      this.colorsChanged = false;
       this.alpha = new Float32Array(n).fill(1);
       this.visTarget = new Float32Array(n).fill(1);
       this.selTarget = new Float32Array(n).fill(1);
@@ -404,69 +395,16 @@ const ReembedWidget = (() => {
       this.colorsDirty = true;
       this.ft = null;
       this.target = null;
-      this.lastCounter = -1;
+      this.selectionDirty = true;
     }
 
     // ---------------------------------------------------------------- layers
-    _setFilter(mode) {
-      if (mode === this.filterMode) return;
-      this.filterMode = mode;
-      const filter = mode === "none" ? null
-        : mode === "points" ? ({ layer }) => !isPoints(layer)
-        : ({ layer }) => isOurs(layer);
-      this.dm.deckgl.setProps({ layerFilter: filter });
-    }
-
-    /** Replace layers via `fn`, keeping DataMap's own references to them up to date. */
-    _mapLayers(fn) {
-      const swaps = new Map();
-      const next = this.dm.layers.map((layer) => {
-        const out = fn(layer);
-        if (out !== layer) swaps.set(layer, out);
-        return out;
-      });
-      if (!swaps.size) return;
-      this.dm.layers = next;
-      for (const key of Object.keys(this.dm)) {
-        const value = this.dm[key];
-        if (value && swaps.has(value)) {
-          this.dm[key] = swaps.get(value);
-        } else if (Array.isArray(value) && value.length && value[0] instanceof deck.Layer && key !== "layers") {
-          this.dm[key] = value.map((layer) => swaps.get(layer) || layer);
-        }
-      }
-    }
-
-    _captureOthers() {
-      this.othersBase = new Map();
-      for (const layer of this.dm.layers) {
-        if (!isOurs(layer) && !isPoints(layer)) this.othersBase.set(layer.id, layer.props.opacity ?? 1);
-      }
-    }
-
-    /** Scale the opacity of every non-point DataMap layer; layers created since the capture stay hidden. */
-    _setOthersOpacity(f) {
-      this._mapLayers((layer) => {
-        if (isOurs(layer) || isPoints(layer)) return layer;
-        const opacity = (this.othersBase.get(layer.id) ?? 0) * f;
-        return layer.props.opacity === opacity ? layer : layer.clone({ opacity });
-      });
-    }
-
-    _putLayers(layers) {
-      const base = this.dm.layers.filter((layer) => !isOurs(layer));
-      let at = base.findIndex(isPoints);
-      if (at < 0) at = base.length;
-      this.dm.layers = [...base.slice(0, at), ...layers, ...base.slice(at)];
-      this.dm.deckgl.setProps({ layers: this.dm.layers });
-    }
-
     /**
      * DataMap's outline colour, faded per point by `visibility(i)`: deck.gl draws an
      * antialiased outline even under a transparent fill, so hidden points need it too.
      */
     _outlines(out, n, visibility) {
-      const [r, g, b, a = 255] = this.dm.pointOutlineColor;
+      const [r, g, b, a = 255] = this.dm.getPointStyle().outlineColor;
       for (let i = 0; i < n; i++) {
         out[4 * i] = r;
         out[4 * i + 1] = g;
@@ -477,7 +415,7 @@ const ReembedWidget = (() => {
     }
 
     _scatter(id, n, positions, colors, radii, { rs, minPx, opacity = 1, pickable = false, version = 0, lines }) {
-      const dm = this.dm;
+      const style = this.dm.getPointStyle();
       const attributes = {
         getPosition: { value: positions, size: 2 },
         getFillColor: { value: colors, size: 4 },
@@ -486,14 +424,14 @@ const ReembedWidget = (() => {
       if (radii) attributes.getRadius = { value: radii, size: 1 };
       return new deck.ScatterplotLayer({
         id, data: { length: n, attributes },
-        ...(radii ? {} : { getRadius: dm.pointSize }),
+        ...(radii ? {} : { getRadius: this.dm.getPoints().size }),
         radiusUnits: "common", radiusScale: rs,
-        radiusMinPixels: minPx, radiusMaxPixels: dm.pointRadiusMaxPixels,
-        stroked: true, getLineWidth: dm.pointLineWidth,
+        radiusMinPixels: minPx, radiusMaxPixels: style.radiusMaxPixels,
+        stroked: true, getLineWidth: style.lineWidth,
         lineWidthUnits: "common", lineWidthScale: rs,
-        lineWidthMinPixels: dm.pointLineWidthMinPixels * Math.min(1, minPx / Math.max(dm.pointRadiusMinPixels, 1e-6)),
-        lineWidthMaxPixels: dm.pointLineWidthMaxPixels,
-        opacity, pickable, autoHighlight: pickable, highlightColor: dm.pointHoverColor,
+        lineWidthMinPixels: style.lineWidthMinPixels * Math.min(1, minPx / Math.max(style.radiusMinPixels, 1e-6)),
+        lineWidthMaxPixels: style.lineWidthMaxPixels,
+        opacity, pickable, autoHighlight: pickable, highlightColor: style.hoverColor,
         updateTriggers: { getPosition: version, getFillColor: version },
         parameters: { depthTest: false },
       });
@@ -531,16 +469,15 @@ const ReembedWidget = (() => {
       if (gl && g && gl.items.length && gl.opacity > 0.01) layers.push(this._labelLayer(OURS + "labels-ghost", gl, g.pos));
       const ll = this.labels;
       if (ll && level && level.ids && ll.items.length && ll.opacity > 0.01) layers.push(this._labelLayer(OURS + "labels", ll, this.disp));
-      this._putLayers(layers);
+      this.dm.setOverlayLayers(OWNER, layers);
     }
 
     // ---------------------------------------------------------------- selection & colours
     _syncSelection() {
-      const counter = this.dm.updateTriggerCounter;
-      if (counter === this.lastCounter || !this.dm.selected) return;
-      this.lastCounter = counter;
+      if (!this.selectionDirty) return;
+      this.selectionDirty = false;
       const level = this._root() && this.current();
-      const lasso = this.dm.dataSelectionManager.hasSpecialSelection();
+      const lasso = this.dm.hasLassoSelection();
       const selected = this.dm.getSelectedIndices();
       if (!level.ids) {
         this.selectionCount = lasso ? selected.size : 0;
@@ -548,17 +485,19 @@ const ReembedWidget = (() => {
         let count = 0;
         if (lasso) for (const g of selected) if (level.local[g] >= 0) count++;
         this.selectionCount = count;
-        for (let i = 0; i < level.n; i++) this.selTarget[i] = selectionFactor(this.dm.selected[level.ids[i]]);
+        const state = this.dm.getPointSelectionState();
+        for (let i = 0; i < level.n; i++) this.selTarget[i] = selectionFactor(state[level.ids[i]]);
         this._retargetAlpha(T.SEL_MS);
       }
       this.ui.update();
     }
 
     _syncColors() {
+      if (!this.colorsChanged) return;
+      this.colorsChanged = false;
       const level = this.current();
-      if (!level || !level.ids || this._baseColors() === this.colorSource) return;
-      this.colorSource = this._baseColors();
-      this.rgba = gather(this.colorSource, level.ids, 4);
+      if (!level || !level.ids) return;
+      this.rgba = gather(this._baseColors(), level.ids, 4);
       this.colorsDirty = true;
     }
 
@@ -569,17 +508,14 @@ const ReembedWidget = (() => {
     }
 
     // ---------------------------------------------------------------- lasso
-    _lassoFreeze() {
-      const lasso = this.dm.lassoSelector;
-      if (lasso && lasso.rebuildQuadTree) lasso.rebuildQuadTree(lasso.points, []);
-    }
+    /** Nothing can be lassoed (during transitions and runs). */
+    _lassoFreeze() { this.dm.setSelectablePoints(null, []); }
 
+    /** The lasso selects `level`'s points where they are shown. */
     _lassoLevel(level) {
-      const lasso = this.dm.lassoSelector;
-      if (!lasso || !lasso.rebuildQuadTree) return;
       const root = this.levels[0];
       if (!level.ids) {
-        lasso.rebuildQuadTree(root.pos, null);
+        this.dm.setSelectablePoints(root.pos);
         return;
       }
       const all = new Float32Array(2 * root.n).fill(NaN);
@@ -587,35 +523,26 @@ const ReembedWidget = (() => {
         all[2 * level.ids[i]] = this.disp[2 * i];
         all[2 * level.ids[i] + 1] = this.disp[2 * i + 1];
       }
-      lasso.rebuildQuadTree(all, level.ids);
+      this.dm.setSelectablePoints(all, level.ids);
     }
 
-    _clearLasso() {
-      if (this.dm.dataSelectionManager.hasSpecialSelection()) this.dm.removeSelection(this.dm.lassoSelectionItemId);
-    }
+    _clearLasso() { this.dm.clearLassoSelection(); }
 
     // ---------------------------------------------------------------- transitions
+    /** A camera/fade animation; user interaction is locked meanwhile. */
     _startTransition(tr) {
       this.tr = { ...tr, t0: performance.now() };
-      this.savedController = this.dm.deckgl.props.controller;
-      this.dm.deckgl.setProps({ controller: false });
+      this.dm.lockInteraction(OWNER);
       this._stepTransition(this.tr.t0);
     }
 
     _stepTransition(now) {
       const tr = this.tr;
-      const controller = this.dm.deckgl.props.controller;
-      if (controller !== false) {
-        // Something (e.g. the lasso's Shift handler) changed the controller mid-transition:
-        // keep interaction locked, and restore that newer controller afterwards.
-        this.savedController = controller;
-        this.dm.deckgl.setProps({ controller: false });
-      }
       const t = clamp((now - tr.t0) / tr.dur, 0, 1);
       tr.step(easeInOut(t));
       if (t >= 1) {
         this.tr = null;
-        this.dm.deckgl.setProps({ controller: this.savedController });
+        this.dm.unlockInteraction(OWNER);
         tr.onEnd();
       }
     }
@@ -624,7 +551,7 @@ const ReembedWidget = (() => {
     canReembed() { return this.mode === "idle" && !this.tr && this.selectionCount >= T.MIN_POINTS; }
 
     reembed() {
-      if (!this.dm.pointLayer || !this.canReembed()) return;
+      if (!this.dm.getPoints() || !this.canReembed()) return;
       const dm = this.dm;
       const root = this._root();
       const parent = this.current();
@@ -648,15 +575,13 @@ const ReembedWidget = (() => {
       const V0 = this._currentView();
       this.view = { ...V0 };
       const k0 = (parent.ids ? this.rs : 1) * 2 ** V0.zoom;
-      const minPx0 = parent.ids ? this.minPx : (dm.pointLayer.props.radiusMinPixels ?? dm.pointRadiusMinPixels);
-      const opacity0 = parent.ids ? 1 : (dm.pointLayer.props.opacity ?? 1);
+      const style = dm.getPointStyle();
+      const minPx0 = parent.ids ? this.minPx : style.displayedRadiusMinPixels;
+      const opacity0 = parent.ids ? 1 : style.displayedOpacity;
       parent.view = V0;
       if (parent.ids) {
         parent.pos = parentPos;
         parent.rs = this.rs;
-      } else {
-        // Capture before the lasso is cleared: clearing can re-show a suppressed density overview.
-        this._captureOthers();
       }
 
       // Epoch-0 layout: the selection uniformly scaled into the home frame.
@@ -674,7 +599,7 @@ const ReembedWidget = (() => {
       // Point size: grow with sparsity relative to the full map's look at its home view.
       const radii = root.radii ? gather(root.radii, ids, 1) : null;
       const rMed = radii ? medianOf(radii, fitIdx) : root.rMed;
-      const rpxHome = Math.max(root.rMed * 2 ** root.homeZoom, dm.pointRadiusMinPixels);
+      const rpxHome = Math.max(root.rMed * 2 ** root.homeZoom, style.radiusMinPixels);
       const rpxTarget = clamp(rpxHome * Math.sqrt(root.n / n), rpxHome, Math.max(T.MAX_PX, rpxHome));
       const k1 = rpxTarget / rMed;
 
@@ -682,7 +607,8 @@ const ReembedWidget = (() => {
       const base = parent.ids ? this.colors : this._baseColors();
       const ghostRgba = new Uint8Array(base);
       if (!parent.ids) {
-        for (let i = 0; i < root.n; i++) ghostRgba[4 * i + 3] = Math.round(ghostRgba[4 * i + 3] * selectionFactor(dm.selected[i]));
+        const state = dm.getPointSelectionState();
+        for (let i = 0; i < root.n; i++) ghostRgba[4 * i + 3] = Math.round(ghostRgba[4 * i + 3] * selectionFactor(state[i]));
       }
       for (const i of parentSel) ghostRgba[4 * i + 3] = 0;
       const ghostRadii = parent.ids ? parent.radii : root.radii;
@@ -702,7 +628,6 @@ const ReembedWidget = (() => {
         n: parent.n, pos: parentPos.slice(), rgba: ghostRgba, radii: ghostRadii, rs: this.rs, minPx: minPx0, opacity: opacity0,
         lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
       };
-      this._clearLasso();
       this._lassoFreeze();
       this.mode = "entering";
       this.autofit = false;
@@ -718,10 +643,13 @@ const ReembedWidget = (() => {
         const selTween = zoomTween(P0, P1);
         const ghostTween = followTween(reexpress(parentPos, V0, V1), selTween);
         this._setView(V1);
-        this._setFilter("all");
+        dm.setBaseLayerDisplay({ points: false, others: 0 });
+        // Only now, with the map's layers hidden: clearing the lasso can re-show a
+        // density overview that the selection had suppressed.
+        this._clearLasso();
         this.disp.set(P0);
         tweenAt(ghostTween, 0, this.ghost.pos);
-        const baseMin = dm.pointRadiusMinPixels;
+        const baseMin = style.radiusMinPixels;
         const ghostOpacity = this.ghost.opacity;
         const scaleAt = (k) => k / 2 ** V1.zoom;
         this._startTransition({
@@ -756,18 +684,15 @@ const ReembedWidget = (() => {
         zoomIn();
       } else {
         // First level: fade out labels and other layers before the camera moves.
-        this._setFilter("points");
+        dm.setBaseLayerDisplay({ points: false, others: 1 });
         this._startTransition({
           dur: T.PREFADE_MS,
           step: (e) => {
-            this._setOthersOpacity(1 - e);
+            dm.setBaseLayerDisplay({ points: false, others: 1 - e });
             this.opacity = lerp(opacity0, 1, e);
             this.ghost.opacity = lerp(opacity0, 1, e);
           },
-          onEnd: () => {
-            this._setOthersOpacity(1);
-            zoomIn();
-          },
+          onEnd: zoomIn,
         });
       }
       this.ui.update();
@@ -1197,15 +1122,15 @@ const ReembedWidget = (() => {
       const ghostTween = followTween(ghostStart, selTween);
       this._clearLasso();
       this._lassoFreeze();
-      let minPxEnd = dm.pointRadiusMinPixels;
+      let minPxEnd = dm.getPointStyle().radiusMinPixels;
       let opacityEnd = 1;
       if (!parent.ids) {
         // Bring DataMap's view-dependent state (density crossfade, hex bins, minimap) to the
         // parent view now, so the animation ends exactly on the point layer's look there.
-        dm._densityOverviewLastT = null;
-        dm.notifyViewStateChange({ ...Vp });
-        minPxEnd = dm.pointLayer.props.radiusMinPixels ?? minPxEnd;
-        opacityEnd = dm.pointLayer.props.opacity ?? 1;
+        dm.notifyViewStateChange({ ...Vp }, { force: true });
+        const style = dm.getPointStyle();
+        minPxEnd = style.displayedRadiusMinPixels;
+        opacityEnd = style.displayedOpacity;
       }
       const minPx0 = this.minPx;
       this.ghost = {
@@ -1264,22 +1189,13 @@ const ReembedWidget = (() => {
       this.labels = null;
       this.mode = "idle";
       Object.assign(this.status, { phase: "", error: null, epoch: 0, nEpochs: 0 });
-      dm.layers = dm.layers.filter((layer) => !isOurs(layer));
-      this._captureOthers();
-      this._setOthersOpacity(0);
-      this._setFilter("none");
-      dm.deckgl.setProps({ layers: dm.layers });
+      dm.setOverlayLayers(OWNER, []);
+      dm.setBaseLayerDisplay({ points: true, others: 0 });
       this._lassoLevel(this.levels[0]);
       this._startTransition({
         dur: T.FADEIN_MS,
-        step: (e) => {
-          this._setOthersOpacity(e);
-          dm.deckgl.setProps({ layers: dm.layers });
-        },
-        onEnd: () => {
-          this._setOthersOpacity(1);
-          dm.deckgl.setProps({ layers: dm.layers });
-        },
+        step: (e) => dm.setBaseLayerDisplay({ points: true, others: e }),
+        onEnd: () => dm.setBaseLayerDisplay({ points: true, others: 1 }),
       });
     }
 
@@ -1310,7 +1226,7 @@ const ReembedWidget = (() => {
       const now = performance.now();
       const dt = clamp((now - this.lastTick) / 1000, 0, 0.1);
       this.lastTick = now;
-      if (!this.dm.pointLayer) return;
+      if (!this.dm.getPoints()) return;
       this._syncSelection();
       this._syncColors();
       const level = this.current();

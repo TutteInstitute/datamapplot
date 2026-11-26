@@ -6,7 +6,7 @@ nested re-embed -> back -> back, checking for console errors and that the
 original map is restored exactly.
 
     python scripts/reembed_e2e.py [--data ng20.parquet] [--browser firefox] [--headed]
-        [--engine cpu] [--subsample] [--slow-link KB_PER_S] [--shots DIR] [--no-minify]
+        [--engine cpu] [--subsample] [--slow-link KB_PER_S] [--density] [--shots DIR] [--no-minify]
 
 Requires pynndescent and playwright (``playwright install chromium``).
 """
@@ -100,7 +100,7 @@ window.__reembed = {
     return {
       mode: ctl.mode, depth: ctl.depth, phase: ctl.status.phase, error: ctl.status.error,
       epoch: ctl.status.epoch, nEpochs: ctl.status.nEpochs, engine: ctl.status.engine,
-      transition: !!ctl.tr, layers: dm.layers.map((l) => [l.id, l.props.opacity]),
+      transition: !!ctl.tr, layers: dm.deckgl.props.layers.map((l) => [l.id, l.props.opacity]),
       filter: !!dm.deckgl.props.layerFilter, view: ctl._currentView(),
       selection: ctl.selectionCount, statusText: document.querySelector('.reembed-status').textContent,
     };
@@ -198,6 +198,8 @@ def main():
     parser.add_argument("--slow-link", type=float, default=None, metavar="KB_PER_S",
                         help="send API requests through a proxy throttled to this download rate, "
                              "so the first level starts from a sample while its full graph downloads")
+    parser.add_argument("--density", action="store_true",
+                        help="plot with a density overview (shown when zoomed out, suppressed by selections)")
     args = parser.parse_args()
 
     from playwright.sync_api import sync_playwright
@@ -209,7 +211,7 @@ def main():
         proxy_port = start_throttled_proxy(int(server.url.rsplit(":", 1)[1]), 1000 * args.slow_link)
         widget_args = {"server_url": f"http://127.0.0.1:{proxy_port}", "refine_epochs": 60}
     plot = datamapplot.create_interactive_plot(
-        data_map, *labels, hover_text=hover, minify_deps=not args.no_minify,
+        data_map, *labels, hover_text=hover, minify_deps=not args.no_minify, enable_density_overview=args.density,
         widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.ReembedWidget(engine=args.engine, **widget_args)],
     )
     server.serve_figure(plot)
@@ -245,6 +247,11 @@ def main():
         if args.slow_link or args.subsample:
             page.evaluate(RECORD_MESSAGES)
         state = lambda: page.evaluate("window.__reembed.state()")
+        if args.density:
+            # The crossfade of points and density overview is only computed on the first
+            # view change; compute it now so the map's initial look is the one to restore.
+            page.evaluate("window.datamap.notifyViewStateChange(window.datamap.getViewState(), { force: true })")
+            page.wait_for_timeout(300)
         s0 = state()
         if shots:
             page.screenshot(path=str(shots / "0_root.png"))
@@ -255,8 +262,40 @@ def main():
             count = state()["selection"]
             print(f"{label}: lasso selected {count} points")
             check(count > 50, f"{label}: lasso selection made")
-            page.click(".reembed-go")
+            if label == "level1":
+                # Largest opacity at which deck.gl draws any density overview tile, every frame.
+                page.evaluate("""() => {
+                    const dg = window.datamap.deckgl;
+                    const drawn = () => Math.max(0, ...dg.props.layers
+                        .filter((l) => l.id.startsWith("densityOverviewLayer") && (!dg.props.layerFilter || dg.props.layerFilter({ layer: l })))
+                        .map((l) => l.props.opacity ?? 1));
+                    window.__density = { before: drawn(), max: 0 };
+                    const step = () => {
+                        if (!window.__density.sampling) return;
+                        window.__density.max = Math.max(window.__density.max, drawn());
+                        requestAnimationFrame(step);
+                    };
+                    window.__density.sampling = true;
+                    requestAnimationFrame(step);
+                }""")
             t0 = time.time()
+            if label != "level1":
+                page.click(".reembed-go")
+            else:
+                # Shift (lasso mode) during a transition must not unlock interaction; its
+                # setting applies once the transition ends, keeping smooth scroll zoom.
+                locked = page.evaluate("""() => {
+                    document.querySelector(".reembed-go").click();
+                    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+                    return !!window.__reembed.ctl().tr && window.datamap.deckgl.props.controller === false;
+                }""")
+                page.wait_for_function("!window.__reembed.ctl().tr", timeout=60000)
+                after = page.evaluate("window.datamap.deckgl.props.controller")
+                page.evaluate("document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift' }))")
+                released = page.evaluate("window.datamap.deckgl.props.controller")
+                check(locked and after and after["dragPan"] is False and released["dragPan"] is True
+                      and released["scrollZoom"]["smooth"] is True,
+                      f"{label}: interaction locked during the transition, lasso mode applied after it")
             page.wait_for_function("window.__reembed.state().mode !== 'idle'", timeout=5000)
             page.wait_for_timeout(600)
             if shots:
@@ -270,6 +309,10 @@ def main():
                 raise
             s = state()
             print(f"{label}: done in {time.time() - t0:.1f}s; status: {s['statusText']}")
+            if label == "level1":
+                density = page.evaluate("(() => { window.__density.sampling = false; return window.__density; })()")
+                check(density["max"] <= density["before"] + 1e-6,
+                      f"{label}: density overview not shown while entering ({density['before']} -> max {density['max']})")
             check(not s["error"], f"{label}: no error ({s['error']})")
             check(s["epoch"] == s["nEpochs"] > 0, f"{label}: ran all epochs ({s['epoch']}/{s['nEpochs']})")
             if args.subsample and count > 2000:
@@ -304,7 +347,7 @@ def main():
                 const contained = items.every((d) => d.relatedPoints.every((g) => level.local[g] >= 0));
                 // Each label sits on one of its member points.
                 const onMember = items.every((d) => d._sample.some((i) => ctl.disp[2*i] === d.x && ctl.disp[2*i+1] === d.y));
-                const layer = window.datamap.layers.find((l) => l.id === "reembed-labels");
+                const layer = window.datamap.deckgl.props.layers.find((l) => l.id === "reembed-labels");
                 return { n: items.length, contained, onMember, layer: !!layer, opacity: layer ? layer.props.opacity : 0,
                          sample: items.slice(0, 3).map((d) => d.label) };
             }""")
@@ -421,6 +464,9 @@ def main():
             page.screenshot(path=str(shots / "back0.png"))
         check(not s4["filter"], "root: layer filter removed")
         check(not any(l[0].startswith("reembed-") for l in s4["layers"]), "root: re-embed layers removed")
+        if s4["layers"] != s0["layers"]:
+            print("root layers before:", s0["layers"])
+            print("root layers after: ", s4["layers"])
         check(s4["layers"] == s0["layers"], f"root: layers and opacities restored")
         check(all(abs(s4["view"][k] - s0["view"][k]) < 1e-6 for k in ("longitude", "latitude", "zoom")), "root: camera restored")
 

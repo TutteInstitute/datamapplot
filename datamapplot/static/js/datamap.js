@@ -222,6 +222,14 @@ class DataMap {
     this.labelData = null;
     this.metaData = null;
     this.layers = [];
+    // Layers owned by widgets (see setOverlayLayers), drawn with the map's own layers,
+    // and how the map's own layers are shown meanwhile (see setBaseLayerDisplay).
+    this._overlayLayers = new Map();
+    this._overlayIds = [];
+    this._baseDisplay = { points: true, others: 1 };
+    // deck.gl controller options; interaction is disabled while any owner holds a lock.
+    this._controllerOptions = { scrollZoom: { speed: this.scrollZoomSpeed, smooth: true } };
+    this._interactionLocks = new Set();
     const { viewportWidth, viewportHeight } = getInitialViewportSize();
     const { zoomLevel, dataCenter } = calculateZoomLevel(bounds, viewportWidth, viewportHeight);
     this.deckgl = new deck.DeckGL({
@@ -231,7 +239,7 @@ class DataMap {
         longitude: dataCenter[0],
         zoom: zoomLevel
       },
-      controller: { scrollZoom: { speed: this.scrollZoomSpeed, smooth: true } },
+      controller: { ...this._controllerOptions },
     });
     this.updateTriggerCounter = 0;
     this.dataSelectionManager = new DataSelectionManager(lassoSelectionItemId);
@@ -245,6 +253,8 @@ class DataMap {
     this._viewStateListeners = new Map();
     this._hoverListeners = new Map();
     this._clickListeners = new Map();
+    this._selectionListeners = new Map();
+    this._pointColorsListeners = new Map();
     // Optional hook (info) => info applied to picks before hover/click/tooltip
     // handlers see them; lets layers that draw a subset of the points (e.g. the
     // re-embed widget) report indices into the full point data.
@@ -300,8 +310,13 @@ class DataMap {
    * this after setting initialViewState via setProps to keep every
    * subsystem (annotation overlay, minimap, hex zoom, etc.) in sync.
    * @param {Object} viewState  The new view state object.
+   * @param {Object} [options]
+   * @param {boolean} [options.force=false]  Recompute view-dependent layer state
+   *   (e.g. the density overview crossfade) even if the zoom has not changed
+   *   since it was last computed.
    */
-  notifyViewStateChange(viewState) {
+  notifyViewStateChange(viewState, { force = false } = {}) {
+    if (force) this._densityOverviewLastT = null;
     for (const handler of this._viewStateListeners.values()) {
       try { handler({ viewState }); } catch (e) {
         console.error('Error in viewStateChange listener:', e);
@@ -341,6 +356,44 @@ class DataMap {
    */
   offClick(id) {
     this._clickListeners.delete(id);
+  }
+
+  /**
+   * Register a named listener called after the selection (and with it each
+   * point's selection state, see getPointSelectionState) changes.
+   * @param {string} id   Unique key.
+   * @param {Function} handler  Called with no arguments.
+   */
+  onSelectionChange(id, handler) {
+    this._selectionListeners.set(id, handler);
+  }
+
+  /** Remove a selection-change listener by id. */
+  offSelectionChange(id) {
+    this._selectionListeners.delete(id);
+  }
+
+  /**
+   * Register a named listener called after the point colours change (e.g. a
+   * different colormap; see getPoints).
+   * @param {string} id   Unique key.
+   * @param {Function} handler  Called with no arguments.
+   */
+  onPointColorsChange(id, handler) {
+    this._pointColorsListeners.set(id, handler);
+  }
+
+  /** Remove a point-colours-change listener by id. */
+  offPointColorsChange(id) {
+    this._pointColorsListeners.delete(id);
+  }
+
+  _emit(listeners, name) {
+    for (const handler of listeners.values()) {
+      try { handler(); } catch (e) {
+        console.error(`Error in ${name} listener:`, e);
+      }
+    }
   }
 
   addPoints(pointData, {
@@ -433,7 +486,7 @@ class DataMap {
 
     this.layers.push(this.pointLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   /**
@@ -549,7 +602,7 @@ class DataMap {
 
     this.layers.push(this.hexagonLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
 
     // Set up zoom-bucketed re-aggregation listener
     this._setupHexZoomListener();
@@ -606,7 +659,7 @@ class DataMap {
       radius: newRadius,
     });
     this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
-    this.deckgl.setProps({ layers: this.layers });
+    this._updateLayers();
     this.hexagonLayer = updatedLayer;
   }
 
@@ -653,7 +706,7 @@ class DataMap {
 
     this.layers.push(this.edgeLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   addLabels(labelData, {
@@ -728,7 +781,7 @@ class DataMap {
 
     this.layers.push(this.labelLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   addBoundaries(boundaryData, { clusterBoundaryLineWidth = 0.5 }) {
@@ -756,7 +809,7 @@ class DataMap {
 
     this.layers.push(this.boundaryLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   addMetaData(metaData, {
@@ -816,7 +869,7 @@ class DataMap {
 
     this.layers.push(this.imageLayer);
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   addDensityOverview(tilePyramids, fullBounds, crossfadeRange, pointSize, dataXRange, dataYRange, tileResolution, targetRadiusMin, targetLineWidthMin) {
@@ -911,7 +964,7 @@ class DataMap {
 
     this._densityCurrentLevel = level;
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   // Show two adjacent tile levels simultaneously for a smooth cross-dissolve.
@@ -940,7 +993,7 @@ class DataMap {
     this._densityCurrentLevel = levelA;
     this._densityBlendLevel = levelB;
     this.layers.sort((a, b) => getLayerIndex(a) - getLayerIndex(b));
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   _updateDensityCrossfade(viewState) {
@@ -1034,7 +1087,7 @@ class DataMap {
       this.pointLayer = updatedPoints;
     }
 
-    this.deckgl.setProps({ layers: [...this.layers] });
+    this._updateLayers();
   }
 
   _swapDensityOverviewImage(field) {
@@ -1161,9 +1214,7 @@ class DataMap {
       }
     }
 
-    this.deckgl.setProps({
-      layers: this.layers
-    });
+    this._updateLayers();
 
     // When the selection has just been cleared, restore the overview to the
     // appropriate crossfade state for the current zoom level.
@@ -1191,7 +1242,7 @@ class DataMap {
       const labelIdx = this.layers.indexOf(this.labelLayer);
       if (labelIdx !== -1) {
         this.layers = [...this.layers.slice(0, labelIdx), updatedLabelLayer, ...this.layers.slice(labelIdx + 1)];
-        this.deckgl.setProps({ layers: this.layers });
+        this._updateLayers();
         this.labelLayer = updatedLabelLayer;
       }
     }
@@ -1204,6 +1255,7 @@ class DataMap {
         this.histogramItem.removeChartWithSelection(selectedIndices);
       }
     }
+    this._emit(this._selectionListeners, 'selectionChange');
   }
 
   addSelection(selectedIndices, selectionKind) {
@@ -1294,11 +1346,10 @@ class DataMap {
 
     const idx = this.layers.indexOf(this.pointLayer);
     this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
-    this.deckgl.setProps({
-      layers: this.layers
-    });
+    this._updateLayers();
     this.pointLayer = updatedPointLayer;
     this._swapDensityOverviewImage(fieldName);
+    this._emit(this._pointColorsListeners, 'pointColorsChange');
   }
 
   resetPointColors() {
@@ -1323,11 +1374,214 @@ class DataMap {
 
     const idx = this.layers.indexOf(this.pointLayer);
     this.layers = [...this.layers.slice(0, idx), updatedPointLayer, ...this.layers.slice(idx + 1)];
-    this.deckgl.setProps({
-      layers: this.layers
-    });
+    this._updateLayers();
     this.pointLayer = updatedPointLayer;
     this._swapDensityOverviewImage("none");
+    this._emit(this._pointColorsListeners, 'pointColorsChange');
+  }
+
+  // ------------------------------------------------------------------
+  // API for widgets that draw their own view of the data on the map (e.g. the
+  // re-embed widget). They should use these methods rather than DataMap's
+  // fields and deck.gl props, which may change between versions.
+
+  /** The layers deck.gl draws: the map's own, with overlay layers where the point layer is. */
+  _composeLayers() {
+    const others = this._baseDisplay.others;
+    const isPoints = (layer) => layer.id === 'dataPointLayer';
+    const layers = others > 0 && others < 1
+      ? this.layers.map((layer) => (isPoints(layer) ? layer : layer.clone({ opacity: (layer.props.opacity ?? 1) * others })))
+      : [...this.layers];
+    if (this._overlayIds.length) {
+      let at = layers.findIndex(isPoints);
+      if (at < 0) at = layers.length;
+      layers.splice(at, 0, ...[...this._overlayLayers.values()].flat());
+    }
+    return layers;
+  }
+
+  _updateLayers() {
+    this.deckgl.setProps({ layers: this._composeLayers() });
+  }
+
+  /**
+   * Draw a widget's own deck.gl layers on the map, where the point layer is (above
+   * the background and density overview, below the points and everything above them).
+   * They are kept through the map's own layer updates.
+   * @param {string} ownerId  Key for the widget's layers.
+   * @param {Array} layers  deck.gl layers, replacing the owner's previous ones
+   *   (empty to remove them). Ids must be unique on the map.
+   */
+  setOverlayLayers(ownerId, layers) {
+    if (layers && layers.length) this._overlayLayers.set(ownerId, layers);
+    else this._overlayLayers.delete(ownerId);
+    this._overlayIds = [...this._overlayLayers.values()].flat().map((layer) => layer.id);
+    this._updateLayers();
+  }
+
+  /**
+   * Show, dim or hide the map's own layers, e.g. while a widget shows its own
+   * view of the data in overlay layers (which are not affected).
+   * @param {Object} [display]
+   * @param {boolean} [display.points=true]  Whether the point layer is drawn.
+   * @param {number} [display.others=1]  Opacity factor (0 to 1) for all the map's
+   *   other layers, on top of their own opacity; 0 hides them.
+   */
+  setBaseLayerDisplay({ points = true, others = 1 } = {}) {
+    const previous = this._baseDisplay;
+    const next = { points: !!points, others: Math.min(1, Math.max(0, others)) };
+    this._baseDisplay = next;
+    if (previous.points !== next.points || (previous.others === 0) !== (next.others === 0)) {
+      // Hidden layers stay in deck.gl (keeping their GPU state) and are filtered out.
+      const showOthers = next.others > 0;
+      const isOverlay = (id) => this._overlayIds.some((o) => id === o || id.startsWith(o + '-'));
+      this.deckgl.setProps({
+        layerFilter: next.points && showOthers ? null
+          : ({ layer }) => isOverlay(layer.id) || (layer.id.startsWith('dataPointLayer') ? next.points : showOthers),
+      });
+    }
+    this._updateLayers();
+  }
+
+  /**
+   * The map's points as currently drawn, or null before they are added:
+   * `count`; `positions` (x, y interleaved); `colors` (RGBA, of the current
+   * colormap); `radii` (per point) or null, with `size` the radius of every point.
+   */
+  getPoints() {
+    if (!this.pointLayer) return null;
+    const attributes = this.pointLayer.props.data.attributes;
+    return {
+      count: this.pointLayer.props.data.length,
+      positions: attributes.getPosition.value,
+      colors: attributes.getFillColor.value,
+      radii: attributes.getRadius ? attributes.getRadius.value : null,
+      size: this.pointSize,
+    };
+  }
+
+  /**
+   * Styling of the point layer: as configured, plus `displayedRadiusMinPixels`
+   * and `displayedOpacity` as currently drawn (they vary with the density
+   * overview crossfade and the selection).
+   */
+  getPointStyle() {
+    const props = this.pointLayer ? this.pointLayer.props : {};
+    return {
+      outlineColor: this.pointOutlineColor,
+      lineWidth: this.pointLineWidth,
+      lineWidthMinPixels: this.pointLineWidthMinPixels,
+      lineWidthMaxPixels: this.pointLineWidthMaxPixels,
+      radiusMinPixels: this.pointRadiusMinPixels,
+      radiusMaxPixels: this.pointRadiusMaxPixels,
+      hoverColor: this.pointHoverColor,
+      displayedRadiusMinPixels: props.radiusMinPixels ?? this.pointRadiusMinPixels,
+      displayedOpacity: props.opacity ?? 1,
+    };
+  }
+
+  /**
+   * Each point's selection state (do not modify): 1 selected, or everything
+   * when there is no selection; 0 for points of a basic selection outside the
+   * lasso; -1 not selected. Updated before selection-change listeners are called.
+   */
+  getPointSelectionState() {
+    return this.selected;
+  }
+
+  /** Whether there is a lasso selection. */
+  hasLassoSelection() {
+    return this.dataSelectionManager.hasSpecialSelection();
+  }
+
+  /** Remove the lasso selection, if any. */
+  clearLassoSelection() {
+    if (this.hasLassoSelection()) this.removeSelection(this.lassoSelectionItemId);
+  }
+
+  /**
+   * Set which points the lasso selects from, and where they are.
+   * @param {Float32Array|null} positions  x, y interleaved, indexed by point
+   *   (null keeps the current positions).
+   * @param {ArrayLike<number>|null} [indices=null]  The selectable points (all
+   *   when null; none when empty).
+   */
+  setSelectablePoints(positions, indices = null) {
+    const lasso = this.lassoSelector;
+    if (!lasso || !lasso.rebuildQuadTree) return;
+    const points = positions || lasso.points || (this.getPoints() || {}).positions;
+    if (points) lasso.rebuildQuadTree(points, indices);
+  }
+
+  /** All the map's labels, including any hidden by a search filter. */
+  getLabelData() {
+    if (this._allLabelData) return this._allLabelData;
+    return this.labelLayer ? this.labelLayer.props.data : [];
+  }
+
+  /**
+   * A new label layer styled like the map's, with `props` overriding (e.g. `id`,
+   * `data`, `opacity`), or null if the map has no labels.
+   */
+  createLabelLayer(props) {
+    return this.labelLayer ? this.labelLayer.clone(props) : null;
+  }
+
+  /** The current deck.gl viewport, or null before the first render. */
+  getViewport() {
+    const viewManager = this.deckgl.viewManager;
+    return (viewManager && viewManager.getViewports()[0]) || null;
+  }
+
+  /** Size of the map in pixels. */
+  getViewportSize() {
+    const viewport = this.getViewport();
+    if (viewport) return { width: viewport.width, height: viewport.height };
+    return { width: this.container.clientWidth, height: this.container.clientHeight };
+  }
+
+  /** The current camera: { longitude, latitude, zoom }. */
+  getViewState() {
+    const v = this.getViewport() || this.deckgl.props.initialViewState;
+    return { longitude: v.longitude, latitude: v.latitude, zoom: v.zoom };
+  }
+
+  /**
+   * Move the camera.
+   * @param {Object} viewState  { longitude, latitude, zoom }.
+   * @param {Object} [options]
+   * @param {boolean} [options.notify=true]  Bring view-state listeners and
+   *   view-dependent layers to the new view (see notifyViewStateChange).
+   */
+  setViewState(viewState, { notify = true } = {}) {
+    this.deckgl.setProps({ initialViewState: { pitch: 0, bearing: 0, ...viewState } });
+    if (notify) this.notifyViewStateChange(viewState, { force: true });
+  }
+
+  /**
+   * Update deck.gl controller options (e.g. `{ dragPan: false }`), merged with
+   * the map's current ones. Use this rather than setting deck.gl's `controller`,
+   * so interaction locks are respected.
+   */
+  setControllerOptions(options) {
+    Object.assign(this._controllerOptions, options);
+    this._applyController();
+  }
+
+  /** Disable user interaction (pan, zoom) until `unlockInteraction(ownerId)`. */
+  lockInteraction(ownerId) {
+    this._interactionLocks.add(ownerId);
+    this._applyController();
+  }
+
+  /** Release an interaction lock; interaction resumes when no lock is held. */
+  unlockInteraction(ownerId) {
+    this._interactionLocks.delete(ownerId);
+    this._applyController();
+  }
+
+  _applyController() {
+    this.deckgl.setProps({ controller: this._interactionLocks.size ? false : { ...this._controllerOptions } });
   }
 
   // Layer management methods for widgets
@@ -1343,7 +1597,7 @@ class DataMap {
           this._densityTileLayers[i] = updated;
         }
       }
-      this.deckgl.setProps({ layers: [...this.layers] });
+      this._updateLayers();
       return;
     }
 
@@ -1364,7 +1618,7 @@ class DataMap {
 
     const updatedLayer = layer.clone({ visible });
     this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
-    this.deckgl.setProps({ layers: this.layers });
+    this._updateLayers();
 
     // Update stored reference
     if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;
@@ -1390,7 +1644,7 @@ class DataMap {
           this._densityTileLayers[i] = updated;
         }
       }
-      this.deckgl.setProps({ layers: [...this.layers] });
+      this._updateLayers();
       return;
     }
 
@@ -1411,7 +1665,7 @@ class DataMap {
 
     const updatedLayer = layer.clone({ opacity });
     this.layers = [...this.layers.slice(0, idx), updatedLayer, ...this.layers.slice(idx + 1)];
-    this.deckgl.setProps({ layers: this.layers });
+    this._updateLayers();
 
     // Update stored reference
     if (layerId === 'dataPointLayer') this.pointLayer = updatedLayer;

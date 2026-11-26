@@ -330,12 +330,8 @@ class AnnotationWidget {
         this.canvas.style.pointerEvents = active ? 'all' : 'none';
 
         // Deck.gl controller
+        this.datamap.setControllerOptions({ dragPan: !active, dragRotate: !active });
         this.datamap.deckgl.setProps({
-            controller: {
-                scrollZoom: { speed: this.datamap.scrollZoomSpeed ?? 0.01, smooth: true },
-                dragPan: !active,
-                dragRotate: !active,
-            },
             getCursor: active
                 ? () => 'crosshair'
                 : ({ isDragging }) => isDragging ? 'grabbing' : 'grab',
@@ -872,8 +868,8 @@ class AnnotationWidget {
         this.datamap.offViewStateChange(this._viewStateListenerId);
 
         // Restore deck.gl controller
+        this.datamap.setControllerOptions({ dragPan: true, dragRotate: true });
         this.datamap.deckgl.setProps({
-            controller: { scrollZoom: { speed: this.datamap.scrollZoomSpeed ?? 0.01, smooth: true }, dragPan: true, dragRotate: true },
             getCursor: ({ isDragging }) => isDragging ? 'grabbing' : 'grab',
         });
 
