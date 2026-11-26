@@ -167,12 +167,14 @@ def start_throttled_proxy(target_port, down_bytes_per_s, latency_s=0.03):
     return holder["port"]
 
 
-# Records the controller's worker messages (time, role, type, phase, initial, epoch, nEpochs).
+# Records the controller's worker messages (time, role, type, phase, initial, epoch, nEpochs,
+# and the shown points' minimum pixel radius as drawn).
 RECORD_MESSAGES = """() => {
   const ctl = window.__reembed.ctl(), handle = ctl._onWorkerMessage.bind(ctl);
+  const minPx = () => { const l = window.datamap.deckgl.props.layers.find((l) => l.id === "reembed-active"); return l ? l.props.radiusMinPixels : null; };
   window.__msgs = [];
   ctl._onWorkerMessage = (msg, level, role, worker) => {
-    window.__msgs.push([performance.now(), role, msg.type, msg.phase || null, !!msg.initial, msg.epoch ?? null, msg.nEpochs ?? null]);
+    window.__msgs.push([performance.now(), role, msg.type, msg.phase || null, !!msg.initial, msg.epoch ?? null, msg.nEpochs ?? null, minPx()]);
     return handle(msg, level, role, worker);
   };
 }"""
@@ -256,6 +258,14 @@ def main():
         if shots:
             page.screenshot(path=str(shots / "0_root.png"))
 
+        def check_sample_size(label, msgs):
+            """Sample points are drawn with a raised minimum radius, back to the map's afterwards."""
+            sample_px = max((m[7] or 0 for m in msgs if m[1] == "sample" and m[2] == "frame"), default=0)
+            final_px = page.evaluate("window.datamap.deckgl.props.layers.find((l) => l.id === 'reembed-active').props.radiusMinPixels")
+            base_px = page.evaluate("window.datamap.getPointStyle().radiusMinPixels")
+            check(sample_px > final_px + 0.5 and abs(final_px - base_px) < 1e-6,
+                  f"{label}: sample drawn larger (min radius {sample_px:.2f} px), then back to {final_px:.2f} px")
+
         def run_level(frac, label):
             page.evaluate(f"window.__reembed.lassoNear({frac})")
             page.wait_for_timeout(150)
@@ -320,11 +330,12 @@ def main():
                       f"{label}: sampled run refined and all points visible")
                 msgs = page.evaluate("window.__msgs")
                 placed = min((t for t, role, kind, *_ in msgs if kind == "placed"), default=None)
-                sample_epochs = [(e, ne) for t, role, kind, phase, initial, e, ne in msgs
+                sample_epochs = [(e, ne) for t, role, kind, phase, initial, e, ne, *_ in msgs
                                  if role == "sample" and kind == "frame" and placed is not None and t < placed]
                 check(bool(sample_epochs) and sample_epochs[-1][0] == sample_epochs[-1][1],
                       f"{label}: sample (optimizing everything is slow) finished its schedule before the takeover"
                       + (f" ({sample_epochs[-1][0]}/{sample_epochs[-1][1]})" if sample_epochs else ""))
+                check_sample_size(label, msgs)
             if args.slow_link and label == "level1":
                 msgs = page.evaluate("window.__msgs")
                 plan = page.evaluate("window.__reembed.ctl().plan")
@@ -339,6 +350,7 @@ def main():
                 check(bool(placed) and s["nEpochs"] == 60
                       and page.evaluate("Array.from(window.__reembed.ctl().alpha).every((a) => a > 0.99)"),
                       f"{label}: full optimizer took over, refined, all points visible")
+                check_sample_size(label, msgs)
             ids = [l[0] for l in s["layers"]]
             check("reembed-active" in ids and "reembed-ghost" not in ids and "reembed-labels-ghost" not in ids,
                   f"{label}: active points and labels only")

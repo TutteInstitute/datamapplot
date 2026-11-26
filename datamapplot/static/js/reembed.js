@@ -218,6 +218,8 @@ const ReembedWidget = (() => {
       this.autofit = false;
       this.worker = null;            // the worker whose frames are shown
       this.holdWorker = null;        // builds the full optimizer while a sample is shown
+      this.sampleFloor = 0;          // extra minimum pixel radius while only a sample is shown
+      this.floorTween = null;
       this.userPaused = false;
       this.runId = 0;                // bumped per optimizer run / parameter restart
       // Link and cost model (ms, bytes), learned from requests: predicts how long a
@@ -392,6 +394,8 @@ const ReembedWidget = (() => {
       this.visTarget = new Float32Array(n).fill(1);
       this.selTarget = new Float32Array(n).fill(1);
       this.alphaTween = null;
+      this.sampleFloor = 0;
+      this.floorTween = null;
       this.colorsDirty = true;
       this.ft = null;
       this.target = null;
@@ -461,7 +465,7 @@ const ReembedWidget = (() => {
         const out = this.posBuf.next();
         out.set(this.disp);
         layers.push(this._scatter(OURS + "active", level.n, out, this.colors, level.radii, {
-          rs: this.rs, minPx: this.minPx, opacity: this.opacity, pickable: this.mode === "idle", version: this.version,
+          rs: this.rs, minPx: this._activeMinPx(), opacity: this.opacity, pickable: this.mode === "idle", version: this.version,
           lines: this.lineColors,
         }));
       }
@@ -499,6 +503,17 @@ const ReembedWidget = (() => {
       if (!level || !level.ids) return;
       this.rgba = gather(this._baseColors(), level.ids, 4);
       this.colorsDirty = true;
+    }
+
+    /** Minimum pixel radius of the shown points (raised while only a sample is shown). */
+    _activeMinPx() { return Math.max(this.minPx, this.sampleFloor); }
+
+    /**
+     * Ease the sample's minimum pixel radius to `px`: a sample of m of the n points
+     * is drawn larger (radius x sqrt(n / m), capped) so it does not get lost.
+     */
+    _tweenFloor(px, ms) {
+      this.floorTween = { from: this.sampleFloor, to: px, t0: performance.now(), ms };
     }
 
     _retargetAlpha(ms) {
@@ -612,10 +627,13 @@ const ReembedWidget = (() => {
       }
       for (const i of parentSel) ghostRgba[4 * i + 3] = 0;
       const ghostRadii = parent.ids ? parent.radii : root.radii;
+      const sampleFloorPx = (m) => Math.min(Math.max(T.MAX_PX, rpxTarget), rpxTarget * Math.sqrt(n / m));
       const local = new Int32Array(root.n).fill(-1);
       for (let t = 0; t < n; t++) local[ids[t]] = t;
 
-      const level = { ids, n, X, homeMap, pos: P1, view: null, parentSel, fitIdx, radii, rMed, local, rs: k1 / 2 ** V1.zoom };
+      const level = {
+        ids, n, X, homeMap, pos: P1, view: null, parentSel, fitIdx, radii, rMed, local, rs: k1 / 2 ** V1.zoom, sampleFloorPx,
+      };
       // The parent's labels (if it is a re-embedding) follow its points out while the new ones fade in.
       const parentLabels = parent.ids && this.labels ? { items: this.labels.items, opacity: this.labels.opacity } : null;
       this.levels.push(level);
@@ -864,6 +882,7 @@ const ReembedWidget = (() => {
       this.status.error = message;
       this.status.phase = "error";
       this._stopWorker();
+      this._tweenFloor(0, T.FADE_MS);
       if (!this.tr && this.mode !== "back") {
         this.mode = "idle";
         this._finishLevel();
@@ -982,6 +1001,7 @@ const ReembedWidget = (() => {
         }
         this.visTarget.fill(1);
         this._retargetAlpha(T.FADE_MS);
+        this._tweenFloor(0, T.FADE_MS);
         this.sampleLocal = null;
         st.phase = "building full layout";
         if (!this.tr) this._startFrameTween(now);
@@ -1016,6 +1036,7 @@ const ReembedWidget = (() => {
           this.visTarget.fill(0);
           for (const i of this.sampleLocal) this.visTarget[i] = 1;
           this._retargetAlpha(T.FADE_MS);
+          this._tweenFloor(level.sampleFloorPx(this.sampleLocal.length), T.FADE_MS);
         }
         const sidx = msg.phase === "sample" ? this.sampleLocal : null;
         this.map = this._displayMap(msg.embedding, sidx);
@@ -1132,7 +1153,9 @@ const ReembedWidget = (() => {
         minPxEnd = style.displayedRadiusMinPixels;
         opacityEnd = style.displayedOpacity;
       }
-      const minPx0 = this.minPx;
+      const minPx0 = this._activeMinPx();
+      this.sampleFloor = 0;
+      this.floorTween = null;
       this.ghost = {
         n: parent.n, pos: ghostStart.slice(), rgba: ghostRgba, radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0,
         lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
@@ -1244,6 +1267,12 @@ const ReembedWidget = (() => {
         dirty = true;
       } else if (this.status.phase === "done" && this.mode === "running") {
         this._finishRun();
+      }
+      if (this.floorTween) {
+        const f = this.floorTween, t = clamp((now - f.t0) / f.ms, 0, 1);
+        this.sampleFloor = lerp(f.from, f.to, easeInOut(t));
+        if (t >= 1) this.floorTween = null;
+        dirty = true;
       }
       if (this.alphaTween && this.disp) {
         const a = this.alphaTween, t = clamp((now - a.t0) / a.ms, 0, 1), e = easeInOut(t);
