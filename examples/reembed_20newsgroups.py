@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 title="20 Newsgroups",
                 sub_title="Shift-drag to lasso a region, then Re-embed",
             ),
-            datamapplot.ReembedWidget(),
+            datamapplot.ReembedWidget(server=server),
             datamapplot.ColormapSelectorWidget(
                 colormaps={"Newsgroup": newsgroups["newsgroup"].values}
             ),

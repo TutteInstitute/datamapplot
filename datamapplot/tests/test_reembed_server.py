@@ -120,7 +120,9 @@ def test_http_api():
             request("/api/info", headers={})
         assert error.value.code == 401
         info = json.load(request("/api/info"))
-        assert info["n"] == 600
+        assert info["n"] == 600 and info["id"] == server.id
+        # The widget's header (passes through Jupyter's proxy, which uses Authorization itself).
+        assert json.load(request("/api/info", headers={"X-Reembed-Token": "secret"}))["id"] == server.id
         assert info["stage"] in ("warming up", "building global kNN graph", "ready")
 
         ids = np.arange(0, 600, 3, dtype="<i4")
@@ -169,6 +171,27 @@ def test_http_api():
         assert page.headers["Access-Control-Allow-Origin"] is None
     finally:
         server.stop()
+
+
+def test_start_default_port_falls_back():
+    import socket
+
+    blocker = socket.socket()
+    try:
+        blocker.bind(("127.0.0.1", 8765))
+        blocker.listen()
+    except OSError:
+        pass  # already taken by something else: just as good
+    server = ReembedServer(np.zeros((50, 4)), verbose=False, warm_up=False)
+    try:
+        server.start()
+        assert server.port != 8765
+        assert server.url == f"http://127.0.0.1:{server.port}"
+        with pytest.raises(OSError):
+            ReembedServer(np.zeros((50, 4)), verbose=False, warm_up=False).start(port=server.port)
+    finally:
+        server.stop()
+        blocker.close()
 
 
 def test_global_knn_cache(tmp_path):

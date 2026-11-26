@@ -1317,6 +1317,30 @@ class TestReembedWidget:
             ReembedWidget(engine="tpu")
         with pytest.raises(ValueError):
             ReembedWidget(label_containment=0)
+        with pytest.raises(ValueError, match="either"):
+            ReembedWidget(server="http://a", server_url="http://b")
+
+    def test_server_object(self):
+        """Given the server, the page gets what it needs to find and check it."""
+        from types import SimpleNamespace
+
+        server = SimpleNamespace(port=8770, url="http://127.0.0.1:8770", id="abc123", token="secret")
+        config = ReembedWidget(server=server).collect_widget_data()
+        assert config["server_port"] == 8770
+        assert config["server_direct_url"] == "http://127.0.0.1:8770"
+        assert config["server_id"] == "abc123" and config["server_token"] == "secret"
+        assert config["server_url"] is None
+        assert ReembedWidget(server="http://host:1").collect_widget_data()["server_url"] == "http://host:1"
+
+        class NotStarted:
+            id, token, url = "x", None, None
+
+            @property
+            def port(self):
+                raise RuntimeError("server is not running")
+
+        with pytest.raises(ValueError, match="start the ReembedServer"):
+            ReembedWidget(server=NotStarted())
 
     def test_plot_enables_lasso_selection(self):
         """Including the widget turns on lasso selection and ships its JS."""

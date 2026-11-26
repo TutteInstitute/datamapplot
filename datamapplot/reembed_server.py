@@ -23,8 +23,9 @@ Requires ``pynndescent`` (``pip install datamapplot[reembed]``).
 REST contract
 -------------
 ``GET /api/info``
-    JSON: ``{"stage", "format", "n", "dim", "metric", "k", "ready", "globalGraphReady"}``;
-    ``stage`` is "warming up", "building global kNN graph" or "ready".
+    JSON: ``{"stage", "id", "format", "n", "dim", "metric", "k", "ready", "globalGraphReady"}``;
+    ``stage`` is "warming up", "building global kNN graph" or "ready"; ``id``
+    identifies this server instance (random, per process).
 
 ``POST /api/reembed[?sample=M][&encoding=varint]``
     Body: little-endian int32 row ids of the selection (unique, at least
@@ -53,12 +54,31 @@ REST contract
 
 All ``/api/`` endpoints send permissive CORS headers so plots opened from files
 or shown in notebooks can call the server; the figure served at ``/`` does not.
+
+Notebooks
+---------
+Start the server in the notebook's kernel and pass it to the widget; the plot is
+shown inline as usual:
+
+>>> server = ReembedServer(vectors).start()
+>>> datamapplot.create_interactive_plot(
+...     data_map_coords, labels, widgets=[ReembedWidget(server=server)]
+... )
+
+The widget finds the server by itself: directly at ``server.url`` when the
+browser runs on the kernel's machine, or through Jupyter's own address when
+Jupyter is remote (JupyterHub, or Jupyter on a server reached over SSH). The
+latter needs `jupyter-server-proxy <https://jupyter-server-proxy.readthedocs.io>`_
+installed where the Jupyter server runs (the widget then uses
+``<jupyter base url>/proxy/<port>/``, with Jupyter's own login).
 """
 
 import contextlib
+import errno
 import http.server
 import json
 import os
+import secrets
 import socketserver
 import struct
 import threading
@@ -451,8 +471,9 @@ class ReembedServer:
         About one thread per 1,000 selected points is used, up to 16.
 
     token : str or None, optional (default=None)
-        If given, API requests must send ``Authorization: Bearer <token>``
-        (use ``ReembedWidget(auth_headers=...)``).
+        If given, API requests must send ``Authorization: Bearer <token>`` or
+        ``X-Reembed-Token: <token>`` (``ReembedWidget(server=...)`` sends the
+        latter, which passes through Jupyter's proxy).
 
     verbose : bool, optional (default=True)
         Print progress and per-request timings.
@@ -493,6 +514,8 @@ class ReembedServer:
         self.global_n_neighbors = int(global_n_neighbors)
         self.max_threads = max_threads
         self.token = token
+        # Lets a widget check it reached this server (see ReembedWidget(server=...)).
+        self.id = secrets.token_hex(8)
         self.verbose = verbose
         self._global_knn = None
         if global_knn_cache is not None:
@@ -790,6 +813,7 @@ class ReembedServer:
             stage = "ready"
         return {
             "stage": stage,
+            "id": self.id,
             "format": FORMAT,
             "n": int(self.vectors.shape[0]),
             "dim": int(self.vectors.shape[1]),
@@ -829,15 +853,23 @@ class ReembedServer:
             host = "127.0.0.1"
         return f"http://{host}:{port}"
 
-    def start(self, host="127.0.0.1", port=8765, background=True):
+    @property
+    def port(self):
+        """Port the server is listening on."""
+        if self._httpd is None:
+            raise RuntimeError("server is not running; call start() first")
+        return self._httpd.server_address[1]
+
+    def start(self, host="127.0.0.1", port=None, background=True):
         """Start serving.
 
         Parameters
         ----------
         host : str, optional (default="127.0.0.1")
 
-        port : int, optional (default=8765)
-            Use 0 for any free port.
+        port : int or None, optional (default=None)
+            Port to listen on; 0 for any free port. None uses 8765, or any free
+            port if that is taken (e.g. by a server from an earlier notebook cell).
 
         background : bool, optional (default=True)
             Serve from a daemon thread and return immediately (suitable for
@@ -850,7 +882,12 @@ class ReembedServer:
         if self._httpd is not None:
             raise RuntimeError("server already started")
         self._start_background()
-        self._httpd = _ThreadingServer((host, port), _make_handler(self))
+        try:
+            self._httpd = _ThreadingServer((host, 8765 if port is None else port), _make_handler(self))
+        except OSError as error:
+            if port is not None or error.errno != errno.EADDRINUSE:
+                raise
+            self._httpd = _ThreadingServer((host, 0), _make_handler(self))
         self._log(f"serving at {self.url}")
         if background:
             self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
@@ -914,6 +951,8 @@ def _make_handler(server):
             if not server.token:
                 return True
             if self.headers.get("Authorization", "") == f"Bearer {server.token}":
+                return True
+            if self.headers.get("X-Reembed-Token", "") == server.token:
                 return True
             self._send_json({"error": "unauthorized"}, 401)
             return False

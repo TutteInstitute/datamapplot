@@ -104,7 +104,7 @@ if __name__ == "__main__":
                 title="CORD-19 Data Map",
                 sub_title="Shift-drag to lasso a region, then Re-embed",
             ),
-            datamapplot.ReembedWidget(),
+            datamapplot.ReembedWidget(server=server),
         ],
     )
     print(f"Built the plot in {time.time() - t0:.1f}s")

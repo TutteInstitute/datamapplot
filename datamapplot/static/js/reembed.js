@@ -29,6 +29,25 @@ const ReembedWidget = (() => {
   const lerp = (a, b, t) => a + (b - a) * t;
   const smoothstep = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
+  const FORMAT = "datamapplot-reembed/";
+
+  /**
+   * Base URL of the Jupyter server whose page shows this plot (a notebook output
+   * is a same-origin srcdoc iframe of it), or null.
+   */
+  function jupyterBaseUrl() {
+    for (const w of [window, window.parent, window.top]) {
+      try {
+        const config = w.document.getElementById("jupyter-config-data");
+        const base = config ? JSON.parse(config.textContent).baseUrl : w.document.body && w.document.body.dataset.baseUrl;
+        if (base) return new URL(base, w.location.href).href.replace(/\/?$/, "/");
+      } catch (error) {
+        // A cross-origin parent (e.g. a sandboxed output frame): not a Jupyter page we can use.
+      }
+    }
+    return null;
+  }
+
   // Browsers can expose WebGPU without a usable adapter (headless, blocklisted GPUs).
   let gpuUsable = null;  // unknown until the probe resolves
   if (navigator.gpu) {
@@ -228,7 +247,6 @@ const ReembedWidget = (() => {
         downBytesPerMs: 20000, upBytesPerMs: 10000, rttMs: 5,
         serverMsPerPoint: 0.0025, bytesPerPoint: 48, decodeMsPerPoint: 0.0008, setupMsPerPoint: 0.0055,
       };
-      this._linkFromPageLoad();
       this.relaxing = false;         // re-optimizing after a parameter change
       this.map = null;               // optimizer coords -> display coords
       this.interArrival = 16;
@@ -243,36 +261,88 @@ const ReembedWidget = (() => {
       this.dm.onPointColorsChange(OWNER, () => (this.colorsChanged = true));
       this.dm.pickRemap = (info) => this._remapPick(info);
       this.server = null;            // {stage, error} from /api/info
+      this.base = null;              // base URL of the server, once found
       this._pollServer();
       requestAnimationFrame(() => this._tick());
     }
 
-    _serverBase() {
-      return (this.cfg.server_url || (location.protocol.startsWith("http") ? location.origin : "")).replace(/\/$/, "");
+    /**
+     * Where the server might be, most specific first: as configured; the page's own
+     * origin (when the server serves the plot); and, for a server in this notebook's
+     * kernel, Jupyter's proxy to it (when Jupyter is remote) and its direct address.
+     */
+    _serverCandidates() {
+      const cfg = this.cfg;
+      if (cfg.server_url) return [cfg.server_url.replace(/\/$/, "")];
+      const out = [];
+      if (location.protocol.startsWith("http")) out.push(location.origin);
+      const jupyter = cfg.server_port ? jupyterBaseUrl() : null;
+      if (jupyter) out.push(jupyter + "proxy/" + cfg.server_port);
+      if (cfg.server_direct_url) out.push(cfg.server_direct_url.replace(/\/$/, ""));
+      return [...new Set(out)];
     }
 
-    /** Poll /api/info until the server is ready, so the widget can say what it is waiting for. */
+    /** Headers for API requests. */
+    _headers() {
+      const token = this.cfg.server_token ? { "X-Reembed-Token": this.cfg.server_token } : {};
+      return { ...token, ...(this.cfg.auth_headers || {}) };
+    }
+
+    /** /api/info of `base` if it is the configured re-embed server, else null. */
+    async _probe(base) {
+      try {
+        const signal = AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined;
+        const resp = await fetch(base + "/api/info", { headers: this._headers(), signal });
+        if (!resp.ok) return null;
+        const info = await resp.json();
+        if (!String(info.format || "").startsWith(FORMAT)) return null;
+        if (this.cfg.server_id && info.id !== this.cfg.server_id) return null;
+        return info;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    /**
+     * Find the server among the candidates, then poll /api/info until it is ready,
+     * so the widget can say what it is waiting for.
+     */
     async _pollServer() {
-      const base = this._serverBase();
-      if (!base) return;
+      const candidates = this._serverCandidates();
+      if (!candidates.length) {
+        this.server = { stage: "unconfigured" };
+        this.ui.update();
+        return;
+      }
       let delay = 1000;
       for (;;) {
-        try {
-          const t0 = performance.now();
-          const resp = await fetch(base + "/api/info", { headers: { ...(this.cfg.auth_headers || {}) } });
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
-          const info = await resp.json();
+        let info = null, t0 = 0;
+        for (const base of this.base ? [this.base] : candidates) {
+          t0 = performance.now();
+          info = await this._probe(base);
+          if (info) {
+            if (!this.base) {
+              this.base = base;
+              this._linkFromPageLoad();
+            }
+            break;
+          }
+        }
+        if (!info) {
+          this.server = { stage: "unreachable", tried: candidates };
+          delay = Math.min(2 * delay, 10000);
+        } else if (info.n !== this.dm.getPoints().count) {
+          this.server = { stage: "mismatch", n: info.n };
+          this.base = null;
+        } else {
           // A first estimate of the request latency (with connection setup, as for a re-embed).
           if (!this.rttMeasured) this.link.rttMs = Math.max(1, performance.now() - t0);
           this.rttMeasured = true;
           this.server = { stage: info.stage || (info.ready && info.globalGraphReady ? "ready" : "warming up") };
           delay = 1000;
-        } catch (error) {
-          this.server = { stage: "unreachable", error: String(error.message || error) };
-          delay = Math.min(2 * delay, 10000);
         }
         this.ui.update();
-        if (this.server.stage === "ready") return;
+        if (this.server.stage === "ready" || this.server.stage === "mismatch") return;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -280,7 +350,15 @@ const ReembedWidget = (() => {
     serverText() {
       const sv = this.server;
       if (!sv || sv.stage === "ready") return "";
-      if (sv.stage === "unreachable") return "Re-embed server not reachable at " + this._serverBase() + ".";
+      if (sv.stage === "unconfigured") return "No re-embed server: pass ReembedWidget(server=...).";
+      if (sv.stage === "unreachable") {
+        return "Re-embed server not reachable (tried " + sv.tried.join(", ") + ")."
+          + (jupyterBaseUrl() ? " With a remote Jupyter, install jupyter-server-proxy where Jupyter runs." : "");
+      }
+      if (sv.stage === "mismatch") {
+        return "The re-embed server has " + sv.n.toLocaleString() + " vectors but the map has "
+          + this.dm.getPoints().count.toLocaleString() + " points.";
+      }
       if (sv.stage === "warming up") return "Server warming up (compiling kNN code, ~20 s after it starts)…";
       return "Server " + sv.stage + "…";
     }
@@ -563,7 +641,9 @@ const ReembedWidget = (() => {
     }
 
     // ---------------------------------------------------------------- re-embed
-    canReembed() { return this.mode === "idle" && !this.tr && this.selectionCount >= T.MIN_POINTS; }
+    canReembed() {
+      return this.mode === "idle" && !this.tr && this.selectionCount >= T.MIN_POINTS && !!this.base;
+    }
 
     reembed() {
       if (!this.dm.getPoints() || !this.canReembed()) return;
@@ -721,9 +801,8 @@ const ReembedWidget = (() => {
     /** Seed the link model from the page load, when the page came from the re-embed server. */
     _linkFromPageLoad() {
       try {
-        const base = this._serverBase();
         const nav = performance.getEntriesByType("navigation")[0];
-        if (!base || !nav || new URL(base, location.href).origin !== location.origin) return;
+        if (!nav || new URL(this.base, location.href).origin !== location.origin) return;
         const ms = nav.responseEnd - nav.responseStart;
         if (nav.encodedBodySize > 2e6 && ms > 0) this.link.downBytesPerMs = nav.encodedBodySize / ms;
       } catch (error) {
@@ -780,14 +859,9 @@ const ReembedWidget = (() => {
      * another requests the full graph and builds its optimizer, taking over when ready.
      */
     _startRun(level, plan) {
-      const base = this._serverBase();
-      if (!base) {
-        this._fail("No re-embed server configured: pass ReembedWidget(server_url=...).");
-        return;
-      }
       const request = {
-        url: new URL(base + "/api/reembed?encoding=varint", location.href).href,
-        headers: { ...(this.cfg.auth_headers || {}) },
+        url: new URL(this.base + "/api/reembed?encoding=varint", location.href).href,
+        headers: this._headers(),
       };
       this._stopWorker();
       this.runId++;

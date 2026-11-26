@@ -1634,10 +1634,18 @@ class ReembedWidget(WidgetBase):
 
     Parameters
     ----------
+    server : ReembedServer, str or None, optional (default: None)
+        The (started) ``ReembedServer``, or its base URL. Given the server
+        itself, the widget finds it wherever the plot is shown: served by the
+        server (``ReembedServer.serve_figure``), in a notebook in the same
+        Python process, directly or through a remote Jupyter's address (with
+        jupyter-server-proxy), and it checks that it reached that server. If
+        None the page's own origin is used, which works when the plot is
+        served by the ``ReembedServer``.
+
     server_url : str or None, optional (default: None)
-        Base URL of the ``ReembedServer``. If None the page's own origin is
-        used, which works when the plot is served by the ``ReembedServer``
-        itself (see ``ReembedServer.serve_figure``).
+        Base URL of the ``ReembedServer`` (the same as passing a URL as
+        ``server``).
 
     n_epochs : int, optional (default: 120)
         Optimization epochs per re-embed.
@@ -1701,6 +1709,7 @@ class ReembedWidget(WidgetBase):
     @cfg.complete(unconfigurable={"self"})
     def __init__(
         self,
+        server=None,
         server_url=None,
         n_epochs=120,
         min_dist=0.1,
@@ -1728,6 +1737,21 @@ class ReembedWidget(WidgetBase):
             raise ValueError("engine must be 'auto', 'gpu' or 'cpu'")
         if not 0.0 < label_containment <= 1.0:
             raise ValueError("label_containment must be in (0, 1]")
+        if server is not None and server_url is not None:
+            raise ValueError("pass either server or server_url, not both")
+        self.server_port = self.server_id = self.server_token = None
+        self.server_direct_url = None
+        if isinstance(server, str):
+            server_url = server
+        elif server is not None:
+            # A ReembedServer in this process (duck-typed to avoid importing numba here).
+            try:
+                self.server_port = int(server.port)
+                self.server_direct_url = server.url
+            except RuntimeError as error:
+                raise ValueError("start the ReembedServer before creating the widget") from error
+            self.server_id = server.id
+            self.server_token = server.token
         self.server_url = server_url
         self.n_epochs = int(n_epochs)
         self.min_dist = float(min_dist)
@@ -1784,6 +1808,10 @@ class ReembedWidget(WidgetBase):
         return {
             "title": None if self.collapsible else self.title,
             "server_url": self.server_url,
+            "server_port": self.server_port,
+            "server_id": self.server_id,
+            "server_token": self.server_token,
+            "server_direct_url": self.server_direct_url,
             "n_epochs": self.n_epochs,
             "min_dist": self.min_dist,
             "spread": self.spread,
