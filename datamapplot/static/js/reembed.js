@@ -296,7 +296,9 @@ const ReembedWidget = (() => {
         if (!resp.ok) return null;
         const info = await resp.json();
         if (!String(info.format || "").startsWith(FORMAT)) return null;
-        if (this.cfg.server_id && info.id !== this.cfg.server_id) return null;
+        // The server serving this page is the one to use, even if the plot was saved
+        // with another (e.g. from a notebook) and is now served by dmp_reembed_server.
+        if (this.cfg.server_id && info.id !== this.cfg.server_id && base !== location.origin) return null;
         return info;
       } catch (error) {
         return null;

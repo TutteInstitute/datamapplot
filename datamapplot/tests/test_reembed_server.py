@@ -4,12 +4,21 @@ import json
 import time
 import urllib.error
 import urllib.request
+import zipfile
 
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.neighbors import NearestNeighbors
 
-from datamapplot.reembed_server import ReembedServer, encode_knn, pack_arrays, unpack_arrays
+from datamapplot.reembed_server import (
+    ReembedServer,
+    _load_vectors,
+    encode_knn,
+    main,
+    pack_arrays,
+    unpack_arrays,
+)
 
 
 def _clustered_vectors(n=3000, dim=16, seed=0):
@@ -207,3 +216,95 @@ def test_global_knn_cache(tmp_path):
     reloaded = ReembedServer(vectors, global_knn_cache=cache, verbose=False, warm_up=False)
     assert reloaded.global_graph_ready
     np.testing.assert_array_equal(reloaded._global_knn, server._global_knn)
+
+
+# A saved plot as InteractiveFigure.save writes it with inline_data=False: data files
+# (here with a legacy prefix in a subfolder) and density tiles beside it.
+SAVED_PLOT = (
+    '<div class="container-box reembed-container"></div><script>'
+    "[`${originURL}/maps/demo_point_data_0.zip`, `${originURL}/demo_density_L0_R0_C0_x.png`]"
+    "</script>"
+)
+
+
+def _get(url):
+    try:
+        with urllib.request.urlopen(url, timeout=10) as response:
+            return response.status, response.headers["Content-Type"], response.read()
+    except urllib.error.HTTPError as error:
+        return error.code, None, None
+
+
+def test_serve_file_serves_only_referenced_files(tmp_path):
+    site = tmp_path / "site"
+    (site / "maps").mkdir(parents=True)
+    (site / "plot.html").write_text(SAVED_PLOT)
+    (site / "maps" / "demo_point_data_0.zip").write_bytes(b"points")
+    (site / "demo_density_L0_R0_C0_x.png").write_bytes(b"tile")
+    (site / "other_point_data_0.zip").write_bytes(b"not referenced")
+    (site / "notes.txt").write_text("private")
+    (tmp_path / "outside_point_data_0.zip").write_bytes(b"outside")
+    bundle = tmp_path / "bundle.zip"
+    with zipfile.ZipFile(bundle, "w") as zf:
+        zf.writestr("index.html", SAVED_PLOT)
+        zf.writestr("maps/demo_point_data_0.zip", b"bundled points")
+
+    server = ReembedServer(np.zeros((50, 4)), verbose=False, warm_up=False).start(port=0)
+    try:
+        server.serve_file(site / "plot.html")
+        assert _get(server.url + "/")[2] == SAVED_PLOT.encode()
+        # The page requests its files relative to its folder, as "//name" when served at /.
+        assert _get(server.url + "//maps/demo_point_data_0.zip")[2] == b"points"
+        status, content_type, body = _get(server.url + "/demo_density_L0_R0_C0_x.png")
+        assert (status, content_type, body) == (200, "image/png", b"tile")
+        for path in ("/other_point_data_0.zip", "/notes.txt", "/plot.html", "/../outside_point_data_0.zip",
+                     "/%2e%2e/outside_point_data_0.zip"):
+            assert _get(server.url + path)[0] == 404, path
+
+        server.serve_file(bundle)
+        assert _get(server.url + "//maps/demo_point_data_0.zip")[2] == b"bundled points"
+        server.serve_figure("<html>map</html>")
+        assert _get(server.url + "//maps/demo_point_data_0.zip")[0] == 404
+
+        (site / "plain.html").write_text("<html>no widget</html>")
+        with pytest.warns(UserWarning, match="no ReembedWidget"):
+            server.serve_file(site / "plain.html")
+    finally:
+        server.stop()
+
+
+def test_load_vectors(tmp_path):
+    vectors = np.arange(12, dtype=np.float32).reshape(4, 3)
+    np.save(tmp_path / "v.npy", vectors)
+    np.savez(tmp_path / "one.npz", vectors)
+    np.savez(tmp_path / "two.npz", a=vectors, b=vectors[:, :2])
+    pd.DataFrame({"title": list("abcd"), "embedding": list(vectors)}).to_parquet(tmp_path / "t.parquet")
+    pd.DataFrame(vectors, columns=["x", "y", "z"]).to_feather(tmp_path / "wide.feather")
+
+    np.testing.assert_array_equal(_load_vectors(tmp_path / "v.npy"), vectors)
+    np.testing.assert_array_equal(_load_vectors(tmp_path / "one.npz"), vectors)
+    assert _load_vectors(tmp_path / "two.npz", "b").shape == (4, 2)
+    with pytest.raises(ValueError, match="several arrays"):
+        _load_vectors(tmp_path / "two.npz")
+    np.testing.assert_array_equal(_load_vectors(tmp_path / "t.parquet", "embedding"), vectors)
+    with pytest.raises(ValueError, match="several columns"):
+        _load_vectors(tmp_path / "t.parquet")
+    np.testing.assert_array_equal(_load_vectors(tmp_path / "wide.feather"), vectors)
+    with pytest.raises(ValueError, match="unsupported"):
+        _load_vectors(tmp_path / "v.csv")
+
+
+def test_cli_rejects_unusable_input(tmp_path, capsys):
+    pytest.importorskip("pynndescent")
+    np.save(tmp_path / "v.npy", np.zeros((50, 4), dtype=np.float32))
+    (tmp_path / "plain.html").write_text("<html>no widget</html>")
+    (tmp_path / "plot.html").write_text(SAVED_PLOT)
+    for args, message in [
+        ([str(tmp_path / "plain.html")], "has no re-embed widget"),
+        ([str(tmp_path / "plot.html"), "--metric", "nope"], "unknown metric"),
+        ([str(tmp_path / "missing.html")], "cannot read the plot"),
+    ]:
+        with pytest.raises(SystemExit) as exit_info:
+            main(args + ["--vectors", str(tmp_path / "v.npy")])
+        assert exit_info.value.code == 2
+        assert message in capsys.readouterr().err

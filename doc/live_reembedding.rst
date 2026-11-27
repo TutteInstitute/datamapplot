@@ -25,9 +25,10 @@ the selection follow their points as they move, and finer labels appear as room
 is made for them. You can re-embed within a re-embedding as many times as you
 like, and the "Back" button animates you back out to the previous layout.
 
-This guide will walk you through setting up live re-embedding, both from a
-script and in a Jupyter notebook, how to select and re-embed points, and the
-options available for large datasets and remote setups.
+This guide will walk you through setting up live re-embedding, from a script,
+in a Jupyter notebook, or for a saved plot from the command line, how to select
+and re-embed points, and the options available for large datasets and remote
+setups.
 
 How Live Re-embedding Works
 ---------------------------
@@ -135,6 +136,50 @@ Complete versions of both, using the 20 Newsgroups dataset, can be found in the
 ``reembed_notebook.py``. If you want to see how things work at scale,
 ``reembed_cord19.py`` does the same for a data map of over half a million
 CORD-19 papers.
+
+Serving a Saved Plot from the Command Line
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Often you will have already made and saved a plot, and simply want to explore
+it with live re-embedding. For that DataMapPlot provides a command line tool,
+``dmp_reembed_server``, which serves a saved plot along with the re-embed
+server. All the plot needs is a ``ReembedWidget``, created without a server:
+
+.. code:: python
+
+    import numpy as np
+    import datamapplot
+
+    plot = datamapplot.create_interactive_plot(
+        data_map_coords,
+        labels,
+        widgets=[datamapplot.SearchWidget(), datamapplot.ReembedWidget()],
+    )
+    plot.save("my_data_map.html")
+
+    # The vectors behind the map, in the same order as data_map_coords
+    np.save("my_vectors.npy", vectors)
+
+Then, from the command line, serve the plot with its vectors, and open the
+address it prints in your browser:
+
+.. code:: bash
+
+    dmp_reembed_server my_data_map.html --vectors my_vectors.npy
+
+Without a server of its own, the widget uses whichever server serves its page,
+so the same saved plot works wherever, and whenever, you serve it. (A plot
+saved from a notebook, with the widget given a server, can be served this way
+too.) Plots made with ``inline_data=False`` work as well, as long as their data
+files are still beside the HTML file, and so do zip files made with
+``save_bundle``.
+
+The vectors can be a ``.npy`` or ``.npz`` file, or a ``.parquet``,
+``.feather`` or ``.arrow`` table; use ``--vectors-key`` to say which array or
+column holds them. The command also takes the most useful server options, such
+as ``--metric`` (``cosine`` by default), ``--knn-cache`` and ``--port``; see
+``dmp_reembed_server --help`` for the full list. If you would rather stay in
+Python, ``server.serve_file("my_data_map.html")`` does the same job.
 
 Selecting Points to Re-embed
 ----------------------------
@@ -294,10 +339,12 @@ jupyter-server-proxy``, then restart Jupyter); requests then use your Jupyter
 login. The server listens on port 8765, or on any free port if that one is
 taken (by a server from an earlier run of the cell, for example).
 
-**Anywhere else.** For a saved HTML file, or a server behind your own web
-server, give the widget the server's address with
-``ReembedWidget(server_url="https://...")``. Keep in mind that the page can
-only re-embed while the server is running.
+**Anywhere else.** If you have a saved HTML file, the easiest option is to
+serve it with ``dmp_reembed_server`` (see
+:ref:`Serving a Saved Plot from the Command Line`). For a page hosted somewhere
+else entirely, such as behind your own web server, give the widget the server's
+address with ``ReembedWidget(server_url="https://...")``. Keep in mind that the
+page can only re-embed while the server is running.
 
 .. tip::
 

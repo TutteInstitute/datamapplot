@@ -1,9 +1,10 @@
 """Re-embed test server for the Playwright suite (tests/reembed.spec.ts).
 
-Serves a small synthetic data map (clusters in 32 dimensions, laid out in 2D)
-with a SearchWidget and a ReembedWidget from a ReembedServer, and keeps running
-until interrupted. Each point's hover text has a random tag word, so searching
-for a tag selects points scattered over the whole map.
+Saves a small synthetic data map (clusters in 32 dimensions, laid out in 2D)
+with a SearchWidget and a ReembedWidget, its data in separate files
+(inline_data=False), and serves it with dmp_reembed_server until interrupted.
+Each point's hover text has a random tag word, so searching for a tag selects
+points scattered over the whole map.
 
     python datamapplot/interactive_tests/reembed_test_server.py [--port 8766]
 
@@ -11,11 +12,13 @@ Requires pynndescent (``pip install datamapplot[reembed]``).
 """
 
 import argparse
+import os
+import tempfile
 
 import numpy as np
 
 import datamapplot
-from datamapplot.reembed_server import ReembedServer
+from datamapplot import reembed_server
 
 TAGS = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "theta", "kappa"]
 
@@ -43,20 +46,28 @@ def main():
     args = parser.parse_args()
 
     vectors, data_map, labels, hover = synthetic_map()
-    server = ReembedServer(vectors, metric="euclidean").start(host=args.host, port=args.port)
-    plot = datamapplot.create_interactive_plot(
-        data_map,
-        *labels,
-        hover_text=hover,
-        widgets=[
-            datamapplot.SearchWidget(),
-            # CPU: deterministic in CI, where browsers have no usable WebGPU anyway.
-            datamapplot.ReembedWidget(server=server, engine="cpu"),
-        ],
-    )
-    server.serve_figure(plot)
-    print(f"Serving at {server.url}", flush=True)
-    server.wait()
+    with tempfile.TemporaryDirectory() as folder:
+        np.save(os.path.join(folder, "vectors.npy"), vectors)
+        plot = datamapplot.create_interactive_plot(
+            data_map,
+            *labels,
+            hover_text=hover,
+            inline_data=False,
+            offline_data_path=os.path.join(folder, "synthetic"),
+            widgets=[
+                datamapplot.SearchWidget(),
+                # CPU: deterministic in CI, where browsers have no usable WebGPU anyway.
+                datamapplot.ReembedWidget(engine="cpu"),
+            ],
+        )
+        plot.save(os.path.join(folder, "index.html"))
+        reembed_server.main([
+            folder,
+            "--vectors", os.path.join(folder, "vectors.npy"),
+            "--metric", "euclidean",
+            "--host", args.host,
+            "--port", str(args.port),
+        ])
 
 
 if __name__ == "__main__":

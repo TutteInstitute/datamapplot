@@ -18,4 +18,4 @@ See :doc:`live_reembedding` for a guide to using these.
 .. autoclass:: ReembedWidget
 
 .. autoclass:: datamapplot.reembed_server.ReembedServer
-   :members: start, stop, wait, serve_figure, url, port, subset_graph
+   :members: start, stop, wait, serve_figure, serve_file, url, port, subset_graph

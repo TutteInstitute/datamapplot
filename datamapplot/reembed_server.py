@@ -71,12 +71,21 @@ Jupyter is remote (JupyterHub, or Jupyter on a server reached over SSH). The
 latter needs `jupyter-server-proxy <https://jupyter-server-proxy.readthedocs.io>`_
 installed where the Jupyter server runs (the widget then uses
 ``<jupyter base url>/proxy/<port>/``, with Jupyter's own login).
+
+Command line
+------------
+``dmp_reembed_server`` serves a saved plot (made with a ``ReembedWidget()``)
+together with the re-embed API (see :func:`main`)::
+
+    dmp_reembed_server plot.html --vectors vectors.npy
 """
 
 import contextlib
 import http.server
 import json
+import mimetypes
 import os
+import re
 import secrets
 import socketserver
 import struct
@@ -85,7 +94,8 @@ import threading
 import time
 import warnings
 import webbrowser
-from urllib.parse import parse_qs, urlparse
+import zipfile
+from urllib.parse import parse_qs, unquote, urlparse
 
 import numba
 import numpy as np
@@ -434,6 +444,107 @@ def unpack_arrays(payload):
     return header, arrays
 
 
+# Data files and density tiles a saved plot loads from its own folder (as
+# InteractiveFigure.save_bundle collects them): the only files served beside it.
+_PLOT_FILE = re.compile(
+    r"/((?:[^\s\"'`/\\:]+/)*[^\s\"'`/\\:]+?"
+    r"(?:_data(?:_\d+)?\.zip|_density_L\d+_R\d+_C\d+_[^\s\"'`/\\:]*\.png))"
+)
+
+
+class _SavedPlot:
+    """A saved interactive plot: an HTML file (with the data files it references
+    beside it), a folder with an ``index.html``, or a ``save_bundle`` zip."""
+
+    def __init__(self, path):
+        path = os.fspath(path)
+        if os.path.isdir(path):
+            path = os.path.join(path, "index.html")
+        self.path = path
+        if zipfile.is_zipfile(path):
+            self._zip = path
+            with zipfile.ZipFile(path) as bundle:
+                if "index.html" not in bundle.namelist():
+                    raise ValueError(f"{path} has no index.html (expected a zip from save_bundle)")
+                self.html = bundle.read("index.html")
+                self._files = {name for name in bundle.namelist() if not name.endswith("/")}
+            self._files.discard("index.html")
+        else:
+            self._zip = None
+            with open(path, "rb") as f:
+                self.html = f.read()
+            self._root = os.path.dirname(os.path.abspath(path))
+            self._files = {
+                name
+                for name in _PLOT_FILE.findall(self.html.decode("utf-8", "replace"))
+                if ".." not in name.split("/")
+            }
+
+    @property
+    def has_reembed_widget(self):
+        return b"reembed-container" in self.html
+
+    @property
+    def server_url(self):
+        """The widget's fixed ``server_url``, if it was given one."""
+        match = re.search(rb'"server_url":\s*"([^"]+)"', self.html)
+        return match.group(1).decode() if match else None
+
+    def read(self, name):
+        """Contents of a file the plot loads (relative name), or None."""
+        if name not in self._files:
+            return None
+        if self._zip is not None:
+            with zipfile.ZipFile(self._zip) as bundle:
+                return bundle.read(name)
+        path = os.path.join(self._root, *name.split("/"))
+        if not os.path.isfile(path):
+            return None
+        with open(path, "rb") as f:
+            return f.read()
+
+
+def _load_vectors(path, key=None):
+    """Vectors from a .npy, .npz, .parquet, .feather or .arrow file.
+
+    ``key`` names the array in an .npz file, or the column (of array values) in a
+    table; a table without one has either a single such column or one numeric
+    column per dimension.
+    """
+    path = os.fspath(path)
+    suffix = os.path.splitext(path)[1].lower()
+    if suffix == ".npy":
+        vectors = np.load(path)
+    elif suffix == ".npz":
+        with np.load(path) as data:
+            names = list(data.keys())
+            if key is None:
+                if len(names) != 1:
+                    raise ValueError(f"{path} holds several arrays ({', '.join(names)}); choose one with a key")
+                key = names[0]
+            vectors = data[key]
+    elif suffix in (".parquet", ".feather", ".arrow"):
+        import pandas as pd
+
+        table = pd.read_parquet(path) if suffix == ".parquet" else pd.read_feather(path)
+        if key is None and table.shape[1] > 1:
+            try:
+                vectors = table.to_numpy(dtype=np.float32)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"{path} has several columns ({', '.join(map(str, table.columns))}); choose one with a key"
+                ) from None
+        else:
+            column = table[key] if key is not None else table.iloc[:, 0]
+            vectors = np.stack(column.to_numpy())
+    else:
+        raise ValueError(f"unsupported vectors file {path}: use .npy, .npz, .parquet, .feather or .arrow")
+    vectors = np.asarray(vectors)
+    if vectors.ndim != 2:
+        raise ValueError(f"vectors must be a 2D array, got shape {vectors.shape}")
+    return vectors
+
+
 class ReembedServer:
     """Serve subset kNN graphs (and optionally a plot) for live re-embedding.
 
@@ -535,6 +646,7 @@ class ReembedServer:
         # Re-entrant: reembed_payload holds it around subset_graph calls.
         self._compute_lock = threading.RLock()
         self._html = None
+        self._plot = None  # a saved plot served by serve_file, with its data files
         self._httpd = None
         self._thread = None
         self._background = None
@@ -839,6 +951,40 @@ class ReembedServer:
         self
         """
         self._html = str(figure).encode("utf-8")
+        self._plot = None
+        if open_browser and self._httpd is not None:
+            webbrowser.open(self.url)
+        return self
+
+    def serve_file(self, path, open_browser=False):
+        """Serve a saved interactive plot at the server root.
+
+        The plot needs a ``ReembedWidget()`` (with no server given, it uses the
+        server that serves the page).
+
+        Parameters
+        ----------
+        path : str or path
+            An HTML file saved with ``InteractiveFigure.save`` (the data files of
+            a plot made with ``inline_data=False`` are served from beside it), a
+            folder containing such a file as ``index.html``, or a zip saved with
+            ``InteractiveFigure.save_bundle``.
+
+        open_browser : bool, optional (default=False)
+            Open the plot in the default web browser.
+
+        Returns
+        -------
+        self
+        """
+        plot = _SavedPlot(path)
+        if not plot.has_reembed_widget:
+            warnings.warn(f"{plot.path} has no ReembedWidget, so its points cannot be re-embedded")
+        return self._serve_plot(plot, open_browser)
+
+    def _serve_plot(self, plot, open_browser=False):
+        self._html = plot.html
+        self._plot = plot
         if open_browser and self._httpd is not None:
             webbrowser.open(self.url)
         return self
@@ -967,7 +1113,8 @@ def _make_handler(server):
             self.end_headers()
 
         def do_GET(self):
-            path = urlparse(self.path).path
+            # Not urlparse: saved plots request their data files as "//name.zip".
+            path = self.path.split("?", 1)[0].split("#", 1)[0]
             if path in ("/", "/index.html"):
                 if server._html is None:
                     body = b"<!doctype html><p>datamapplot ReembedServer is running.</p>"
@@ -978,7 +1125,12 @@ def _make_handler(server):
                 if self._authorized():
                     self._send_json(server.info())
             else:
-                self._send_json({"error": "not found"}, 404)
+                name = unquote(path).lstrip("/")
+                body = server._plot.read(name) if server._plot is not None else None
+                if body is None:
+                    self._send_json({"error": "not found"}, 404)
+                else:
+                    self._send(200, body, mimetypes.guess_type(name)[0] or "application/octet-stream")
 
         def do_POST(self):
             url = urlparse(self.path)
@@ -1013,3 +1165,115 @@ def _make_handler(server):
             pass
 
     return Handler
+
+
+def main(argv=None):
+    """Serve a saved interactive plot with live re-embedding (``dmp_reembed_server``).
+
+    Runs until interrupted. See ``dmp_reembed_server --help`` for the options.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="dmp_reembed_server",
+        description=(
+            "Serve a saved DataMapPlot interactive plot with live re-embedding. The plot "
+            "needs a ReembedWidget(), and the vectors one row per point of the plot, in "
+            "the same order."
+        ),
+    )
+    parser.add_argument(
+        "plot",
+        nargs="?",
+        help=(
+            "the saved plot: an HTML file (data files saved beside it with "
+            "inline_data=False are served too), a folder containing it as index.html, "
+            "or a zip from save_bundle; without it only the re-embed API is served"
+        ),
+    )
+    parser.add_argument(
+        "--vectors", required=True, metavar="FILE", help="the high-dimensional vectors: .npy, .npz, .parquet, .feather or .arrow"
+    )
+    parser.add_argument(
+        "--vectors-key", metavar="KEY", help="the array in an .npz file, or the column (of arrays) in a table, holding the vectors"
+    )
+    parser.add_argument(
+        "--metric", default="cosine", metavar="NAME", help="distance metric for nearest neighbours (default: cosine)"
+    )
+    parser.add_argument(
+        "--n-neighbors", type=int, default=15, metavar="K", help="neighbours per point in each selection's graph (default: 15)"
+    )
+    parser.add_argument(
+        "--knn-cache",
+        metavar="FILE",
+        help="a .npy file for the global kNN graph: loaded if it exists, otherwise saved once built",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="address to listen on (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, help="port to listen on (default: 8765, or a free port if it is taken)")
+    parser.add_argument("--max-threads", type=int, metavar="N", help="most threads used per request (default: all cores)")
+    parser.add_argument("--open", action="store_true", help="open the plot in a web browser")
+    parser.add_argument("--quiet", action="store_true", help="don't print progress and request timings")
+    args = parser.parse_args(argv)
+
+    try:
+        _require_pynndescent()
+        from pynndescent.distances import named_distances
+    except ImportError as error:
+        parser.exit(1, f"{parser.prog}: error: {error}\n")
+    if args.metric not in named_distances:
+        parser.error(f"unknown metric {args.metric!r}; pynndescent supports {', '.join(sorted(named_distances))}")
+
+    plot = None
+    if args.plot is not None:
+        try:
+            plot = _SavedPlot(args.plot)
+        except (OSError, ValueError) as error:
+            parser.error(f"cannot read the plot: {error}")
+        if not plot.has_reembed_widget:
+            parser.error(
+                f"{plot.path} has no re-embed widget; create the plot with "
+                "widgets=[datamapplot.ReembedWidget()] and save it again"
+            )
+        if plot.server_url is not None:
+            print(
+                f"Warning: the plot's ReembedWidget uses the server at {plot.server_url}; "
+                "make it with ReembedWidget() to use this server instead",
+                file=sys.stderr,
+            )
+    try:
+        vectors = _load_vectors(args.vectors, args.vectors_key)
+    except (OSError, ValueError, KeyError, ImportError) as error:
+        parser.error(f"cannot load the vectors: {error}")
+
+    server = ReembedServer(
+        vectors,
+        metric=args.metric,
+        n_neighbors=args.n_neighbors,
+        global_knn_cache=args.knn_cache,
+        max_threads=args.max_threads,
+        verbose=not args.quiet,
+    )
+    if plot is not None:
+        server._serve_plot(plot)
+    try:
+        server.start(host=args.host, port=args.port)
+    except OSError as error:
+        parser.exit(1, f"{parser.prog}: error: cannot listen on {args.host}:{args.port}: {error}\n")
+    if plot is not None:
+        print(f"Serving {plot.path} ({len(vectors):,} vectors): open {server.url}", flush=True)
+    else:
+        print(f"Serving the re-embed API for {len(vectors):,} vectors at {server.url}/api/", flush=True)
+    if args.host in ("127.0.0.1", "localhost"):
+        print(
+            f"On a remote machine, forward the port first: ssh -L {server.port}:127.0.0.1:{server.port} <host>",
+            flush=True,
+        )
+    print("Press Ctrl+C to stop.", flush=True)
+    if args.open and plot is not None:
+        webbrowser.open(server.url)
+    server.wait()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

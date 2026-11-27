@@ -1648,7 +1648,8 @@ class ReembedWidget(WidgetBase):
         Python process, directly or through a remote Jupyter's address (with
         jupyter-server-proxy), and it checks that it reached that server. If
         None the page's own origin is used, which works when the plot is
-        served by the ``ReembedServer``.
+        served by a ``ReembedServer`` (including a saved plot served with the
+        ``dmp_reembed_server`` command).
 
     server_url : str or None, optional (default: None)
         Base URL of the ``ReembedServer`` (the same as passing a URL as

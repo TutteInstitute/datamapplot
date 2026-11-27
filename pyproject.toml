@@ -61,6 +61,7 @@ Homepage = "https://github.com/TutteInstitute/datamapplot"
 
 [project.scripts]
 dmp_offline_cache = "datamapplot.offline_mode_caching:main"
+dmp_reembed_server = "datamapplot.reembed_server:main"
 
 [tool.setuptools]
 zip-safe = false
