@@ -7,8 +7,9 @@ can be compared across themes and fonts:
 * ``widget_gallery_dark.html``: dark mode, in Playfair Display.
 
 Each page has a widget in every corner, more in the left and right drawers, and
-a selection handler (its panel appears in the right drawer after a lasso
-selection). The Playwright spec ``tests/widget_gallery.spec.ts`` snapshots them.
+selection handlers whose panels appear in the drawers after a lasso selection
+(two of them declare the same script names, which must not clash). The
+Playwright spec ``tests/widget_gallery.spec.ts`` snapshots them.
 
     python datamapplot/interactive_tests/widget_gallery.py [OUTPUT_DIR]
 """
@@ -21,7 +22,7 @@ import numpy as np
 import pandas as pd
 
 import datamapplot
-from datamapplot.selection_handlers import DisplaySample
+from datamapplot.selection_handlers import DisplaySample, ExportSelection, Histogram
 
 FIELDS = {
     "Astronomy": ["Exoplanets", "Galaxies", "Cosmology", "Solar Physics"],
@@ -113,7 +114,11 @@ def build_gallery(output_dir=".", themes=THEMES):
             *labels,
             hover_text=hover_text,
             widgets=gallery_widgets(published, coarse, citations),
-            selection_handler=DisplaySample(n_samples=8),
+            selection_handler=[
+                DisplaySample(n_samples=8),
+                ExportSelection(location="drawer-right"),
+                Histogram(location="drawer-left", width=320),
+            ],
             initial_zoom_fraction=0.9,
             **theme,
         )

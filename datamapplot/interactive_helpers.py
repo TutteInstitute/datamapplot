@@ -2965,10 +2965,17 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
         else:
             custom_html += handler.html
 
+        # Each handler's script gets its own block, so handlers can share
+        # top-level names, and one failing handler does not stop the others.
+        script = (
+            "try {\n" + handler.javascript + "\n} catch (error) {\n"
+            f"  console.error({json.dumps(type(handler).__name__ + ' failed to initialise:')}, error);\n"
+            "}\n"
+        )
         if custom_js is None:
-            custom_js = handler.javascript
+            custom_js = script
         else:
-            custom_js += handler.javascript
+            custom_js += script
 
         if custom_css is None:
             custom_css = handler.css
