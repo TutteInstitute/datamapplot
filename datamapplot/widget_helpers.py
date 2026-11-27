@@ -378,6 +378,11 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
                 histogram_log_scale=histogram_settings.get(
                     "histogram_log_scale", False
                 ),
+                histogram_group_datetime_by=kwargs.get("histogram_group_datetime_by"),
+                histogram_range=kwargs.get("histogram_range"),
+                histogram_enable_click_persistence=kwargs.get(
+                    "histogram_enable_click_persistence", False
+                ),
             )
         )
 
@@ -679,6 +684,8 @@ def collect_widget_data(widgets):
                         "bin_unselected_fill_color": widget.histogram_bin_unselected_fill_color,
                         "bin_context_fill_color": widget.histogram_bin_context_fill_color,
                         "log_scale": widget.histogram_log_scale,
+                        "group_datetime_by": widget.histogram_group_datetime_by,
+                        "range": widget.histogram_range,
                     },
                 }
             )
@@ -749,13 +756,16 @@ def encode_widget_data(widget_data, point_data_length):
             bin_data, index_data = prepare_histogram_data(
                 histogram_series,
                 histogram_n_bins=bin_count,
-                histogram_group_datetime_by=None,  # Could be added to widget params
-                histogram_range=None,  # Could be added to widget params
+                histogram_group_datetime_by=hist["settings"].get("group_datetime_by"),
+                histogram_range=hist["settings"].get("range"),
             )
 
-            # Format for D3Histogram - it expects {rawBinData, rawIndexData}
+            # Format for D3Histogram - it expects {rawBinData, rawIndexData}.
+            # Serialised as the legacy path does, so datetime bins become ISO strings.
             encoded["histograms"][hist["widget_id"]] = {
-                "rawBinData": bin_data.to_dict(orient="records"),
+                "rawBinData": json.loads(
+                    bin_data.to_json(orient="records", date_format="iso", date_unit="s")
+                ),
                 "rawIndexData": index_data.tolist(),  # Series.tolist() returns list of bin IDs
             }
     if widget_data["colormaps"]:

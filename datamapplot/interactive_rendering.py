@@ -1373,6 +1373,9 @@ def render_html(
                 histogram_data=histogram_data,
                 histogram_settings=histogram_settings,
                 histogram_n_bins=histogram_n_bins,
+                histogram_group_datetime_by=histogram_group_datetime_by,
+                histogram_range=histogram_range,
+                histogram_enable_click_persistence=histogram_enable_click_persistence,
                 colormaps=colormaps,
                 colormap_rawdata=colormap_rawdata,
                 colormap_metadata=color_metadata,
@@ -1398,15 +1401,20 @@ def render_html(
             drawer_enabled, selection_handler
         )
 
-        # Collect widget CSS and JS
+        # Collect widget CSS and JS. Each widget's script is isolated, so one
+        # failing widget is reported without stopping the others.
         for widget in all_widgets:
             if widget.css:
                 widget_css += widget.css + "\n"
-            if widget.javascript:
-                widget_js += widget.javascript + "\n"
-            resize_js = getattr(widget, "resize_javascript", "")
-            if resize_js:
-                widget_js += resize_js + "\n"
+            script = (widget.javascript or "") + (
+                getattr(widget, "resize_javascript", "") or ""
+            )
+            if script.strip():
+                widget_js += (
+                    "try {\n" + script + "\n} catch (error) {\n"
+                    f"  console.error({json.dumps(f'Widget {widget.widget_id!r} failed to initialise:')}, error);\n"
+                    "}\n"
+                )
 
         # Collect widget dependencies
         widget_deps = collect_widget_dependencies(all_widgets)
@@ -1604,7 +1612,9 @@ def render_html(
         show_loading_progress=show_loading_progress,
         background_image=background_image,
         background_image_bounds=background_image_bounds,
-        custom_js=(custom_js or "") + "\n" + widget_js,
+        # Widgets first: handler and custom scripts may wait (e.g. for the
+        # lasso tool) and should not hold back or break widget set-up.
+        custom_js=widget_js + "\n" + (custom_js or ""),
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
         offline_mode_css_data=offline_mode_css_data,

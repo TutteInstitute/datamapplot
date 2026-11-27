@@ -541,6 +541,10 @@ class SearchWidget(WidgetBase):
     search_field : str, optional
         Field name to search in the data. Default is "hover_text".
 
+    show_filter_labels : bool, optional
+        Show a "Filter labels" checkbox that, when checked, hides the labels
+        of clusters with no search results. Default is True.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -548,7 +552,13 @@ class SearchWidget(WidgetBase):
     dependencies = []  # Uses core datamap.js
 
     @cfg.complete(unconfigurable={"self"})
-    def __init__(self, placeholder="🔍", search_field="hover_text", **kwargs):
+    def __init__(
+        self,
+        placeholder="🔍",
+        search_field="hover_text",
+        show_filter_labels=True,
+        **kwargs,
+    ):
         kwargs.setdefault("widget_id", "search")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 1)
@@ -556,12 +566,20 @@ class SearchWidget(WidgetBase):
 
         self.placeholder = placeholder
         self.search_field = search_field
+        self.show_filter_labels = show_filter_labels
 
     @property
     def html(self):
+        filter_labels = ""
+        if self.show_filter_labels:
+            filter_labels = """
+  <label id="filter-labels-label" class="search-filter-labels">
+    <input type="checkbox" id="filter-labels-checkbox" />
+    Filter labels
+  </label>"""
         return f"""
 <div id="{self.get_container_id()}" class="container-box">
-  <input autocomplete="off" type="search" id="text-search" placeholder="{self.placeholder}" />
+  <input autocomplete="off" type="search" id="text-search" placeholder="{self.placeholder}" />{filter_labels}
 </div>
 """
 
@@ -570,6 +588,14 @@ class SearchWidget(WidgetBase):
         return f"""
 #{self.get_container_id()} {{
   width: fit-content;
+}}
+#{self.get_container_id()} .search-filter-labels {{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.8em;
+  cursor: pointer;
 }}
 """
 
@@ -782,6 +808,19 @@ class HistogramWidget(WidgetBase):
     histogram_log_scale : bool, optional
         Use log scale for y-axis. Default is False.
 
+    histogram_group_datetime_by : str or None, optional
+        For datetime data, bin by a calendar unit ("year", "quarter",
+        "month", "week", "day", "hour", "minute" or "second") instead of
+        into ``histogram_bin_count`` equal bins. Default is None.
+
+    histogram_range : tuple or None, optional
+        The (start, end) range of the histogram; values outside it are
+        counted in the first or last bin. Default is None (the data's range).
+
+    histogram_enable_click_persistence : bool, optional
+        Whether clicking a bin keeps it selected (clicking it again
+        deselects it). Default is False.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -801,6 +840,9 @@ class HistogramWidget(WidgetBase):
         histogram_bin_unselected_fill_color="#9E9E9E",
         histogram_bin_context_fill_color="#E6E6E6",
         histogram_log_scale=False,
+        histogram_group_datetime_by=None,
+        histogram_range=None,
+        histogram_enable_click_persistence=False,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "d3histogram")
@@ -828,6 +870,9 @@ class HistogramWidget(WidgetBase):
         self.histogram_bin_unselected_fill_color = histogram_bin_unselected_fill_color
         self.histogram_bin_context_fill_color = histogram_bin_context_fill_color
         self.histogram_log_scale = histogram_log_scale
+        self.histogram_group_datetime_by = histogram_group_datetime_by
+        self.histogram_range = histogram_range
+        self.histogram_enable_click_persistence = histogram_enable_click_persistence
 
     @property
     def html(self):
@@ -886,6 +931,7 @@ class HistogramWidget(WidgetBase):
             binUnselectedFillColor: {json.dumps(self.histogram_bin_unselected_fill_color)},
             binContextFillColor: {json.dumps(self.histogram_bin_context_fill_color)},
             logScale: {str(self.histogram_log_scale).lower()},
+            enableClickPersistence: {str(self.histogram_enable_click_persistence).lower()},
             chartSelectionCallback: chartSelectionCallback,
         }});
         
@@ -1103,12 +1149,12 @@ class LogoWidget(WidgetBase):
 
     @property
     def css(self):
-        return """
-img {
+        return f"""
+#{self.get_container_id()} img {{
   display: block;
   margin-left: auto;
   margin-right: auto;
-}
+}}
 """
 
 
@@ -1247,6 +1293,9 @@ class LayerToggleWidget(WidgetBase):
         kwargs.setdefault("order", 1)
         super().__init__(**kwargs)
 
+        # The default list names every layer a plot may have; only layers the
+        # user asked for are worth a warning when missing.
+        self.warn_missing_layers = layers is not None
         self.layers = layers or [
             {
                 "id": "imageLayer",
@@ -1310,7 +1359,8 @@ class LayerToggleWidget(WidgetBase):
             window.datamap,
             {{
                 layers: {json.dumps(self.layers)},
-                showOpacity: {str(self.show_opacity).lower()}
+                showOpacity: {str(self.show_opacity).lower()},
+                warnMissing: {str(self.warn_missing_layers).lower()}
             }}
         );
         

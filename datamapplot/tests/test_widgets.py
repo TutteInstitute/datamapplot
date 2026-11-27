@@ -125,6 +125,11 @@ class TestSearchWidget:
         widget = SearchWidget()
         assert 'type="search"' in widget.html
 
+    def test_filter_labels_checkbox(self):
+        """The "Filter labels" checkbox (as in legacy search) can be turned off."""
+        assert 'id="filter-labels-checkbox"' in SearchWidget().html
+        assert "filter-labels" not in SearchWidget(show_filter_labels=False).html
+
 
 class TestWidgetConfig:
     """Tests for the WidgetConfig dataclass."""
@@ -279,6 +284,18 @@ class TestWidgetsFromLegacyParams:
             title="Test", enable_search=True, logo="data:image/png;base64,test"
         )
         assert len(widgets) == 3
+
+    def test_legacy_histogram_options(self):
+        """Datetime grouping, range and click persistence reach the widget."""
+        (widget,) = widgets_from_legacy_params(
+            histogram_data=[1, 2, 3],
+            histogram_group_datetime_by="month",
+            histogram_range=(1, 2),
+            histogram_enable_click_persistence=True,
+        )
+        assert widget.histogram_group_datetime_by == "month"
+        assert widget.histogram_range == (1, 2)
+        assert widget.histogram_enable_click_persistence is True
 
 
 class TestGroupWidgetsByLocation:
@@ -719,6 +736,50 @@ class TestWidgetHtmlRendering:
         assert "top-left" in html_content
         assert "drawer-left" in html_content
         assert "bottom-right" in html_content
+
+    def test_histogram_widget_with_dates(self, simple_point_data, simple_label_data):
+        """Datetime histograms render in widget mode, binned as requested."""
+        import re
+        import pandas as pd
+        from datamapplot.interactive_rendering import render_html
+
+        dates = pd.Series(pd.date_range("2019-01-01", periods=50, freq="30D"))
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            widgets=[
+                HistogramWidget(
+                    histogram_data=dates,
+                    histogram_group_datetime_by="year",
+                    histogram_enable_click_persistence=True,
+                )
+            ],
+        )
+        widget_data = json.loads(
+            re.search(r"const widgetData = (\{.*?\});\n", html_content).group(1)
+        )
+        bins = widget_data["histograms"]["d3histogram"]["rawBinData"]
+        assert len(bins) == dates.dt.year.nunique()
+        assert bins[0]["min_value"].startswith("2019-01-01")
+        assert "enableClickPersistence: true" in html_content
+
+    def test_logo_widget_stays_in_its_stack(self, simple_point_data, simple_label_data):
+        """A logo stacks with the other bottom-right widgets instead of floating under them."""
+        import re
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            logo="https://example.com/logo.png",
+            widgets=[MiniMapWidget(), LogoWidget(logo="https://example.com/logo.png")],
+        )
+        stack = re.search(
+            r'<div class="stack bottom-right">(.*?)\n    </div>', html_content, re.S
+        ).group(1)
+        assert 'id="logo-container"' in stack and 'id="minimap-container"' in stack
+        # The legacy logo's absolute positioning must not apply to the widget.
+        assert not re.search(r"#logo-container \{\s*position: absolute", html_content)
 
 
 # ============================================================
