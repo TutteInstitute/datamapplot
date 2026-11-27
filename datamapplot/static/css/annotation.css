@@ -9,7 +9,6 @@
 /* ---- Toolbar (lives inside the drawer) ---- */
 .annotation-widget {
     padding: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
 }
 
 .annotation-toolbar {
@@ -141,7 +140,7 @@
 
 /* ---- Inline text input ---- */
 .annotation-text-input {
-    font-family: Arial, sans-serif;
+    font-family: inherit;
     border: 2px solid #1976d2;
     border-radius: 3px;
     padding: 4px 8px;

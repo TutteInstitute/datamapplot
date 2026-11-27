@@ -413,38 +413,45 @@ class TestCollectWidgetDependencies:
         assert "https://cdn.example.com/d3.js" in deps["external_js"]
 
 
-class TestTitleWidgetDarkmode:
-    """Tests for TitleWidget darkmode support."""
+class TestTitleWidgetStyle:
+    """TitleWidget inherits the plot's font and theme colours unless told otherwise."""
 
-    def test_title_widget_lightmode_default_colors(self):
-        """Test that lightmode uses dark text colors."""
-        widget = TitleWidget(title="Test", darkmode=False)
-        assert widget.title_font_color == "#000000"
-        assert widget.sub_title_font_color == "#666666"
+    def test_inherits_by_default(self):
+        """Only the sizes are set inline; font, weight and colours inherit."""
+        html = TitleWidget(title="Test", sub_title="Sub").html
+        assert 'style="font-size:36pt"' in html
+        assert 'style="font-size:18pt"' in html
+        assert "font-family" not in html and "font-weight" not in html
+        assert "color:" not in html
 
-    def test_title_widget_darkmode_default_colors(self):
-        """Test that darkmode uses light text colors."""
-        widget = TitleWidget(title="Test", darkmode=True)
-        assert widget.title_font_color == "#ffffff"
-        assert widget.sub_title_font_color == "#aaaaaa"
-
-    def test_title_widget_explicit_colors_override_darkmode(self):
-        """Test that explicit colors override darkmode defaults."""
-        widget = TitleWidget(
+    def test_explicit_settings(self):
+        html = TitleWidget(
             title="Test",
-            darkmode=True,
+            sub_title="Sub",
+            title_font_family="Cinzel",
+            title_font_weight=700,
             title_font_color="#ff0000",
             sub_title_font_color="#00ff00",
-        )
-        assert widget.title_font_color == "#ff0000"
-        assert widget.sub_title_font_color == "#00ff00"
+        ).html
+        assert "font-family:Cinzel;font-size:36pt;font-weight:700;color:#ff0000" in html
+        assert "font-family:Cinzel;font-size:18pt;color:#00ff00" in html
 
-    def test_title_widget_html_uses_correct_colors(self):
-        """Test that HTML output contains the correct color values."""
-        widget = TitleWidget(title="Test", sub_title="Sub", darkmode=True)
-        html = widget.html
-        assert "color:#ffffff" in html
-        assert "color:#aaaaaa" in html
+    def test_darkmode_is_deprecated(self):
+        """Per-widget darkmode warns (widgets follow the plot), for any widget."""
+        with pytest.warns(FutureWarning, match="darkmode parameter of TitleWidget"):
+            widget = TitleWidget(title="Test", darkmode=True)
+        assert "color:" not in widget.html
+        with pytest.warns(FutureWarning, match="darkmode parameter of MiniMapWidget"):
+            MiniMapWidget(darkmode=True)
+
+    def test_legacy_title_follows_theme(self):
+        """The legacy title keeps its look: theme font and colours, normal weight."""
+        (widget,) = widgets_from_legacy_params(
+            title="T", font_family="Cinzel", font_weight=600, title_font_color="#000000"
+        )
+        assert widget.title_font_family is None
+        assert widget.title_font_weight is None
+        assert widget.title_font_color is None
 
 
 class TestLogoWidget:
@@ -646,49 +653,22 @@ class TestWidgetHtmlRendering:
         assert "▶" in html_content  # Left drawer arrow
         assert "◀" in html_content  # Right drawer arrow
 
-    def test_title_widget_darkmode_colors_in_html(
-        self, simple_point_data, simple_label_data
+    @pytest.mark.parametrize("darkmode, color", [(True, "#ffffff"), (False, "#000000")])
+    def test_title_widget_colors_follow_plot(
+        self, simple_point_data, simple_label_data, darkmode, color
     ):
-        """Test that TitleWidget uses correct colors in darkmode."""
+        """The title takes its colour from the plot's theme, light or dark."""
         from datamapplot.interactive_rendering import render_html
-
-        widgets = [
-            TitleWidget(title="Dark Title", darkmode=True, location="top-left"),
-        ]
 
         html_content = render_html(
             simple_point_data,
             simple_label_data,
-            inline_data=True,
-            darkmode=True,
-            widgets=widgets,
+            darkmode=darkmode,
+            widgets=[TitleWidget(title="Themed Title")],
         )
-
-        # Title should have white color in darkmode
-        assert "color:#ffffff" in html_content
-        assert "Dark Title" in html_content
-
-    def test_title_widget_lightmode_colors_in_html(
-        self, simple_point_data, simple_label_data
-    ):
-        """Test that TitleWidget uses correct colors in lightmode."""
-        from datamapplot.interactive_rendering import render_html
-
-        widgets = [
-            TitleWidget(title="Light Title", darkmode=False, location="top-left"),
-        ]
-
-        html_content = render_html(
-            simple_point_data,
-            simple_label_data,
-            inline_data=True,
-            darkmode=False,
-            widgets=widgets,
-        )
-
-        # Title should have black color in lightmode
-        assert "color:#000000" in html_content
-        assert "Light Title" in html_content
+        assert f"--dmp-text-color: {color};" in html_content
+        assert "color: var(--dmp-text-color)" in html_content
+        assert "Themed Title" in html_content
 
     def test_drawer_darkmode_css_present(self, simple_point_data, simple_label_data):
         """Test that drawer darkmode CSS rules are included."""
@@ -1364,7 +1344,7 @@ class TestAnnotationWidget:
         assert widget.allow_arrows is True
         assert widget.allow_circles is True
         assert widget.allow_rectangles is True
-        assert widget.default_text_color == "#000000"
+        assert widget.default_text_color is None  # the theme text colour
         assert widget.default_text_size == 14
         assert widget.default_stroke_color == "#FF0000"
         assert widget.default_stroke_width == 2

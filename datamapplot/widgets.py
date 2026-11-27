@@ -65,6 +65,16 @@ def normalize_location(location):
     return canonical
 
 
+def _warn_widget_darkmode(widget_name, stacklevel):
+    warnings.warn(
+        f"The darkmode parameter of {widget_name} is deprecated and ignored: "
+        "widgets now follow the plot's darkmode (pass darkmode=True to "
+        "create_interactive_plot), and widget_theme can adjust their colours.",
+        FutureWarning,
+        stacklevel=stacklevel,
+    )
+
+
 class WidgetBase:
     """Base class for widgets. Widgets are modular UI components that can be added
     to the interactive plot in various locations (corners or drawers).
@@ -134,6 +144,9 @@ class WidgetBase:
             # Only set to empty list if no class-level dependencies exist
             self.dependencies = []
         # If class has dependencies attribute, it will be used via attribute lookup
+        if kwargs.pop("darkmode", None) is not None:
+            # Caller, config wrapper, subclass __init__, this __init__, helper.
+            _warn_widget_darkmode(type(self).__name__, stacklevel=5)
         self.kwargs = kwargs
 
     @property
@@ -431,6 +444,9 @@ class SelectionWidget(WidgetBase):
 class TitleWidget(WidgetBase):
     """Widget for displaying plot title and subtitle.
 
+    By default the title uses the plot's font and the theme's colours (see
+    ``widget_theme`` in :func:`~datamapplot.render_html`), at normal weight.
+
     Parameters
     ----------
     title : str
@@ -439,8 +455,9 @@ class TitleWidget(WidgetBase):
     sub_title : str, optional
         Subtitle text. Default is "".
 
-    title_font_family : str, optional
-        Font family for title. Default is "Roboto".
+    title_font_family : str or None, optional
+        Font family for the title and subtitle. Default is None (the plot's
+        font).
 
     title_font_size : int, optional
         Font size for title in points. Default is 36.
@@ -448,19 +465,18 @@ class TitleWidget(WidgetBase):
     sub_title_font_size : int, optional
         Font size for subtitle in points. Default is 18.
 
-    title_font_weight : int, optional
-        Font weight for title. Default is 600.
+    title_font_weight : int or None, optional
+        Font weight for title. Default is None (normal weight).
 
     title_font_color : str or None, optional
-        Color for title text. If None, will be set based on darkmode.
-        Default is None.
+        Color for title text. Default is None (the theme's text colour).
 
     sub_title_font_color : str or None, optional
-        Color for subtitle text. If None, will be set based on darkmode.
-        Default is None.
+        Color for subtitle text. Default is None (the theme's muted text
+        colour).
 
-    darkmode : bool, optional
-        Whether darkmode is enabled. Affects default colors. Default is False.
+    darkmode : bool or None, optional
+        Deprecated, and ignored: widgets follow the plot's ``darkmode``.
 
     **kwargs
         Additional keyword arguments passed to WidgetBase
@@ -473,18 +489,21 @@ class TitleWidget(WidgetBase):
         self,
         title,
         sub_title="",
-        title_font_family="Roboto",
+        title_font_family=None,
         title_font_size=36,
         sub_title_font_size=18,
-        title_font_weight=600,
+        title_font_weight=None,
         title_font_color=None,
         sub_title_font_color=None,
-        darkmode=False,
+        darkmode=None,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "title")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 0)
+        if darkmode is not None:
+            # Caller, config wrapper, __init__, helper.
+            _warn_widget_darkmode(type(self).__name__, stacklevel=4)
         super().__init__(**kwargs)
 
         self.title_text = title
@@ -493,41 +512,53 @@ class TitleWidget(WidgetBase):
         self.title_font_size = title_font_size
         self.sub_title_font_size = sub_title_font_size
         self.title_font_weight = title_font_weight
-        self.darkmode = darkmode
-
-        # Set colors based on darkmode if not explicitly provided
-        if title_font_color is None:
-            self.title_font_color = "#ffffff" if darkmode else "#000000"
-        else:
-            self.title_font_color = title_font_color
-
-        if sub_title_font_color is None:
-            self.sub_title_font_color = "#aaaaaa" if darkmode else "#666666"
-        else:
-            self.sub_title_font_color = sub_title_font_color
+        self.title_font_color = title_font_color
+        self.sub_title_font_color = sub_title_font_color
 
     @property
     def html(self):
+        def style(**properties):
+            css = ";".join(
+                f"{name.replace('_', '-')}:{value}"
+                for name, value in properties.items()
+                if value is not None
+            )
+            return f' style="{css}"' if css else ""
+
+        title_style = style(
+            font_family=self.title_font_family,
+            font_size=f"{self.title_font_size}pt",
+            font_weight=self.title_font_weight,
+            color=self.title_font_color,
+        )
         html = f"""
 <div id="{self.get_container_id()}" class="container-box">
-  <span
-    id="main-title"
-    style="font-family:{self.title_font_family};font-size:{self.title_font_size}pt;font-weight:{self.title_font_weight};color:{self.title_font_color}"
-  >
+  <span id="main-title" class="title-text"{title_style}>
     {self.title_text}
   </span>
 """
         if self.sub_title:
+            sub_title_style = style(
+                font_family=self.title_font_family,
+                font_size=f"{self.sub_title_font_size}pt",
+                color=self.sub_title_font_color,
+            )
             html += f"""
   <br />
-  <span
-    style="font-family:{self.title_font_family};font-size:{self.sub_title_font_size}pt;color:{self.sub_title_font_color}"
-  >
+  <span class="sub-title-text"{sub_title_style}>
     {self.sub_title}
   </span>
 """
         html += "</div>"
         return html
+
+    @property
+    def css(self):
+        return f"""
+#{self.get_container_id()} .sub-title-text {{
+  color: var(--dmp-text-muted-color);
+}}
+"""
 
 
 class SearchWidget(WidgetBase):
@@ -1671,8 +1702,9 @@ class AnnotationWidget(WidgetBase):
     allow_rectangles : bool, optional (default: True)
         Enable rectangle annotation tool
 
-    default_text_color : str, optional (default: "#000000")
-        Default color for text annotations
+    default_text_color : str or None, optional (default: None)
+        Default color for text annotations (None: the theme's text colour).
+        Text annotations use the plot's font.
 
     default_text_size : int, optional (default: 14)
         Default font size for text annotations
@@ -1712,7 +1744,7 @@ class AnnotationWidget(WidgetBase):
         allow_arrows=True,
         allow_circles=True,
         allow_rectangles=True,
-        default_text_color="#000000",
+        default_text_color=None,
         default_text_size=14,
         default_stroke_color="#FF0000",
         default_stroke_width=2,

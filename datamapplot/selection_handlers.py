@@ -1,5 +1,6 @@
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
+import json
 
 from datamapplot.config import ConfigManager
 from datamapplot.widgets import normalize_location, SelectionWidget
@@ -396,7 +397,8 @@ class WordCloud(SelectionHandlerBase):
         The height of the word cloud container. Default is 500.
 
     font_family : str, optional
-        The font family to use for the word cloud. Default is None.
+        The font family to use for the word cloud. Default is None (the plot's
+        font).
 
     stop_words : list, optional
         A list of stop words to exclude from the word cloud. Default is the English stop words from scikit-learn.
@@ -554,6 +556,7 @@ if ({self.use_idf}) {{
 function generateWordCloud(words) {{
   const width = {self.width};
   const height = {self.height};
+  const wordCloudFont = {json.dumps(self.font_family) if self.font_family else "getComputedStyle(document.body).fontFamily"};
 
   const colorScale = d3.scaleSequential(d3.interpolate{self.color_scale}).domain([{"width / 10, 0" if self.color_scale_reversed else "0, width / 10"}]);
 
@@ -563,7 +566,7 @@ function generateWordCloud(words) {{
     .words(words.map(d => ({{text: d.text, size: d.size * width / 10}})))
     .padding(1)
     .rotate(() => _ROTATIONS[~~(Math.random() * {self.n_rotations})])
-    .font("{self.font_family or 'Impact'}")
+    .font(wordCloudFont)
     .fontSize(d => d.size)
     .fontWeight(d => Math.max(300, Math.min(d.size * 9000 / width, 900)))
     .on("end", draw);
@@ -589,7 +592,7 @@ function generateWordCloud(words) {{
       .attr("text-anchor", "middle")
       .attr("fill-opacity", 0)
       .attr("font-size", 1)
-      .attr("font-family", "{self.font_family or 'Impact'}")
+      .attr("font-family", wordCloudFont)
       .text(d => d.text)
       .merge(text) // Merge enter and update selections
       .transition(t)

@@ -317,15 +317,13 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
     # Title widget
     if kwargs.get("title") is not None:
         widgets.append(
+            # The font, weight and colours come from the plot's theme, as they
+            # did for the legacy title.
             TitleWidget(
                 title=kwargs["title"],
-                sub_title=kwargs.get("sub_title", ""),
-                title_font_family=kwargs.get("font_family", "Roboto"),
+                sub_title=kwargs.get("sub_title") or "",
                 title_font_size=kwargs.get("title_font_size", 36),
                 sub_title_font_size=kwargs.get("sub_title_font_size", 18),
-                title_font_weight=kwargs.get("font_weight", 600),
-                title_font_color=kwargs.get("title_font_color", "#000000"),
-                sub_title_font_color=kwargs.get("sub_title_font_color", "#666666"),
             )
         )
 
