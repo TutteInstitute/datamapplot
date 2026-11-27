@@ -10,12 +10,12 @@ Advanced Interactive Plotting Options
 
 .. autofunction:: render_html
 
-Live Re-embedding
-=================
+Live Re-embedding Widget and Server
+===================================
 
-Lasso a subset of an interactive plot and re-run UMAP on just those points,
-live in the browser. Requires ``pynndescent`` on the server side
-(``pip install datamapplot[reembed]``).
+Select a subset of an interactive plot and re-run UMAP on just those points,
+live in the browser (see :doc:`live_reembedding`). Requires ``pynndescent`` on
+the server side (``pip install datamapplot[reembed]``).
 
 The :class:`~datamapplot.reembed_server.ReembedServer` holds the
 high-dimensional vectors and computes the kNN graph of each selection. Either

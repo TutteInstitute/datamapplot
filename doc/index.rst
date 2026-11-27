@@ -56,6 +56,7 @@ and followed by guides on basic usage, through to the more complicated options a
    selection_and_filtering
    interactive_colormaps
    widgets_and_layout
+   live_reembedding
    offline_mode
 
 .. toctree::

@@ -24,3 +24,10 @@ or use conda with conda-forge
 .. code:: bash
 
     conda install -c conda-forge datamapplot
+
+:doc:`Live re-embedding <live_reembedding>` also needs pynndescent, which the
+``reembed`` extra installs:
+
+.. code:: bash
+
+    pip install "datamapplot[reembed]"
