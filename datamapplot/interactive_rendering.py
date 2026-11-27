@@ -283,11 +283,11 @@ _TOOL_TIP_CSS = """
             font-size: 0.8em;
             font-family: {{title_font_family}};
             font-weight: {{title_font_weight}};
-            color: {{title_font_color}} !important;
-            background-color: {{title_background[:-2] + "ee"}} !important;
+            color: var(--dmp-text-color) !important;
+            background-color: var(--dmp-panel-background-opaque) !important;
             border-radius: 12px;
-            backdrop-filter: blur(6px);
-            box-shadow: 2px 3px 10px {{shadow_color}};
+            backdrop-filter: blur(calc(2 * var(--dmp-panel-blur)));
+            box-shadow: var(--dmp-panel-shadow);
             max-width: 25%;
 """
 

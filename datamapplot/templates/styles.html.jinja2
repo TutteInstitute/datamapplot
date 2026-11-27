@@ -79,10 +79,10 @@
     font-size: 0.9em;
     font-family: {{ tooltip_font_family }};
     font-weight: {{ tooltip_font_weight }};
-    color: {{ title_font_color }};
-    background-color: {{ title_background[:-2] + "ee" }};
-    backdrop-filter: blur(6px);
-    box-shadow: 0 -2px 12px {{ shadow_color }};
+    color: var(--dmp-text-color);
+    background-color: var(--dmp-panel-background-opaque);
+    backdrop-filter: blur(calc(2 * var(--dmp-panel-blur)));
+    box-shadow: var(--dmp-panel-shadow);
   }
   .tap-inspect-card.visible {
     display: block;
@@ -95,7 +95,7 @@
     min-height: 3em;
     border: none;
     background: transparent;
-    color: {{ title_font_color }};
+    color: var(--dmp-text-color);
     font-size: 1.5em;
     line-height: 1;
     cursor: pointer;
@@ -107,8 +107,8 @@
     width: 100%;
     border-radius: 0.85em;
     border: none;
-    background: {{ title_font_color }};
-    color: {{ title_background[:-2] }};
+    background: var(--dmp-accent-color);
+    color: var(--dmp-accent-text-color);
     font-family: inherit;
     font-size: 1em;
     font-weight: 600;

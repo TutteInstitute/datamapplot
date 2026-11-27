@@ -8,7 +8,7 @@
   }
   .datamapplot-progress-bar {
     width: 100%;
-    background-color: #e0e0e044;  /* Changed to a light gray */
+    background-color: var(--dmp-hover-background);
     padding: 3px;
     border-radius: 6px;
     box-shadow: inset 0 1px 3px rgba(128, 128, 128, .2);
@@ -17,12 +17,12 @@
   .datamapplot-progress-bar-fill {
     display: block;
     height: 12px;
-    background-color: #659cef;
+    background-color: var(--dmp-accent-color);
     border-radius: 4px;
     transition: width 500ms ease-in-out;
   }
   .datamapplot-progress-bar-text {
-    color: white;
+    color: var(--dmp-accent-text-color);
     text-align: center;
     line-height: 12px;
     font-size: 10px;

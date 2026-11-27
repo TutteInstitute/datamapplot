@@ -670,8 +670,8 @@ class TestWidgetHtmlRendering:
         assert "color: var(--dmp-text-color)" in html_content
         assert "Themed Title" in html_content
 
-    def test_drawer_darkmode_css_present(self, simple_point_data, simple_label_data):
-        """Test that drawer darkmode CSS rules are included."""
+    def test_drawer_follows_theme(self, simple_point_data, simple_label_data):
+        """Drawers take their colours from the widget theme, so follow darkmode."""
         from datamapplot.interactive_rendering import render_html
 
         widgets = [
@@ -686,8 +686,11 @@ class TestWidgetHtmlRendering:
             widgets=widgets,
         )
 
-        # Should include darkmode CSS rules for drawer
-        assert "body.darkmode .drawer-container" in html_content
+        import re
+
+        # Dependency CSS is minified.
+        assert re.search(r"background:\s*var\(--dmp-panel-background-opaque\)", html_content)
+        assert "--dmp-panel-background-opaque: #1c1c1cee;" in html_content
 
     def test_multiple_widgets_different_locations(
         self, simple_point_data, simple_label_data

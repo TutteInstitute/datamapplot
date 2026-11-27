@@ -2235,7 +2235,7 @@ def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
         "text_background_color": [255, 255, 255, 64] if not darkmode else [0, 0, 0, 64],
         "title_font_color": "#000000" if not darkmode else "#ffffff",
         "sub_title_font_color": "#777777",
-        "title_background": "#ffffffaa" if not darkmode else "#000000aa",
+        "title_background": "#ffffffaa" if not darkmode else "#1c1c1ccc",
         "shadow_color": "#aaaaaa44" if not darkmode else "#00000044",
         "input_background": "#ffffffdd" if not darkmode else "#000000dd",
         "input_border": "#ddddddff" if not darkmode else "#222222ff",
