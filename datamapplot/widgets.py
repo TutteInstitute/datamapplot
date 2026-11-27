@@ -387,9 +387,11 @@ class SelectionWidget(WidgetBase):
         container_id = self.get_container_id()
         return f"""
 #{container_id} .selection-widget-title {{
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: var(--dmp-heading-weight);
+    font-size: 1.1em;
     margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: var(--dmp-divider);
 }}
 #{container_id} .selection-widget-content {{
     overflow-y: auto;
@@ -1426,17 +1428,20 @@ class MiniMapWidget(WidgetBase):
     update_throttle : int, optional
         Throttle time for viewport updates in milliseconds. Default is 200.
 
-    border_color : str, optional
-        Color of the viewport indicator border. Default is "#3ba5e7".
+    border_color : str or None, optional
+        Color of the viewport indicator border. Default is None (the theme's
+        accent colour).
 
     border_width : int, optional
         Width of the viewport indicator border in pixels. Default is 2.
 
-    background_color : str, optional
-        Background color of the minimap. Default is "#f5f5f5".
+    background_color : str or None, optional
+        Background color of the minimap. Default is None (the panel
+        background, as for other widgets).
 
-    point_color : str, optional
-        Color of the data points. Default is "#666666".
+    point_color : str or None, optional
+        Color of the data points. Default is None (the theme's muted text
+        colour).
 
     point_size : int, optional
         Size of data points in pixels. Default is 2.
@@ -1454,10 +1459,10 @@ class MiniMapWidget(WidgetBase):
         width=200,
         height=150,
         update_throttle=200,
-        border_color="#3ba5e7",
+        border_color=None,
         border_width=2,
-        background_color="#f5f5f5",
-        point_color="#666666",
+        background_color=None,
+        point_color=None,
         point_size=2,
         **kwargs,
     ):
@@ -1623,7 +1628,7 @@ class RESTSearchWidget(WidgetBase):
     def html(self):
         """Return HTML container for the widget."""
         return (
-            f'<div id="{self.get_container_id()}" class="rest-search-container"></div>'
+            f'<div id="{self.get_container_id()}" class="container-box rest-search-container"></div>'
         )
 
     @property
@@ -1779,7 +1784,7 @@ class AnnotationWidget(WidgetBase):
     def html(self):
         """Return HTML container for the widget."""
         return (
-            f'<div id="{self.get_container_id()}" class="annotation-container"></div>'
+            f'<div id="{self.get_container_id()}" class="container-box annotation-container"></div>'
         )
 
     @property

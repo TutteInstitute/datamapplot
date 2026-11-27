@@ -6,14 +6,17 @@ class MiniMap {
         this.container = container;
         this.datamap = datamap;
 
+        // Unset colours follow the widget theme.
+        const theme = getComputedStyle(document.documentElement);
+        const token = (name, fallback) => theme.getPropertyValue(name).trim() || fallback;
         this.options = {
             width: options.width || 200,
             height: options.height || 150,
             updateThrottle: options.updateThrottle || 200,
-            borderColor: options.borderColor || '#3ba5e7',
+            borderColor: options.borderColor || token('--dmp-accent-color', '#3ba5e7'),
             borderWidth: options.borderWidth || 2,
-            // backgroundColor: options.backgroundColor || '#f5f5f5',
-            pointColor: options.pointColor || '#666666',
+            backgroundColor: options.backgroundColor || null,
+            pointColor: options.pointColor || token('--dmp-text-muted-color', '#666666'),
             pointSize: options.pointSize || 2,
             mirrorY: options.mirrorY || false,
             resizable: options.resizable || false,
@@ -47,8 +50,9 @@ class MiniMap {
         this.container.style.width = `${this.options.width}px`;
         this.container.style.height = `${this.options.height}px`;
         this.container.style.position = 'relative';
-        // this.container.style.background = this.options.backgroundColor;
-        this.container.style.borderRadius = '4px';
+        if (this.options.backgroundColor) {
+            this.container.style.background = this.options.backgroundColor;
+        }
         this.container.style.overflow = 'hidden';
 
         // Create canvas for rendering points

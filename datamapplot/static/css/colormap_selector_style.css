@@ -10,8 +10,8 @@
     display: flex;
     align-items: center;
     padding: 10px;
-    border: 1px solid #aaaaaa77;
-    border-radius: 8px;
+    border: var(--dmp-control-border);
+    border-radius: var(--dmp-control-radius);
     cursor: pointer;
     width: 100%;
     box-sizing: border-box;
@@ -23,14 +23,14 @@
     bottom: 100%;
     left: 0;
     right: 0;
-    border: 1px solid #aaaaaa77;
-    border-radius: 4px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    border: var(--dmp-control-border);
+    border-radius: var(--dmp-control-radius);
+    box-shadow: var(--dmp-panel-shadow);
     max-height: 500px;
     overflow-y: auto;
     display: none;
-    background-color: inherit;
-    backdrop-filter: blur(6px);
+    background-color: var(--dmp-panel-background-opaque);
+    backdrop-filter: blur(calc(2 * var(--dmp-panel-blur)));
     box-sizing: border-box;
     z-index: 101;
   }
@@ -45,7 +45,7 @@
     backdrop-filter: blur(6px);
   }
   .color-map-option:hover {
-    background-color: #77777744;
+    background-color: var(--dmp-hover-background);
     backdrop-filter: blur(6px);
   }
   .color-swatch {
@@ -105,7 +105,7 @@
   .colorbar-tick-line {
     width: 8px;
     height: 1px;
-    background: #333;
+    background: currentColor;
   }
   .colorbar-tick-label {
     font-size: 12px;

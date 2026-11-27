@@ -1202,13 +1202,14 @@ class TestMiniMapWidget:
         assert "200" in js
 
     def test_default_styling(self):
-        """Test default styling values."""
+        """Colours default to the theme (left to the browser), so they follow darkmode."""
         widget = MiniMapWidget()
-        assert widget.border_color == "#3ba5e7"
+        assert widget.border_color is None
         assert widget.border_width == 2
-        assert widget.background_color == "#f5f5f5"
-        assert widget.point_color == "#666666"
+        assert widget.background_color is None
+        assert widget.point_color is None
         assert widget.point_size == 2
+        assert "borderColor: null" in widget.javascript
 
 
 class TestRESTSearchWidget:

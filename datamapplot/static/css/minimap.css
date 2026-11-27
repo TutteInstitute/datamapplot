@@ -16,5 +16,6 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(59, 165, 231, 0.1);
+    background: var(--dmp-accent-color);
+    opacity: 0.1;
 }

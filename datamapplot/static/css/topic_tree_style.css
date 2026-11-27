@@ -32,7 +32,7 @@
 
 .topic-tree-header {
     padding: 0px 4px 4px 2em;
-    border-bottom: 1px solid #ddd;
+    border-bottom: var(--dmp-divider);
     margin-bottom: 4px;
     margin-top: -2em;
     display: flex;
@@ -41,6 +41,13 @@
     flex-direction: row;
     text-wrap: nowrap;
     overflow: hidden;
+    gap: 8px;
+}
+
+.topic-tree-header h3 {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: var(--dmp-heading-weight);
 }
 
 .nested {
@@ -60,14 +67,14 @@
 }
 
 #topic-tree-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: transparent;
 }
 #topic-tree-body::-webkit-scrollbar-thumb {
-    background: #888;
+    background: var(--dmp-hover-background);
     border-radius: 4px;
 }
 #topic-tree-body::-webkit-scrollbar-thumb:hover {
-    background: #555;
+    background: var(--dmp-text-muted-color);
 }
 
 .caret {
@@ -112,24 +119,24 @@
     content: "\25CB";
 }
 
-li {
+#topic-tree-body li {
     list-style-type: none;
     margin: 5px 0;
 }
 
 /* table of contents buttons */
 .topic-tree-btn {
-    border: none; /* Remove borders */
-    color: white; /* White text */
-    padding: 2px 4px;
-    border-radius: 5px;
-    cursor: pointer; /* Mouse pointer on hover */
-    margin-right:5px;
+    border: var(--dmp-control-border);
+    background: transparent;
+    color: inherit;
+    padding: 0px 4px;
+    border-radius: var(--dmp-control-radius);
+    cursor: pointer;
+    margin-right: 5px;
 }
 
-/* Darker background on mouse-over */
 .topic-tree-btn:hover {
-    background-color: RoyalBlue;
+    background-color: var(--dmp-hover-background);
 }
 
 /* table of contents labels */
@@ -146,14 +153,15 @@ li {
 .expand-all-btn {
     padding: 4px 8px;
     cursor: pointer;
-    border: none;
-    border-radius: 8px;
-    background: #3ba5e7;
-    color: white;
+    border: var(--dmp-control-border);
+    border-radius: var(--dmp-control-radius);
+    background: transparent;
+    color: inherit;
+    font-size: var(--dmp-small-font-size);
 }
 
 .expand-all-btn:hover {
-    text-decoration: underline;
+    background: var(--dmp-hover-background);
 }
 
 /* Highlight styling */
