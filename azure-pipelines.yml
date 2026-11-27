@@ -252,6 +252,7 @@ stages:
           condition: and(succeeded(), ne(variables['Agent.OS'], 'Windows_NT'))
           env:
             CI: 'true'
+            REEMBED_TEST_URL: 'http://127.0.0.1:8766/'
 
         - powershell: |
             if ("$(Build.Reason)" -eq "PullRequest") {
@@ -264,6 +265,7 @@ stages:
           condition: and(succeeded(), eq(variables['Agent.OS'], 'Windows_NT'))
           env:
             CI: 'true'
+            REEMBED_TEST_URL: 'http://127.0.0.1:8766/'
 
         - task: PublishTestResults@2
           displayName: 'Publish frontest test results'

@@ -53,6 +53,7 @@ cicd = [
     "pytest-cov", 
     "pytest-mpl",
     "dask[dataframe]",
+    "pynndescent>=0.5",  # re-embed server tests (the reembed extra)
     ]
 
 [project.urls]

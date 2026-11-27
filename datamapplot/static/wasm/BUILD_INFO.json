@@ -6,6 +6,7 @@
   "features": ["gpu"],
   "target": "wasm-bindgen --target no-modules",
   "wasm_bindgen": "0.2.121",
+  "rustc": "1.100.0",
   "wasm_bytes": 1104432,
   "license": "MIT (Apple Inc.), see LICENSE.embedding-atlas.txt"
 }

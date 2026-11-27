@@ -134,6 +134,7 @@ jobs:
       if: success() && runner.os != 'Windows'
       env:
         CI: 'true'
+        REEMBED_TEST_URL: 'http://127.0.0.1:8766/'
       run: |-
         if [[ "${{ github.event_name }}" == "pull_request" ]]; then
           npx playwright test ${{ matrix.browserProjects }} --grep-invert @slow
@@ -146,6 +147,7 @@ jobs:
       if: success() && runner.os == 'Windows'
       env:
         CI: 'true'
+        REEMBED_TEST_URL: 'http://127.0.0.1:8766/'
       run: |-
         if ("${{ github.event_name }}" -eq "pull_request") {
           npx playwright test ${{ matrix.browserProjects }} --grep-invert '@slow'

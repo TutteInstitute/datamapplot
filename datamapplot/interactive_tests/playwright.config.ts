@@ -4,6 +4,18 @@ import path from 'path';
 const htmlDir = path.resolve(__dirname, '../tests/html');
 const projDir = path.resolve(__dirname, '../..');
 
+// The re-embed tests (tests/reembed.spec.ts) need a Python re-embed server with
+// datamapplot and pynndescent installed; it is started when REEMBED_TEST_URL is
+// set (as in CI), using uv.
+const reembedUrl = process.env.REEMBED_TEST_URL;
+const reembedServer = reembedUrl ? [{
+  command: `uv run python reembed_test_server.py --port ${new URL(reembedUrl).port}`,
+  url: new URL('api/info', reembedUrl).href,
+  reuseExistingServer: true,
+  stdout: 'pipe' as const,
+  timeout: 300000,
+}] : [];
+
 console.log(`Resolved htmlDir: ${htmlDir}`);
 console.log(`Resolved htmlDir: ${projDir}`);
 
@@ -62,12 +74,12 @@ export default defineConfig({
       grep: /^(?!.*@slow)/,  // Skip tests tagged with @slow
     },
   ],
-  webServer: {
+  webServer: [{
     command: `python -m http.server 8000 -d ${htmlDir}`,
     url: 'http://localhost:8000',
     reuseExistingServer: true,
     timeout: 120000
-  },
+  }, ...reembedServer],
   workers: process.env.CI ? 1 : undefined, // Run tests sequentially in CI
   reporter: [['junit', { outputFile: `${projDir}/test-results/e2e-junit-results.xml` }], ['html', { open: 'never' }]],
 });

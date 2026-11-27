@@ -74,13 +74,13 @@ installed where the Jupyter server runs (the widget then uses
 """
 
 import contextlib
-import errno
 import http.server
 import json
 import os
 import secrets
 import socketserver
 import struct
+import sys
 import threading
 import time
 import warnings
@@ -884,8 +884,9 @@ class ReembedServer:
         self._start_background()
         try:
             self._httpd = _ThreadingServer((host, 8765 if port is None else port), _make_handler(self))
-        except OSError as error:
-            if port is not None or error.errno != errno.EADDRINUSE:
+        except OSError:
+            # In use, or (on Windows) in a reserved port range.
+            if port is not None:
                 raise
             self._httpd = _ThreadingServer((host, 0), _make_handler(self))
         self._log(f"serving at {self.url}")
@@ -922,7 +923,8 @@ class ReembedServer:
 
 class _ThreadingServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # On Windows SO_REUSEADDR lets a second server bind a port in use.
+    allow_reuse_address = sys.platform != "win32"
 
 
 def _make_handler(server):

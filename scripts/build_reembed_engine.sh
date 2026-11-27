@@ -11,15 +11,24 @@
 # Requirements: Rust with the wasm32-unknown-unknown target and
 # wasm-bindgen-cli 0.2.121 (`cargo install wasm-bindgen-cli --version 0.2.121`).
 #
-#   EMBEDDING_ATLAS=/path/to/embedding-atlas scripts/build_reembed_engine.sh
+#   EMBEDDING_ATLAS=/path/to/embedding-atlas scripts/build_reembed_engine.sh [--check]
+#
+# With --check, nothing is vendored: the engine is built from the checkout and
+# compared with the vendored files (the same commit and toolchain reproduce
+# them byte for byte; see BUILD_INFO.json for the ones used).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
 EA="${EMBEDDING_ATLAS:-$REPO/../embedding-atlas}"
 BINDGEN="${WASM_BINDGEN:-$(command -v wasm-bindgen || echo "$HOME/.cargo/bin/wasm-bindgen")}"
-OUT="$REPO/datamapplot/static/wasm"
-TARGET_DIR="$EA/target-datamapplot"
+VENDORED="$REPO/datamapplot/static/wasm"
+OUT="$VENDORED"
+TARGET_DIR="${ENGINE_TARGET_DIR:-$EA/target-datamapplot}"
+CHECK=0
+if [ "${1:-}" = "--check" ]; then
+  CHECK=1
+fi
 
 "$BINDGEN" --version | grep -q "0.2.121" || { echo "wasm-bindgen 0.2.121 required" >&2; exit 1; }
 
@@ -28,6 +37,9 @@ TARGET_DIR="$EA/target-datamapplot"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+if [ "$CHECK" = 1 ]; then
+  OUT="$TMP/vendor"
+fi
 cp "$TARGET_DIR/wasm32-unknown-unknown/release/umap_wasm.wasm" "$TMP/umap_engine.wasm"
 "$BINDGEN" "$TMP/umap_engine.wasm" --target no-modules --no-typescript \
   --remove-name-section --remove-producers-section --out-dir "$TMP/out"
@@ -49,8 +61,22 @@ cat > "$OUT/BUILD_INFO.json" <<EOF
   "features": ["gpu"],
   "target": "wasm-bindgen --target no-modules",
   "wasm_bindgen": "$("$BINDGEN" --version | awk '{print $2}')",
+  "rustc": "$(cd "$EA/packages/umap/umap-wasm" && rustc --version | awk '{print $2}')",
   "wasm_bytes": $(stat -c %s "$TMP/out/umap_engine_bg.wasm"),
   "license": "MIT (Apple Inc.), see LICENSE.embedding-atlas.txt"
 }
 EOF
+if [ "$CHECK" = 1 ]; then
+  status=0
+  for f in umap_engine.js umap_engine_bg.wasm.gz LICENSE.embedding-atlas.txt; do
+    if cmp -s "$OUT/$f" "$VENDORED/$f"; then
+      echo "same: $f"
+    else
+      echo "DIFFERENT: $f" >&2
+      status=1
+    fi
+  done
+  [ "$status" = 0 ] && echo "The vendored engine matches a build of $COMMIT."
+  exit "$status"
+fi
 ls -la "$OUT"

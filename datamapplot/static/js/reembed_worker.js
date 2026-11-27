@@ -162,7 +162,7 @@ async function fetchGraph(request, ids, P) {
   const tDone = performance.now();
   // Upload and server times are measured by the server; "other" is latency
   // plus preparing and decoding here.
-  const net = performance.getEntriesByName(resp.url).pop();
+  const net = performance.getEntriesByName ? performance.getEntriesByName(resp.url).pop() : null;
   const timing = {
     n,
     startedAt: performance.timeOrigin + t0,
