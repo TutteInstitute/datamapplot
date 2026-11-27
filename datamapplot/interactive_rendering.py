@@ -55,6 +55,7 @@ from datamapplot.interactive_helpers import (
     compute_collision_priority,
     compute_label_scaling,
     get_style_config,
+    get_widget_theme,
     get_label_text_color,
     prepare_hover_data,
     prepare_edge_bundle_data,
@@ -532,6 +533,7 @@ def render_html(
     widget_layout=None,
     default_widget_config=None,
     use_widgets=None,
+    widget_theme=None,
     enable_hex_density=False,
     hex_density_num_zoom_levels=6,
     hex_density_min_count=4,
@@ -1008,6 +1010,41 @@ def render_html(
         uses all available CPUs. Set to ``1`` to disable parallelism
         (useful for debugging).
 
+    widgets: WidgetBase, list of WidgetBase or None (optional, default=None)
+        Widgets to add to the plot (see :mod:`datamapplot.widgets`), each placed
+        in a corner or a drawer by its ``location`` and ``order``.
+
+    widget_layout: dict or None (optional, default=None)
+        Placement overrides for widgets, keyed by widget id, as
+        :class:`~datamapplot.WidgetConfig` objects or dicts.
+
+    default_widget_config: dict, str, pathlib.Path or None (optional, default=None)
+        A default widget layout, as a dict or the path of a JSON file; widgets
+        it names are created if not given in ``widgets``.
+
+    use_widgets: bool or None (optional, default=None)
+        Whether to build the plot's interface from widgets. With None, widgets
+        are used if ``widgets``, ``widget_layout`` or ``default_widget_config``
+        is given (or a selection handler has widgets); otherwise the legacy
+        parameters (``title``, ``enable_search`` and so on) build it directly.
+
+    widget_theme: dict or None (optional, default=None)
+        Overrides of the look shared by all widgets. By default widgets use the
+        plot's ``font_family`` and colours that follow ``darkmode``. Keys are
+        settings and values are CSS values, for example
+        ``{"accent_color": "#e15759", "panel_radius": "8px"}``. The settings are
+        ``font_family``, ``text_color``, ``text_muted_color``,
+        ``panel_background``, ``panel_background_opaque`` (for drawers and
+        dropdowns), ``panel_blur``, ``panel_shadow``, ``panel_radius``,
+        ``panel_padding``, ``panel_margin``, ``input_background``,
+        ``input_border``, ``input_focus_border``, ``control_border``,
+        ``control_radius``, ``hover_background``, ``divider``,
+        ``accent_color`` (for selected and active controls),
+        ``accent_text_color``, ``danger_color``, ``heading_weight`` and
+        ``small_font_size``. Each is also available to custom CSS as a CSS
+        custom property, ``--dmp-`` followed by the setting with dashes (for
+        example ``var(--dmp-accent-color)``).
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -1272,6 +1309,7 @@ def render_html(
         else style_config["page_background_color"]
     )
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
+    widget_theme_vars = get_widget_theme(style_config, font_family, widget_theme)
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1437,6 +1475,12 @@ def render_html(
         other_font_families = font_families_from_widgets(all_widgets)
     else:
         other_font_families = []
+    if widget_theme and widget_theme.get("font_family"):
+        other_font_families.append(widget_theme["font_family"])
+    # The main font is embedded anyway.
+    other_font_families = [
+        family for family in dict.fromkeys(other_font_families) if family != font_family
+    ]
 
     # Determine if drawers are enabled (for dependency loading)
     enable_drawers = (
@@ -1635,6 +1679,7 @@ def render_html(
         drawer_enabled=drawer_enabled,
         enable_drawers=enable_drawers,
         darkmode=darkmode,
+        widget_theme_vars=widget_theme_vars,
         widget_data=encoded_widget_data,
         loading_image=LOADING_IMAGE,
         **dependencies_ctx,

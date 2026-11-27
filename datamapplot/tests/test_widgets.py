@@ -2288,3 +2288,54 @@ class TestResizableSystem:
         js = DataTable(resizable=True).javascript
         assert "addEventListener('widgetresize', fitTableToContainer)" in js
         assert "data-table-container-content" in js
+
+
+class TestWidgetTheme:
+    """The theme shared by widgets: CSS custom properties from the plot's settings."""
+
+    def test_follows_plot_settings(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        light = get_widget_theme(get_style_config(False), "Playfair Display")
+        dark = get_widget_theme(get_style_config(True), "Playfair Display")
+        assert light["--dmp-font-family"] == '"Playfair Display"'
+        assert light["--dmp-text-color"] == "#000000"
+        assert dark["--dmp-text-color"] == "#ffffff"
+        assert dark["--dmp-panel-background"] != light["--dmp-panel-background"]
+
+    def test_overrides(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        theme = get_widget_theme(
+            get_style_config(False),
+            "Roboto",
+            {"accent_color": "#e15759", "panel_background": "#202020cc", "panel_radius": 4},
+        )
+        assert theme["--dmp-accent-color"] == "#e15759"
+        assert theme["--dmp-panel-radius"] == "4"
+        # Drawers and dropdowns follow an overridden panel background.
+        assert theme["--dmp-panel-background-opaque"] == "#202020ee"
+
+    def test_unknown_setting(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        with pytest.raises(ValueError, match="accent.*Valid settings are"):
+            get_widget_theme(get_style_config(False), "Roboto", {"accent": "red"})
+
+    def test_rendered_on_root(self):
+        import re
+        import pandas as pd
+        from datamapplot.interactive_rendering import render_html
+
+        points = pd.DataFrame(
+            {"x": [0.0, 1.0], "y": [0.0, 1.0], "r": [0, 0], "g": [0, 0], "b": [0, 0],
+             "a": [255, 255], "hover_text": ["a", "b"]}
+        ).astype({c: "uint8" for c in "rgba"})
+        labels = pd.DataFrame(
+            {"x": [0.5], "y": [0.5], "r": [0], "g": [0], "b": [0], "a": [255],
+             "label": ["L"], "size": [10.0]}
+        ).astype({c: "uint8" for c in "rgba"})
+        html = render_html(points, labels, widget_theme={"accent_color": "#e15759"})
+        root = re.search(r":root \{(.*?)\}", html, re.S).group(1)
+        assert "--dmp-accent-color: #e15759;" in root
+        assert "font-family: var(--dmp-font-family)" in html

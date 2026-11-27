@@ -13,6 +13,7 @@ import base64
 import gzip
 import io
 import json
+import re
 import warnings
 from collections import defaultdict
 from collections.abc import Iterable
@@ -2241,6 +2242,78 @@ def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
         "page_background_color": "#ffffff" if not darkmode else "#000000",
         "text_outline_color": text_outline_color,
     }
+
+
+def get_widget_theme(style_config, font_family, widget_theme=None):
+    """Theme settings shared by all widgets, as CSS custom properties.
+
+    Every widget style refers to these properties (``--dmp-text-color`` and so
+    on), so widgets match each other and the plot, in light or dark mode.
+
+    Parameters
+    ----------
+    style_config : dict
+        The plot's style configuration, from :func:`get_style_config`.
+    font_family : str
+        The plot's font family.
+    widget_theme : dict or None
+        Overrides of the default settings, keyed by setting name (see
+        ``render_html``); values are CSS values.
+
+    Returns
+    -------
+    dict
+        CSS custom property names (``"--dmp-..."``) mapped to their values.
+    """
+    if "," not in font_family and not font_family.strip().startswith(("'", '"')):
+        font_family = f'"{font_family}"'
+    theme = {
+        "font_family": font_family,
+        "text_color": style_config["title_font_color"],
+        "text_muted_color": style_config["sub_title_font_color"],
+        "panel_background": style_config["title_background"],
+        "panel_background_opaque": _more_opaque(style_config["title_background"]),
+        "panel_blur": "3px",
+        "panel_shadow": f"2px 3px 10px {style_config['shadow_color']}",
+        "panel_radius": "16px",
+        "panel_padding": "12px",
+        "panel_margin": "8px 16px",
+        "input_background": style_config["input_background"],
+        "input_border": "2px inset #77777744",
+        "input_focus_border": "2px inset #555555",
+        "control_border": "1px solid #aaaaaa77",
+        "control_radius": "8px",
+        "hover_background": "#77777744",
+        "divider": "1px solid #aaaaaa44",
+        "accent_color": "#3ba5e7",
+        "accent_text_color": "#ffffff",
+        "danger_color": "#e15759",
+        "heading_weight": "600",
+        "small_font_size": "0.8em",
+    }
+    if widget_theme:
+        unknown = sorted(set(widget_theme) - set(theme))
+        if unknown:
+            raise ValueError(
+                f"Unknown widget_theme setting(s): {', '.join(unknown)}. "
+                f"Valid settings are: {', '.join(theme)}."
+            )
+        overrides = {
+            key: str(value) for key, value in widget_theme.items() if value is not None
+        }
+        if "panel_background" in overrides and "panel_background_opaque" not in overrides:
+            overrides["panel_background_opaque"] = _more_opaque(
+                overrides["panel_background"]
+            )
+        theme.update(overrides)
+    return {f"--dmp-{key.replace('_', '-')}": value for key, value in theme.items()}
+
+
+def _more_opaque(color):
+    """A #rrggbbaa (or #rrggbb) colour with alpha ee; other colours unchanged."""
+    if re.fullmatch(r"#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?", color):
+        return color[:7] + "ee"
+    return color
 
 
 def get_label_text_color(color_label_text, darkmode):
