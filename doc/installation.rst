@@ -25,8 +25,9 @@ or use conda with conda-forge
 
     conda install -c conda-forge datamapplot
 
-:doc:`Live re-embedding <live_reembedding>` also needs pynndescent, which the
-``reembed`` extra installs:
+If you want to use :doc:`live re-embedding <live_reembedding>` you will also
+need pynndescent, which you can install along with DataMapPlot using the
+``reembed`` extra:
 
 .. code:: bash
 
