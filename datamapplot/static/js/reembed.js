@@ -468,9 +468,11 @@ const ReembedWidget = (() => {
       this.lineColors = this._outlines(this.lineBuf.next(), n, () => 1);
       this.rgba = gather(this._baseColors(), level.ids, 4);
       this.colorsChanged = false;
-      this.alpha = new Float32Array(n).fill(1);
+      // Faded like the map shows its selection (e.g. a search still active).
+      const state = this.dm.getPointSelectionState();
+      this.selTarget = Float32Array.from(level.ids, (g) => selectionFactor(state[g]));
+      this.alpha = this.selTarget.slice();
       this.visTarget = new Float32Array(n).fill(1);
-      this.selTarget = new Float32Array(n).fill(1);
       this.alphaTween = null;
       this.sampleFloor = 0;
       this.floorTween = null;
@@ -494,6 +496,20 @@ const ReembedWidget = (() => {
         out[4 * i + 3] = Math.round(a * visibility(i));
       }
       return out;
+    }
+
+    /**
+     * Colours and outlines of `parent`'s points as a ghost layer: faded like the map
+     * shows them for its selection, and hidden for the points in `exclude`.
+     */
+    _ghostStyle(parent, exclude) {
+      const state = this.dm.getPointSelectionState();
+      const rgba = new Uint8Array(parent.ids ? gather(this._baseColors(), parent.ids, 4) : this._baseColors());
+      const vis = new Float32Array(parent.n);
+      for (let i = 0; i < parent.n; i++) vis[i] = selectionFactor(state[parent.ids ? parent.ids[i] : i]);
+      for (const i of exclude) vis[i] = 0;
+      for (let i = 0; i < parent.n; i++) rgba[4 * i + 3] = Math.round(rgba[4 * i + 3] * vis[i]);
+      return { rgba, lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => vis[i]) };
     }
 
     _scatter(id, n, positions, colors, radii, { rs, minPx, opacity = 1, pickable = false, version = 0, lines }) {
@@ -559,14 +575,15 @@ const ReembedWidget = (() => {
       if (!this.selectionDirty) return;
       this.selectionDirty = false;
       const level = this._root() && this.current();
-      const lasso = this.dm.hasLassoSelection();
+      // Any selection counts (lasso, search, legend, groups, histogram, combined as the map
+      // combines them), restricted to the points shown.
       const selected = this.dm.getSelectedIndices();
-      if (!level.ids) {
-        this.selectionCount = lasso ? selected.size : 0;
-      } else {
-        let count = 0;
-        if (lasso) for (const g of selected) if (level.local[g] >= 0) count++;
-        this.selectionCount = count;
+      let count = 0;
+      if (!level.ids) count = selected.size;
+      else for (const g of selected) if (level.local[g] >= 0) count++;
+      // Selecting everything shown (e.g. a search still active in its re-embedding) would change nothing.
+      this.selectionCount = count < level.n ? count : 0;
+      if (level.ids) {
         const state = this.dm.getPointSelectionState();
         for (let i = 0; i < level.n; i++) this.selTarget[i] = selectionFactor(state[level.ids[i]]);
         this._retargetAlpha(T.SEL_MS);
@@ -699,13 +716,7 @@ const ReembedWidget = (() => {
       const k1 = rpxTarget / rMed;
 
       // The parent's other points become a ghost layer that shrinks and fades out.
-      const base = parent.ids ? this.colors : this._baseColors();
-      const ghostRgba = new Uint8Array(base);
-      if (!parent.ids) {
-        const state = dm.getPointSelectionState();
-        for (let i = 0; i < root.n; i++) ghostRgba[4 * i + 3] = Math.round(ghostRgba[4 * i + 3] * selectionFactor(state[i]));
-      }
-      for (const i of parentSel) ghostRgba[4 * i + 3] = 0;
+      const ghostStyle = this._ghostStyle(parent, parentSel);
       const ghostRadii = parent.ids ? parent.radii : root.radii;
       const sampleFloorPx = (m) => Math.min(Math.max(T.MAX_PX, rpxTarget), rpxTarget * Math.sqrt(n / m));
       const local = new Int32Array(root.n).fill(-1);
@@ -723,8 +734,7 @@ const ReembedWidget = (() => {
       this.minPx = minPx0;
       this.opacity = opacity0;
       this.ghost = {
-        n: parent.n, pos: parentPos.slice(), rgba: ghostRgba, radii: ghostRadii, rs: this.rs, minPx: minPx0, opacity: opacity0,
-        lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
+        n: parent.n, pos: parentPos.slice(), radii: ghostRadii, rs: this.rs, minPx: minPx0, opacity: opacity0, ...ghostStyle,
       };
       this._lassoFreeze();
       this.mode = "entering";
@@ -1212,10 +1222,11 @@ const ReembedWidget = (() => {
         ghostStart[i] = selTween.cx + (ghostEnd[i] - selTween.cx) / selTween.k;
         ghostStart[i + 1] = selTween.cy + (ghostEnd[i + 1] - selTween.cy) / selTween.k;
       }
-      const ghostRgba = new Uint8Array(parent.ids ? gather(this._baseColors(), parent.ids, 4) : this._baseColors());
-      for (const i of child.parentSel) ghostRgba[4 * i + 3] = 0;
       const ghostTween = followTween(ghostStart, selTween);
+      // Other selections (search, legend, ...) stay: the returning points are faded as the parent will show them.
       this._clearLasso();
+      const ghostStyle = this._ghostStyle(parent, child.parentSel);
+      const state = dm.getPointSelectionState();
       this._lassoFreeze();
       let minPxEnd = dm.getPointStyle().radiusMinPixels;
       let opacityEnd = 1;
@@ -1231,14 +1242,14 @@ const ReembedWidget = (() => {
       this.sampleFloor = 0;
       this.floorTween = null;
       this.ghost = {
-        n: parent.n, pos: ghostStart.slice(), rgba: ghostRgba, radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0,
-        lines: this._outlines(new Uint8Array(4 * parent.n), parent.n, (i) => (ghostRgba[4 * i + 3] > 0 ? 1 : 0)),
+        n: parent.n, pos: ghostStart.slice(), radii: parent.ids ? parent.radii : root.radii, rs: 0, minPx: 0, opacity: 0, ...ghostStyle,
       };
       // The shown labels fade out; a re-embedded parent's labels fade in on its returning points.
       this.ghostLabels = parent.ids ? { items: this._levelLabels(parent), opacity: 0 } : null;
       const labelOpacity0 = this.labels ? this.labels.opacity : 0;
       this.visTarget.fill(1);
-      this.selTarget.fill(1);
+      for (let i = 0; i < child.n; i++) this.selTarget[i] = selectionFactor(state[child.ids[i]]);
+      this.selectionDirty = false;  // just synced (clearing the lasso flagged it)
       this._retargetAlpha(T.BACK_MS);
       this.mode = "back";
       this.autofit = false;
@@ -1285,6 +1296,7 @@ const ReembedWidget = (() => {
       this.disp = null;
       this.labels = null;
       this.mode = "idle";
+      this.selectionDirty = true;  // count the map's (remaining) selection again
       Object.assign(this.status, { phase: "", error: null, epoch: 0, nEpochs: 0 });
       dm.setOverlayLayers(OWNER, []);
       dm.setBaseLayerDisplay({ points: true, others: 0 });
@@ -1417,7 +1429,8 @@ const ReembedWidget = (() => {
               <input class="reembed-slider reembed-repulsion" type="range" min="0.1" max="3" step="0.05" value="${c.repulsion_strength}">
               <span class="reembed-row-value"></span></div>
           </details>
-          <div class="reembed-hint">Hold Shift and drag to lasso points, then Re-embed.
+          <div class="reembed-hint">Select points (hold Shift and drag to lasso them, or search,
+            click a legend entry, …), then Re-embed.
             Changing min_dist, spread or repulsion re-optimizes the current layout.</div>
         </div>`;
       const q = (s) => this.container.querySelector(s);

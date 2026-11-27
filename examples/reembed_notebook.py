@@ -2,13 +2,13 @@
 Live re-embedding in a notebook
 -------------------------------
 
-Re-run UMAP on a lasso selection of a map shown inline in a Jupyter notebook.
+Re-run UMAP on a selection of a map shown inline in a Jupyter notebook.
 
 The :class:`~datamapplot.reembed_server.ReembedServer` runs in the notebook's
 kernel, in a background thread, and computes the k-nearest-neighbour graph of
 each selection; the plot is shown inline as usual, with a
 :class:`~datamapplot.ReembedWidget` given the server. Hold Shift and drag to
-lasso a region, then press "Re-embed".
+lasso a region, or search, then press "Re-embed".
 
 The widget finds the server wherever the notebook runs. If the browser runs on
 the same machine as the kernel, it connects directly. If Jupyter runs elsewhere
@@ -49,7 +49,7 @@ datamapplot.create_interactive_plot(
     data_map,
     *topic_layers,
     hover_text=newsgroups["post"].str.strip().str.slice(0, 200).values,
-    widgets=[datamapplot.ReembedWidget(server=server)],
+    widgets=[datamapplot.SearchWidget(), datamapplot.ReembedWidget(server=server)],
 )
 
 # %%

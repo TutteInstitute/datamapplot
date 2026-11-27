@@ -1,10 +1,11 @@
 """
-Live re-embedding of a lasso selection
---------------------------------------
+Live re-embedding of a selection
+--------------------------------
 
 Re-run UMAP in the browser on just the points you select.
 
-Hold Shift and drag to lasso a region of the 20 Newsgroups map, then press
+Hold Shift and drag to lasso a region of the 20 Newsgroups map (or search for
+a word: its posts are usually scattered over the map), then press
 "Re-embed": the rest of the map fades away, the selection zooms to fill the
 view, and UMAP re-optimizes the layout of just those points, starting from
 where they are now, with every epoch animated. Topic labels whose posts are all
@@ -54,8 +55,9 @@ if __name__ == "__main__":
         widgets=[
             datamapplot.TitleWidget(
                 title="20 Newsgroups",
-                sub_title="Shift-drag to lasso a region, then Re-embed",
+                sub_title="Lasso a region (Shift-drag) or search, then Re-embed",
             ),
+            datamapplot.SearchWidget(),
             datamapplot.ReembedWidget(server=server),
             datamapplot.ColormapSelectorWidget(
                 colormaps={"Newsgroup": newsgroups["newsgroup"].values}

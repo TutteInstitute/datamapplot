@@ -1618,13 +1618,20 @@ def _reembed_engine_assets():
 
 
 class ReembedWidget(WidgetBase):
-    """Re-run UMAP live in the browser on a lasso-selected subset of the map.
+    """Re-run UMAP live in the browser on a selected subset of the map.
 
-    Select points with the lasso (hold Shift and drag), then press
-    "Re-embed": the other points fade out, the selection zooms to fill the
-    view, and UMAP is re-optimized on just the selected points, starting from
-    their current layout, with every epoch animated. Re-embeds can be nested,
-    and "Back" animates out again.
+    Select points, then press "Re-embed": the other points fade out, the
+    selection zooms to fill the view, and UMAP is re-optimized on just the
+    selected points, starting from their current layout, with every epoch
+    animated. Re-embeds can be nested, and "Back" animates out again.
+
+    Any selection on the map can be re-embedded: a lasso (hold Shift and
+    drag), search results (``SearchWidget``), a legend entry
+    (``ColormapSelectorWidget``), a saved selection group
+    (``SelectionControlWidget``) or a histogram range, and combinations of
+    them (as the map combines them). The lasso is cleared once its points are
+    re-embedded; other selections stay active, so their points stay
+    highlighted after "Back".
 
     The k-nearest-neighbour graph of each selection is computed by a
     :class:`datamapplot.reembed_server.ReembedServer` holding the

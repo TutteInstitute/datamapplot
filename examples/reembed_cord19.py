@@ -2,10 +2,11 @@
 Live re-embedding at scale: CORD-19
 -----------------------------------
 
-Re-run UMAP in the browser on a lasso selection of the 517,229 paper CORD-19
-data map.
+Re-run UMAP in the browser on a selection of the 517,229 paper CORD-19 data
+map.
 
-Hold Shift and drag to lasso a region, then press "Re-embed": the rest of the
+Hold Shift and drag to lasso a region, or search the titles, then press
+"Re-embed": the rest of the
 map fades away, the selection zooms to fill the view, and UMAP re-optimizes the
 layout of just those points with every epoch animated. Very large selections
 first animate a random sample, then place the remaining points next to their
@@ -102,8 +103,9 @@ if __name__ == "__main__":
         widgets=[
             datamapplot.TitleWidget(
                 title="CORD-19 Data Map",
-                sub_title="Shift-drag to lasso a region, then Re-embed",
+                sub_title="Lasso a region (Shift-drag) or search, then Re-embed",
             ),
+            datamapplot.SearchWidget(),
             datamapplot.ReembedWidget(server=server),
         ],
     )

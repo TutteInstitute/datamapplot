@@ -3,7 +3,7 @@
 Builds a 20 Newsgroups data map with a ReembedWidget, serves it from a
 ReembedServer and drives headless Chromium through lasso -> re-embed ->
 nested re-embed -> back -> back, checking for console errors and that the
-original map is restored exactly.
+original map is restored exactly; then re-embeds search results.
 
     python scripts/reembed_e2e.py [--data ng20.parquet] [--browser firefox] [--headed]
         [--engine cpu] [--subsample] [--slow-link KB_PER_S] [--density] [--shots DIR] [--no-minify]
@@ -214,7 +214,8 @@ def main():
         widget_args = {"server_url": f"http://127.0.0.1:{proxy_port}", "refine_epochs": 60}
     plot = datamapplot.create_interactive_plot(
         data_map, *labels, hover_text=hover, minify_deps=not args.no_minify, enable_density_overview=args.density,
-        widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.ReembedWidget(engine=args.engine, **widget_args)],
+        widgets=[datamapplot.TitleWidget(title="20 Newsgroups"), datamapplot.SearchWidget(),
+                 datamapplot.ReembedWidget(engine=args.engine, **widget_args)],
     )
     server.serve_figure(plot)
     while not server.global_graph_ready:
@@ -482,12 +483,48 @@ def main():
         check(s4["layers"] == s0["layers"], f"root: layers and opacities restored")
         check(all(abs(s4["view"][k] - s0["view"][k]) < 1e-6 for k in ("longitude", "latitude", "zoom")), "root: camera restored")
 
-        # Back while the kNN request is still in flight must not leave a worker behind.
-        page.evaluate("""() => {
-            const fetch0 = window.fetch;
-            window.fetch = (...a) => new Promise((r) => setTimeout(r, 1800)).then(() => fetch0(...a));
-            window.__restoreFetch = () => { window.fetch = fetch0; };
+        # A non-lasso selection: search results, scattered over the map.
+        searchable = [h.lower() for h in hover]
+        term = next(t for t in ("windows", "god", "car", "space") if 300 <= sum(t in h for h in searchable) <= 3000)
+        expected = sum(term in h for h in searchable)
+        page.fill("#text-search", term)
+        page.wait_for_function(f"window.__reembed.ctl().selectionCount === {expected}", timeout=10000)
+        page.click(".reembed-go")
+        page.wait_for_function("window.__reembed.state().phase === 'done' || !!window.__reembed.state().error", timeout=120000)
+        page.wait_for_function("window.__reembed.state().mode === 'idle'", timeout=10000)
+        s5 = state()
+        print(f"search {term!r}: re-embedded {expected} points; status: {s5['statusText']}")
+        check(not s5["error"] and s5["depth"] == 1 and page.evaluate("window.__reembed.ctl().current().n") == expected,
+              f"search: re-embedded the {expected} results")
+        check(page.evaluate("window.datamap.getSelectedIndices().size") == expected and page.input_value("#text-search") == term
+              and s5["selection"] == 0 and page.is_disabled(".reembed-go"),
+              "search: stays active; Re-embed disabled while it selects everything shown")
+        page.evaluate("window.__reembed.lassoNear(0.3)")
+        page.wait_for_timeout(150)
+        within = state()["selection"]
+        check(0 < within < expected and not page.is_disabled(".reembed-go"), f"search: a lasso within selects {within} of them")
+        page.evaluate("window.datamap.clearLassoSelection()")
+        page.click(".reembed-back")
+        # The returning map's points are faded as the map shows the search (non-results hidden).
+        hidden = page.evaluate("""() => {
+            const ctl = window.__reembed.ctl(), state = window.datamap.getPointSelectionState();
+            let shown = 0;
+            for (let i = 0; i < state.length; i++) if (state[i] < 0 && ctl.ghost.rgba[4 * i + 3] > 0) shown++;
+            return shown === 0;
         }""")
+        page.wait_for_function("window.__reembed.state().depth === 0 && window.__reembed.state().mode === 'idle'", timeout=30000)
+        try:  # recounted on the next frame
+            page.wait_for_function(f"window.__reembed.ctl().selectionCount === {expected}", timeout=5000)
+            recounted = True
+        except Exception:
+            recounted = False
+        check(hidden and recounted, "search: back to the map, results still selected and re-embeddable")
+        page.fill("#text-search", "")
+        page.wait_for_function("window.__reembed.ctl().selectionCount === 0", timeout=10000)
+
+        # Back while the kNN request is still in flight must not leave a worker behind.
+        compute = server.reembed_payload
+        server.reembed_payload = lambda *a, **k: (time.sleep(1.8), compute(*a, **k))[1]
         page.evaluate("window.__reembed.lassoNear(0.1)")
         page.wait_for_timeout(150)
         page.click(".reembed-go")
@@ -496,7 +533,7 @@ def main():
         page.wait_for_function("window.__reembed.state().depth === 0 && !window.__reembed.state().transition", timeout=10000)
         page.wait_for_timeout(2500)
         check(page.evaluate("window.__reembed.ctl().worker === null && window.__reembed.ctl().holdWorker === null"), "back during request: no orphaned worker")
-        page.evaluate("window.__restoreFetch()")
+        server.reembed_payload = compute
         browser.close()
 
     server.stop()
