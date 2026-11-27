@@ -3,6 +3,7 @@ import gzip
 import html
 import io
 import os
+import sys
 import warnings
 import zipfile
 import json
@@ -229,6 +230,20 @@ _TEMPLATE_DIRS = [
     str(files("datamapplot") / "templates"),  # New modular templates
     str(files("datamapplot")),  # Legacy template location
 ]
+
+
+def _caller_stacklevel():
+    """The warnings stacklevel of the first caller outside datamapplot (for a
+    warning issued by the function calling this one)."""
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    tests_dir = os.path.join(package_dir, "tests")
+    frame, level = sys._getframe(1), 1
+    while frame is not None:
+        filename = os.path.abspath(frame.f_code.co_filename)
+        if not filename.startswith(package_dir) or filename.startswith(tests_dir):
+            break
+        frame, level = frame.f_back, level + 1
+    return level
 
 
 def _collect_handler_widgets(selection_handler):
@@ -532,7 +547,7 @@ def render_html(
     widgets=None,
     widget_layout=None,
     default_widget_config=None,
-    use_widgets=None,
+    use_widgets=True,
     widget_theme=None,
     enable_hex_density=False,
     hex_density_num_zoom_levels=6,
@@ -1022,11 +1037,13 @@ def render_html(
         A default widget layout, as a dict or the path of a JSON file; widgets
         it names are created if not given in ``widgets``.
 
-    use_widgets: bool or None (optional, default=None)
-        Whether to build the plot's interface from widgets. With None, widgets
-        are used if ``widgets``, ``widget_layout`` or ``default_widget_config``
-        is given (or a selection handler has widgets); otherwise the legacy
-        parameters (``title``, ``enable_search`` and so on) build it directly.
+    use_widgets: bool (optional, default=True)
+        Whether to build the plot's interface from widgets. Unless ``widgets``,
+        ``widget_layout`` or ``default_widget_config`` is given, the legacy
+        parameters (``title``, ``enable_search``, ``logo`` and so on) are
+        converted to the equivalent widgets. ``use_widgets=False`` renders
+        them without widgets instead; it is deprecated, and will be removed
+        in a future release.
 
     widget_theme: dict or None (optional, default=None)
         Overrides of the look shared by all widgets. By default widgets use the
@@ -1343,14 +1360,16 @@ def render_html(
     # use_widgets=None means auto-detect: use widgets if widgets param is provided
     # use_widgets=True forces widget system even with legacy params
     # use_widgets=False forces legacy system
-    use_widget_system = use_widgets
-    if use_widget_system is None:
-        use_widget_system = (
-            widgets is not None
-            or widget_layout is not None
-            or default_widget_config is not None
-            or len(_collect_handler_widgets(selection_handler)) > 0
+    if use_widgets is False:
+        warnings.warn(
+            "use_widgets=False is deprecated and will be removed in a future "
+            "release. The legacy parameters (title, enable_search, logo, ...) "
+            "are converted to widgets by default, which can also be placed and "
+            "themed (see widget_layout and widget_theme).",
+            FutureWarning,
+            stacklevel=_caller_stacklevel(),
         )
+    use_widget_system = use_widgets is not False
 
     # Initialize widget containers
     widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}

@@ -720,6 +720,22 @@ class TestWidgetHtmlRendering:
         assert "drawer-left" in html_content
         assert "bottom-right" in html_content
 
+    def test_widgets_by_default(self, simple_point_data, simple_label_data):
+        """Legacy parameters build widgets unless use_widgets=False (deprecated)."""
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data, simple_label_data, title="Default", enable_search=True
+        )
+        assert 'class="title-text"' in html_content  # TitleWidget
+        assert 'id="search-container" class="container-box">' in html_content
+
+        with pytest.warns(FutureWarning, match="use_widgets=False is deprecated"):
+            legacy = render_html(
+                simple_point_data, simple_label_data, title="Legacy", use_widgets=False
+            )
+        assert 'class="title-text"' not in legacy
+
     def test_histogram_widget_with_dates(self, simple_point_data, simple_label_data):
         """Datetime histograms render in widget mode, binned as requested."""
         import re
