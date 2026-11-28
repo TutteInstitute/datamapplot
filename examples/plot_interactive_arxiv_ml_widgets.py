@@ -36,7 +36,7 @@ arxivml_hover_data = np.load("arxiv_ml_hover_data.npz", allow_pickle=True)["arr_
 # - Logo in bottom-right corner
 #
 # Widgets are created using widget classes with location parameter to control placement.
-# Note: darkmode=True should be passed to widgets that need to adapt their colors.
+# They follow the plot's font and darkmode setting.
 widgets = [
     TitleWidget(
         title="ArXiv ML Landscape",
@@ -44,7 +44,6 @@ widgets = [
         title_font_size=32,
         location="top-left",
         order=0,
-        darkmode=True,  # Match the plot's darkmode setting
     ),
     SearchWidget(
         search_field="hover_text",
