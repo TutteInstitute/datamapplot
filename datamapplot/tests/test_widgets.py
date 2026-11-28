@@ -444,6 +444,23 @@ class TestTitleWidgetStyle:
         with pytest.warns(FutureWarning, match="darkmode parameter of MiniMapWidget"):
             MiniMapWidget(darkmode=True)
 
+    def test_configured_darkmode_does_not_warn(self):
+        """A plot darkmode set in the user's config is not passed to widgets."""
+        import warnings
+        from datamapplot.config import ConfigManager
+
+        config = ConfigManager()
+        saved = dict(config._config)
+        config._config["darkmode"] = True
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", FutureWarning)
+                widgets_from_legacy_params(title="T")
+                TitleWidget(title="T")
+        finally:
+            config._config.clear()
+            config._config.update(saved)
+
     def test_legacy_title_follows_theme(self):
         """The legacy title keeps its look: theme font and colours, normal weight."""
         (widget,) = widgets_from_legacy_params(
@@ -761,6 +778,27 @@ class TestWidgetHtmlRendering:
         assert len(bins) == dates.dt.year.nunique()
         assert bins[0]["min_value"].startswith("2019-01-01")
         assert "enableClickPersistence: true" in html_content
+
+    def test_local_logo_embedded(self, simple_point_data, simple_label_data):
+        """Local (file://) logos are embedded, as in legacy rendering."""
+        from pathlib import Path
+        from datamapplot.interactive_rendering import render_html
+
+        logo = (Path(__file__).parents[2] / "doc" / "datamapplot_logo_rtd.png").as_uri()
+        for kwargs in ({"logo": logo}, {"widgets": [LogoWidget(logo=logo)]}):
+            html_content = render_html(simple_point_data, simple_label_data, **kwargs)
+            assert 'src="data:image/png;base64,' in html_content
+            assert logo not in html_content
+
+    def test_handler_script_after_custom_js(self):
+        """Custom JS without a trailing newline stays separate from handler scripts."""
+        from datamapplot.interactive_helpers import prepare_selection_handler
+        from datamapplot.selection_handlers import DisplaySample
+
+        _, custom_js, _, _ = prepare_selection_handler(
+            DisplaySample(), None, "console.log('hi')", None
+        )
+        assert "console.log('hi')\ntry {" in custom_js
 
     def test_logo_widget_stays_in_its_stack(self, simple_point_data, simple_label_data):
         """A logo stacks with the other bottom-right widgets instead of floating under them."""
@@ -2315,6 +2353,15 @@ class TestWidgetTheme:
         assert theme["--dmp-panel-radius"] == "4"
         # Drawers and dropdowns follow an overridden panel background.
         assert theme["--dmp-panel-background-opaque"] == "#202020ee"
+
+    def test_font_family_quoting(self):
+        """Family names are quoted (for names like "Source Sans 3"); generic ones aren't."""
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        theme = lambda font: get_widget_theme(get_style_config(False), font)["--dmp-font-family"]
+        assert theme("Source Sans 3") == '"Source Sans 3"'
+        assert theme("sans-serif") == "sans-serif"
+        assert theme("Arial, sans-serif") == "Arial, sans-serif"
 
     def test_unknown_setting(self):
         from datamapplot.interactive_helpers import get_style_config, get_widget_theme

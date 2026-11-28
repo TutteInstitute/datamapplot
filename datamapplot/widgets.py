@@ -497,15 +497,13 @@ class TitleWidget(WidgetBase):
         title_font_weight=None,
         title_font_color=None,
         sub_title_font_color=None,
-        darkmode=None,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "title")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 0)
-        if darkmode is not None:
-            # Caller, config wrapper, __init__, helper.
-            _warn_widget_darkmode(type(self).__name__, stacklevel=4)
+        # A deprecated darkmode= is caught (and warned about) by WidgetBase; as
+        # it isn't a named parameter, a configured plot darkmode isn't injected.
         super().__init__(**kwargs)
 
         self.title_text = title

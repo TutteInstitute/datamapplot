@@ -2244,6 +2244,14 @@ def get_style_config(darkmode, text_outline_color="#eeeeeedd"):
     }
 
 
+# Generic families and CSS-wide keywords, which must not be quoted.
+_CSS_GENERIC_FONT_FAMILIES = {
+    "serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui",
+    "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded", "emoji", "math",
+    "fangsong", "inherit", "initial", "unset", "revert", "revert-layer",
+}
+
+
 def get_widget_theme(style_config, font_family, widget_theme=None):
     """Theme settings shared by all widgets, as CSS custom properties.
 
@@ -2265,7 +2273,12 @@ def get_widget_theme(style_config, font_family, widget_theme=None):
     dict
         CSS custom property names (``"--dmp-..."``) mapped to their values.
     """
-    if "," not in font_family and not font_family.strip().startswith(("'", '"')):
+    if (
+        "," not in font_family
+        and not font_family.strip().startswith(("'", '"'))
+        and font_family.strip().lower() not in _CSS_GENERIC_FONT_FAMILIES
+    ):
+        # Quoted, so names such as "Source Sans 3" are valid CSS.
         font_family = f'"{font_family}"'
     theme = {
         "font_family": font_family,
@@ -2968,7 +2981,7 @@ def prepare_selection_handler(selection_handler, custom_html, custom_js, custom_
         # Each handler's script gets its own block, so handlers can share
         # top-level names, and one failing handler does not stop the others.
         script = (
-            "try {\n" + handler.javascript + "\n} catch (error) {\n"
+            "\ntry {\n" + handler.javascript + "\n} catch (error) {\n"
             f"  console.error({json.dumps(type(handler).__name__ + ' failed to initialise:')}, error);\n"
             "}\n"
         )

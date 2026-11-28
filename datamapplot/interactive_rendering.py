@@ -100,6 +100,7 @@ from datamapplot.widget_helpers import (
 )
 from datamapplot.widgets import (
     ColormapSelectorWidget,
+    LogoWidget,
     WidgetBase,
 )
 
@@ -1380,6 +1381,9 @@ def render_html(
     widget_js_deps = set()
     widget_css_deps = set()
 
+    # Embed local logos (and, in offline mode, remote ones) as data URIs.
+    logo = prepare_logo(logo, offline_mode)
+
     if use_widget_system:
         # Load default widget config from file if provided
         default_config = None
@@ -1446,6 +1450,12 @@ def render_html(
         # and placement are handled through the normal widget pipeline.
         handler_widgets = _collect_handler_widgets(selection_handler)
         all_widgets += handler_widgets
+
+        for widget in all_widgets:
+            if isinstance(widget, LogoWidget) and isinstance(widget.logo, str):
+                scheme = urlparse(widget.logo).scheme
+                if scheme == "file" or (offline_mode and scheme in ("http", "https")):
+                    widget.logo = url_to_base64_img(widget.logo)
 
         # Group widgets by location, applying layout overrides
         widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
@@ -1543,9 +1553,6 @@ def render_html(
 
     # Use modular template with includes
     template = _get_template(use_modular=True)
-
-    # Prepare logo
-    logo = prepare_logo(logo, offline_mode)
 
     # Prepare offline mode data
     offline_result = prepare_offline_mode_data(

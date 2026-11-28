@@ -115,8 +115,9 @@
     cursor: pointer;
   }
   {%- endif %}
-  input:not([type]), input[type="search"], input[type="text"], input[type="number"],
-  textarea, select {
+  /* :where keeps these defaults below any widget's own input styles. */
+  :where(input:not([type]), input[type="search"], input[type="text"],
+         input[type="number"], input[type="password"], textarea, select) {
     margin: 2px;
     padding: 4px;
     border-radius: var(--dmp-control-radius);
@@ -127,11 +128,11 @@
     outline: none;
     box-sizing: border-box;
   }
-  input:not([type]):focus, input[type="search"]:focus, input[type="text"]:focus,
-  input[type="number"]:focus, textarea:focus, select:focus {
+  :where(input:not([type]), input[type="search"], input[type="text"],
+         input[type="number"], input[type="password"], textarea, select):focus {
     border: var(--dmp-input-focus-border);
   }
-  input[type="checkbox"], input[type="radio"], input[type="range"] {
+  :where(input[type="checkbox"], input[type="radio"], input[type="range"]) {
     accent-color: var(--dmp-accent-color);
   }
   {%- if logo and not use_widget_system %}
