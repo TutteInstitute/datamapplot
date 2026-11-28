@@ -21,7 +21,7 @@ class LayerToggle {
         const layerIdsPresent = new Set(datamap.layers ? datamap.layers.map(layer => layer.id) : []);
         const currentLayers = this.options.layers.filter((layer) => layerIdsPresent.has(layer.id))
         this.options.layers.forEach(layer => {
-            if (!layerIdsPresent.has(layer.id)) {
+            if (!layerIdsPresent.has(layer.id) && options.warnMissing !== false) {
                 console.warn(`LayerToggle: Layer with id "${layer.id}" not found in datamap. This layer will be ignored.`);
             }
         });

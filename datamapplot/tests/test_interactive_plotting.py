@@ -177,6 +177,28 @@ def test_interactive_arxiv_ml(
 
 
 @pytest.mark.interactive
+def test_widget_gallery(html_dir):
+    """Build the widget gallery pages, for the snapshots in
+    interactive_tests/tests/widget_gallery.spec.ts."""
+    gallery_path = (
+        Path(__file__).parent.parent / "interactive_tests" / "widget_gallery.py"
+    )
+    spec = importlib.util.spec_from_file_location("widget_gallery", gallery_path)
+    gallery = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gallery)
+
+    paths = gallery.build_gallery(html_dir)
+    assert [path.name for path in paths] == [
+        "widget_gallery_light.html",
+        "widget_gallery_dark.html",
+    ]
+    for path in paths:
+        html_content = path.read_text(encoding="utf-8")
+        validation = validate_html_structure(html_content)
+        assert validation["is_valid"], f"HTML validation failed: {validation}"
+
+
+@pytest.mark.interactive
 def test_interactive_arxiv_ml_topic_tree(
     examples_dir,
     mock_image_requests,

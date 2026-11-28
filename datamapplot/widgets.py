@@ -65,6 +65,16 @@ def normalize_location(location):
     return canonical
 
 
+def _warn_widget_darkmode(widget_name, stacklevel):
+    warnings.warn(
+        f"The darkmode parameter of {widget_name} is deprecated and ignored: "
+        "widgets now follow the plot's darkmode (pass darkmode=True to "
+        "create_interactive_plot), and widget_theme can adjust their colours.",
+        FutureWarning,
+        stacklevel=stacklevel,
+    )
+
+
 class WidgetBase:
     """Base class for widgets. Widgets are modular UI components that can be added
     to the interactive plot in various locations (corners or drawers).
@@ -134,6 +144,9 @@ class WidgetBase:
             # Only set to empty list if no class-level dependencies exist
             self.dependencies = []
         # If class has dependencies attribute, it will be used via attribute lookup
+        if kwargs.pop("darkmode", None) is not None:
+            # Caller, config wrapper, subclass __init__, this __init__, helper.
+            _warn_widget_darkmode(type(self).__name__, stacklevel=5)
         self.kwargs = kwargs
 
     @property
@@ -374,9 +387,11 @@ class SelectionWidget(WidgetBase):
         container_id = self.get_container_id()
         return f"""
 #{container_id} .selection-widget-title {{
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: var(--dmp-heading-weight);
+    font-size: 1.1em;
     margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: var(--dmp-divider);
 }}
 #{container_id} .selection-widget-content {{
     overflow-y: auto;
@@ -431,6 +446,9 @@ class SelectionWidget(WidgetBase):
 class TitleWidget(WidgetBase):
     """Widget for displaying plot title and subtitle.
 
+    By default the title uses the plot's font and the theme's colours (see
+    ``widget_theme`` in :func:`~datamapplot.render_html`), at normal weight.
+
     Parameters
     ----------
     title : str
@@ -439,8 +457,9 @@ class TitleWidget(WidgetBase):
     sub_title : str, optional
         Subtitle text. Default is "".
 
-    title_font_family : str, optional
-        Font family for title. Default is "Roboto".
+    title_font_family : str or None, optional
+        Font family for the title and subtitle. Default is None (the plot's
+        font).
 
     title_font_size : int, optional
         Font size for title in points. Default is 36.
@@ -448,19 +467,18 @@ class TitleWidget(WidgetBase):
     sub_title_font_size : int, optional
         Font size for subtitle in points. Default is 18.
 
-    title_font_weight : int, optional
-        Font weight for title. Default is 600.
+    title_font_weight : int or None, optional
+        Font weight for title. Default is None (normal weight).
 
     title_font_color : str or None, optional
-        Color for title text. If None, will be set based on darkmode.
-        Default is None.
+        Color for title text. Default is None (the theme's text colour).
 
     sub_title_font_color : str or None, optional
-        Color for subtitle text. If None, will be set based on darkmode.
-        Default is None.
+        Color for subtitle text. Default is None (the theme's muted text
+        colour).
 
-    darkmode : bool, optional
-        Whether darkmode is enabled. Affects default colors. Default is False.
+    darkmode : bool or None, optional
+        Deprecated, and ignored: widgets follow the plot's ``darkmode``.
 
     **kwargs
         Additional keyword arguments passed to WidgetBase
@@ -473,18 +491,19 @@ class TitleWidget(WidgetBase):
         self,
         title,
         sub_title="",
-        title_font_family="Roboto",
+        title_font_family=None,
         title_font_size=36,
         sub_title_font_size=18,
-        title_font_weight=600,
+        title_font_weight=None,
         title_font_color=None,
         sub_title_font_color=None,
-        darkmode=False,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "title")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 0)
+        # A deprecated darkmode= is caught (and warned about) by WidgetBase; as
+        # it isn't a named parameter, a configured plot darkmode isn't injected.
         super().__init__(**kwargs)
 
         self.title_text = title
@@ -493,41 +512,53 @@ class TitleWidget(WidgetBase):
         self.title_font_size = title_font_size
         self.sub_title_font_size = sub_title_font_size
         self.title_font_weight = title_font_weight
-        self.darkmode = darkmode
-
-        # Set colors based on darkmode if not explicitly provided
-        if title_font_color is None:
-            self.title_font_color = "#ffffff" if darkmode else "#000000"
-        else:
-            self.title_font_color = title_font_color
-
-        if sub_title_font_color is None:
-            self.sub_title_font_color = "#aaaaaa" if darkmode else "#666666"
-        else:
-            self.sub_title_font_color = sub_title_font_color
+        self.title_font_color = title_font_color
+        self.sub_title_font_color = sub_title_font_color
 
     @property
     def html(self):
+        def style(**properties):
+            css = ";".join(
+                f"{name.replace('_', '-')}:{value}"
+                for name, value in properties.items()
+                if value is not None
+            )
+            return f' style="{css}"' if css else ""
+
+        title_style = style(
+            font_family=self.title_font_family,
+            font_size=f"{self.title_font_size}pt",
+            font_weight=self.title_font_weight,
+            color=self.title_font_color,
+        )
         html = f"""
 <div id="{self.get_container_id()}" class="container-box">
-  <span
-    id="main-title"
-    style="font-family:{self.title_font_family};font-size:{self.title_font_size}pt;font-weight:{self.title_font_weight};color:{self.title_font_color}"
-  >
+  <span id="main-title" class="title-text"{title_style}>
     {self.title_text}
   </span>
 """
         if self.sub_title:
+            sub_title_style = style(
+                font_family=self.title_font_family,
+                font_size=f"{self.sub_title_font_size}pt",
+                color=self.sub_title_font_color,
+            )
             html += f"""
   <br />
-  <span
-    style="font-family:{self.title_font_family};font-size:{self.sub_title_font_size}pt;color:{self.sub_title_font_color}"
-  >
+  <span class="sub-title-text"{sub_title_style}>
     {self.sub_title}
   </span>
 """
         html += "</div>"
         return html
+
+    @property
+    def css(self):
+        return f"""
+#{self.get_container_id()} .sub-title-text {{
+  color: var(--dmp-text-muted-color);
+}}
+"""
 
 
 class SearchWidget(WidgetBase):
@@ -541,6 +572,10 @@ class SearchWidget(WidgetBase):
     search_field : str, optional
         Field name to search in the data. Default is "hover_text".
 
+    show_filter_labels : bool, optional
+        Show a "Filter labels" checkbox that, when checked, hides the labels
+        of clusters with no search results. Default is True.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -548,7 +583,13 @@ class SearchWidget(WidgetBase):
     dependencies = []  # Uses core datamap.js
 
     @cfg.complete(unconfigurable={"self"})
-    def __init__(self, placeholder="🔍", search_field="hover_text", **kwargs):
+    def __init__(
+        self,
+        placeholder="🔍",
+        search_field="hover_text",
+        show_filter_labels=True,
+        **kwargs,
+    ):
         kwargs.setdefault("widget_id", "search")
         kwargs.setdefault("location", "top-left")
         kwargs.setdefault("order", 1)
@@ -556,12 +597,20 @@ class SearchWidget(WidgetBase):
 
         self.placeholder = placeholder
         self.search_field = search_field
+        self.show_filter_labels = show_filter_labels
 
     @property
     def html(self):
+        filter_labels = ""
+        if self.show_filter_labels:
+            filter_labels = """
+  <label id="filter-labels-label" class="search-filter-labels">
+    <input type="checkbox" id="filter-labels-checkbox" />
+    Filter labels
+  </label>"""
         return f"""
 <div id="{self.get_container_id()}" class="container-box">
-  <input autocomplete="off" type="search" id="text-search" placeholder="{self.placeholder}" />
+  <input autocomplete="off" type="search" id="text-search" placeholder="{self.placeholder}" />{filter_labels}
 </div>
 """
 
@@ -570,6 +619,14 @@ class SearchWidget(WidgetBase):
         return f"""
 #{self.get_container_id()} {{
   width: fit-content;
+}}
+#{self.get_container_id()} .search-filter-labels {{
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.8em;
+  cursor: pointer;
 }}
 """
 
@@ -782,6 +839,19 @@ class HistogramWidget(WidgetBase):
     histogram_log_scale : bool, optional
         Use log scale for y-axis. Default is False.
 
+    histogram_group_datetime_by : str or None, optional
+        For datetime data, bin by a calendar unit ("year", "quarter",
+        "month", "week", "day", "hour", "minute" or "second") instead of
+        into ``histogram_bin_count`` equal bins. Default is None.
+
+    histogram_range : tuple or None, optional
+        The (start, end) range of the histogram; values outside it are
+        counted in the first or last bin. Default is None (the data's range).
+
+    histogram_enable_click_persistence : bool, optional
+        Whether clicking a bin keeps it selected (clicking it again
+        deselects it). Default is False.
+
     **kwargs
         Additional keyword arguments passed to WidgetBase
     """
@@ -801,6 +871,9 @@ class HistogramWidget(WidgetBase):
         histogram_bin_unselected_fill_color="#9E9E9E",
         histogram_bin_context_fill_color="#E6E6E6",
         histogram_log_scale=False,
+        histogram_group_datetime_by=None,
+        histogram_range=None,
+        histogram_enable_click_persistence=False,
         **kwargs,
     ):
         kwargs.setdefault("widget_id", "d3histogram")
@@ -828,6 +901,9 @@ class HistogramWidget(WidgetBase):
         self.histogram_bin_unselected_fill_color = histogram_bin_unselected_fill_color
         self.histogram_bin_context_fill_color = histogram_bin_context_fill_color
         self.histogram_log_scale = histogram_log_scale
+        self.histogram_group_datetime_by = histogram_group_datetime_by
+        self.histogram_range = histogram_range
+        self.histogram_enable_click_persistence = histogram_enable_click_persistence
 
     @property
     def html(self):
@@ -886,6 +962,7 @@ class HistogramWidget(WidgetBase):
             binUnselectedFillColor: {json.dumps(self.histogram_bin_unselected_fill_color)},
             binContextFillColor: {json.dumps(self.histogram_bin_context_fill_color)},
             logScale: {str(self.histogram_log_scale).lower()},
+            enableClickPersistence: {str(self.histogram_enable_click_persistence).lower()},
             chartSelectionCallback: chartSelectionCallback,
         }});
         
@@ -1103,12 +1180,12 @@ class LogoWidget(WidgetBase):
 
     @property
     def css(self):
-        return """
-img {
+        return f"""
+#{self.get_container_id()} img {{
   display: block;
   margin-left: auto;
   margin-right: auto;
-}
+}}
 """
 
 
@@ -1247,6 +1324,9 @@ class LayerToggleWidget(WidgetBase):
         kwargs.setdefault("order", 1)
         super().__init__(**kwargs)
 
+        # The default list names every layer a plot may have; only layers the
+        # user asked for are worth a warning when missing.
+        self.warn_missing_layers = layers is not None
         self.layers = layers or [
             {
                 "id": "imageLayer",
@@ -1310,7 +1390,8 @@ class LayerToggleWidget(WidgetBase):
             window.datamap,
             {{
                 layers: {json.dumps(self.layers)},
-                showOpacity: {str(self.show_opacity).lower()}
+                showOpacity: {str(self.show_opacity).lower()},
+                warnMissing: {str(self.warn_missing_layers).lower()}
             }}
         );
         
@@ -1345,17 +1426,20 @@ class MiniMapWidget(WidgetBase):
     update_throttle : int, optional
         Throttle time for viewport updates in milliseconds. Default is 200.
 
-    border_color : str, optional
-        Color of the viewport indicator border. Default is "#3ba5e7".
+    border_color : str or None, optional
+        Color of the viewport indicator border. Default is None (the theme's
+        accent colour).
 
     border_width : int, optional
         Width of the viewport indicator border in pixels. Default is 2.
 
-    background_color : str, optional
-        Background color of the minimap. Default is "#f5f5f5".
+    background_color : str or None, optional
+        Background color of the minimap. Default is None (the panel
+        background, as for other widgets).
 
-    point_color : str, optional
-        Color of the data points. Default is "#666666".
+    point_color : str or None, optional
+        Color of the data points. Default is None (the theme's muted text
+        colour).
 
     point_size : int, optional
         Size of data points in pixels. Default is 2.
@@ -1373,10 +1457,10 @@ class MiniMapWidget(WidgetBase):
         width=200,
         height=150,
         update_throttle=200,
-        border_color="#3ba5e7",
+        border_color=None,
         border_width=2,
-        background_color="#f5f5f5",
-        point_color="#666666",
+        background_color=None,
+        point_color=None,
         point_size=2,
         **kwargs,
     ):
@@ -1542,7 +1626,7 @@ class RESTSearchWidget(WidgetBase):
     def html(self):
         """Return HTML container for the widget."""
         return (
-            f'<div id="{self.get_container_id()}" class="rest-search-container"></div>'
+            f'<div id="{self.get_container_id()}" class="container-box rest-search-container"></div>'
         )
 
     @property
@@ -1621,8 +1705,9 @@ class AnnotationWidget(WidgetBase):
     allow_rectangles : bool, optional (default: True)
         Enable rectangle annotation tool
 
-    default_text_color : str, optional (default: "#000000")
-        Default color for text annotations
+    default_text_color : str or None, optional (default: None)
+        Default color for text annotations (None: the theme's text colour).
+        Text annotations use the plot's font.
 
     default_text_size : int, optional (default: 14)
         Default font size for text annotations
@@ -1662,7 +1747,7 @@ class AnnotationWidget(WidgetBase):
         allow_arrows=True,
         allow_circles=True,
         allow_rectangles=True,
-        default_text_color="#000000",
+        default_text_color=None,
         default_text_size=14,
         default_stroke_color="#FF0000",
         default_stroke_width=2,
@@ -1697,7 +1782,7 @@ class AnnotationWidget(WidgetBase):
     def html(self):
         """Return HTML container for the widget."""
         return (
-            f'<div id="{self.get_container_id()}" class="annotation-container"></div>'
+            f'<div id="{self.get_container_id()}" class="container-box annotation-container"></div>'
         )
 
     @property

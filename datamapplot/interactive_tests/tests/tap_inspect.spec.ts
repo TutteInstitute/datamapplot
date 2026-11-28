@@ -174,7 +174,10 @@ test.describe('Tap-to-inspect', () => {
       }
 
       // Empty spot: the grid cell in the mid/lower canvas band with the
-      // largest clearance from any projected point, verified by picking.
+      // largest clearance from any projected point, verified by picking, and
+      // not covered by a widget (a tap there would never reach the map). Taps
+      // pick within 2px, so 20px of clearance (checked by an 8px pick) is ample.
+      const canvas = document.querySelector('#deck-container canvas');
       const candidates: Array<[number, number, number]> = [];
       for (let gy = Math.round(vp.height * 0.3); gy < vp.height * 0.9; gy += 24) {
         for (let gx = 12; gx < vp.width - 12; gx += 24) {
@@ -183,15 +186,17 @@ test.describe('Tap-to-inspect', () => {
             const d = (px - gx) ** 2 + (py - gy) ** 2;
             if (d < minD) {
               minD = d;
-              if (minD < 1600) break;
+              if (minD < 400) break;
             }
           }
-          if (minD >= 1600) candidates.push([minD, gx, gy]);
+          if (minD >= 400 && document.elementFromPoint(gx, gy) === canvas) {
+            candidates.push([minD, gx, gy]);
+          }
         }
       }
       candidates.sort((a, b) => b[0] - a[0]);
       let empty = null;
-      for (const [, gx, gy] of candidates.slice(0, 5)) {
+      for (const [, gx, gy] of candidates.slice(0, 20)) {
         const pick = dm.deckgl.pickObject({ x: gx, y: gy, radius: 8 });
         if (!pick || !pick.picked) {
           empty = { x: gx, y: gy };

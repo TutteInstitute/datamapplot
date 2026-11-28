@@ -3,6 +3,7 @@ import gzip
 import html
 import io
 import os
+import sys
 import warnings
 import zipfile
 import json
@@ -55,6 +56,7 @@ from datamapplot.interactive_helpers import (
     compute_collision_priority,
     compute_label_scaling,
     get_style_config,
+    get_widget_theme,
     get_label_text_color,
     prepare_hover_data,
     prepare_edge_bundle_data,
@@ -98,6 +100,7 @@ from datamapplot.widget_helpers import (
 )
 from datamapplot.widgets import (
     ColormapSelectorWidget,
+    LogoWidget,
     WidgetBase,
 )
 
@@ -230,6 +233,20 @@ _TEMPLATE_DIRS = [
 ]
 
 
+def _caller_stacklevel():
+    """The warnings stacklevel of the first caller outside datamapplot (for a
+    warning issued by the function calling this one)."""
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    tests_dir = os.path.join(package_dir, "tests")
+    frame, level = sys._getframe(1), 1
+    while frame is not None:
+        filename = os.path.abspath(frame.f_code.co_filename)
+        if not filename.startswith(package_dir) or filename.startswith(tests_dir):
+            break
+        frame, level = frame.f_back, level + 1
+    return level
+
+
 def _collect_handler_widgets(selection_handler):
     """Return a flat list of widgets owned by the given selection handler(s)."""
     widgets = []
@@ -282,11 +299,11 @@ _TOOL_TIP_CSS = """
             font-size: 0.8em;
             font-family: {{title_font_family}};
             font-weight: {{title_font_weight}};
-            color: {{title_font_color}} !important;
-            background-color: {{title_background[:-2] + "ee"}} !important;
+            color: var(--dmp-text-color) !important;
+            background-color: var(--dmp-panel-background-opaque) !important;
             border-radius: 12px;
-            backdrop-filter: blur(6px);
-            box-shadow: 2px 3px 10px {{shadow_color}};
+            backdrop-filter: blur(calc(2 * var(--dmp-panel-blur)));
+            box-shadow: var(--dmp-panel-shadow);
             max-width: 25%;
 """
 
@@ -531,7 +548,8 @@ def render_html(
     widgets=None,
     widget_layout=None,
     default_widget_config=None,
-    use_widgets=None,
+    use_widgets=True,
+    widget_theme=None,
     enable_hex_density=False,
     hex_density_num_zoom_levels=6,
     hex_density_min_count=4,
@@ -1008,6 +1026,43 @@ def render_html(
         uses all available CPUs. Set to ``1`` to disable parallelism
         (useful for debugging).
 
+    widgets: WidgetBase, list of WidgetBase or None (optional, default=None)
+        Widgets to add to the plot (see :mod:`datamapplot.widgets`), each placed
+        in a corner or a drawer by its ``location`` and ``order``.
+
+    widget_layout: dict or None (optional, default=None)
+        Placement overrides for widgets, keyed by widget id, as
+        :class:`~datamapplot.WidgetConfig` objects or dicts.
+
+    default_widget_config: dict, str, pathlib.Path or None (optional, default=None)
+        A default widget layout, as a dict or the path of a JSON file; widgets
+        it names are created if not given in ``widgets``.
+
+    use_widgets: bool (optional, default=True)
+        Whether to build the plot's interface from widgets. Unless ``widgets``,
+        ``widget_layout`` or ``default_widget_config`` is given, the legacy
+        parameters (``title``, ``enable_search``, ``logo`` and so on) are
+        converted to the equivalent widgets. ``use_widgets=False`` renders
+        them without widgets instead; it is deprecated, and will be removed
+        in a future release.
+
+    widget_theme: dict or None (optional, default=None)
+        Overrides of the look shared by all widgets. By default widgets use the
+        plot's ``font_family`` and colours that follow ``darkmode``. Keys are
+        settings and values are CSS values, for example
+        ``{"accent_color": "#e15759", "panel_radius": "8px"}``. The settings are
+        ``font_family``, ``text_color``, ``text_muted_color``,
+        ``panel_background``, ``panel_background_opaque`` (for drawers and
+        dropdowns), ``panel_blur``, ``panel_shadow``, ``panel_radius``,
+        ``panel_padding``, ``panel_margin``, ``input_background``,
+        ``input_border``, ``input_focus_border``, ``control_border``,
+        ``control_radius``, ``hover_background``, ``divider``,
+        ``accent_color`` (for selected and active controls),
+        ``accent_text_color``, ``danger_color``, ``heading_weight`` and
+        ``small_font_size``. Each is also available to custom CSS as a CSS
+        custom property, ``--dmp-`` followed by the setting with dashes (for
+        example ``var(--dmp-accent-color)``).
+
     Returns
     -------
     interactive_plot: InteractiveFigure
@@ -1272,6 +1327,7 @@ def render_html(
         else style_config["page_background_color"]
     )
     topic_tree_kwds = {**_TOPIC_TREE_DEFAULT_KWDS, **topic_tree_kwds}
+    widget_theme_vars = get_widget_theme(style_config, font_family, widget_theme)
 
     if tooltip_css is None:
         tooltip_css_template = jinja2.Template(_TOOL_TIP_CSS)
@@ -1305,14 +1361,16 @@ def render_html(
     # use_widgets=None means auto-detect: use widgets if widgets param is provided
     # use_widgets=True forces widget system even with legacy params
     # use_widgets=False forces legacy system
-    use_widget_system = use_widgets
-    if use_widget_system is None:
-        use_widget_system = (
-            widgets is not None
-            or widget_layout is not None
-            or default_widget_config is not None
-            or len(_collect_handler_widgets(selection_handler)) > 0
+    if use_widgets is False:
+        warnings.warn(
+            "use_widgets=False is deprecated and will be removed in a future "
+            "release. The legacy parameters (title, enable_search, logo, ...) "
+            "are converted to widgets by default, which can also be placed and "
+            "themed (see widget_layout and widget_theme).",
+            FutureWarning,
+            stacklevel=_caller_stacklevel(),
         )
+    use_widget_system = use_widgets is not False
 
     # Initialize widget containers
     widgets_by_location = {loc: [] for loc in VALID_LOCATIONS}
@@ -1322,6 +1380,9 @@ def render_html(
     encoded_widget_data = {}  # Initialize for both paths
     widget_js_deps = set()
     widget_css_deps = set()
+
+    # Embed local logos (and, in offline mode, remote ones) as data URIs.
+    logo = prepare_logo(logo, offline_mode)
 
     if use_widget_system:
         # Load default widget config from file if provided
@@ -1373,6 +1434,9 @@ def render_html(
                 histogram_data=histogram_data,
                 histogram_settings=histogram_settings,
                 histogram_n_bins=histogram_n_bins,
+                histogram_group_datetime_by=histogram_group_datetime_by,
+                histogram_range=histogram_range,
+                histogram_enable_click_persistence=histogram_enable_click_persistence,
                 colormaps=colormaps,
                 colormap_rawdata=colormap_rawdata,
                 colormap_metadata=color_metadata,
@@ -1387,6 +1451,12 @@ def render_html(
         handler_widgets = _collect_handler_widgets(selection_handler)
         all_widgets += handler_widgets
 
+        for widget in all_widgets:
+            if isinstance(widget, LogoWidget) and isinstance(widget.logo, str):
+                scheme = urlparse(widget.logo).scheme
+                if scheme == "file" or (offline_mode and scheme in ("http", "https")):
+                    widget.logo = url_to_base64_img(widget.logo)
+
         # Group widgets by location, applying layout overrides
         widgets_by_location = group_widgets_by_location(all_widgets, merged_layout)
 
@@ -1398,15 +1468,20 @@ def render_html(
             drawer_enabled, selection_handler
         )
 
-        # Collect widget CSS and JS
+        # Collect widget CSS and JS. Each widget's script is isolated, so one
+        # failing widget is reported without stopping the others.
         for widget in all_widgets:
             if widget.css:
                 widget_css += widget.css + "\n"
-            if widget.javascript:
-                widget_js += widget.javascript + "\n"
-            resize_js = getattr(widget, "resize_javascript", "")
-            if resize_js:
-                widget_js += resize_js + "\n"
+            script = (widget.javascript or "") + (
+                getattr(widget, "resize_javascript", "") or ""
+            )
+            if script.strip():
+                widget_js += (
+                    "try {\n" + script + "\n} catch (error) {\n"
+                    f"  console.error({json.dumps(f'Widget {widget.widget_id!r} failed to initialise:')}, error);\n"
+                    "}\n"
+                )
 
         # Collect widget dependencies
         widget_deps = collect_widget_dependencies(all_widgets)
@@ -1429,6 +1504,12 @@ def render_html(
         other_font_families = font_families_from_widgets(all_widgets)
     else:
         other_font_families = []
+    if widget_theme and widget_theme.get("font_family"):
+        other_font_families.append(widget_theme["font_family"])
+    # The main font is embedded anyway.
+    other_font_families = [
+        family for family in dict.fromkeys(other_font_families) if family != font_family
+    ]
 
     # Determine if drawers are enabled (for dependency loading)
     enable_drawers = (
@@ -1472,9 +1553,6 @@ def render_html(
 
     # Use modular template with includes
     template = _get_template(use_modular=True)
-
-    # Prepare logo
-    logo = prepare_logo(logo, offline_mode)
 
     # Prepare offline mode data
     offline_result = prepare_offline_mode_data(
@@ -1604,7 +1682,9 @@ def render_html(
         show_loading_progress=show_loading_progress,
         background_image=background_image,
         background_image_bounds=background_image_bounds,
-        custom_js=(custom_js or "") + "\n" + widget_js,
+        # Widgets first: handler and custom scripts may wait (e.g. for the
+        # lasso tool) and should not hold back or break widget set-up.
+        custom_js=widget_js + "\n" + (custom_js or ""),
         offline_mode=offline_mode,
         offline_mode_data=offline_mode_data,
         offline_mode_css_data=offline_mode_css_data,
@@ -1625,6 +1705,7 @@ def render_html(
         drawer_enabled=drawer_enabled,
         enable_drawers=enable_drawers,
         darkmode=darkmode,
+        widget_theme_vars=widget_theme_vars,
         widget_data=encoded_widget_data,
         loading_image=LOADING_IMAGE,
         **dependencies_ctx,

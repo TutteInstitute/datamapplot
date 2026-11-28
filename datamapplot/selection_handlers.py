@@ -1,5 +1,6 @@
 from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 import string
+import json
 
 from datamapplot.config import ConfigManager
 from datamapplot.widgets import normalize_location, SelectionWidget
@@ -340,32 +341,45 @@ await datamap.addSelectionHandler(samplerCallback);
     #selection-display {{
         overflow-y: auto;
         max-height: 80vh;
-        margin: 8px;
+        margin-top: 8px;
     }}
-    .button {{
-        border: none;
-        padding: 12px 24px;
-        text-align: center;
-        display: inline-block;
-        margin: 4px 2px;
+    #selection-display ul {{
+        margin: 0;
+        padding: 0;
+    }}
+    #selection-display li {{
+        list-style: none;
+        padding: 6px 0;
+        line-height: 1.2;
+    }}
+    #selection-display li + li {{
+        border-top: var(--dmp-divider);
+    }}
+    #{container_id} .button {{
+        border: var(--dmp-control-border);
+        border-radius: var(--dmp-control-radius);
+        background: transparent;
+        color: inherit;
+        padding: 4px 12px;
+        font-size: var(--dmp-small-font-size);
         cursor: pointer;
-        border-radius: 8px;
     }}
-    .resample-button {{
-        background-color: #4CAF50;
-        color: white;
+    #{container_id} .button:hover {{
+        background: var(--dmp-hover-background);
     }}
-    .clear-selection-button {{
+    #{container_id} .clear-selection-button {{
         position: absolute;
-        top: 0;
-        right: 0;
-        margin: 16px 14px;
-        padding: 4px 8px;
-        background-color: #b42316;
-        color: white;
+        top: var(--dmp-panel-padding);
+        right: var(--dmp-panel-padding);
+        border: none;
+        padding: 0 6px;
+        color: var(--dmp-text-muted-color);
     }}
-    .clear-selection-button:after {{
-        font-size: 20px;
+    #{container_id} .clear-selection-button:hover {{
+        color: var(--dmp-danger-color);
+    }}
+    #{container_id} .clear-selection-button:after {{
+        font-size: 18px;
         content: "×";
     }}
         """
@@ -396,7 +410,8 @@ class WordCloud(SelectionHandlerBase):
         The height of the word cloud container. Default is 500.
 
     font_family : str, optional
-        The font family to use for the word cloud. Default is None.
+        The font family to use for the word cloud. Default is None (the plot's
+        font).
 
     stop_words : list, optional
         A list of stop words to exclude from the word cloud. Default is the English stop words from scikit-learn.
@@ -554,6 +569,7 @@ if ({self.use_idf}) {{
 function generateWordCloud(words) {{
   const width = {self.width};
   const height = {self.height};
+  const wordCloudFont = {json.dumps(self.font_family) if self.font_family else "getComputedStyle(document.body).fontFamily"};
 
   const colorScale = d3.scaleSequential(d3.interpolate{self.color_scale}).domain([{"width / 10, 0" if self.color_scale_reversed else "0, width / 10"}]);
 
@@ -563,7 +579,7 @@ function generateWordCloud(words) {{
     .words(words.map(d => ({{text: d.text, size: d.size * width / 10}})))
     .padding(1)
     .rotate(() => _ROTATIONS[~~(Math.random() * {self.n_rotations})])
-    .font("{self.font_family or 'Impact'}")
+    .font(wordCloudFont)
     .fontSize(d => d.size)
     .fontWeight(d => Math.max(300, Math.min(d.size * 9000 / width, 900)))
     .on("end", draw);
@@ -589,7 +605,7 @@ function generateWordCloud(words) {{
       .attr("text-anchor", "middle")
       .attr("fill-opacity", 0)
       .attr("font-size", 1)
-      .attr("font-family", "{self.font_family or 'Impact'}")
+      .attr("font-family", wordCloudFont)
       .text(d => d.text)
       .merge(text) // Merge enter and update selections
       .transition(t)
@@ -1382,17 +1398,12 @@ await datamap.addSelectionHandler(_llmSummaryCallback);
     align-items: center;
     gap: 4px;
 }}
-#llm-provider {{
-    padding: 2px 4px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 13px;
-}}
+#llm-provider,
 #llm-api-key {{
     padding: 2px 4px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    font-size: 13px;
+    font-size: var(--dmp-small-font-size);
+}}
+#llm-api-key {{
     width: 180px;
 }}
 #llm-summary-output {{
@@ -1640,37 +1651,38 @@ class TagSelection(SelectionHandlerBase):
     margin: 8px;
     max-height: {self.max_height};
 }}
-.tag-button {{
-    border: none;
-    padding: 4px 8px;
-    text-align: center; 
-    display: inline-block;
+#{container_id} .tag-button {{
+    border: var(--dmp-control-border);
+    border-radius: var(--dmp-control-radius);
+    background: transparent;
+    color: inherit;
+    padding: 4px 10px;
     margin: 4px 2px;
+    font-size: var(--dmp-small-font-size);
     cursor: pointer;
-    border-radius: 8px;
 }}
-.tag-button:enabled {{
-    background-color: #3ba5e7;
-    color: white;
+#{container_id} .tag-button:hover:enabled {{
+    background: var(--dmp-hover-background);
 }}
-.tag-button:disabled {{
-    background-color: #cccccc;
-    color: #666666;
+#{container_id} .tag-button:disabled {{
+    opacity: 0.4;
+    cursor: not-allowed;
 }}
 #save-tags {{
   float: right;
 }}
 #tag-list {{
     list-style-type: none;
+    padding-left: 0;
     width: 75%;
 }}
-.row {{
+#{container_id} .row {{
     display : flex;
     align-items : center;
     width: 100%;
     justify-content: space-between;
 }}
-.box {{
+#{container_id} .box {{
     height:10px;
     width:10px;
     border-radius:2px;
@@ -1680,14 +1692,13 @@ class TagSelection(SelectionHandlerBase):
     color: white;
     font-size: 14px;
 }}
-.tag-info {{
+#{container_id} .tag-info {{
   display: flex;
   align-items: center;
 }}
-.add-to-tag-button {{
+#{container_id} .add-to-tag-button {{
   float: right;
-  font-size: 8px;
-  padding: 2px 4px;
+  padding: 1px 6px;
   margin: 0px 16px;
 }}
     """
@@ -2034,7 +2045,6 @@ await datamap.addSelectionHandler(dataTableCallback);
 #{container_id} {{
     width: 100%;
     max-width: 100%;
-    padding: 12px;
     box-sizing: border-box;
     overflow: hidden;
 }}
@@ -2048,16 +2058,16 @@ await datamap.addSelectionHandler(dataTableCallback);
 
 .table-button {{
     padding: 4px 12px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
+    border: var(--dmp-control-border);
+    border-radius: var(--dmp-control-radius);
+    background: transparent;
+    color: inherit;
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--dmp-small-font-size);
 }}
 
 .table-button:hover {{
-    background-color: #45a049;
+    background: var(--dmp-hover-background);
 }}
 
 .table-wrapper {{
@@ -2082,6 +2092,17 @@ await datamap.addSelectionHandler(dataTableCallback);
 .dataTables_wrapper .dataTables_paginate {{
     font-size: 12px;
     margin-top: 8px;
+    color: inherit;
+}}
+
+/* DataTables' own stylesheet assumes dark text on white. */
+#{container_id} .dataTables_wrapper .dataTables_paginate .paginate_button,
+#{container_id} .dataTables_wrapper .dataTables_paginate .paginate_button.disabled {{
+    color: inherit !important;
+}}
+#{container_id} table.dataTable thead th,
+#{container_id} table.dataTable tbody td {{
+    border-color: var(--dmp-hover-background);
 }}
 
 /* Responsive adjustments for different drawer locations */
@@ -2339,7 +2360,6 @@ await datamap.addSelectionHandler(exportCallback);
         container_id = self._widgets[0].get_container_id()
         return f"""
 #{container_id} {{
-    padding: 12px;
     min-width: 200px;
 }}
 
@@ -2351,51 +2371,32 @@ await datamap.addSelectionHandler(exportCallback);
 }}
 
 .export-select {{
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: white;
-    font-size: 12px;
+    font-size: var(--dmp-small-font-size);
 }}
 
 .export-button {{
-    padding: 6px 16px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 4px;
+    padding: 4px 16px;
+    border: 1px solid var(--dmp-accent-color);
+    border-radius: var(--dmp-control-radius);
+    background-color: var(--dmp-accent-color);
+    color: var(--dmp-accent-text-color);
     cursor: pointer;
-    font-size: 12px;
-    font-weight: bold;
+    font-size: var(--dmp-small-font-size);
 }}
 
 .export-button:hover:not(:disabled) {{
-    background-color: #45a049;
+    filter: brightness(1.1);
 }}
 
 .export-button:disabled {{
-    background-color: #cccccc;
-    color: #666666;
+    opacity: 0.4;
     cursor: not-allowed;
 }}
 
 .export-info {{
-    font-size: 11px;
-    color: #666;
+    font-size: var(--dmp-small-font-size);
+    color: var(--dmp-text-muted-color);
     font-style: italic;
-}}
-
-/* Dark mode support */
-.darkmode .export-select,
-body.darkmode .export-select {{
-    background-color: #2d2d2d;
-    color: #e0e0e0;
-    border-color: #555;
-}}
-
-.darkmode .export-info,
-body.darkmode .export-info {{
-    color: #aaa;
 }}
 """
 
@@ -2710,10 +2711,6 @@ await datamap.addSelectionHandler(statsCallback);
     def css(self):
         container_id = self._widgets[0].get_container_id()
         return f"""
-#{container_id} {{
-    padding: 12px;
-}}
-
 .stats-content {{
     max-height: 50vh;
     overflow-y: auto;
@@ -2724,36 +2721,20 @@ await datamap.addSelectionHandler(statsCallback);
 }}
 
 .stats-section-title {{
-    font-weight: bold;
-    font-size: 12px;
-    color: #4CAF50;
+    font-weight: var(--dmp-heading-weight);
     margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: var(--dmp-divider);
 }}
 
 .stats-item {{
-    font-size: 11px;
+    font-size: var(--dmp-small-font-size);
     padding: 3px 0;
-    color: #444;
+    color: var(--dmp-text-muted-color);
 }}
 
 .stats-item strong {{
-    color: #000;
-}}
-
-/* Dark mode support */
-.darkmode .stats-section-title,
-body.darkmode .stats-section-title {{
-    color: #5FD068;
-}}
-
-.darkmode .stats-item,
-body.darkmode .stats-item {{
-    color: #ccc;
-}}
-
-.darkmode .stats-item strong,
-body.darkmode .stats-item strong {{
-    color: #fff;
+    color: var(--dmp-text-color);
 }}
 """
 
@@ -3741,7 +3722,7 @@ function renderNumericHistogram(g, values) {{
             .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
             .attr("y", d => y(d.count))
             .attr("height", d => chartHeight - y(d.count))
-            .attr("fill", "#ddd")
+            .style("fill", "var(--dmp-text-muted-color)")
             .attr("opacity", 0.5);
     }}
     
@@ -3754,7 +3735,7 @@ function renderNumericHistogram(g, values) {{
         .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
         .attr("y", d => y(d.count))
         .attr("height", d => chartHeight - y(d.count))
-        .attr("fill", "#4CAF50");
+        .style("fill", "var(--dmp-accent-color)");
     
     // Axes
     g.append("g")
@@ -3825,7 +3806,7 @@ function renderCategoricalChart(g, values) {{
             .attr("width", x.bandwidth())
             .attr("y", d => y(d.globalCount || 0))
             .attr("height", d => chartHeight - y(d.globalCount || 0))
-            .attr("fill", "#ddd")
+            .style("fill", "var(--dmp-text-muted-color)")
             .attr("opacity", 0.5);
     }}
     
@@ -3838,7 +3819,7 @@ function renderCategoricalChart(g, values) {{
         .attr("width", x.bandwidth())
         .attr("y", d => y(d.count))
         .attr("height", d => chartHeight - y(d.count))
-        .attr("fill", "#4CAF50");
+        .style("fill", "var(--dmp-accent-color)");
     
     // Axes
     g.append("g")
@@ -3903,14 +3884,15 @@ if (datamap.metaData) {{
         return f"""
 #{container_id} {{
     width: {self.width}px;
-    padding: 12px;
     overflow: visible;
 }}
 
 .histogram-title {{
-    font-weight: bold;
-    font-size: 14px;
+    font-weight: var(--dmp-heading-weight);
+    font-size: 1.1em;
     margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: var(--dmp-divider);
 }}
 
 .histogram-controls {{
@@ -3923,21 +3905,13 @@ if (datamap.metaData) {{
 .histogram-select {{
     flex: 1;
     min-width: 120px;
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: white;
-    font-size: 12px;
+    font-size: var(--dmp-small-font-size);
 }}
 
 .histogram-mode-select {{
     flex: 0 0 auto;
     min-width: 130px;
-    padding: 4px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    background-color: white;
-    font-size: 12px;
+    font-size: var(--dmp-small-font-size);
 }}
 
 .histogram-chips {{
@@ -3981,13 +3955,11 @@ if (datamap.metaData) {{
 }}
 
 .histogram-warning {{
-    padding: 6px 10px;
-    background-color: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 4px;
-    font-size: 11px;
+    padding-left: 8px;
+    border-left: 3px solid currentColor;
+    font-size: var(--dmp-small-font-size);
     margin-bottom: 8px;
-    color: #856404;
+    color: var(--dmp-text-muted-color);
 }}
 
 .histogram-svg-wrapper {{
@@ -4000,36 +3972,7 @@ if (datamap.metaData) {{
 }}
 
 .histogram-svg text {{
-    fill: #333;
-}}
-
-/* Dark mode support */
-.darkmode .histogram-select,
-body.darkmode .histogram-select,
-.darkmode .histogram-mode-select,
-body.darkmode .histogram-mode-select {{
-    background-color: #2d2d2d;
-    color: #e0e0e0;
-    border-color: #555;
-}}
-
-.darkmode .histogram-warning,
-body.darkmode .histogram-warning {{
-    background-color: #3d3520;
-    border-color: #8a6d3b;
-    color: #f0e68c;
-}}
-
-.darkmode .histogram-svg text,
-body.darkmode .histogram-svg text {{
-    fill: #e0e0e0;
-}}
-
-.darkmode .histogram-svg .domain,
-body.darkmode .histogram-svg .domain,
-.darkmode .histogram-svg line,
-body.darkmode .histogram-svg line {{
-    stroke: #666;
+    fill: currentColor;
 }}
 """
 

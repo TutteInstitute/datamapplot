@@ -317,15 +317,13 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
     # Title widget
     if kwargs.get("title") is not None:
         widgets.append(
+            # The font, weight and colours come from the plot's theme, as they
+            # did for the legacy title.
             TitleWidget(
                 title=kwargs["title"],
-                sub_title=kwargs.get("sub_title", ""),
-                title_font_family=kwargs.get("font_family", "Roboto"),
+                sub_title=kwargs.get("sub_title") or "",
                 title_font_size=kwargs.get("title_font_size", 36),
                 sub_title_font_size=kwargs.get("sub_title_font_size", 18),
-                title_font_weight=kwargs.get("font_weight", 600),
-                title_font_color=kwargs.get("title_font_color", "#000000"),
-                sub_title_font_color=kwargs.get("sub_title_font_color", "#666666"),
             )
         )
 
@@ -377,6 +375,11 @@ def widgets_from_legacy_params(**kwargs) -> List[WidgetBase]:
                 ),
                 histogram_log_scale=histogram_settings.get(
                     "histogram_log_scale", False
+                ),
+                histogram_group_datetime_by=kwargs.get("histogram_group_datetime_by"),
+                histogram_range=kwargs.get("histogram_range"),
+                histogram_enable_click_persistence=kwargs.get(
+                    "histogram_enable_click_persistence", False
                 ),
             )
         )
@@ -679,6 +682,8 @@ def collect_widget_data(widgets):
                         "bin_unselected_fill_color": widget.histogram_bin_unselected_fill_color,
                         "bin_context_fill_color": widget.histogram_bin_context_fill_color,
                         "log_scale": widget.histogram_log_scale,
+                        "group_datetime_by": widget.histogram_group_datetime_by,
+                        "range": widget.histogram_range,
                     },
                 }
             )
@@ -749,13 +754,16 @@ def encode_widget_data(widget_data, point_data_length):
             bin_data, index_data = prepare_histogram_data(
                 histogram_series,
                 histogram_n_bins=bin_count,
-                histogram_group_datetime_by=None,  # Could be added to widget params
-                histogram_range=None,  # Could be added to widget params
+                histogram_group_datetime_by=hist["settings"].get("group_datetime_by"),
+                histogram_range=hist["settings"].get("range"),
             )
 
-            # Format for D3Histogram - it expects {rawBinData, rawIndexData}
+            # Format for D3Histogram - it expects {rawBinData, rawIndexData}.
+            # Serialised as the legacy path does, so datetime bins become ISO strings.
             encoded["histograms"][hist["widget_id"]] = {
-                "rawBinData": bin_data.to_dict(orient="records"),
+                "rawBinData": json.loads(
+                    bin_data.to_json(orient="records", date_format="iso", date_unit="s")
+                ),
                 "rawIndexData": index_data.tolist(),  # Series.tolist() returns list of bin IDs
             }
     if widget_data["colormaps"]:

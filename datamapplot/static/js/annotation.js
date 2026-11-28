@@ -36,7 +36,7 @@ class TextAnnotation extends Annotation {
         this.color = options.color || '#000000';
         this.size = options.size || 14;                    // base font size (px)
         this.fontWeight = options.fontWeight || 'normal';
-        this.fontFamily = options.fontFamily || 'Arial, sans-serif';
+        this.fontFamily = options.fontFamily || 'sans-serif';
         this.backgroundColor = options.backgroundColor || null;
         this.padding = options.padding || 4;
         this.createdAtZoom = options.createdAtZoom || null; // zoom level when created
@@ -113,6 +113,10 @@ class AnnotationWidget {
         this.containerId = containerId;
         this.config = config;
         this.datamap = datamap;
+        // Text follows the page (the plot's font and theme colour) unless set.
+        const page = getComputedStyle(document.body);
+        this.config.defaults.text_color = this.config.defaults.text_color || page.color;
+        this.config.defaults.font_family = this.config.defaults.font_family || page.fontFamily;
 
         // State
         this.annotations = [];
@@ -477,6 +481,7 @@ class AnnotationWidget {
         this.addAnnotation(new TextAnnotation(null, position, text, {
             color: this.config.defaults.text_color,
             size: this.config.defaults.text_size,
+            fontFamily: this.config.defaults.font_family,
             createdAtZoom: this._getCurrentZoom(),
         }));
     }

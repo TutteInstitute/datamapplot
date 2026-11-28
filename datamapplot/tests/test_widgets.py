@@ -125,6 +125,11 @@ class TestSearchWidget:
         widget = SearchWidget()
         assert 'type="search"' in widget.html
 
+    def test_filter_labels_checkbox(self):
+        """The "Filter labels" checkbox (as in legacy search) can be turned off."""
+        assert 'id="filter-labels-checkbox"' in SearchWidget().html
+        assert "filter-labels" not in SearchWidget(show_filter_labels=False).html
+
 
 class TestWidgetConfig:
     """Tests for the WidgetConfig dataclass."""
@@ -280,6 +285,18 @@ class TestWidgetsFromLegacyParams:
         )
         assert len(widgets) == 3
 
+    def test_legacy_histogram_options(self):
+        """Datetime grouping, range and click persistence reach the widget."""
+        (widget,) = widgets_from_legacy_params(
+            histogram_data=[1, 2, 3],
+            histogram_group_datetime_by="month",
+            histogram_range=(1, 2),
+            histogram_enable_click_persistence=True,
+        )
+        assert widget.histogram_group_datetime_by == "month"
+        assert widget.histogram_range == (1, 2)
+        assert widget.histogram_enable_click_persistence is True
+
 
 class TestGroupWidgetsByLocation:
     """Tests for grouping widgets by location."""
@@ -396,38 +413,62 @@ class TestCollectWidgetDependencies:
         assert "https://cdn.example.com/d3.js" in deps["external_js"]
 
 
-class TestTitleWidgetDarkmode:
-    """Tests for TitleWidget darkmode support."""
+class TestTitleWidgetStyle:
+    """TitleWidget inherits the plot's font and theme colours unless told otherwise."""
 
-    def test_title_widget_lightmode_default_colors(self):
-        """Test that lightmode uses dark text colors."""
-        widget = TitleWidget(title="Test", darkmode=False)
-        assert widget.title_font_color == "#000000"
-        assert widget.sub_title_font_color == "#666666"
+    def test_inherits_by_default(self):
+        """Only the sizes are set inline; font, weight and colours inherit."""
+        html = TitleWidget(title="Test", sub_title="Sub").html
+        assert 'style="font-size:36pt"' in html
+        assert 'style="font-size:18pt"' in html
+        assert "font-family" not in html and "font-weight" not in html
+        assert "color:" not in html
 
-    def test_title_widget_darkmode_default_colors(self):
-        """Test that darkmode uses light text colors."""
-        widget = TitleWidget(title="Test", darkmode=True)
-        assert widget.title_font_color == "#ffffff"
-        assert widget.sub_title_font_color == "#aaaaaa"
-
-    def test_title_widget_explicit_colors_override_darkmode(self):
-        """Test that explicit colors override darkmode defaults."""
-        widget = TitleWidget(
+    def test_explicit_settings(self):
+        html = TitleWidget(
             title="Test",
-            darkmode=True,
+            sub_title="Sub",
+            title_font_family="Cinzel",
+            title_font_weight=700,
             title_font_color="#ff0000",
             sub_title_font_color="#00ff00",
-        )
-        assert widget.title_font_color == "#ff0000"
-        assert widget.sub_title_font_color == "#00ff00"
+        ).html
+        assert "font-family:Cinzel;font-size:36pt;font-weight:700;color:#ff0000" in html
+        assert "font-family:Cinzel;font-size:18pt;color:#00ff00" in html
 
-    def test_title_widget_html_uses_correct_colors(self):
-        """Test that HTML output contains the correct color values."""
-        widget = TitleWidget(title="Test", sub_title="Sub", darkmode=True)
-        html = widget.html
-        assert "color:#ffffff" in html
-        assert "color:#aaaaaa" in html
+    def test_darkmode_is_deprecated(self):
+        """Per-widget darkmode warns (widgets follow the plot), for any widget."""
+        with pytest.warns(FutureWarning, match="darkmode parameter of TitleWidget"):
+            widget = TitleWidget(title="Test", darkmode=True)
+        assert "color:" not in widget.html
+        with pytest.warns(FutureWarning, match="darkmode parameter of MiniMapWidget"):
+            MiniMapWidget(darkmode=True)
+
+    def test_configured_darkmode_does_not_warn(self):
+        """A plot darkmode set in the user's config is not passed to widgets."""
+        import warnings
+        from datamapplot.config import ConfigManager
+
+        config = ConfigManager()
+        saved = dict(config._config)
+        config._config["darkmode"] = True
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", FutureWarning)
+                widgets_from_legacy_params(title="T")
+                TitleWidget(title="T")
+        finally:
+            config._config.clear()
+            config._config.update(saved)
+
+    def test_legacy_title_follows_theme(self):
+        """The legacy title keeps its look: theme font and colours, normal weight."""
+        (widget,) = widgets_from_legacy_params(
+            title="T", font_family="Cinzel", font_weight=600, title_font_color="#000000"
+        )
+        assert widget.title_font_family is None
+        assert widget.title_font_weight is None
+        assert widget.title_font_color is None
 
 
 class TestLogoWidget:
@@ -629,52 +670,25 @@ class TestWidgetHtmlRendering:
         assert "▶" in html_content  # Left drawer arrow
         assert "◀" in html_content  # Right drawer arrow
 
-    def test_title_widget_darkmode_colors_in_html(
-        self, simple_point_data, simple_label_data
+    @pytest.mark.parametrize("darkmode, color", [(True, "#ffffff"), (False, "#000000")])
+    def test_title_widget_colors_follow_plot(
+        self, simple_point_data, simple_label_data, darkmode, color
     ):
-        """Test that TitleWidget uses correct colors in darkmode."""
+        """The title takes its colour from the plot's theme, light or dark."""
         from datamapplot.interactive_rendering import render_html
-
-        widgets = [
-            TitleWidget(title="Dark Title", darkmode=True, location="top-left"),
-        ]
 
         html_content = render_html(
             simple_point_data,
             simple_label_data,
-            inline_data=True,
-            darkmode=True,
-            widgets=widgets,
+            darkmode=darkmode,
+            widgets=[TitleWidget(title="Themed Title")],
         )
+        assert f"--dmp-text-color: {color};" in html_content
+        assert "color: var(--dmp-text-color)" in html_content
+        assert "Themed Title" in html_content
 
-        # Title should have white color in darkmode
-        assert "color:#ffffff" in html_content
-        assert "Dark Title" in html_content
-
-    def test_title_widget_lightmode_colors_in_html(
-        self, simple_point_data, simple_label_data
-    ):
-        """Test that TitleWidget uses correct colors in lightmode."""
-        from datamapplot.interactive_rendering import render_html
-
-        widgets = [
-            TitleWidget(title="Light Title", darkmode=False, location="top-left"),
-        ]
-
-        html_content = render_html(
-            simple_point_data,
-            simple_label_data,
-            inline_data=True,
-            darkmode=False,
-            widgets=widgets,
-        )
-
-        # Title should have black color in lightmode
-        assert "color:#000000" in html_content
-        assert "Light Title" in html_content
-
-    def test_drawer_darkmode_css_present(self, simple_point_data, simple_label_data):
-        """Test that drawer darkmode CSS rules are included."""
+    def test_drawer_follows_theme(self, simple_point_data, simple_label_data):
+        """Drawers take their colours from the widget theme, so follow darkmode."""
         from datamapplot.interactive_rendering import render_html
 
         widgets = [
@@ -689,8 +703,11 @@ class TestWidgetHtmlRendering:
             widgets=widgets,
         )
 
-        # Should include darkmode CSS rules for drawer
-        assert "body.darkmode .drawer-container" in html_content
+        import re
+
+        # Dependency CSS is minified.
+        assert re.search(r"background:\s*var\(--dmp-panel-background-opaque\)", html_content)
+        assert "--dmp-panel-background-opaque: #1c1c1cee;" in html_content
 
     def test_multiple_widgets_different_locations(
         self, simple_point_data, simple_label_data
@@ -719,6 +736,89 @@ class TestWidgetHtmlRendering:
         assert "top-left" in html_content
         assert "drawer-left" in html_content
         assert "bottom-right" in html_content
+
+    def test_widgets_by_default(self, simple_point_data, simple_label_data):
+        """Legacy parameters build widgets unless use_widgets=False (deprecated)."""
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data, simple_label_data, title="Default", enable_search=True
+        )
+        assert 'class="title-text"' in html_content  # TitleWidget
+        assert 'id="search-container" class="container-box">' in html_content
+
+        with pytest.warns(FutureWarning, match="use_widgets=False is deprecated"):
+            legacy = render_html(
+                simple_point_data, simple_label_data, title="Legacy", use_widgets=False
+            )
+        assert 'class="title-text"' not in legacy
+
+    def test_histogram_widget_with_dates(
+        self, simple_point_data, simple_label_data, pandas_datetimes
+    ):
+        """Datetime histograms render in widget mode, binned as requested."""
+        import re
+        import pandas as pd
+        from datamapplot.interactive_rendering import render_html
+
+        dates = pd.Series(pd.date_range("2019-01-01", periods=50, freq="30D"))
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            widgets=[
+                HistogramWidget(
+                    histogram_data=dates,
+                    histogram_group_datetime_by="year",
+                    histogram_enable_click_persistence=True,
+                )
+            ],
+        )
+        widget_data = json.loads(
+            re.search(r"const widgetData = (\{.*?\});\n", html_content).group(1)
+        )
+        bins = widget_data["histograms"]["d3histogram"]["rawBinData"]
+        assert len(bins) == dates.dt.year.nunique()
+        assert bins[0]["min_value"].startswith("2019-01-01")
+        assert "enableClickPersistence: true" in html_content
+
+    def test_local_logo_embedded(self, simple_point_data, simple_label_data):
+        """Local (file://) logos are embedded, as in legacy rendering."""
+        from pathlib import Path
+        from datamapplot.interactive_rendering import render_html
+
+        logo = (Path(__file__).parents[2] / "doc" / "datamapplot_logo_rtd.png").as_uri()
+        for kwargs in ({"logo": logo}, {"widgets": [LogoWidget(logo=logo)]}):
+            html_content = render_html(simple_point_data, simple_label_data, **kwargs)
+            assert 'src="data:image/png;base64,' in html_content
+            assert logo not in html_content
+
+    def test_handler_script_after_custom_js(self):
+        """Custom JS without a trailing newline stays separate from handler scripts."""
+        from datamapplot.interactive_helpers import prepare_selection_handler
+        from datamapplot.selection_handlers import DisplaySample
+
+        _, custom_js, _, _ = prepare_selection_handler(
+            DisplaySample(), None, "console.log('hi')", None
+        )
+        assert "console.log('hi')\ntry {" in custom_js
+
+    def test_logo_widget_stays_in_its_stack(self, simple_point_data, simple_label_data):
+        """A logo stacks with the other bottom-right widgets instead of floating under them."""
+        import re
+        from datamapplot.interactive_rendering import render_html
+
+        html_content = render_html(
+            simple_point_data,
+            simple_label_data,
+            logo="https://example.com/logo.png",
+            widgets=[MiniMapWidget(), LogoWidget(logo="https://example.com/logo.png")],
+        )
+        stack = re.search(
+            r'<div class="stack bottom-right">(.*?)\n    </div>', html_content, re.S
+        ).group(1)
+        assert 'id="logo-container"' in stack and 'id="minimap-container"' in stack
+        # The legacy logo's absolute positioning must not apply to the widget.
+        assert not re.search(r"#logo-container \{\s*position: absolute", html_content)
 
 
 # ============================================================
@@ -1161,13 +1261,14 @@ class TestMiniMapWidget:
         assert "200" in js
 
     def test_default_styling(self):
-        """Test default styling values."""
+        """Colours default to the theme (left to the browser), so they follow darkmode."""
         widget = MiniMapWidget()
-        assert widget.border_color == "#3ba5e7"
+        assert widget.border_color is None
         assert widget.border_width == 2
-        assert widget.background_color == "#f5f5f5"
-        assert widget.point_color == "#666666"
+        assert widget.background_color is None
+        assert widget.point_color is None
         assert widget.point_size == 2
+        assert "borderColor: null" in widget.javascript
 
 
 class TestRESTSearchWidget:
@@ -1303,7 +1404,7 @@ class TestAnnotationWidget:
         assert widget.allow_arrows is True
         assert widget.allow_circles is True
         assert widget.allow_rectangles is True
-        assert widget.default_text_color == "#000000"
+        assert widget.default_text_color is None  # the theme text colour
         assert widget.default_text_size == 14
         assert widget.default_stroke_color == "#FF0000"
         assert widget.default_stroke_width == 2
@@ -2227,3 +2328,63 @@ class TestResizableSystem:
         js = DataTable(resizable=True).javascript
         assert "addEventListener('widgetresize', fitTableToContainer)" in js
         assert "data-table-container-content" in js
+
+
+class TestWidgetTheme:
+    """The theme shared by widgets: CSS custom properties from the plot's settings."""
+
+    def test_follows_plot_settings(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        light = get_widget_theme(get_style_config(False), "Playfair Display")
+        dark = get_widget_theme(get_style_config(True), "Playfair Display")
+        assert light["--dmp-font-family"] == '"Playfair Display"'
+        assert light["--dmp-text-color"] == "#000000"
+        assert dark["--dmp-text-color"] == "#ffffff"
+        assert dark["--dmp-panel-background"] != light["--dmp-panel-background"]
+
+    def test_overrides(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        theme = get_widget_theme(
+            get_style_config(False),
+            "Roboto",
+            {"accent_color": "#e15759", "panel_background": "#202020cc", "panel_radius": 4},
+        )
+        assert theme["--dmp-accent-color"] == "#e15759"
+        assert theme["--dmp-panel-radius"] == "4"
+        # Drawers and dropdowns follow an overridden panel background.
+        assert theme["--dmp-panel-background-opaque"] == "#202020ee"
+
+    def test_font_family_quoting(self):
+        """Family names are quoted (for names like "Source Sans 3"); generic ones aren't."""
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        theme = lambda font: get_widget_theme(get_style_config(False), font)["--dmp-font-family"]
+        assert theme("Source Sans 3") == '"Source Sans 3"'
+        assert theme("sans-serif") == "sans-serif"
+        assert theme("Arial, sans-serif") == "Arial, sans-serif"
+
+    def test_unknown_setting(self):
+        from datamapplot.interactive_helpers import get_style_config, get_widget_theme
+
+        with pytest.raises(ValueError, match="accent.*Valid settings are"):
+            get_widget_theme(get_style_config(False), "Roboto", {"accent": "red"})
+
+    def test_rendered_on_root(self):
+        import re
+        import pandas as pd
+        from datamapplot.interactive_rendering import render_html
+
+        points = pd.DataFrame(
+            {"x": [0.0, 1.0], "y": [0.0, 1.0], "r": [0, 0], "g": [0, 0], "b": [0, 0],
+             "a": [255, 255], "hover_text": ["a", "b"]}
+        ).astype({c: "uint8" for c in "rgba"})
+        labels = pd.DataFrame(
+            {"x": [0.5], "y": [0.5], "r": [0], "g": [0], "b": [0], "a": [255],
+             "label": ["L"], "size": [10.0]}
+        ).astype({c: "uint8" for c in "rgba"})
+        html = render_html(points, labels, widget_theme={"accent_color": "#e15759"})
+        root = re.search(r":root \{(.*?)\}", html, re.S).group(1)
+        assert "--dmp-accent-color: #e15759;" in root
+        assert "font-family: var(--dmp-font-family)" in html

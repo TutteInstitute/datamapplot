@@ -28,8 +28,8 @@
     height: 24px;
     padding: 0;
     border: none;
-    border-radius: 6px;
-    background: rgba(128, 128, 128, 0.15);
+    border-radius: var(--dmp-control-radius);
+    background: var(--dmp-hover-background);
     color: inherit;
     font-size: 0.85em;
     cursor: pointer;
@@ -52,7 +52,6 @@
 
 .collapse-overlay-btn:hover {
     opacity: 1 !important;
-    background: rgba(128, 128, 128, 0.3);
 }
 
 /* Hide overlay button when collapsed */
@@ -74,9 +73,8 @@
 
 .collapsible-header .collapsible-title {
     font-size: 0.9em;
-    font-weight: 500;
+    font-weight: var(--dmp-heading-weight);
     line-height: 1.2;
-    opacity: 0.85;
 }
 
 .collapsible-header .collapse-chevron {
@@ -111,7 +109,7 @@
     margin: 8px 0;
     width: 100%;
     box-sizing: border-box;
-    border-radius: 16px;
+    border-radius: var(--dmp-panel-radius);
 }
 
 /* --- Responsive --- */

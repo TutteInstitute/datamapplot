@@ -1,12 +1,6 @@
 /* Histogram's container */
 #d3histogram-container {
     position: relative;
-    /* position: absolute; */
-    /* bottom: 0; */
-    /* left: 0; */
-    margin: 16px;
-    padding: 12px;
-    border-radius: 16px;
     z-index: 2;
 }
 
@@ -16,6 +10,7 @@
     position: absolute;
     top: 5px;
     font-size: small;
+    font-weight: var(--dmp-heading-weight);
 }
 #d3histogram-subtitle {
     right: 15px;
@@ -34,7 +29,7 @@
 
 /* Histogram's interaction container */
 #d3histogram-interactioncontainer > .selection {
-    fill: #c2c2c2;
-    stroke: #cecece;
+    fill: var(--dmp-hover-background);
+    stroke: var(--dmp-text-muted-color);
     stroke-width: 0.5;
 }

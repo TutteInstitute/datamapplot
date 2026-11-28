@@ -4,9 +4,10 @@
     position: fixed;
     top: 0;
     height: 100vh;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(6px);
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+    background: var(--dmp-panel-background-opaque);
+    backdrop-filter: blur(calc(2 * var(--dmp-panel-blur)));
+    box-shadow: var(--dmp-panel-shadow);
+    color: var(--dmp-text-color);
     z-index: 100;
     overflow-y: auto;
     overflow-x: hidden;
@@ -23,7 +24,7 @@
 .drawer-left {
     left: 0;
     transform: translateX(-100%);
-    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    border-right: var(--dmp-divider);
 }
 
 .drawer-left.open {
@@ -34,7 +35,7 @@
 .drawer-right {
     right: 0;
     transform: translateX(100%);
-    border-left: 1px solid rgba(0, 0, 0, 0.1);
+    border-left: var(--dmp-divider);
 }
 
 .drawer-right.open {
@@ -51,7 +52,7 @@
     height: 350px !important;
     max-height: 50vh !important;
     transform: translateY(100%);
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: var(--dmp-divider);
     top: auto !important;
     border-right: none;
     border-left: none;
@@ -75,9 +76,10 @@
     transform: translateY(-50%);
     width: 32px;
     height: 80px;
-    background: rgba(255, 255, 255, 0.9);
-    backdrop-filter: blur(3px);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: var(--dmp-panel-background-opaque);
+    backdrop-filter: blur(var(--dmp-panel-blur));
+    border: var(--dmp-divider);
+    box-shadow: var(--dmp-panel-shadow);
     cursor: pointer;
     z-index: 101;
     display: flex;
@@ -85,14 +87,13 @@
     justify-content: center;
     transition: background 0.2s ease, left 0.3s ease-in-out, right 0.3s ease-in-out;
     font-size: 18px;
-    color: #333;
+    color: var(--dmp-text-muted-color);
     user-select: none;
     pointer-events: auto;
 }
 
 .drawer-handle:hover {
-    background: rgba(255, 255, 255, 1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    color: var(--dmp-text-color);
 }
 
 .drawer-handle:active {
@@ -207,67 +208,16 @@
 }
 
 .drawer-container::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 4px;
+    background: transparent;
 }
 
 .drawer-container::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--dmp-hover-background);
     border-radius: 4px;
 }
 
 .drawer-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
-}
-
-/* Dark mode support - using explicit class instead of media query */
-/* Applied via body.darkmode or .darkmode parent class */
-.darkmode .drawer-container,
-body.darkmode .drawer-container {
-    background: rgba(30, 30, 30, 0.95);
-    border-color: rgba(255, 255, 255, 0.1);
-}
-
-.darkmode .drawer-left,
-body.darkmode .drawer-left {
-    border-right-color: rgba(255, 255, 255, 0.1);
-}
-
-.darkmode .drawer-right,
-body.darkmode .drawer-right {
-    border-left-color: rgba(255, 255, 255, 0.1);
-}
-
-.darkmode .drawer-bottom,
-body.darkmode .drawer-bottom {
-    border-top-color: rgba(255, 255, 255, 0.1);
-}
-
-.darkmode .drawer-handle,
-body.darkmode .drawer-handle {
-    background: rgba(40, 40, 40, 0.9);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #ddd;
-}
-
-.darkmode .drawer-handle:hover,
-body.darkmode .drawer-handle:hover {
-    background: rgba(50, 50, 50, 1);
-}
-
-.darkmode .drawer-container::-webkit-scrollbar-track,
-body.darkmode .drawer-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.darkmode .drawer-container::-webkit-scrollbar-thumb,
-body.darkmode .drawer-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.darkmode .drawer-container::-webkit-scrollbar-thumb:hover,
-body.darkmode .drawer-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--dmp-text-muted-color);
 }
 
 /* Responsive adjustments for smaller screens */
