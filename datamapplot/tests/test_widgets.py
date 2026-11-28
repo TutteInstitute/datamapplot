@@ -753,7 +753,9 @@ class TestWidgetHtmlRendering:
             )
         assert 'class="title-text"' not in legacy
 
-    def test_histogram_widget_with_dates(self, simple_point_data, simple_label_data):
+    def test_histogram_widget_with_dates(
+        self, simple_point_data, simple_label_data, pandas_datetimes
+    ):
         """Datetime histograms render in widget mode, binned as requested."""
         import re
         import pandas as pd

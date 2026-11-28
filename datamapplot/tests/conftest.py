@@ -1,3 +1,6 @@
+import functools
+import subprocess
+import sys
 import io
 import pytest
 from pathlib import Path
@@ -126,3 +129,19 @@ def html_dir(request):
     return Path(request.fspath).parent / "html"
 
 
+
+
+@functools.lru_cache(maxsize=None)
+def _pandas_datetimes_work():
+    # pandas 2.x built for Python 3.15 segfaults on datetime64 data, which would
+    # take down the whole test run, so check in a separate process.
+    code = "import pandas as pd; pd.Series(pd.date_range('2020-01-01', periods=3))"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, timeout=300)
+    return result.returncode == 0
+
+
+@pytest.fixture
+def pandas_datetimes():
+    """Skip the test if this pandas can't handle datetime data."""
+    if not _pandas_datetimes_work():
+        pytest.skip("pandas crashes on datetime data in this environment")

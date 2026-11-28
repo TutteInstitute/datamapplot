@@ -19,7 +19,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 import datamapplot
 from datamapplot.selection_handlers import DisplaySample, ExportSelection, Histogram
@@ -65,10 +64,10 @@ def synthetic_data(n=3000, seed=0):
     hover_text = np.array(
         [f"Paper {i}: a study in {fine[i].lower()}" for i in range(n)], dtype=object
     )
-    published = pd.Series(
-        pd.to_datetime("2015-01-01")
-        + pd.to_timedelta(rng.integers(0, 365 * 10, size=n), unit="D")
-    )
+    # Publication years as numbers rather than datetimes: pandas 2.x built for
+    # Python 3.15 crashes on datetime data, and the gallery must render the
+    # same everywhere (datetime histograms have their own tests).
+    published = 2015 + rng.integers(0, 10, size=n)
     citations = np.round(rng.lognormal(mean=2.0, sigma=1.2, size=n))
     return data_map, [fine, coarse], hover_text, published, coarse, citations
 
@@ -88,7 +87,7 @@ def gallery_widgets(published, coarse, citations):
             colormaps={
                 "Field": coarse,
                 "Citations": citations,
-                "Year": published.dt.year.values,
+                "Year": published,
             }
         ),
         datamapplot.HistogramWidget(

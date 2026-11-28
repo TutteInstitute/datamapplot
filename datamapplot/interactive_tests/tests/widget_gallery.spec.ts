@@ -44,8 +44,11 @@ for (const theme of ['light', 'dark']) {
       test.skip(testInfo.project.name.includes('mobile'), 'desktop layout only');
       testInfo.setTimeout(testInfo.timeout + 240_000);
       errors = [];
-      // Headless browsers may time out loading the web font; that is expected.
-      const record = (text: string) => { if (!text.includes('did not load within')) errors.push(text); };
+      // Only widget and page errors count: headless browsers may time out loading
+      // the web font, and CI's headless Firefox has no working WebGL for deck.gl
+      // (the map itself is covered by the other specs).
+      const ignored = /did not load within|deck\.gl|deck:|luma/;
+      const record = (text: string) => { if (!ignored.test(text)) errors.push(text); };
       page.on('pageerror', (e) => record(String(e)));
       page.on('console', (m) => { if (m.type() === 'error') record(m.text()); });
 
